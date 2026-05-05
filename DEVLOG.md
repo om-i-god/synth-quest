@@ -980,3 +980,171 @@ the do-block to avoid main-chunk local-cap pressure)
 - All three Sergei dialogue surfaces updated: the resonator NPC
   (4 conditional branches), the `sergei_resonator_found` STORY scene,
   and the `sergei_tower` STORY scene (now "the chord shares one wire").
+
+---
+
+## Passes 33-56 — massive batch (2026-05-03 through 2026-05-05)
+
+### Sergei rework (33)
+- Sergei is no longer a former Suno collaborator. He built the Old
+  Resonator at 19 as a music-relay; Suno stole the schematic and built
+  the first silencing tower from the same coil. Sergei now studies the
+  wreckage, looking for the shared wire that could undo Suno's chord.
+- Three dialogue surfaces (NPC + 2 STORY scenes) rewritten.
+
+### FF-style battle themes (34)
+- New `BATTLE_THEMES` (global) with `encounter` + `boss` themes.
+- Encounter: warrior 8th-note bass ostinato, cleric 4-bar minor pad
+  progression (i-i-bVII-i), mage staccato melodic line, bard offbeat
+  high stabs.
+- Boss: heavier — quarter-note kick-pulse, 6s-release pad with
+  dissonant 2nd cluster, dramatic mage phrases, menacing bard stabs.
+- `tick_battle_music()` runs every battle tick. Picks `boss` theme
+  on cave-boss visuals, `encounter` otherwise. Skipped for jam dummy.
+- `TITLE.battle_step` resets on `enter_battle` for clean cadence.
+
+### Intro morning-after rework (34)
+- The "intro" STORY scene plays AFTER the first inn rest, so the
+  "I'd call it bedtime" line was nonsense. Rewritten as a morning-after
+  beat: Miel on the first mattress in months, Strom on light sleep,
+  Diegues dreamed the lost chord, Alder caught him humming it,
+  Miel: "Then let's go find it. Together, this time."
+
+### Fern's pier (34)
+- New tile **45 = pier** (walkable wood planks over water).
+- 3-tile pier extends from the lakeshore into the lake on Mainland row 11.
+- Fern moved from (6,11) shore -> (11,11) at the end of the pier, line
+  in the water.
+
+### Difficulty + clipping + delay (35)
+- ENCOUNTER_CHANCE 0.04 -> 0.07.
+- Enemy HP/ATK multipliers applied at battle-start.
+- ARTIC velocity ceilings dropped ~20-25% across the board to fix
+  multi-voice clipping (party action + enemy attack + battle-music
+  ostinato all summing).
+- Per-class delay ceilings + biases in the leftx-stick handler so each
+  voice's delay sits at a polyrhythmically distinct level.
+
+### 4x HP (36) + MIDI input (36)
+- Random + boss enemies spawn at 4x base HP.
+- `midi.connect(1)` in init(); MIDI notes route to the dedicated
+  `CONTENT.midi_voice` (default bard). Knobs (CC 70/71/74/73) drive
+  cutoff/res/wet/dly on the **selected** party voice (follows L1/R1).
+- In JAM mode: 4-voice round-robin polyphony (notes cycle warrior ->
+  cleric -> bard -> mage). JAM mode is silent (no looping music).
+- Tiny MIDI activity dot in top-right corner.
+
+### Stick latches + A-button latch (39-41)
+- L3/R3 (or thumbleft/thumbright/LSTICK/RSTICK aliases) toggle stick FX
+  latches. Latch ON snapshots active voice's FX values and broadcasts
+  to all 4 voices.
+- In JAM mode, **A button** toggles BOTH latches together (one-press
+  freeze-everything). X cycles scale mode (moved off A).
+- MIDI knobs respect latches too.
+
+### Story content (42)
+- 10 new STORY scenes: character pairings (Diegues+Miel book chronicler
+  bond, Alder+Sergei mix-coil tinkering, Strom+Niko drumming wisdom),
+  Crystal-origin lore, Alder writes a song, Miel's faith arc, Vance
+  dread, quiet at the fire, pre-finale night, dawn-of-final scene.
+
+### Bestiary lore (43)
+- 26 enemies each get 2-line BESTIARY_LORE.
+- Bestiary screen: dpad UD scrolls entries, selected entry's lore at
+  bottom.
+
+### Victory quips (44)
+- 3-4 one-liners per class. Active char's quip flashes after victory.
+- Later (56) refactored: now renders as a proper dialogue strip on
+  BATTLE_END with sprite + name + body matching the in-game dialogue
+  style, not a flash banner.
+
+### Rare encounters (45)
+- 4% per-random-battle chance. 6 named variants per cave (Elder Slime,
+  Sage Sentinel, Tideturner, Dune Sovereign, Frostfather, Voidpriest).
+- "* RARE: <name> *" banner. Guaranteed item drop (table-defined).
+
+### In-cave scenes (46)
+- 5 cave-entry STORY scenes (one per Cave 1-5). Tracked via
+  `CONTENT.cave_entered`. Wired through `STORY.play_id(<id>)` so the
+  generic STORY.play doesn't accidentally surface an inn scene at the
+  cave (was a bug — Strom's "out of nowhere" dialogue).
+
+### MPK params menu (47)
+- Per-voice cutoff/res/wet/dly exposed in the norns PARAMS browser
+  with grouped sub-sections (mage/cleric/warrior/bard).
+- MIDI note voice selector. Long-press any param + twist a knob to
+  CC-learn via the standard norns flow.
+
+### Status effects (50)
+- Poison: 1 HP every 6 ticks for 60 ticks. Spawns red damage popup.
+- Sleep: 24-tick ATB freeze.
+- Enemies inflict on hit: 6%/3% on regular, 18%/10% on bosses.
+- Miel's LYRE dispels both. HUD icons P/Z added to status markers.
+
+### Boss phase 2 (51)
+- Bosses at <=30% HP enrage: attack-pattern gaps halved, +25% ATK,
+  one-shot "* <NAME> ENRAGES! *" banner.
+
+### Achievements (52)
+- `unlock_achievement(id, name)` helper + 4 hooks: First Shard, All
+  Seven Cleared, Rare Hunter, First Jam. One-shot flash banners.
+  Persisted in save.
+
+### Visual FX pack (53)
+- Screen shake (translate-jittered frame), particle bursts, footstep
+  dust trail, critical-HP vignette frame.
+- Later toned down: removed crit screen shake (was hurting framerate),
+  removed full-screen hit-flash stipple (too distracting). Kept burst
+  + light enrage shake.
+
+### USB controller banner (55)
+- Title screen flashes "USB Controller Required" when no gamepad is
+  detected. Layered detection: `gamepad.is_connected()`, then
+  `hid.devices` typed gamepad/joystick scan, then a `controller_seen`
+  fallback flag.
+
+### Dialogue overhaul (56)
+- **Two-strip layout**: header (sprite + name + underline at y=27..37)
+  and body (3 lines at y=39..62). Sprite top-aligned, name baseline
+  vertically centered against sprite.
+- **3-line hard cap** per page (was 4-5; "no map" was getting clipped
+  for Pell-style long lines).
+- **`pack_dialogue_lines`**: merges consecutive same-speaker lines
+  into single pages until ~75 chars, so short fragments don't waste
+  whole panels.
+- **NPC sprite resolution**: 3-layer fallback — DLG_NAME_TO_CLASS
+  (party), NPC_SPRITES[name] (NPCs), no sprite.
+- **Speaker prefix strip**: pack-time strip of "<NpcName>:" from each
+  line + render-time safety net for "[Speaker] Speaker: ..." cases,
+  so the name doesn't appear twice.
+- **Char scrubbing**: em-dash `—` -> `--`, en-dash `–` -> `-`, multi-
+  spaces -> single. Previously these rendered as blank slots in Tom
+  Thumb font.
+- **Dialogue rewrite sweep**: 27 NPCs converted from old hand-broken
+  fragments to natural sentences sized for the new packer. Cave NPCs
+  + town NPCs + recruits + antagonists. Mews/Rook left alone (already
+  fine).
+
+### Misc fixes / removes
+- Day/night cycle (Pass 48) removed — density math was inverted,
+  flooded screen with black pixels during transitions.
+- Save slots (Pass 49) reverted — back to single save file.
+- Resume option removed from pause menu (B button does the same).
+- Jam Pad option removed from pause menu (SELECT in overworld still
+  enters jam).
+- Pause menu opens with **X** instead of START.
+- FF7-style menu redesign: party panels (sprite + name + level + HP)
+  on left half, menu list on right half. HP bar removed (was slicing
+  through the HP text).
+- Strom's "Reya would've nodded" quip removed.
+- Diegues' SMPL skill now also heals party 8% + revives KO'd at 15%.
+- Intro cutscene **START to skip** (gamepad START + norns K1).
+- Pause menu fits all entries inside borders (was overflowing).
+- Single save slot only.
+
+### Repo + backups
+- `~/dev/synth-quest/` is now a git repo on `main`, pushed to
+  https://github.com/om-i-god/synth-quest.
+- `backups/` directory holds timestamped `.lua` snapshots after each
+  notable pass; gitignored.
