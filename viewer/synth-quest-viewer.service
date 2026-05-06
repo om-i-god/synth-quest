@@ -1,0 +1,16 @@
+[Unit]
+Description=Synth Quest HDMI viewer
+After=multi-user.target
+
+[Service]
+Type=simple
+User=we
+ExecStart=/usr/bin/python3 /home/we/dust/code/synth-quest/viewer/synth-quest-viewer.py
+Restart=on-failure
+RestartSec=3
+Environment=SDL_VIDEODRIVER=kmsdrm
+# allow access to the framebuffer / DRM nodes
+SupplementaryGroups=video tty input
+
+[Install]
+WantedBy=multi-user.target

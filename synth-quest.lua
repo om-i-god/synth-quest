@@ -6209,6 +6209,21 @@ function init()
     local names = {"bard", "mage", "cleric", "warrior"}
     CONTENT.midi_voice = names[idx]
   end)
+  -- ── HDMI mirror toggle ──
+  -- When ON, ships the OLED contents to a viewer process listening on
+  -- 127.0.0.1:5556 so an attached HDMI monitor shows the game scaled
+  -- up. See viewer/synth-quest-viewer.py for the receiver. Off by
+  -- default — costs zero CPU when not in use.
+  params:add_separator("synth_quest_video", "SYNTH QUEST — video")
+  do
+    local ok, mod = pcall(include, "synth-quest/lib/HDMIMirror")
+    HDMIMirror = ok and mod or nil
+  end
+  params:add_option("hdmi_mirror_p", "HDMI mirror", {"off", "on"}, 1)
+  params:set_action("hdmi_mirror_p", function(idx)
+    if not HDMIMirror then return end
+    if idx == 2 then HDMIMirror.start() else HDMIMirror.stop() end
+  end)
 
   -- ── Pass 36: MIDI input (Akai MPK or any class-compliant controller) ──
   -- Notes are routed to a dedicated voice (default: bard, Alder's lute).
