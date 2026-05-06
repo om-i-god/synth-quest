@@ -1381,7 +1381,7 @@ local last_input = ""
 local last_input_at = 0
 
 -- pause menu
-local MENU_OPTIONS = {"Save Game", "Party Status", "Party", "Items", "Equipment", "Quests", "Bestiary", "Shards", "Jam Pad", "Debug", "Resume"}
+local MENU_OPTIONS = {"Save Game", "Party Status", "Party", "Items", "Equipment", "Quests", "Bestiary", "Shards", "Debug"}
 local menu_idx = 1
 local save_flash_ticks = 0
 local save_flash_text = ""
@@ -2615,7 +2615,7 @@ local MAINLAND_NPCS = {
         return {
           "(her eyes brighten when she sees Diegues)",
           "Academy boy, are you? I read your dean's last paper.",
-          "Brilliant. Wrong about the chord — but brilliant.",
+          "Brilliant. Wrong about the chord -- but brilliant.",
           "Ask me about the seven before you leave.",
         }
       end
@@ -2627,50 +2627,39 @@ local MAINLAND_NPCS = {
         QUESTS.tova.claimed = true
         SHOP.gold = SHOP.gold + 80
         return {
-          "You spoke with Veris. Aurin. Mira.",
-          "And Iolen of the highlands too.",
-          "Each holds a fragment of the chord.",
-          "Together they form the old map.",
-          "Take this — earned, not given.",
+          "You spoke with Veris. Aurin. Mira. And Iolen of the highlands too.",
+          "Each holds a fragment of the chord. Together they form the old map.",
+          "Take this -- earned, not given.",
           "(+80 gold)",
         }
       elseif QUESTS.tova.claimed then
         return {
-          "The map of the seven sings to me",
-          "more clearly now, thanks to you.",
-          "Suno fears the chord most of all.",
-          "Strike one shard, the next rings true.",
+          "The map of the seven sings to me more clearly now, thanks to you.",
+          "Suno fears the chord most of all. Strike one shard, the next rings true.",
         }
       elseif visited > 0 then
         return {
           "You've met " .. visited .. " of the four sages.",
-          "Veris in the Wood. Aurin on the Coast.",
-          "Mira in the Reaches. Iolen in the Wilds.",
-          "Find them all — return to me.",
+          "Veris in the Wood. Aurin on the Coast. Mira in the Reaches. Iolen in the Wilds.",
+          "Find them all -- return to me.",
         }
       end
       if shards.aeolian then
         return {
-          "The Aeolian Shard! Few survive",
-          "the Snowgaunt's keening waltz.",
-          "You bear the lonely song now.",
-          "Two shards still elude us, child.",
+          "The Aeolian Shard! Few survive the Snowgaunt's keening waltz.",
+          "You bear the lonely song now. Two shards still elude us, child.",
         }
       elseif shards.lydian then
         return {
-          "I once charted seven nations.",
-          "Each held a shard. Each fell silent.",
-          "When Suno turned the world quiet,",
-          "I retired to my books. Until now.",
+          "I once charted seven nations. Each held a shard. Each fell silent.",
+          "When Suno turned the world quiet, I retired to my books. Until now.",
           "(Quest: meet the four regional sages.)",
         }
       end
       return {
         "I am Tova. I read the old runes.",
-        "The Crystal Synth was a chord —",
-        "seven notes ringing as one.",
-        "Suno hunts each note alone.",
-        "Find them before they go cold.",
+        "The Crystal Synth was a chord -- seven notes ringing as one.",
+        "Suno hunts each note alone. Find them before they go cold.",
         "(Quest: meet the four regional sages.)",
       }
     end,
@@ -2681,28 +2670,21 @@ local MAINLAND_NPCS = {
     dialogue = function()
       if shards.dorian then
         return {
-          "Two shards. Truly remarkable.",
-          "The Hollow Woods lie quiet now.",
-          "But Suno gathers his armies.",
-          "Five shards remain, scattered.",
+          "Two shards. Truly remarkable. The Hollow Woods lie quiet now.",
+          "But Suno gathers his armies. Five shards remain, scattered.",
           "Press on, heroes.",
         }
       elseif shards.lydian then
         return {
-          "You found the Lydian Shard.",
-          "But Suno hunts six more.",
-          "The Hollow Woods lie east.",
-          "Veris waits within.",
+          "You found the Lydian Shard. But Suno hunts six more.",
+          "The Hollow Woods lie east. Veris waits within.",
           "She knows of the next shard.",
         }
       end
       return {
-        "Travelers from afar?",
-        "Suno's shadow grows.",
-        "He hunts the Crystal Synth,",
-        "shattered when Modalia formed.",
-        "A shard sleeps east in the cave.",
-        "Recover it before he does.",
+        "Travelers from afar? Suno's shadow grows.",
+        "He hunts the Crystal Synth, shattered when Modalia formed.",
+        "A shard sleeps east in the cave. Recover it before he does.",
       }
     end,
   },
@@ -2715,39 +2697,32 @@ local MAINLAND_NPCS = {
         SHOP.gold = SHOP.gold + 200
         SHOP.inv.star = SHOP.inv.star + 1
         return {
-          "Ten road fights. You bring me",
-          "ore-stained metal each time.",
+          "Ten road fights. You bring me ore-stained metal each time.",
           "I melted, I folded, I sang it true.",
-          "Take this — and 200g for the slag.",
+          "Take this -- and 200g for the slag.",
           "(+200 gold, +1 Star)",
         }
       elseif q.claimed then
         return {
           "Anvil's quiet today. Good road work?",
-          "Bring me anything weird from the deeps.",
-          "I always have a forge waiting.",
+          "Bring me anything weird from the deeps. I always have a forge waiting.",
         }
       elseif q.wins > 0 then
         return {
           "Heard you've cleared " .. q.wins .. "/" .. q.target .. " road fights.",
-          "Each one drops slag I can refine.",
-          "Bring me ten, I'll forge you a marvel.",
+          "Each one drops slag I can refine. Bring me ten, I'll forge you a marvel.",
         }
       end
       if shards.mixolydian then
         return {
-          "Hammered all night. Coast steel",
-          "doesn't temper itself, you know.",
-          "Survive ten road fights — I'll forge",
-          "you something worth the breath.",
+          "Hammered all night. Coast steel doesn't temper itself, you know.",
+          "Survive ten road fights -- I'll forge you something worth the breath.",
           "(Quest: 10 random-encounter wins.)",
         }
       end
       return {
-        "Brann. Smith. Don't touch the anvil.",
-        "Adventurers always touch the anvil.",
-        "Survive ten road fights — bring me",
-        "the slag. I'll forge a marvel.",
+        "Brann. Smith. Don't touch the anvil. Adventurers always touch the anvil.",
+        "Survive ten road fights -- bring me the slag. I'll forge a marvel.",
         "(Quest: 10 random-encounter wins.)",
       }
     end,
@@ -2757,47 +2732,35 @@ local MAINLAND_NPCS = {
       local n = 0; for _, v in pairs(shards) do if v then n = n + 1 end end
       if n >= 7 then
         return {
-          "The fountain's singing again!",
-          "Mama said it hadn't sung in years.",
-          "She cried when she heard it.",
-          "Did you bring the songs back?",
+          "The fountain's singing again! Mama said it hadn't sung in years.",
+          "She cried when she heard it. Did you bring the songs back?",
         }
       elseif n >= 4 then
         return {
-          "I tried to sing the Lydian last night.",
-          "Mama said I sounded close.",
-          "She says I'll sing better when",
-          "all the shards come home.",
+          "I tried to sing the Lydian last night. Mama said I sounded close.",
+          "She says I'll sing better when all the shards come home.",
         }
       elseif n >= 1 then
         -- After your first shard but still early
         return {
-          "I heard a humming this morning.",
-          "Mama said the wind sounded different.",
-          "Was that you? Did you find one?",
-          "Keep going! Bring more songs back!",
+          "I heard a humming this morning. Mama said the wind sounded different.",
+          "Was that you? Did you find one? Keep going! Bring more songs back!",
         }
       end
       -- Pre-first-shard: cycle through 3 sets so Pip doesn't repeat the same
       -- line every time you talk to her at the very beginning.
       local variants = {
         {
-          "Hi! I'm Pip.",
-          "Are you the new musicians?",
-          "Mama said you'd come.",
-          "She didn't say when.",
+          "Hi! I'm Pip. Are you the new musicians?",
+          "Mama said you'd come. She didn't say when.",
         },
         {
-          "Have you been to the cave yet?",
-          "I'm not allowed to go.",
-          "Mama says I'm too small.",
-          "But I'm only a LITTLE small.",
+          "Have you been to the cave yet? I'm not allowed to go.",
+          "Mama says I'm too small. But I'm only a LITTLE small.",
         },
         {
-          "The fountain used to sing.",
-          "Now it just gurgles.",
-          "Gurgles aren't songs.",
-          "Bring the songs back, okay?",
+          "The fountain used to sing. Now it just gurgles.",
+          "Gurgles aren't songs. Bring the songs back, okay?",
         },
       }
       return variants[(tick // 60) % #variants + 1]
@@ -2807,20 +2770,14 @@ local MAINLAND_NPCS = {
     dialogue = function()
       if shards.lydian then
         return {
-          "The Lydian song returns!",
-          "I can feel it in the air.",
-          "Each shard you reclaim",
-          "weakens Suno's grip.",
-          "Continue east, brave ones.",
+          "The Lydian song returns! I can feel it in the air.",
+          "Each shard you reclaim weakens Suno's grip. Continue east, brave ones.",
         }
       end
       return {
-        "Greetings, musicians.",
-        "I sing the old chronicles.",
-        "When the Crystal Synth split,",
-        "each shard found a nation.",
-        "Modalia waits for heroes.",
-        "Travel well, friends.",
+        "Greetings, musicians. I sing the old chronicles.",
+        "When the Crystal Synth split, each shard found a nation.",
+        "Modalia waits for heroes. Travel well, friends.",
       }
     end,
   },
@@ -2830,25 +2787,19 @@ local MAINLAND_NPCS = {
       for _, v in pairs(shards) do if v then n = n + 1 end end
       if n >= 6 then
         return {
-          "I sing where the seven once sang.",
-          "Six shards in your hands. One left.",
-          "Suno hoards the Ionian — the bright one.",
-          "Take it. End the silence. End him.",
+          "I sing where the seven once sang. Six shards in your hands. One left.",
+          "Suno hoards the Ionian -- the bright one. Take it. End the silence. End him.",
         }
       elseif n >= 3 then
         return {
-          "Wren. I follow the music wherever",
-          "music still dares to sing.",
+          "Wren. I follow the music wherever music still dares to sing.",
           "Three shards already. Brave troupe.",
-          "When you find the Ionian, the chord",
-          "will ring. We'll all hear it.",
+          "When you find the Ionian, the chord will ring. We'll all hear it.",
         }
       end
       return {
-        "Wren. Wandering minstrel.",
-        "I follow the music, when it lasts.",
-        "The Ionian shard — the seventh —",
-        "is locked in Suno's tower itself.",
+        "Wren. Wandering minstrel. I follow the music, when it lasts.",
+        "The Ionian shard -- the seventh -- is locked in Suno's tower itself.",
         "Six others lie scattered. Find them.",
       }
     end,
@@ -2861,25 +2812,19 @@ local MAINLAND_NPCS = {
         return {
           "(her eyes find Strom's first)",
           "I know that posture. The same rest, the same sword arm.",
-          "You're a soldier still. Be careful here.",
-          "The tide-spawn don't fight by rank.",
+          "You're a soldier still. Be careful here. The tide-spawn don't fight by rank.",
         }
       end
       if shards.mixolydian then
         return {
-          "The Sunward chord rings true.",
-          "I'd never have believed it.",
-          "Three shards reclaimed.",
-          "Four to go, brave hearts.",
-          "Sail on, friends.",
+          "The Sunward chord rings true. I'd never have believed it.",
+          "Three shards reclaimed. Four to go, brave hearts. Sail on, friends.",
         }
       end
       return {
         "I am Aurin, of the Sunward shore.",
-        "The third shard, Mixolydian,",
-        "lies in the sunken cavern east.",
-        "Suno's tide-spawn guard it well.",
-        "The sea has waited for heroes.",
+        "The third shard, Mixolydian, lies in the sunken cavern east.",
+        "Suno's tide-spawn guard it well. The sea has waited for heroes.",
         "Wake the song. Let it sing.",
       }
     end,
@@ -2888,19 +2833,15 @@ local MAINLAND_NPCS = {
     dialogue = function()
       if shards.dorian then
         return {
-          "The Dorian Shard sings again!",
-          "The Sentinel sleeps at last.",
-          "Beyond these woods lies more.",
-          "Other nations need their songs.",
+          "The Dorian Shard sings again! The Sentinel sleeps at last.",
+          "Beyond these woods lies more. Other nations need their songs.",
           "Find them. Save Modalia.",
         }
       end
       return {
         "I am Veris, sage of the Wood.",
-        "The Dorian Shard sleeps deep,",
-        "guarded by the Forest Sentinel.",
-        "Old, vast, and slow to wake.",
-        "But wake it must, in your hands.",
+        "The Dorian Shard sleeps deep, guarded by the Forest Sentinel.",
+        "Old, vast, and slow to wake. But wake it must, in your hands.",
         "The cave lies east of here.",
       }
     end,
@@ -2922,8 +2863,7 @@ local MAINLAND_NPCS = {
       local lead = party[active] and party[active].class
       if CONTENT.recruits[1].joined then
         return {
-          "Sergei: Tidewatch nearly had you.",
-          "I never thought I'd throw a wrench at a god.",
+          "Tidewatch nearly had you. I never thought I'd throw a wrench at a god.",
           "But Suno burned my work. I owed him the favor.",
           "I'm in the roster. Swap me in any time.",
         }
@@ -2931,17 +2871,15 @@ local MAINLAND_NPCS = {
       -- Pre-join: layered backstory based on shard count + class lead
       if lead == "warrior" then
         return {
-          "Sergei: A soldier. Good. Listen —",
-          "this tower was a music-relay. A resonator.",
-          "Carried village songs to villages that had",
-          "stopped singing. Suno took the design.",
-          "Burned the prototype. Built the silencers",
-          "from the same coil. (...still hurts, that.)",
+          "A soldier. Good. Listen -- this tower was a music-relay. A resonator.",
+          "Carried village songs to villages that had stopped singing.",
+          "Suno took the design. Burned the prototype.",
+          "Built the silencers from the same coil. (...still hurts, that.)",
         }
       end
       if n >= 4 then
         return {
-          "Sergei: Four shards. The math's clean now.",
+          "Four shards. The math's clean now.",
           "I've traced the wire backward through the rubble.",
           "His silencers and my resonator share a coil.",
           "If you ring the chord, I can cut his with it.",
@@ -2950,8 +2888,7 @@ local MAINLAND_NPCS = {
       end
       if n >= 2 then
         return {
-          "Sergei: Two shards. Faster than I'd hoped.",
-          "I built this tower when I was nineteen.",
+          "Two shards. Faster than I'd hoped. I built this tower when I was nineteen.",
           "Meant to amplify. To carry songs.",
           "Suno took the schematic and built muzzles.",
           "(...he taps the cracked stone, listens for the hum.)",
@@ -2959,7 +2896,7 @@ local MAINLAND_NPCS = {
         }
       end
       return {
-        "Sergei: You found the Old Resonator.",
+        "You found the Old Resonator.",
         "I built it to carry songs across silenced lands.",
         "Suno burned it. Stole the design. Built worse.",
         "I'm here every dawn. Studying the wreckage.",
@@ -2973,8 +2910,7 @@ local MAINLAND_NPCS = {
       local n = 0; for _, v in pairs(shards) do if v then n = n + 1 end end
       return {
         "(an old woman, watching the lake)",
-        "The water remembers every song that was.",
-        "Even the ones we never finished singing.",
+        "The water remembers every song that was. Even the ones we never finished singing.",
         n >= 4 and "I hear yours in it now. That's new."
               or  "Sing me one, when you have one to sing.",
       }
@@ -2987,37 +2923,32 @@ local MAINLAND_NPCS = {
       if cave_state[5].cleared and not CONTENT.recruits[2].joined then
         CONTENT.recruits[2].joined = true
         return {
-          "The Aeolian Shard. You held it.",
-          "I felt the function resolve.",
-          "I'm coming with you. Not asking — telling.",
+          "The Aeolian Shard. You held it. I felt the function resolve.",
+          "I'm coming with you. Not asking -- telling.",
           "(Paj joined the party. Swap her in from MENU > Party.)",
         }
       elseif CONTENT.recruits[2].joined then
         return {
           "I have my notes. I have my coat.",
-          "I'm in the roster — switch me in any time.",
+          "I'm in the roster -- switch me in any time.",
           "Two functions still resolve, ours and his.",
         }
       elseif n >= 5 then
         return {
           "Five terms in the equation. Two unknown.",
           "The shape of your trajectory has converged.",
-          "Defeat the Snowgaunt and return to me.",
-          "I'll join when the Aeolian rings.",
+          "Defeat the Snowgaunt and return to me. I'll join when the Aeolian rings.",
         }
       elseif n >= 2 then
         return {
           "Paj. Math wizard. My family's word, not mine.",
           "I read Tova's older books while she sleeps.",
-          "There is a function that solves Suno.",
-          "Find me when you're ready to compile.",
+          "There is a function that solves Suno. Find me when you're ready to compile.",
         }
       end
       return {
-        "Paj. I count the silences between the notes.",
-        "Tova lent me her texts. I read fast.",
-        "If you find shards, count them carefully.",
-        "And please — return to tell me the totals.",
+        "Paj. I count the silences between the notes. Tova lent me her texts. I read fast.",
+        "If you find shards, count them carefully. And please -- return to tell me the totals.",
       }
     end,
   },
@@ -3033,30 +2964,25 @@ local MAINLAND_NPCS = {
         SHOP.gold = SHOP.gold + 100
         SHOP.inv.tonic = (SHOP.inv.tonic or 0) + 1
         return {
-          "Pith: Three caves cleared! You've doubled",
-          "the data I had on the whole reach.",
-          "Take this — bought a Tonic for the trouble,",
-          "and a hundred gold. Now go fill in cave four.",
+          "Three caves cleared! You've doubled the data I had on the whole reach.",
+          "Take this -- bought a Tonic for the trouble, and a hundred gold.",
+          "Now go fill in cave four.",
           "(+100g  +1 Tonic)",
         }
       elseif q.claimed then
         return {
-          "Pith: Each cave you clear, I redraw a line.",
-          "Map's getting busy. Keep me in stories",
-          "and I'll keep ink in the well.",
+          "Each cave you clear, I redraw a line. Map's getting busy.",
+          "Keep me in stories and I'll keep ink in the well.",
         }
       elseif cleared > 0 then
         return {
-          "Pith: " .. cleared .. " of " .. q.target .. " caves logged so far.",
-          "Bring me three and I'll draft you a",
-          "proper survey — and pay for the trouble.",
+          cleared .. " of " .. q.target .. " caves logged so far.",
+          "Bring me three and I'll draft you a proper survey -- and pay for the trouble.",
         }
       end
       return {
-        "Pith: Cartographer. Pith. I draw maps for",
-        "a living, but the reach has gone shy lately.",
-        "Clear three caves and report back —",
-        "I'll fund your next round.",
+        "Cartographer. Pith. I draw maps for a living, but the reach has gone shy lately.",
+        "Clear three caves and report back -- I'll fund your next round.",
       }
     end,
   },
@@ -3067,22 +2993,20 @@ local MAINLAND_NPCS = {
       local n = 0; for _, v in pairs(shards) do if v then n = n + 1 end end
       if n >= 5 then
         return {
-          "Anker: Five shards, eh? The roads remember",
-          "your boots now. Innkeeps the coast over",
-          "comp your stew. Don't ask why. Just nod.",
+          "Five shards, eh? The roads remember your boots now.",
+          "Innkeeps the coast over comp your stew. Don't ask why. Just nod.",
         }
       elseif n >= 2 then
         return {
-          "Anker: Two shards in, you say? My grandfather",
-          "swore the sea sang seven keys before the",
-          "Quiet King. Here's hoping you bring 'em back.",
+          "Two shards in, you say? My grandfather swore the sea sang seven keys",
+          "before the Quiet King. Here's hoping you bring 'em back.",
         }
       end
       return {
-        "Anker: Heading east? Tide's in. Heading north?",
-        "Bring a coat. Heading west? You're already there.",
-        "I sell directions for free; everything else I",
-        "swap for gossip. What's the news in the village?",
+        "Heading east? Tide's in. Heading north? Bring a coat.",
+        "Heading west? You're already there.",
+        "I sell directions for free; everything else I swap for gossip.",
+        "What's the news in the village?",
       }
     end,
   },
@@ -3094,25 +3018,23 @@ local MAINLAND_NPCS = {
       local n = 0; for _, v in pairs(shards) do if v then n = n + 1 end end
       if n >= 5 then
         return {
-          "Fern: The fish are noisy again.",
-          "I can hear them surface, where I used to",
-          "only see the ripples. Sound is back.",
-          "(she cups water and lets it drip — listening.)",
+          "The fish are noisy again.",
+          "I can hear them surface, where I used to only see the ripples.",
+          "Sound is back. (she cups water and lets it drip -- listening.)",
         }
       end
       local lead = party[active] and party[active].class
       if lead == "cleric" then
         return {
-          "Fern: A cleric. Bless this rod. Just kidding.",
-          "...mostly. The trout have been in mourning.",
+          "A cleric. Bless this rod. Just kidding. ...mostly.",
+          "The trout have been in mourning.",
           "If you bring back the chord, they'll bite again.",
         }
       end
       return {
-        "Fern: I cast lines and listen. Mostly listen.",
-        "The lake used to gossip. Suno's quiet hit",
-        "the water first. Even the reeds went still.",
-        "Some days I just sit. Wait for it to thaw.",
+        "I cast lines and listen. Mostly listen.",
+        "The lake used to gossip. Suno's quiet hit the water first.",
+        "Even the reeds went still. Some days I just sit. Wait for it to thaw.",
       }
     end,
   },
@@ -3124,7 +3046,7 @@ local MAINLAND_NPCS = {
       local lead = party[active] and party[active].class
       if lead == "warrior" then
         return {
-          "Holda: Warrior. Your shoulders set wrong.",
+          "Warrior. Your shoulders set wrong.",
           "Captain trained me. Reya. Mountain-rain drills.",
           "(she nods, slow.) Carry her pace east.",
           "You'll find what she pointed you toward.",
@@ -3132,16 +3054,15 @@ local MAINLAND_NPCS = {
       end
       if n >= 3 then
         return {
-          "Holda: Three shards in. Whole village sleeps",
-          "easier. Mothers stopped triple-locking the doors.",
+          "Three shards in. Whole village sleeps easier.",
+          "Mothers stopped triple-locking the doors.",
           "Bring back the rest. I'll keep this corner clean.",
         }
       end
       return {
-        "Holda: I watch the east road. Have for ten years.",
-        "Suno's silencers came through here twice.",
-        "Both times I got my axe ready. Both times,",
-        "they passed without looking. (...so far.)",
+        "I watch the east road. Have for ten years.",
+        "Suno's silencers came through here twice. Both times I got my axe ready.",
+        "Both times, they passed without looking. (...so far.)",
       }
     end,
   },
@@ -3162,46 +3083,40 @@ local MAINLAND_NPCS = {
       local lead = party[active] and party[active].class
       if shards.locrian then
         return {
-          "Iret: Six shards. We tried, didn't we?",
-          "I offered you houses. Coin. Pardon.",
-          "You took the road instead.",
-          "I'll be at the Tower base when it's done —",
+          "Six shards. We tried, didn't we?",
+          "I offered you houses. Coin. Pardon. You took the road instead.",
+          "I'll be at the Tower base when it's done --",
           "to see whether silence finally suits him.",
         }
       end
       if lead == "cleric" then
         return {
-          "Iret: Miel. I knew your father.",
-          "The match he arranged was an act",
-          "of mercy — Suno doesn't kill the wed.",
+          "Miel. I knew your father.",
+          "The match he arranged was an act of mercy -- Suno doesn't kill the wed.",
           "You ran instead. Brave. Stupid. Both.",
           "Come home. The terms still stand.",
         }
       end
       if n >= 4 then
         return {
-          "Iret: You're past the bargaining stage.",
-          "I'll spare you the offer this round —",
-          "you'd only spit it back at me.",
+          "You're past the bargaining stage.",
+          "I'll spare you the offer this round -- you'd only spit it back at me.",
           "Vance grows impatient with this charade.",
           "You'll meet him soon. He doesn't talk.",
         }
       end
       if n >= 2 then
         return {
-          "Iret: Two shards in. A respectable first act.",
-          "Listen — Suno doesn't want a war. He wants",
-          "a quiet world. Lay the chord down. He'll let",
-          "your village keep its name. Its fountain.",
-          "Its songs at dusk. (...think about it.)",
+          "Two shards in. A respectable first act.",
+          "Listen -- Suno doesn't want a war. He wants a quiet world.",
+          "Lay the chord down. He'll let your village keep its name.",
+          "Its fountain. Its songs at dusk. (...think about it.)",
         }
       end
       return {
-        "Iret: Iret of the Quiet Court. I came to",
-        "the village in colors, not chains.",
-        "The Tuning King doesn't need your sword.",
-        "He needs your silence. Sell it to him,",
-        "and you'll never want for bread again.",
+        "Iret of the Quiet Court. I came to the village in colors, not chains.",
+        "The Tuning King doesn't need your sword. He needs your silence.",
+        "Sell it to him, and you'll never want for bread again.",
       }
     end,
   },
@@ -3218,35 +3133,30 @@ local MAINLAND_NPCS = {
       local lead = party[active] and party[active].class
       if shards.locrian then
         return {
-          "Vance: Six. The seventh is mine to defend.",
-          "I'll be at the Chamber gate.",
+          "Six. The seventh is mine to defend. I'll be at the Chamber gate.",
           "Bring the chord whole or don't come at all.",
           "(he turns and walks east without waiting.)",
         }
       end
       if lead == "warrior" then
         return {
-          "Vance: Strom. I served under your captain",
-          "for two summers. She was — efficient.",
-          "She would've taken the offer Iret gave you.",
+          "Strom. I served under your captain for two summers.",
+          "She was -- efficient. She would've taken the offer Iret gave you.",
           "(he watches you for a long moment.)",
           "...maybe she wouldn't have. She liked you.",
         }
       end
       if n >= 4 then
         return {
-          "Vance: Four shards. You're inconvenient now.",
-          "I'd kill you here, but the King wants",
-          "the seventh chord rung in his hall.",
+          "Four shards. You're inconvenient now.",
+          "I'd kill you here, but the King wants the seventh chord rung in his hall.",
           "Hurry up. I'm bored of this village.",
         }
       end
       return {
-        "Vance: I conduct the Quiet Court's affairs.",
-        "Iret talks. I do.",
+        "I conduct the Quiet Court's affairs. Iret talks. I do.",
         "Take her offer. She thinks you're charming.",
-        "I think you're a mile of bad music",
-        "between me and a quiet supper.",
+        "I think you're a mile of bad music between me and a quiet supper.",
       }
     end,
   },
@@ -3266,9 +3176,8 @@ local MAINLAND_NPCS = {
         SHOP.gold = SHOP.gold + 150
         SHOP.inv.key = (SHOP.inv.key or 0) + 1
         return {
-          "Tess: Alder. I should have left with you.",
-          "The Quiet Court isn't quiet inside.",
-          "Take this — coin to buy a real ending,",
+          "Alder. I should have left with you. The Quiet Court isn't quiet inside.",
+          "Take this -- coin to buy a real ending,",
           "and a key for the chamber's antesanctum.",
           "Bring him down. I'll sing harmony.",
           "(+150g  +1 Key)",
@@ -3276,35 +3185,32 @@ local MAINLAND_NPCS = {
       end
       if CONTENT.tess_defected then
         return {
-          "Tess: Listening for the seventh. Still.",
-          "When you ring it, I'll know.",
+          "Listening for the seventh. Still. When you ring it, I'll know.",
           "I'll be at the inn that night. Stew on me.",
         }
       end
       if lead == "bard" then
         return {
-          "Tess: Alder. I almost didn't recognize you.",
+          "Alder. I almost didn't recognize you.",
           "(she wears the Court's pale livery now.)",
           "I joined his band the year after you left.",
-          "It's — not what we played. There's no swing.",
+          "It's -- not what we played. There's no swing.",
           "There's no rest beats. Just held minor sevenths.",
           "I miss our weeknights. I'm sorry.",
         }
       end
       if n >= 5 then
         return {
-          "Tess: I knew Alder before all this.",
-          "Tell him — when this is over —",
+          "I knew Alder before all this. Tell him -- when this is over --",
           "I still have his second lute. Strings rusted.",
           "But I kept it. I always kept it.",
         }
       end
       return {
-        "Tess: I shouldn't speak with you. Vance's eyes",
-        "are everywhere. (she pretends to gather kindling.)",
-        "Three shards in already? You're faster than",
-        "the King thought. He's nervous. He doesn't",
-        "show it, but the chord — it shakes him.",
+        "I shouldn't speak with you. Vance's eyes are everywhere.",
+        "(she pretends to gather kindling.)",
+        "Three shards in already? You're faster than the King thought.",
+        "He's nervous. He doesn't show it, but the chord -- it shakes him.",
       }
     end,
   },
@@ -3313,9 +3219,9 @@ local MAINLAND_NPCS = {
   { x = 8, y = 6, name = "Pim",
     dialogue = function()
       local lines = {
-        {"Pim noses your boot, finds it lacking,", "and stalks off with great dignity."},
+        {"Pim noses your boot, finds it lacking, and stalks off with great dignity."},
         {"Pim sits in a sunbeam.", "Pim does not move when you speak."},
-        {"Pim chitters at a sparrow on the eaves,", "tail twitching like a metronome."},
+        {"Pim chitters at a sparrow on the eaves, tail twitching like a metronome."},
       }
       return lines[math.random(#lines)]
     end,
@@ -3327,22 +3233,20 @@ local MAINLAND_NPCS = {
         CONTENT.tilde_paid = true
         SHOP.gold = SHOP.gold + 5
         return {
-          "Tilde: I found a coin in the fountain!",
-          "You look like you need it more.",
+          "I found a coin in the fountain! You look like you need it more.",
           "(she presses a sticky 5g into your palm)",
         }
       end
       local lead = party[active] and party[active].class
       if lead == "bard" then
         return {
-          "Tilde: Play me a song! Mum says I'll grow",
-          "up to be a proper bard if I learn the right",
-          "ones early. Teach me the loud one.",
+          "Play me a song!",
+          "Mum says I'll grow up to be a proper bard if I learn the right ones early.",
+          "Teach me the loud one.",
         }
       end
       return {
-        "Tilde: Mum says don't talk to the cave folk.",
-        "But you don't look cave-folk to me.",
+        "Mum says don't talk to the cave folk. But you don't look cave-folk to me.",
         "You smell like outside. That's good.",
       }
     end,
@@ -3352,19 +3256,18 @@ local MAINLAND_NPCS = {
     dialogue = function()
       local fragments = {
         {
-          "Eos: (...strums a chord and lets it ring...)",
+          "(...strums a chord and lets it ring...)",
           "I knew this tune before the Quiet King.",
           "I knew it. I cannot remember the words.",
         },
         {
-          "Eos: A coin? You needn't. I sing for the",
-          "echo. The walls remember more than I do.",
+          "A coin? You needn't. I sing for the echo.",
+          "The walls remember more than I do.",
           "(...he plays a falling fourth, twice...)",
         },
         {
-          "Eos: My teacher said: every silence is",
-          "a note Suno bought from us.",
-          "Today we steal a few back. Listen —",
+          "My teacher said: every silence is a note Suno bought from us.",
+          "Today we steal a few back. Listen --",
           "(...one bar of an old, half-shy melody...)",
         },
       }
@@ -3378,14 +3281,12 @@ local MAINLAND_NPCS = {
       if lead == "warrior" then
         return {
           "Bonk wags so hard he nearly tips.",
-          "He recognizes a friendly hammer-arm",
-          "when he sees one.",
+          "He recognizes a friendly hammer-arm when he sees one.",
         }
       end
       return {
-        "Bonk drops a dirt-streaked pebble at",
-        "your feet. The Look in his eye says",
-        "you must throw it. The Pebble Demands.",
+        "Bonk drops a dirt-streaked pebble at your feet.",
+        "The Look in his eye says you must throw it. The Pebble Demands.",
       }
     end,
   },
@@ -3400,22 +3301,20 @@ local EASTERN_NPCS = {
       local lead = party[active] and party[active].class
       if shards.mixolydian then
         return {
-          "Sela: Word came on the gull-wind: the",
-          "Dune Rider rides no more. Strangers used",
-          "to vanish in his hooves' echo. No more.",
-          "Drink at the inn — first round's mine.",
+          "Word came on the gull-wind: the Dune Rider rides no more.",
+          "Strangers used to vanish in his hooves' echo. No more.",
+          "Drink at the inn -- first round's mine.",
         }
       end
       if lead == "engineer" then
         return {
-          "Sela: An engineer? Take a look at the dock",
-          "boards before you walk west, would you?",
+          "An engineer? Take a look at the dock boards before you walk west, would you?",
           "Salt's chewing them faster than I can mend.",
         }
       end
       return {
-        "Sela: Welcome to the Reaches. Inn's east of",
-        "the dock; Hens keeps a stall just past it.",
+        "Welcome to the Reaches. Inn's east of the dock;",
+        "Hens keeps a stall just past it.",
         "Don't wander to cave four 'til your boots dry.",
       }
     end,
@@ -3425,13 +3324,13 @@ local EASTERN_NPCS = {
     dialogue = function()
       local n = 0; for _, v in pairs(shards) do if v then n = n + 1 end end
       local lyrics = {
-        {"oh— oh— the dune was the chord—", "and the chord was a— a—",
+        {"oh-- oh-- the dune was the chord-- and the chord was a-- a--",
          "...I forget. Sorry. Try me again later."},
-        {"hm hm. The line — it had a leap in it.",
+        {"hm hm. The line -- it had a leap in it.",
          "A fifth or a fourth, the kind that surprises you.",
          "I'll remember when I'm not trying."},
         {"In the village they sang it on Lydian feasts.",
-         "Or — was it Phrygian. Or both, alternating.",
+         "Or -- was it Phrygian. Or both, alternating.",
          "Songs were so much more flexible then."},
       }
       return lyrics[(n % #lyrics) + 1]
@@ -3441,20 +3340,15 @@ local EASTERN_NPCS = {
     dialogue = function()
       if shards.phrygian then
         return {
-          "The Phrygian song wakes!",
-          "The dunes have remembered.",
-          "Four shards. Four to go.",
-          "Press west, then south.",
+          "The Phrygian song wakes! The dunes have remembered.",
+          "Four shards. Four to go. Press west, then south.",
           "Suno's tower will not stand.",
         }
       end
       return {
-        "I am Mira, of the Eastern dunes.",
-        "You crossed the sea — well met.",
-        "The Phrygian Shard sleeps east,",
-        "in the deep cavern of glass.",
-        "The Dune Rider prowls within.",
-        "Old. Patient. Hungry.",
+        "I am Mira, of the Eastern dunes. You crossed the sea -- well met.",
+        "The Phrygian Shard sleeps east, in the deep cavern of glass.",
+        "The Dune Rider prowls within. Old. Patient. Hungry.",
       }
     end,
   },
@@ -3470,23 +3364,20 @@ local NORTHERN_NPCS = {
         CONTENT.wisp_paid = true
         SHOP.gold = SHOP.gold + 8
         return {
-          "Wisp: Mam said share with travelers.",
-          "Here. Don't argue. (she presses 8g into",
-          "your glove and runs back to her cairn.)",
+          "Mam said share with travelers. Here. Don't argue.",
+          "(she presses 8g into your glove and runs back to her cairn.)",
           "(+8g)",
         }
       end
       local n = 0; for _, v in pairs(shards) do if v then n = n + 1 end end
       if n >= 4 then
         return {
-          "Wisp: I made a song for you! It goes —",
-          "(she hums four uncertain notes,",
-          "stops, and looks pleased with herself.)",
+          "I made a song for you! It goes --",
+          "(she hums four uncertain notes, stops, and looks pleased with herself.)",
         }
       end
       return {
-        "Wisp: I'm walking to the Snowgaunt's old door,",
-        "to leave a candle. Mam used to.",
+        "I'm walking to the Snowgaunt's old door, to leave a candle. Mam used to.",
         "She says quiet places need bright friends.",
       }
     end,
@@ -3498,28 +3389,24 @@ local NORTHERN_NPCS = {
       local lead = party[active] and party[active].class
       if shards.aeolian then
         return {
-          "Bracken: Wind's clean again. Smell that?",
-          "No more keening. Snowgaunt's done.",
+          "Wind's clean again. Smell that? No more keening. Snowgaunt's done.",
           "Inn's hot stew tonight, on the house.",
         }
       end
       if lead == "cleric" then
         return {
-          "Bracken: A cleric. Good. The Snowgaunt's",
-          "song catches in your chest. Bring warm",
-          "thoughts and warmer prayers.",
+          "A cleric. Good. The Snowgaunt's song catches in your chest.",
+          "Bring warm thoughts and warmer prayers.",
         }
       end
       if cave_state[5].victories >= 1 then
         return {
-          "Bracken: You've heard the waltz, then.",
-          "Three-time. Always three-time. Don't",
-          "let it pull you into its meter.",
+          "You've heard the waltz, then. Three-time. Always three-time.",
+          "Don't let it pull you into its meter.",
         }
       end
       return {
-        "Bracken: First time up the pass? Inn's",
-        "behind me; Hens keeps a stall beside it.",
+        "First time up the pass? Inn's behind me; Hens keeps a stall beside it.",
         "Cave 5 is east. Don't go without a Vial.",
       }
     end,
@@ -3545,17 +3432,13 @@ local NORTHERN_NPCS = {
     dialogue = function()
       if shards.aeolian then
         return {
-          "The Aeolian air sings again.",
-          "I'd long forgotten its color.",
-          "The Snowgaunt waltzes no more.",
-          "Bless your strange travelers' luck.",
+          "The Aeolian air sings again. I'd long forgotten its color.",
+          "The Snowgaunt waltzes no more. Bless your strange travelers' luck.",
         }
       end
       return {
-        "Iolen, last of the highland watch.",
-        "Cave above holds the Aeolian Shard.",
-        "Snowgaunt sleeps within — tall, slow,",
-        "and very tired of being awake.",
+        "Iolen, last of the highland watch. Cave above holds the Aeolian Shard.",
+        "Snowgaunt sleeps within -- tall, slow, and very tired of being awake.",
         "Step lightly. The cold listens.",
       }
     end,
@@ -3591,8 +3474,8 @@ local SUNOS_NPCS = {
       end
       return {
         "Past me lies Locrius. The Half-step.",
-        "Do not strike him in time — strike",
-        "him out of it. He cannot follow swing.",
+        "Do not strike him in time -- strike him out of it.",
+        "He cannot follow swing.",
       }
     end,
   },
@@ -3642,22 +3525,19 @@ CONTENT.inn_npcs = {
       local lead = party[active] and party[active].class
       if lead == "warrior" then
         return {
-          "Mara: Sit a moment. You look like",
-          "you've been swinging that thing all day.",
+          "Sit a moment. You look like you've been swinging that thing all day.",
           "...Better. The room's yours till dawn.",
           "(party fully restored)",
         }
       elseif lead == "cleric" then
         return {
-          "Mara: My grandmother served Miel's order.",
-          "Three hot meals and a quiet bed —",
-          "tradition, not charity.",
+          "My grandmother served Miel's order.",
+          "Three hot meals and a quiet bed -- tradition, not charity.",
           "(party fully restored)",
         }
       end
       return {
-        "Mara: Rest a while. The road outside",
-        "has been louder than usual lately.",
+        "Rest a while. The road outside has been louder than usual lately.",
         "(party fully restored)",
       }
     end,
@@ -3667,23 +3547,19 @@ CONTENT.inn_npcs = {
       -- Tale-spinner: rotates through old-world lore tidbits.
       local lore = {
         {
-          "Pell: Long before the Tuning King,",
-          "the seven shards were stones in a wall.",
+          "Long before the Tuning King, the seven shards were stones in a wall.",
           "A wall around a city no map remembers.",
         },
         {
-          "Pell: Strom's hammer was a tuning fork once.",
-          "Now it tunes skulls. Funny how things",
-          "find new uses, no?",
+          "Strom's hammer was a tuning fork once. Now it tunes skulls.",
+          "Funny how things find new uses, no?",
         },
         {
-          "Pell: The fountain in the plaza? Listen",
-          "close. The water hums in F sharp.",
+          "The fountain in the plaza? Listen close. The water hums in F sharp.",
           "It has done so since I was a boy.",
         },
         {
-          "Pell: They say Suno was a child once.",
-          "A small voice in a small choir.",
+          "They say Suno was a child once. A small voice in a small choir.",
           "Power changes the throat, child.",
         },
       }
@@ -3714,37 +3590,30 @@ CONTENT.shop_npcs = {
       if q.wins >= q.target and not q.discount then
         q.discount = true
         return {
-          "Five clean wins on the road, eh?",
-          "Word travels. Coin follows word.",
-          "I'll knock 25% off everything.",
-          "Permanent. Don't tell the elder.",
+          "Five clean wins on the road, eh? Word travels. Coin follows word.",
+          "I'll knock 25% off everything. Permanent. Don't tell the elder.",
         }
       elseif q.discount then
         return {
-          "Step right up — 25% off, as promised.",
-          "Buy more, the chest empties faster,",
-          "and faster I restock the goods.",
+          "Step right up -- 25% off, as promised.",
+          "Buy more, the chest empties faster, and faster I restock the goods.",
         }
       elseif q.wins > 0 then
         return {
           "Heard you've won " .. q.wins .. "/" .. q.target .. " road fights.",
-          "Survive 5 random scuffles total",
-          "and I'll cut a discount for life.",
+          "Survive 5 random scuffles total and I'll cut a discount for life.",
         }
       end
       if shards.dorian then
         return {
           "Two shards already? Brisk work.",
-          "My stock won't keep up at this rate.",
-          "Pull up — I'll see what I've got.",
-          "(Quest: 5 random-encounter wins → 25% off.)",
+          "My stock won't keep up at this rate. Pull up -- I'll see what I've got.",
+          "(Quest: 5 random-encounter wins -> 25% off.)",
         }
       end
       return {
-        "Welcome to my shop, traveler.",
-        "Strings, reeds, rosin, lantern oil.",
-        "Survive five road fights for me",
-        "and I'll cut you a discount for life.",
+        "Welcome to my shop, traveler. Strings, reeds, rosin, lantern oil.",
+        "Survive five road fights for me and I'll cut you a discount for life.",
         "(Quest: 5 random-encounter wins.)",
       }
     end,
@@ -3767,34 +3636,29 @@ CONTENT.cave1_npcs = {
     dialogue = function()
       if cave_state[1].cleared then
         return {
-          "Hollin: The echoes are gone. Just",
-          "rocks now. Honest, common rocks.",
+          "The echoes are gone. Just rocks now -- honest, common rocks.",
           "I'd forgotten how quiet quiet was.",
-          "(she leans against the wall, smiling)",
         }
       end
       local lead = party[active] and party[active].class
       if lead == "mage" then
         return {
-          "Hollin: A scholar! Good — I'm out",
-          "of my depth. There's a Voice here",
-          "that finishes my sentences. Not",
-          "kindly. North chamber. Be ready.",
+          "A scholar! Good -- I'm out of my depth.",
+          "There's a Voice here that finishes my sentences. Not kindly.",
+          "It waits in the north chamber. Be ready.",
         }
       end
       if cave_state[1].victories >= 2 then
         return {
-          "Hollin: You've fought it. I heard",
-          "the chord. The Voice rang back",
-          "in three keys at once.",
-          "The arena's north. It's tired.",
+          "You've fought it. I heard the chord.",
+          "The Voice rang back in three keys at once.",
+          "The arena's north. It's tired now.",
         }
       end
       return {
-        "Hollin: Don't go north yet. The",
-        "Voice waits there. It echoes you",
-        "before you speak. It learns the",
-        "song before you sing it.",
+        "Don't go north yet. The Voice waits there.",
+        "It echoes you before you speak.",
+        "It learns the song before you sing it.",
       }
     end,
   },
@@ -3806,30 +3670,27 @@ CONTENT.cave2_npcs = {
     dialogue = function()
       if cave_state[2].cleared then
         return {
-          "Beren: The Sentinel sleeps for good now.",
-          "Listen — birds again. They'd been quiet",
-          "as long as I'd been here. (years.)",
+          "The Sentinel sleeps for good now.",
+          "Listen -- birds again. They'd been quiet as long as I'd been here.",
+          "(years.)",
         }
       end
       local lead = party[active] and party[active].class
       if lead == "warrior" then
         return {
-          "Beren: A swordhand! Good. The Sentinel",
-          "won't be reasoned with. It only knows",
-          "the language of broken things.",
+          "A swordhand! Good.",
+          "The Sentinel won't be reasoned with. It only knows the language of broken things.",
         }
       end
       if cave_state[2].victories >= 2 then
         return {
-          "Beren: You've cracked some bark off it.",
-          "Sap runs slow but it runs. Push on.",
-          "The arena is the open ring east of here.",
+          "You've cracked some bark off it. Sap runs slow but it runs.",
+          "Push on. The arena is the open ring east of here.",
         }
       end
       return {
-        "Beren: I came in for mushrooms. That was",
-        "summer. Three summers ago. The Sentinel",
-        "watches what comes in, not what leaves.",
+        "I came in for mushrooms. That was summer. Three summers ago.",
+        "The Sentinel watches what comes in, not what leaves.",
       }
     end,
   },
@@ -3842,24 +3703,21 @@ CONTENT.cave3_npcs = {
     dialogue = function()
       if cave_state[3].cleared then
         return {
-          "Anwell: The Tidewatch held my crew below",
-          "for forty years. The water remembers them",
-          "kinder, now that the watcher is silent.",
-          "(he begins to fade — gently, this time.)",
+          "The Tidewatch held my crew below for forty years.",
+          "The water remembers them kinder now that the watcher is silent.",
+          "(he begins to fade -- gently, this time.)",
         }
       end
       local lead = party[active] and party[active].class
       if lead == "cleric" then
         return {
-          "Anwell: A cleric's prayer might unspool me",
-          "when the Tidewatch falls. I'd be grateful.",
-          "Strike for the seventh wave — it's the loud one.",
+          "A cleric's prayer might unspool me when the Tidewatch falls.",
+          "I'd be grateful. Strike for the seventh wave -- it's the loud one.",
         }
       end
       return {
-        "Anwell: (his voice arrives a half-breath",
-        "after his lips move.) Don't trust the still",
-        "pools. The Tidewatch keeps a face in each.",
+        "(his voice arrives a half-breath after his lips move.)",
+        "Don't trust the still pools. The Tidewatch keeps a face in each.",
       }
     end,
   },
@@ -3871,23 +3729,21 @@ CONTENT.cave4_npcs = {
     dialogue = function()
       if cave_state[4].cleared then
         return {
-          "Iska: The Rider's hooves don't echo here",
-          "anymore. I'd been counting them in my sleep.",
-          "Tonight I might finally rest.",
+          "The Rider's hooves don't echo here anymore.",
+          "I'd been counting them in my sleep. Tonight I might finally rest.",
         }
       end
       local lead = party[active] and party[active].class
       if lead == "engineer" then
         return {
-          "Iska: An engineer? Good. The Dune Rider",
-          "moves with a pattern — six beats out, two",
-          "back. Cut him on the rest. Promise me.",
+          "An engineer? Good.",
+          "The Dune Rider moves with a pattern -- six beats out, two back.",
+          "Cut him on the rest. Promise me.",
         }
       end
       return {
-        "Iska: Sand carries every footstep miles.",
-        "He hears you coming. He always does.",
-        "Strike on the pattern, not the silence.",
+        "Sand carries every footstep miles. He hears you coming.",
+        "He always does. Strike on the pattern, not the silence.",
       }
     end,
   },
@@ -3899,31 +3755,28 @@ CONTENT.cave5_npcs = {
     dialogue = function()
       if cave_state[5].cleared then
         return {
-          "Wenna: Oh — the cold's gone.",
-          "Just regular cold. Plain, kind cold.",
+          "Oh -- the cold's gone. Just regular cold. Plain, kind cold.",
           "I'll walk out before the moon rises.",
         }
       end
       local lead = party[active] and party[active].class
       if lead == "bard" then
         return {
-          "Wenna: A bard! Sing in three. Always",
-          "three. The Snowgaunt's waltz can't",
-          "tolerate other meters. Drown his time",
-          "with yours.",
+          "A bard! Sing in three. Always three.",
+          "The Snowgaunt's waltz can't tolerate other meters.",
+          "Drown his time with yours.",
         }
       end
       if cave_state[5].victories >= 3 then
         return {
-          "Wenna: He's slowing. The waltz",
-          "skips a beat now. North chamber.",
-          "Don't let him finish a phrase.",
+          "He's slowing. The waltz skips a beat now.",
+          "North chamber. Don't let him finish a phrase.",
         }
       end
       return {
-        "Wenna: I came in to bury a friend.",
-        "The Snowgaunt sings him back every",
-        "midnight. I can't stop hearing it.",
+        "I came in to bury a friend.",
+        "The Snowgaunt sings him back every midnight.",
+        "I can't stop hearing it.",
       }
     end,
   },
@@ -3936,24 +3789,21 @@ CONTENT.cave6_npcs = {
     dialogue = function()
       if cave_state[6].cleared then
         return {
-          "Vessel: Locrius is gone. The unstable",
-          "interval — resolved at last. I can hear",
-          "the major third again. I had forgotten",
-          "what comfort that note carries.",
+          "Locrius is gone. The unstable interval -- resolved at last.",
+          "I can hear the major third again.",
+          "I had forgotten what comfort that note carries.",
         }
       end
       local lead = party[active] and party[active].class
       if lead == "mage" then
         return {
-          "Vessel: A scholar. Good. Locrius bargains",
-          "in tritones; he lives in the gap between",
-          "perfect and broken. Strike him on the",
-          "weak beat. He cannot answer ambiguity.",
+          "A scholar. Good.",
+          "Locrius bargains in tritones; he lives in the gap between perfect and broken.",
+          "Strike him on the weak beat. He cannot answer ambiguity.",
         }
       end
       return {
-        "Vessel: I served at his pulpit. I sang the",
-        "Half-step every dawn for forty years.",
+        "I served at his pulpit. I sang the Half-step every dawn for forty years.",
         "I am ready to be unmade. End him quickly.",
       }
     end,
@@ -3971,27 +3821,23 @@ CONTENT.hollow_npcs = {
       local r = CONTENT.recruits[3]
       if r.joined then
         return {
-          "Niko: Aye — keep swinging out there.",
+          "Aye -- keep swinging out there.",
           "I'll keep the count solid back home.",
-          "(Niko: ready in the Party menu.)",
+          "(ready in the Party menu.)",
         }
       end
       if n < 4 then
         return {
-          "Niko: (a soft brushed cymbal in the dark)",
-          "Niko: Four shards and we'll talk.",
-          "I don't drum for amateurs. No offense.",
-          "Bring the chord most of the way home —",
-          "then come find me here. I'll join.",
+          "(a soft brushed cymbal in the dark.)",
+          "Four shards and we'll talk. I don't drum for amateurs. No offense.",
+          "Bring the chord most of the way home, then come find me here. I'll join.",
         }
       end
       r.joined = true
       return {
-        "Niko: Four shards. That's enough chord",
-        "for me to lock onto. I've been waiting",
-        "for a band worth keeping time for.",
-        "(Niko joins your reserve — swap from the",
-        "Party menu.)",
+        "Four shards. That's enough chord for me to lock onto.",
+        "I've been waiting for a band worth keeping time for.",
+        "(Niko joins your reserve -- swap from the Party menu.)",
       }
     end,
   },
@@ -3999,23 +3845,21 @@ CONTENT.hollow_npcs = {
     dialogue = function()
       if CONTENT.opened["ch_hollow_end"] then
         return {
-          "Sett: You popped the back stash! Knew",
-          "you were the type. Drink's on me next",
-          "time you swing through the village.",
+          "You popped the back stash! Knew you were the type.",
+          "Drink's on me next time you swing through the village.",
         }
       end
       if SHOP.inv.key and SHOP.inv.key > 0 then
         return {
-          "Sett: A Key in your pocket? Then you're",
-          "set. The big chest's at the back of the",
-          "Hollow. Don't share with the woods folk.",
+          "A Key in your pocket? Then you're set.",
+          "The big chest's at the back of the Hollow.",
+          "Don't share with the woods folk.",
         }
       end
       return {
-        "Sett: I followed a rumor in here. There's",
-        "a chest at the back, locked tight. Bring",
-        "a Key from the village shop and we split",
-        "the take. Or take it all — I'm not picky.",
+        "I followed a rumor in here.",
+        "There's a chest at the back, locked tight. Bring a Key from the village shop and we split the take.",
+        "Or take it all -- I'm not picky.",
       }
     end,
   },
@@ -4909,6 +4753,55 @@ end
 local _dlg_advance_tick = -1
 local _dlg_start_tick  = -1
 
+-- Pack raw dialogue lines into "pages" — merge consecutive same-speaker
+-- lines until each page fills the box. Uses a char-count heuristic
+-- instead of screen.text_extents (which can't safely run outside the
+-- redraw cycle and was silently breaking dialogue starts). Compact font
+-- fits ~25 chars per line × 5 lines ≈ 125 chars per page.
+-- Global to dodge the 200-local main-chunk cap.
+function pack_dialogue_lines(raw, npc_name)
+  if not raw or #raw == 0 then return raw end
+  -- Scrub characters the Tom Thumb font can't render — em-dash (—) and
+  -- en-dash (–) both come out as blank space on the norns. Replace them
+  -- with "..." which reads as a pause in dialogue, then collapse any
+  -- runs of multiple spaces back down to one. Also strip any redundant
+  -- "<NpcName>:" prefix so the dialogue box header doesn't duplicate the
+  -- name (the name + sprite already appear in the box's top strip).
+  local function escape(s) return (s:gsub("(%W)", "%%%1")) end
+  local function clean(s)
+    s = s:gsub("\xE2\x80\x94", "--")   -- em-dash UTF-8 → typewriter double-hyphen
+    s = s:gsub("\xE2\x80\x93", "-")    -- en-dash UTF-8 → single hyphen
+    if npc_name and #npc_name > 0 then
+      s = s:gsub("^" .. escape(npc_name) .. ":%s*", "")
+    end
+    s = s:gsub("  +", " ")
+    return s
+  end
+  local out = {}
+  local MAX_CHARS = 75     -- ~3 lines of compact-font text (matches dialogue box capacity)
+  local i = 1
+  while i <= #raw do
+    local first = clean(raw[i])
+    local sp1, body1 = first:match("^%[(%S+)%]%s*(.*)$")
+    local prefix = sp1 and ("[" .. sp1 .. "] ") or ""
+    local body_acc = body1 or first
+    local consumed = 1
+    while i + consumed <= #raw do
+      local nxt = clean(raw[i + consumed])
+      local sp2, body2 = nxt:match("^%[(%S+)%]%s*(.*)$")
+      -- only merge if speaker tag matches (both nil = both untagged = OK)
+      if (sp1 or "") ~= (sp2 or "") then break end
+      local trial = body_acc .. " " .. (body2 or nxt)
+      if #trial > MAX_CHARS then break end
+      body_acc = trial
+      consumed = consumed + 1
+    end
+    out[#out + 1] = prefix .. body_acc
+    i = i + consumed
+  end
+  return out
+end
+
 start_dialogue = function(npc)
   if _dlg_start_tick == tick then return end
   _dlg_start_tick = tick
@@ -4920,7 +4813,8 @@ start_dialogue = function(npc)
   dlg.line = 1
   -- snapshot dialogue lines (NPCs now use function-based dialogue for progress-aware text)
   local raw = npc.dialogue
-  dlg.lines = (type(raw) == "function") and raw() or raw
+  local raw_lines = (type(raw) == "function") and raw() or raw
+  dlg.lines = pack_dialogue_lines(raw_lines, npc and npc.name)
   game_state = "DIALOGUE"
   redraw()
 end
@@ -4958,19 +4852,20 @@ local function damage_enemy(amount, is_crit)
   if enemy.invincible then
     -- Practice dummy: show damage numbers but never lose HP or die
     ANIM.spawn_dmg(96, 22, amount, is_crit and 13 or 15)
-    if is_crit then ANIM.crit_flash = tick; ANIM.shake(2, 6); ANIM.burst(96, 32, 12, 15) end
+    if is_crit then ANIM.crit_flash = tick; ANIM.burst(96, 32, 6, 15) end
     return
   end
   enemy.hp = math.max(0, enemy.hp - amount)
   ANIM.spawn_dmg(96, 22, amount, is_crit and 13 or 15)
   if is_crit then
+    -- Crit FX: brief crit_flash (handled by ANIM.draw_action_fx) + a small
+    -- particle burst. No screen-wide hit-flash stipple — it was washing
+    -- the screen in white dots and being more distracting than punchy.
     ANIM.crit_flash = tick
-    ANIM.shake(2, 6)
-    ANIM.flash_hit()
-    ANIM.burst(96, 32, 12, 15)
+    ANIM.burst(96, 32, 6, 15)
   else
     -- non-crit hit gets a tiny burst too (smaller, dimmer)
-    ANIM.burst(96, 32, 4, 11)
+    ANIM.burst(96, 32, 3, 11)
   end
   if enemy.hp == 0 then
     enemy.alive = false
@@ -5161,7 +5056,8 @@ local function apply_player_action(p)
     end
     trigger_party_jam(p)
   elseif p.queued == "SMPL" then
-    -- Diegues' samplers: deal big damage to enemy, debuff its ATK, inspire party.
+    -- Diegues' samplers: deal big damage to enemy, debuff its ATK, inspire
+    -- party — and now heal everyone slightly (revives KO'd at low HP).
     if enemy and enemy.alive then
       local dmg = math.floor(INST.mag(p) * 2.0)
       local crit = math.random() < ANIM.crit
@@ -5170,7 +5066,16 @@ local function apply_player_action(p)
       enemy.atk_debuff_ticks = math.max(enemy.atk_debuff_ticks or 0, 20)
     end
     for _, q in ipairs(party) do
-      if q.alive then q.buffed = true end
+      if not q.alive then
+        -- Revive KO'd at 15% HP
+        q.alive = true
+        q.hp = math.max(1, math.floor(q.hp_max * 0.15))
+        q.atb = 0
+        q.last_hit = tick
+      else
+        q.hp = math.min(q.hp_max, q.hp + math.floor(q.hp_max * 0.08))
+        q.buffed = true
+      end
     end
     trigger_party_jam(p)
   elseif p.queued == "PLAY" then
@@ -5273,7 +5178,7 @@ local function enemy_tick()
     end
     CONTENT.banner_text  = "* " .. enemy.name .. " ENRAGES! *"
     CONTENT.banner_ticks = 36
-    ANIM.shake(3, 12); ANIM.flash_hit(); ANIM.burst(96, 32, 14, 15)
+    ANIM.shake(2, 5); ANIM.burst(96, 32, 8, 15)
   end
   local next_gap = enemy.attack_pattern[enemy.pattern_idx] or 8
   if (tick - enemy.last_attack) < next_gap then return end
@@ -5344,8 +5249,7 @@ local function check_battle_end()
       for i = 1, 7 do if cave_state[i].cleared then total_cleared = total_cleared + 1 end end
       if total_cleared >= 7 then unlock_achievement("all_caves", "All Seven Cleared") end
     end
-    -- visual punch on every battle-end
-    ANIM.flash_hit()
+    -- (battle-end no longer calls flash_hit — same wash-out concern)
     if enemy.visual == "echo"      then clear_boss(1, "lydian")
     elseif enemy.visual == "sentinel"  then clear_boss(2, "dorian")
     elseif enemy.visual == "tide"      then clear_boss(3, "mixolydian")
@@ -5658,8 +5562,18 @@ exit_battle = function()
     local ap = party[active]
     local pool = ap and QUIPS[ap.class] or nil
     if pool and #pool > 0 then
-      CONTENT.flash_text = pool[math.random(#pool)]
-      CONTENT.flash_ticks = 48
+      -- Pass 56: parse "Speaker: body" into a structured quip rendered
+      -- as a proper dialogue strip on the BATTLE_END screen (sprite +
+      -- name + text), not just a flash banner.
+      local q = pool[math.random(#pool)]
+      local sp, body = q:match("^(.-): (.+)$")
+      CONTENT.victory_quip = {
+        speaker = sp or "",
+        body = body or q,
+        class = ap.class,
+      }
+    else
+      CONTENT.victory_quip = nil
     end
   end
   -- Tonic buff lasts only the current battle. Statuses also clear on exit.
@@ -5668,6 +5582,7 @@ exit_battle = function()
     p.poison_ticks = 0
     p.sleep_ticks = 0
   end
+  CONTENT.victory_quip = nil
   battle_outcome = nil
   enemy = nil
   last_obtained_shard = nil
@@ -5712,6 +5627,7 @@ end
 -- ============================================================ INPUT
 
 function gamepad.dpad(axis, sign)
+  controller_seen = true
   if debug_visible then
     last_input = "DPAD " .. axis .. "=" .. tostring(sign) .. " l2=" .. tostring(l2_held)
     last_input_at = tick
@@ -5845,6 +5761,7 @@ local function is_press(button, state)
 end
 
 function gamepad.button(button, state)
+  controller_seen = true
   if debug_visible then
     last_input = "BTN " .. tostring(button) .. "=" .. tostring(state)
     last_input_at = tick
@@ -5935,7 +5852,14 @@ function gamepad.button(button, state)
       redraw()
     end
   elseif game_state == "CUTSCENE" then
-    if button == "A" or button == "B" or button == "START" then
+    if button == "START" then
+      -- skip the whole intro
+      game_state = "OVERWORLD"
+      params:set("clock_tempo", OVERWORLD_BPM)
+      engine.drone_amp(0)
+      update_camera()
+      redraw()
+    elseif button == "A" or button == "B" then
       cutscene_idx = cutscene_idx + 1
       CONTENT.cutscene_panel_start = tick
       if cutscene_idx > #CUTSCENE_LINES then
@@ -5965,7 +5889,7 @@ function gamepad.button(button, state)
       set_active(active - 1)
     elseif button == "R1" then
       set_active(active + 1)
-    elseif button == "START" then
+    elseif button == "X" then
       game_state = "MENU"
       menu_idx = 1
       redraw()
@@ -6001,8 +5925,6 @@ function gamepad.button(button, state)
         enter_jam_pad()
       elseif opt == "Debug" then
         debug_visible = not debug_visible
-      elseif opt == "Resume" then
-        game_state = "OVERWORLD"
       end
       redraw()
     end
@@ -6174,6 +6096,7 @@ function gamepad.button(button, state)
 end
 
 function gamepad.analog(sensor_axis, val, half_reso)
+  controller_seen = true
   if debug_visible and (sensor_axis == "triggerleft" or sensor_axis == "triggerright") then
     last_input = sensor_axis .. " " .. string.format("%.2f", val / half_reso)
     last_input_at = tick
@@ -6441,6 +6364,13 @@ function key(n, z)
       engine.drone_amp(0)
     end
     redraw()
+  elseif game_state == "CUTSCENE" and n == 1 then
+    -- norns K1 acts as the "START" skip — jumps straight to the overworld
+    game_state = "OVERWORLD"
+    engine.drone_amp(0)
+    update_camera()
+    redraw()
+    return
   elseif game_state == "CUTSCENE" and (n == 2 or n == 3) then
     cutscene_idx = cutscene_idx + 1
     CONTENT.cutscene_panel_start = tick
@@ -6474,7 +6404,6 @@ function key(n, z)
       elseif opt == "Shards" then game_state = "SHARDS"
       elseif opt == "Jam Pad" then enter_jam_pad()
       elseif opt == "Debug" then debug_visible = not debug_visible
-      elseif opt == "Resume" then game_state = "OVERWORLD"
       end
       redraw()
     end
@@ -9097,11 +9026,17 @@ local function wrap_text(str, max_px)
 end
 
 -- Maps a party-scene "[Speaker]" tag to a class for sprite lookup.
-local DLG_NAME_TO_CLASS = {Alder="bard", Miel="cleric", Strom="warrior", Diegues="mage"}
+-- Now includes the recruits so post-join scenes render their portraits too.
+local DLG_NAME_TO_CLASS = {
+  Alder="bard", Miel="cleric", Strom="warrior", Diegues="mage",
+  Sergei="engineer", Paj="mathwiz", Niko="drummer",
+}
 
 local function draw_dialogue()
   draw_overworld()
-  -- taller box: y=26..63 = 38px tall
+  -- box: y=26..63 = 38px tall. Layout:
+  --   header strip y=27..37 = sprite (8x8) at left + name + underline
+  --   body strip   y=39..62 = up to 3 wrapped lines of text
   screen.level(0)
   screen.rect(0, 26, 128, 38)
   screen.fill()
@@ -9119,45 +9054,60 @@ local function draw_dialogue()
   local speaker = sp or (dlg.npc and dlg.npc.name) or ""
   if speaker == "_party_scene" then speaker = "" end
   local body = rest or cur
-
-  -- If the speaker is a party member, draw their sprite at the left of the
-  -- dialogue box, animated like they're talking.
-  local cls = DLG_NAME_TO_CLASS[speaker]
-  local body_x = 4
-  if cls then
-    local saved = player.facing
-    player.facing = "down"
-    local fn = SPRITE_BY_CLASS[cls]
-    if fn then
-      local bob = ((tick % 6) < 3) and 0 or 1   -- 1-px talk bob
-      fn(4, 38 - bob)
-      -- yapping dot: little speech-bubble blip that flickers near the mouth
-      if (tick % 4) < 2 then
-        screen.level(15); screen.pixel(13, 41 - bob); screen.fill()
-      end
-    end
-    player.facing = saved
-    body_x = 16  -- shift body text right of the sprite
+  -- Final safety: if the body still leads with "<speaker>:" (e.g. someone
+  -- wrote "[Strom] Strom: ..." or pack didn't catch a stray prefix),
+  -- strip it so the name doesn't appear twice (header + body).
+  if speaker ~= "" then
+    local pat = "^" .. (speaker:gsub("(%W)", "%%%1")) .. ":%s*"
+    body = body:gsub(pat, "")
   end
 
-  -- name strip (uses extracted speaker if available)
+  -- ── HEADER STRIP (y=27..37) ──
+  -- Pick a sprite for the speaker:
+  --   1. Party-class (Strom/Miel/...) → SPRITE_BY_CLASS via DLG_NAME_TO_CLASS
+  --   2. NPC by name (Tova/Hens/Sergei/...) → NPC_SPRITES[name]
+  --   3. NPC's own dialog with no [Speaker] tag → NPC_SPRITES[dlg.npc.name]
+  local sprite_fn = nil
+  local cls = DLG_NAME_TO_CLASS[speaker]
+  if cls and SPRITE_BY_CLASS[cls] then
+    sprite_fn = SPRITE_BY_CLASS[cls]
+  elseif NPC_SPRITES and NPC_SPRITES[speaker] then
+    sprite_fn = NPC_SPRITES[speaker]
+  end
+  local name_x = 4
+  if sprite_fn then
+    local saved = player.facing
+    player.facing = "down"
+    local bob = ((tick % 6) < 3) and 0 or 1
+    sprite_fn(2, 28 - bob)   -- sprite top-aligned in header
+    -- yapping speech blip near the sprite mouth
+    if (tick % 4) < 2 then
+      screen.level(15); screen.pixel(11, 32 - bob); screen.fill()
+    end
+    player.facing = saved
+    name_x = 13  -- name sits cleanly to the right of the 8x8 sprite
+  end
+  -- speaker name (default font, baseline at y=34 — vertically centered
+  -- against the sprite that spans y=28..35)
   screen.level(15)
-  screen.move(body_x, 35)
+  screen.move(name_x, 34)
   screen.text(speaker)
+  -- separator line under the header strip
   screen.level(4)
-  screen.move(body_x, 37)
-  screen.line(60, 37)
-  screen.stroke()
-  -- wrapped body text — switch to the smaller Tom Thumb font when the
-  -- body is long, so 4-5 lines all fit in the dialogue box.
+  screen.move(2, 37); screen.line(126, 37); screen.stroke()
+
+  -- ── BODY STRIP (y=39..62) ──
+  -- 3 lines max. Default font (8 tall) fits 3 lines at y=46/54/62; the
+  -- compact font (6 tall) is used when wrap count exceeds 3 with default
+  -- font, still capped at 3 lines.
   screen.level(13)
+  local body_x = 2
   local lines = wrap_text(body, 124 - body_x)
   if #lines > 3 then
-    -- compact font fits ~5 short lines
     screen.font_face(25); screen.font_size(6)
     local lines_compact = wrap_text(body, 124 - body_x)
-    for i = 1, math.min(5, #lines_compact) do
-      screen.move(body_x, 41 + i * 5)
+    for i = 1, math.min(3, #lines_compact) do
+      screen.move(body_x, 45 + i * 6)
       screen.text(lines_compact[i])
     end
     screen.font_face(1); screen.font_size(8)
@@ -10331,46 +10281,94 @@ local function draw_battle_end()
     screen.move(64, 18 + panel_h - 4)
     screen.text_center("press A to leave")
   end
+  -- Pass 56: post-victory quip rendered as a dialogue strip at the bottom
+  -- of the screen — matches the in-game NPC dialogue style (sprite at
+  -- left + speaker name + body text). Replaces the old flash banner.
+  if battle_outcome == "VICTORY" and CONTENT.victory_quip then
+    local q = CONTENT.victory_quip
+    -- panel: y = 50..63 = 14 px tall, full width
+    screen.level(0); screen.rect(0, 50, 128, 14); screen.fill()
+    screen.level(15); screen.rect(0, 50, 128, 14); screen.stroke()
+    -- speaker sprite at left (8x8). Map "Speaker" → class via DLG_NAME_TO_CLASS
+    -- with extras for the recruits.
+    local NAME_TO_CLASS = {Alder="bard", Miel="cleric", Strom="warrior", Diegues="mage",
+                            Sergei="engineer", Paj="mathwiz", Niko="drummer"}
+    local cls = NAME_TO_CLASS[q.speaker] or q.class
+    local body_x = 4
+    if cls and SPRITE_BY_CLASS[cls] then
+      local saved = player.facing
+      player.facing = "down"
+      local bob = ((tick % 6) < 3) and 0 or 1
+      SPRITE_BY_CLASS[cls](2, 53 - bob)
+      if (tick % 4) < 2 then
+        screen.level(15); screen.pixel(11, 56 - bob); screen.fill()
+      end
+      player.facing = saved
+      body_x = 12
+    end
+    -- speaker name + thin separator
+    screen.font_face(25); screen.font_size(6)
+    screen.level(15); screen.move(body_x, 55); screen.text(q.speaker)
+    screen.level(4)
+    screen.move(body_x, 56); screen.line(body_x + 24, 56); screen.stroke()
+    -- body text (compact font; one line — quips are short)
+    screen.level(13); screen.move(body_x, 62); screen.text(q.body)
+    screen.font_face(1); screen.font_size(8)
+  end
 end
 
 local function draw_menu()
   draw_overworld()
-  -- tighter panel (smaller, anchored center-ish)
-  local px, py, pw, ph = 24, 6, 80, 54
-  screen.level(0)
-  screen.rect(px, py, pw, ph)
-  screen.fill()
-  screen.level(15)
-  screen.rect(px, py, pw, ph)
-  screen.stroke()
-  -- title (default norns font is crisp at native size 8)
-  screen.move(px + pw / 2, py + 7)
-  screen.text_center("MENU")
-  screen.level(6)
-  screen.move(px + 4, py + 10)
-  screen.line(px + pw - 4, py + 10)
-  screen.stroke()
-  -- options — Tom Thumb at NATIVE size 6 (crisp, no sub-native blur) +
-  -- 5-px row pitch + start at y=18 so all 9 entries fit inside the 80x54 panel.
-  screen.font_face(25)
-  screen.font_size(6)
+  -- FF7-style menu: party panels (left half) + menu list (right half).
+  -- Solid black background so the overworld is fully obscured.
+  screen.level(0); screen.rect(0, 0, 128, 64); screen.fill()
+
+  -- ── LEFT: party panels (64 wide × 64 tall, 4 stacked panels of 16) ──
+  screen.font_face(25); screen.font_size(6)
+  local saved_facing = player.facing
+  player.facing = "down"
+  for i, p in ipairs(party) do
+    local py0 = (i - 1) * 16
+    -- thin frame
+    screen.level(11); screen.rect(0, py0, 62, 15); screen.stroke()
+    -- sprite at left
+    local fn = SPRITE_BY_CLASS[p.class]
+    if fn then fn(2, py0 + 4) end
+    -- name (top-right of panel)
+    screen.level(15); screen.move(13, py0 + 5)
+    screen.text(CHAR_NAME[p.class] or p.class)
+    -- level
+    screen.level(11); screen.move(45, py0 + 5)
+    screen.text("L" .. (p.level or 1))
+    -- HP "current/max"
+    screen.level(p.alive and 15 or 5)
+    screen.move(13, py0 + 11)
+    screen.text("HP " .. (p.hp or 0) .. "/" .. (p.hp_max or 0))
+    -- KO marker
+    if not p.alive then
+      screen.level(8); screen.move(13, py0 + 13); screen.text("KO")
+    end
+  end
+  player.facing = saved_facing
+
+  -- ── RIGHT: menu list (64 wide × 64 tall) ──
+  local mx = 64
+  screen.level(11); screen.rect(mx, 0, 64, 64); screen.stroke()
+  screen.level(15); screen.move(mx + 32, 6); screen.text_center("MENU")
+  screen.level(6); screen.move(mx + 3, 8); screen.line(mx + 61, 8); screen.stroke()
   for i, opt in ipairs(MENU_OPTIONS) do
-    local y = py + 12 + (i - 1) * 5
+    local y = 12 + (i - 1) * 5
     local label = opt
     if opt == "Debug" then label = opt .. ": " .. (debug_visible and "ON" or "OFF") end
     if i == menu_idx then
-      screen.level(15)
-      screen.move(px + 4, y)
-      screen.text("> " .. label)
+      screen.level(15); screen.move(mx + 3, y); screen.text("> " .. label)
     else
-      screen.level(7)
-      screen.move(px + 8, y)
-      screen.text(label)
+      screen.level(7); screen.move(mx + 6, y); screen.text(label)
     end
   end
-  -- restore default font for everything else
-  screen.font_face(1)
-  screen.font_size(8)
+  -- footer: gold counter
+  screen.level(11); screen.move(mx + 3, 62); screen.text(SHOP.gold .. "g")
+  screen.font_face(1); screen.font_size(8)
   -- save flash (kept on default font)
   if save_flash_ticks > 0 then
     screen.level(0)
@@ -11295,6 +11293,25 @@ local function draw_title()
     TITLE.flash_ticks = TITLE.flash_ticks - 1
     screen.level(0); screen.rect(28, 53, 72, 9); screen.fill()
     screen.level(15); screen.move(64, 60); screen.text_center(TITLE.flash_text)
+  end
+  -- Pass 55: flashing "USB Controller Required" only when no controller
+  -- is plugged in. Detection priority:
+  --   1. `gamepad.is_connected()` if the norns gamepad lib exposes it
+  --   2. Any HID gamepad-class device present in `hid.devices`
+  --   3. `controller_seen` (set true by any gamepad handler) — fallback
+  -- so the banner clears once you press something even on older API.
+  local connected = controller_seen
+  if not connected and gamepad and type(gamepad.is_connected) == "function" then
+    local ok, v = pcall(gamepad.is_connected); if ok and v then connected = true end
+  end
+  if not connected and hid and hid.devices then
+    for _, d in pairs(hid.devices) do
+      if d and (d.types and (d.types.gamepad or d.types.joystick)) then connected = true; break end
+    end
+  end
+  if not connected and (tick % 16) < 10 then
+    screen.level(0); screen.rect(8, 0, 112, 7); screen.fill()
+    screen.level(15); screen.move(64, 6); screen.text_center("USB Controller Required")
   end
   screen.font_face(1); screen.font_size(8)
 end
