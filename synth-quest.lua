@@ -17961,12 +17961,17 @@ end
 SCENE.draw = function()
   if not SCENE.active then return end
   local saved = player.facing
+  -- Match the centering offset that the player/NPC/treasure renderers
+  -- apply for maps smaller than the viewport. Without this, scene
+  -- actors render into the empty margin instead of the map (e.g.
+  -- Miel waking on map 28 would draw into the west wall).
+  local view_ox, view_oy = interior_view_offset()
   for _, a in ipairs(SCENE.actors) do
     if a.fx >= cam.x - 1 and a.fx < cam.x + VIEW_W
        and a.fy >= cam.y - 1 and a.fy < cam.y + VIEW_H then
       player.facing = a.facing or "down"
-      local sx = math.floor((a.fx - cam.x) * TILE + 0.5)
-      local sy = math.floor((a.fy - cam.y) * TILE + 0.5)
+      local sx = math.floor((a.fx - cam.x) * TILE + 0.5) + view_ox
+      local sy = math.floor((a.fy - cam.y) * TILE + 0.5) + view_oy
       -- Step-walk animation: while tweening (a.walking), the actor lifts
       -- 1px on alternating beats of move_t. This reads as "footsteps"
       -- and avoids the previous "ice-skating slide" feel.
