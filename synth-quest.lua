@@ -13,6 +13,11 @@ engine.name = "SynthQuest"
 
 -- ============================================================ CONFIG
 
+-- Frame counter — must be declared up here (before any INST.sprites or
+-- DRAW_ENEMY function literals reference it) or the animated sprites
+-- bind to a nonexistent global and crash at first redraw.
+local tick = 0
+
 local TILE = 8
 local VIEW_W = 16
 local VIEW_H = 8
@@ -24,23 +29,91 @@ local DRONE_AMP_BATTLE_END = 0.28
 
 local BATTLE_END_DURATION = 56      -- ticks held on outcome banner
 
--- Victory fanfare — 24 steps (~3.5 sec @ 85 bpm), plays once on win.
--- Ascending phrase, ends on A5 stab.
-local VICTORY_PATTERN_LEN = 24
+-- Victory fanfare — 32 steps (2 bars, ~6 sec @ 100 bpm). FF-style:
+-- bar 1 is Uematsu's iconic 3-stab hook (in A pentatonic: A A A | E . G | A held);
+-- bar 2 is an ascending pentatonic flourish A→C→D→E→G→A doubled at the
+-- octave by the bard, walking bass supporting underneath, and a final
+-- held A5 with a tonic-pad swap from i → bVII → i.
+-- Slot ref: 1=A1 5=G2 6=A2 10=G3 11=A3 14=E4 15=G4 16=A4 17=C5 18=D5
+--           19=E5 20=G5 21=A5 22=C6 23=D6 24=E6 25=G6.
+local VICTORY_PATTERN_LEN = 32
 local VICTORY_PATTERN = {
-  --        1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24
-  mage    ={16,17,19, 0,21, 0, 0, 0,19,20,21, 0,21, 0, 0, 0,22, 0, 0, 0,21, 0, 0, 0},
-  cleric  ={11, 0, 0, 0, 0, 0, 0, 0,14, 0, 0, 0, 0, 0, 0, 0,11, 0, 0, 0, 0, 0, 0, 0},
-  warrior ={ 6, 0, 0, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 0, 0, 6, 0, 0, 0, 6, 0, 0, 0},
-  bard    ={ 0, 0,19, 0, 0, 0,21, 0, 0, 0,22, 0, 0, 0,21, 0, 0, 0,23, 0, 0,24, 0, 0},
+  -- LEAD: hook on bar 1, ascending flourish on bar 2, held A5 at the end.
+  --        1   2   3   4   5   6   7   8   9  10  11  12  13  14  15  16
+  mage    ={16,  0, 16,  0, 16,  0, 14,  0, 15,  0, 16,  0,  0,  0,  0,  0,
+  --        17  18  19  20  21  22  23  24  25  26  27  28  29  30  31  32
+            16,  0, 17,  0, 18,  0, 19,  0, 20,  0, 21,  0,  0,  0,  0,  0},
+  -- PAD: i (A) on bar 1, bVII (G) → i (A) on bar 2 — one swap mid-flourish.
+  cleric  ={11,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+            10,  0,  0,  0,  0,  0,  0,  0, 11,  0,  0,  0,  0,  0,  0,  0},
+  -- BASS: quarter-note A1 stomps on bar 1 (drives the hook); walking
+  -- bass A→G→A→A under the bar 2 climb.
+  warrior ={ 1,  0,  0,  0,  1,  0,  0,  0,  1,  0,  0,  0,  1,  0,  0,  0,
+             5,  0,  0,  0,  1,  0,  6,  0,  5,  0,  1,  0,  1,  0,  0,  0},
+  -- COUNTER: silent on bar 1 (let the hook breathe); octave-doubles
+  -- the lead's flourish at the climax + sustained A6/G6 on the held tonic.
+  bard    ={ 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+            21,  0, 22,  0, 23,  0, 24,  0, 25,  0, 22,  0,  0,  0,  0,  0},
 }
 
--- Triumphant articulation (bigger envelopes + more reverb than overworld)
+-- Triumphant articulation: high velocity, short attack, moderate release.
+-- Reverb honors the runtime music_reverb_mix param so the user can scale
+-- the wash to taste without re-authoring these values.
 local VICTORY_ARTIC = {
-  mage    = {vel=0.95, attack=0.004, release=0.70, wet=0.60},
-  cleric  = {vel=0.70, attack=0.040, release=2.50, wet=0.70},
-  warrior = {vel=0.85, attack=0.005, release=0.55, wet=0.40},
-  bard    = {vel=0.75, attack=0.010, release=0.65, wet=0.55},
+  mage    = {vel=0.95, attack=0.003, release=0.45, wet=0.55},
+  cleric  = {vel=0.75, attack=0.05,  release=2.50, wet=0.65},
+  warrior = {vel=0.95, attack=0.005, release=0.30, wet=0.30},
+  bard    = {vel=0.80, attack=0.005, release=0.45, wet=0.55},
+}
+
+-- ── GAME OVER theme ──────────────────────────────────────────────────────
+-- Classic JRPG dirge: slow descending minor bell motif over a long-held
+-- organ pad and a slow funereal bass-thud heartbeat. Loops forever in
+-- the GAME_OVER state until the player presses A to return to title.
+-- 64 steps; ticked at INTRO_BPM (70) → ~17s per loop. Patterns are
+-- intentionally sparse so the held releases hang in the air.
+GAME_OVER_PATTERN_LEN = 64
+GAME_OVER_PATTERN = {
+  -- ORGAN PAD (cleric): A3 held for first half, then drops to F3 (bVI)
+  -- and finally E3 (V) for the second half — classic i → bVI → V minor
+  -- descent. Long releases overlap so the chord transitions blur.
+  --        1   2   3   4   5   6   7   8   9  10  11  12  13  14  15  16
+  cleric  ={ 1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+  --        17  18  19  20  21  22  23  24  25  26  27  28  29  30  31  32
+            -2,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+  --        33-48 (bVI continued)
+             0,  0,  0,  0,  0,  0,  0,  0, -3,  0,  0,  0,  0,  0,  0,  0,
+  --        49-64 (E3 V tone, lets the loop resolve back to A3 above)
+            -3,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},
+  -- DEEP BASS HEARTBEAT (warrior): A1 thud every 8 steps. Slowing the
+  -- pulse — first half 8-step gap, second half 16-step gap (the heart
+  -- giving up).
+  warrior ={ 1,  0,  0,  0,  0,  0,  0,  0,  1,  0,  0,  0,  0,  0,  0,  0,
+             1,  0,  0,  0,  0,  0,  0,  0,  1,  0,  0,  0,  0,  0,  0,  0,
+             1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+             1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},
+  -- DESCENDING BELL MOTIF (mage): a 4-note phrase A4 → G4 → F4 → E4
+  -- in the first half, then echoes more sparsely in the second half.
+  -- Scale-step indices: 8 (A4) → 7 (G4) → 6 (F4) → 5 (E4).
+  mage    ={ 0,  0,  0,  0,  8,  0,  0,  0,  7,  0,  0,  0,  6,  0,  0,  0,
+             5,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+             0,  0,  0,  0,  8,  0,  0,  0,  6,  0,  0,  0,  5,  0,  0,  0,
+             0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},
+  -- A single funeral bell (bard) at the start of each long phrase.
+  -- High A5 with massive reverb tail.
+  bard    ={ 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+             0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+            22,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+             0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},
+}
+
+-- Funereal articulation: low velocity (somber), slow attacks (bell-like),
+-- VERY long releases, heavy reverb. Multiplied by music_reverb_mix at trig.
+GAME_OVER_ARTIC = {
+  mage    = {vel=0.55, attack=0.030, release=4.50, wet=0.95},   -- bell motif
+  cleric  = {vel=0.45, attack=0.80,  release=12.0, wet=1.00},   -- organ pad
+  warrior = {vel=0.55, attack=0.05,  release=4.00, wet=0.85},   -- deep heartbeat
+  bard    = {vel=0.55, attack=0.001, release=8.00, wet=1.00},   -- funeral bell
 }
 
 -- A minor pentatonic over 5 octaves (MIDI)
@@ -66,15 +139,18 @@ local CUTOFF_RANGE = {
 local ARTIC = {
   ATK  = {vel=0.78, attack=0.004, release=0.40, wet=0.10, pitch=0},
   DEF  = {vel=0.26, attack=0.020, release=0.18, wet=0.05, pitch=0},
+  -- REF (Miel's reflect) — bell-bright shimmer; high register, long release,
+  -- heavy wet so the silver chime hangs in the air after the bounce.
+  REF  = {vel=0.55, attack=0.004, release=2.20, wet=0.85, pitch=24},
   MAG  = {vel=0.85, attack=0.025, release=1.30, wet=0.55, pitch=0},
   ITM  = {vel=0.70, attack=0.003, release=0.35, wet=0.25, pitch=12},
   PLAY = {vel=0.78, attack=0.015, release=1.50, wet=0.65, pitch=7},
   BLK  = {vel=0.62, attack=0.001, release=0.25, wet=0.10, pitch=-5},
   -- Per-character instruments — velocity pulled down ~20%, character of
   -- each kept (attack/release/wet/pitch profiles unchanged from before).
-  LYRE = {vel=0.62, attack=0.012, release=2.00, wet=0.75, pitch=12},
+  HEAL = {vel=0.62, attack=0.012, release=2.00, wet=0.75, pitch=12},
   LUTE = {vel=0.78, attack=0.015, release=1.50, wet=0.65, pitch=7},
-  HORN = {vel=0.85, attack=0.005, release=0.80, wet=0.35, pitch=-7},
+  TUNE = {vel=0.85, attack=0.005, release=0.80, wet=0.35, pitch=-7},
   SMPL = {vel=0.78, attack=0.002, release=0.35, wet=0.45, pitch=19},
   MIX  = {vel=0.72, attack=0.001, release=0.25, wet=0.55, pitch=14},
   CODE = {vel=0.68, attack=0.003, release=0.55, wet=0.45, pitch=24},
@@ -85,8 +161,8 @@ local ARTIC = {
 -- A is always ATK; Y is always ITM. B and X vary by class.
 local CLASS_ACTIONS = {
   mage     = {A="ATK", B="DEF", X="SMPL", Y="ITM"},
-  cleric   = {A="ATK", B="DEF", X="LYRE", Y="ITM"},   -- Miel: lyre
-  warrior  = {A="ATK", B="BLK", X="HORN", Y="ITM"},
+  cleric   = {A="ATK", B="REF", X="HEAL", Y="ITM"},   -- Miel: lyre + magic reflect
+  warrior  = {A="ATK", B="BLK", X="TUNE", Y="ITM"},
   bard     = {A="ATK", B="DEF", X="LUTE", Y="ITM"},   -- Alder: lute
   engineer = {A="ATK", B="DEF", X="MIX",  Y="ITM"},   -- Sergei: remix
   mathwiz  = {A="ATK", B="DEF", X="CODE", Y="ITM"},   -- Paj: function call
@@ -94,7 +170,7 @@ local CLASS_ACTIONS = {
 }
 
 -- Each class's "instrument" action label.
-local CLASS_INSTRUMENT = {bard="LUTE", cleric="LYRE", warrior="HORN", mage="SMPL",
+local CLASS_INSTRUMENT = {bard="LUTE", cleric="HEAL", warrior="TUNE", mage="SMPL",
                           engineer="MIX", mathwiz="CODE", drummer="DRUM"}
 
 -- Each enemy has its own attack sequence (gaps between hits, looped) and
@@ -115,12 +191,12 @@ local CAVE_ENCOUNTERS = {
     attack_sound={class="bard",    note=33, vel=0.55, attack=0.05,  release=0.60, wet=0.30},
     visual="mushroom" },
   { name="Wisp",     hp=80,  atk=4,
-    attack_pattern={2, 2, 2, 2, 6, 2},              -- frantic pecks then breath
+    attack_pattern={3, 3, 3, 3, 8, 3},              -- pecks then breath (was 2,2,2,2,6,2 — too fast for solo Miel)
     attack_sound={class="mage",    note=88, vel=0.45, attack=0.002, release=0.40, wet=0.55},
     visual="wisp" },
-  { name="Wolf",     hp=130, atk=7,
-    attack_pattern={3, 3, 3, 10},                   -- triple-strike, rest
-    attack_sound={class="warrior", note=30, vel=0.70, attack=0.002, release=0.20, wet=0.05},
+  { name="Wolf",     hp=130, atk=6,                  -- atk 7→6
+    attack_pattern={5, 5, 5, 12},                   -- triple-strike, rest (was 3,3,3,10 — gave 4 hits per 19 ticks, brutal vs solo)
+    attack_sound={class="warrior", note=31, vel=0.70, attack=0.002, release=0.20, wet=0.05},
     visual="wolf" },
 }
 
@@ -146,7 +222,7 @@ local CAVE2_ENCOUNTERS = {
     visual="wisp" },
   { name="Wood Wolf",   hp=160, atk=8,
     attack_pattern={5, 3, 5, 3, 12},                       -- stalking pounce + lull
-    attack_sound={class="warrior", note=27, vel=0.75, attack=0.003, release=0.28, wet=0.08},
+    attack_sound={class="warrior", note=28, vel=0.75, attack=0.003, release=0.28, wet=0.08},
     visual="wolf" },
 }
 
@@ -167,11 +243,11 @@ local CAVE3_ENCOUNTERS = {
     visual="manta" },
   { name="Tide Sprite", hp=120, atk=6,
     attack_pattern={3, 3, 3, 5, 3, 9},                     -- fast tide-spray then crash
-    attack_sound={class="bard", note=82, vel=0.55, attack=0.004, release=0.40, wet=0.60},
+    attack_sound={class="bard", note=81, vel=0.55, attack=0.004, release=0.40, wet=0.60},
     visual="sprite" },
   { name="Sea Wisp",   hp=100, atk=5,
     attack_pattern={6, 2, 2, 6, 2, 2, 10},                 -- trickling foam pulses
-    attack_sound={class="mage", note=80, vel=0.50, attack=0.003, release=0.50, wet=0.70},
+    attack_sound={class="mage", note=79, vel=0.50, attack=0.003, release=0.50, wet=0.70},
     visual="wisp" },
 }
 
@@ -188,28 +264,28 @@ local CAVE4_ENCOUNTERS = {
     visual="scorpion" },
   { name="Spectre",    hp=170, atk=7,
     attack_pattern={9, 7, 9, 11},                          -- haunting irregular
-    attack_sound={class="bard", note=78, vel=0.45, attack=0.02, release=0.80, wet=0.65},
+    attack_sound={class="bard", note=77, vel=0.45, attack=0.02, release=0.80, wet=0.65},
     visual="spectre" },
   { name="Sand Manta", hp=220, atk=8,
     attack_pattern={6, 6, 12, 6, 6, 16},                    -- sand-skim then dive
-    attack_sound={class="cleric", note=37, vel=0.60, attack=0.05, release=0.95, wet=0.55},
+    attack_sound={class="cleric", note=38, vel=0.60, attack=0.05, release=0.95, wet=0.55},
     visual="manta" },
   { name="Dune Wolf",  hp=180, atk=9,
     attack_pattern={2, 4, 2, 4, 2, 14},                     -- panting hunt + rest
-    attack_sound={class="warrior", note=32, vel=0.78, attack=0.002, release=0.22, wet=0.06},
+    attack_sound={class="warrior", note=31, vel=0.78, attack=0.002, release=0.22, wet=0.06},
     visual="wolf" },
 }
 
 local CAVE4_BOSS = { name="Dune Rider", hp=1300, atk=13,
   attack_pattern={18, 14, 10, 16},
-  attack_sound={class="bard", note=22, vel=0.65, attack=0.04, release=1.20, wet=0.60},
+  attack_sound={class="bard", note=21, vel=0.65, attack=0.04, release=1.20, wet=0.60},
   visual="dunerider" }
 
 -- Cave 5 (Northern Wilds): frigid creatures + Snowgaunt boss → Aeolian Shard
 local CAVE5_ENCOUNTERS = {
   { name="Frost Wisp",    hp=160, atk=8,
     attack_pattern={5, 3, 5, 3, 5, 11},                    -- shivering pulses
-    attack_sound={class="mage", note=82, vel=0.45, attack=0.005, release=0.70, wet=0.75},
+    attack_sound={class="mage", note=81, vel=0.45, attack=0.005, release=0.70, wet=0.75},
     visual="frostwisp" },
   { name="Yeti",          hp=260, atk=10,
     attack_pattern={14, 14, 8, 18},                         -- lumbering, sudden swipe
@@ -217,7 +293,7 @@ local CAVE5_ENCOUNTERS = {
     visual="yeti" },
   { name="Granite Beast", hp=320, atk=9,
     attack_pattern={20, 18, 12, 22},                        -- slow stone steps
-    attack_sound={class="warrior", note=22, vel=0.78, attack=0.010, release=0.55, wet=0.15},
+    attack_sound={class="warrior", note=21, vel=0.78, attack=0.010, release=0.55, wet=0.15},
     visual="granite" },
   { name="Crow Wraith",   hp=140, atk=9,
     attack_pattern={3, 3, 3, 5, 3, 3, 8},                    -- shrieking flurry
@@ -227,14 +303,14 @@ local CAVE5_ENCOUNTERS = {
 
 local CAVE5_BOSS = { name="Snowgaunt", hp=1500, atk=14,
   attack_pattern={24, 18, 14, 22, 14},
-  attack_sound={class="cleric", note=22, vel=0.70, attack=0.10, release=2.50, wet=0.85},
+  attack_sound={class="cleric", note=21, vel=0.70, attack=0.10, release=2.50, wet=0.85},
   visual="snowgaunt" }
 
 -- Cave 6 (Locrian Crypt — inside Suno's Domain): cursed half-dead enemies
 local CAVE6_ENCOUNTERS = {
   { name="Lich",         hp=220, atk=11,
     attack_pattern={6, 6, 6, 14},                          -- ritualistic
-    attack_sound={class="cleric", note=20, vel=0.55, attack=0.04, release=1.40, wet=0.75},
+    attack_sound={class="cleric", note=21, vel=0.55, attack=0.04, release=1.40, wet=0.75},
     visual="lich" },
   { name="Voidcrawler",  hp=180, atk=12,
     attack_pattern={2, 2, 2, 4, 12},                       -- swarming, then pause
@@ -246,13 +322,13 @@ local CAVE6_ENCOUNTERS = {
     visual="echosuno" },
   { name="Mute Warden",  hp=320, atk=11,
     attack_pattern={20, 16, 12, 24},                        -- silent, slow, devastating
-    attack_sound={class="warrior", note=18, vel=0.85, attack=0.005, release=0.60, wet=0.30},
+    attack_sound={class="warrior", note=19, vel=0.85, attack=0.005, release=0.60, wet=0.30},
     visual="mutewarden" },
 }
 
 local CAVE6_BOSS = { name="Locrius", hp=1900, atk=15,
   attack_pattern={14, 10, 14, 6, 6, 22},
-  attack_sound={class="cleric", note=18, vel=0.75, attack=0.12, release=3.00, wet=0.90},
+  attack_sound={class="cleric", note=19, vel=0.75, attack=0.12, release=3.00, wet=0.90},
   visual="locrius" }
 
 -- Cave 7 = Suno's chamber. Single brutal fight, no minor encounters.
@@ -260,14 +336,25 @@ local CAVE7_ENCOUNTERS = {
   -- placeholder: any pre-boss "encounter" is just Suno (so even the first walk-in fights him)
   { name="Suno", hp=3000, atk=18,
     attack_pattern={10, 6, 6, 10, 6, 14, 4, 4, 4, 18},     -- multi-phase rhythmic onslaught
-    attack_sound={class="cleric", note=15, vel=0.85, attack=0.08, release=2.50, wet=0.95},
+    attack_sound={class="cleric", note=16, vel=0.85, attack=0.08, release=2.50, wet=0.95},
     visual="suno" },
 }
 
 local CAVE7_BOSS = CAVE7_ENCOUNTERS[1]   -- same: walking in IS the boss fight
 
-CAVE_POOLS  = {CAVE_ENCOUNTERS, CAVE2_ENCOUNTERS, CAVE3_ENCOUNTERS, CAVE4_ENCOUNTERS, CAVE5_ENCOUNTERS, CAVE6_ENCOUNTERS, CAVE7_ENCOUNTERS}
-CAVE_BOSSES = {CAVE_BOSS, CAVE2_BOSS, CAVE3_BOSS, CAVE4_BOSS, CAVE5_BOSS, CAVE6_BOSS, CAVE7_BOSS}
+-- Cave 8 = POST-ENDGAME SUPERBOSS. Accessed via the VoidEcho NPC that
+-- only appears after the player has completed the endgame credits.
+-- The First Chord is the primordial dissonance Suno was only an echo
+-- of — a fight that demands optimal rhythm, combo, and limit-break
+-- play. Drops nothing (the chord is its own reward).
+local CAVE8_BOSS = { name="The First Chord", hp=6500, atk=20,
+  -- Rhythmic onslaught: heavy/light/light/rest, with a fast finisher.
+  attack_pattern={4, 4, 4, 8, 4, 4, 4, 8, 3, 3, 3, 3, 14},
+  attack_sound={class="cleric", note=12, vel=0.95, attack=0.20, release=4.0, wet=1.0},
+  visual="firstchord" }
+
+CAVE_POOLS  = {CAVE_ENCOUNTERS, CAVE2_ENCOUNTERS, CAVE3_ENCOUNTERS, CAVE4_ENCOUNTERS, CAVE5_ENCOUNTERS, CAVE6_ENCOUNTERS, CAVE7_ENCOUNTERS, {CAVE8_BOSS}}
+CAVE_BOSSES = {CAVE_BOSS, CAVE2_BOSS, CAVE3_BOSS, CAVE4_BOSS, CAVE5_BOSS, CAVE6_BOSS, CAVE7_BOSS, CAVE8_BOSS}
 end  -- cave encounters
 
 local BOSS_THRESHOLD = 3
@@ -308,7 +395,7 @@ local PARTY_TEMPLATE = {
     hp_max=20, mp_max=12, atk=2, def=4, mag=4 },
   { class="cleric",  spd=1, note_idx=6,  note_lo=6,  note_hi=15,
     cutoff=1600, resonance=0.20,
-    hp_max=24, mp_max=14, atk=1, def=8, mag=3 },
+    hp_max=30, mp_max=14, atk=4, def=8, mag=3 },   -- Miel: bumped HP 24→30, atk 1→4 (was way under-DPS for solo prologue)
   { class="warrior", spd=3, note_idx=1,  note_lo=1,  note_hi=10,
     cutoff=1300, resonance=0.40,
     hp_max=30, mp_max=4,  atk=4, def=10, mag=1 },
@@ -344,46 +431,66 @@ local INSTRUMENTS = {
   aeolian_lute   = { name="Aeolian Lute",   class="bard",    atk=2, def=1, mag=0, spd=0,
                      wet_add=0.10, atk_mul=1.20, rel_mul=1.40 },
   -- cleric --------------------------------------------------------------
-  -- Miel plays a lyre. Her three instruments are all lyres of escalating quality.
-  pilgrim_lyre   = { name="Pilgrim Lyre",   class="cleric",  atk=0, def=0, mag=0, spd=0,
+  -- Miel STARTS with the violin and progresses through singing bowl
+  -- (Cave 2 drop), lyre (Cave 6 drop), and the rare Moog (Cave 1 deep chest).
+  violin         = { name="Violin",         class="cleric",  atk=0, def=0, mag=0, spd=0,
                      wet_add=0.00, atk_mul=1.00, rel_mul=1.00 },
-  silver_lyre    = { name="Silver Lyre",    class="cleric",  atk=0, def=1, mag=1, spd=0,
-                     wet_add=0.10, atk_mul=1.00, rel_mul=1.30 },
-  sacred_lyre    = { name="Sacred Lyre",    class="cleric",  atk=0, def=2, mag=2, spd=0,
+  singing_bowl   = { name="Singing Bowl",   class="cleric",  atk=0, def=1, mag=1, spd=0,
+                     wet_add=0.10, atk_mul=1.20, rel_mul=1.30 },
+  lyre           = { name="Lyre",           class="cleric",  atk=0, def=2, mag=2, spd=0,
                      wet_add=0.05, atk_mul=1.50, rel_mul=1.50 },
+  moog           = { name="Moog",           class="cleric",  atk=1, def=2, mag=4, spd=1,
+                     wet_add=0.20, atk_mul=1.30, rel_mul=1.70 },
   -- warrior -------------------------------------------------------------
-  iron_edge      = { name="Iron Edge",      class="warrior", atk=0, def=0, mag=0, spd=0,
+  iron_fork      = { name="Iron Fork",      class="warrior", atk=0, def=0, mag=0, spd=0,
                      wet_add=0.00, atk_mul=1.00, rel_mul=1.00 },
-  hymnsword      = { name="Hymnsword",      class="warrior", atk=1, def=1, mag=1, spd=0,
+  bell_fork      = { name="Bell Fork",      class="warrior", atk=1, def=1, mag=1, spd=0,
                      wet_add=0.05, atk_mul=1.00, rel_mul=1.10 },
-  stormbrand     = { name="Stormbrand",     class="warrior", atk=2, def=2, mag=0, spd=1,
+  storm_fork     = { name="Storm Fork",     class="warrior", atk=2, def=2, mag=0, spd=1,
                      wet_add=0.00, atk_mul=0.40, rel_mul=0.50 },
   -- mage ----------------------------------------------------------------
-  ash_staff      = { name="Ash Staff",      class="mage",    atk=0, def=0, mag=0, spd=0,
-                     wet_add=0.00, atk_mul=1.00, rel_mul=1.00 },
-  ember_rod      = { name="Ember Rod",      class="mage",    atk=0, def=0, mag=2, spd=0,
-                     wet_add=0.15, atk_mul=1.00, rel_mul=1.20 },
-  astral_wand    = { name="Astral Wand",    class="mage",    atk=1, def=0, mag=3, spd=1,
-                     wet_add=0.10, atk_mul=1.20, rel_mul=1.40 },
+  -- Diegues plays SAMPLERS. Each instrument is a real-world sampling
+  -- device, escalating from the field-tape starter to the SP-404, the
+  -- norns, and a hidden vintage Macintosh.
+  cassette_sampler = { name="Cassette Sampler", class="mage", atk=0, def=0, mag=0, spd=0,
+                       wet_add=0.00, atk_mul=1.00, rel_mul=1.00 },
+  sp404            = { name="SP-404",           class="mage", atk=0, def=0, mag=2, spd=0,
+                       wet_add=0.15, atk_mul=1.00, rel_mul=1.20 },
+  norns_sampler    = { name="Norns",            class="mage", atk=1, def=0, mag=3, spd=1,
+                       wet_add=0.10, atk_mul=1.20, rel_mul=1.40 },
+  macintosh        = { name="Macintosh",        class="mage", atk=1, def=1, mag=4, spd=0,
+                       wet_add=0.20, atk_mul=1.30, rel_mul=1.60 },
+  -- ── Shop tier (Pass 56) — purchasable mid-tier upgrade per class. Sits
+  -- between the starter and the cave-2 boss drop, so gold has a use
+  -- early and players who want to skip Cave 2 grinding for an upgrade
+  -- can buy in. One-time purchase; cost set at SHOP.items[].cost.
+  field_lute       = { name="Field Lute",       class="bard",    atk=1, def=0, mag=0, spd=0,
+                       wet_add=0.05, atk_mul=1.00, rel_mul=1.10 },
+  bowed_psaltery   = { name="Bowed Psaltery",   class="cleric",  atk=0, def=1, mag=1, spd=0,
+                       wet_add=0.05, atk_mul=1.10, rel_mul=1.20 },
+  tinker_fork      = { name="Tinker Fork",      class="warrior", atk=1, def=0, mag=0, spd=1,
+                       wet_add=0.00, atk_mul=1.00, rel_mul=1.05 },
+  field_recorder   = { name="Field Recorder",   class="mage",    atk=0, def=0, mag=1, spd=1,
+                       wet_add=0.05, atk_mul=1.10, rel_mul=1.20 },
 }
 
 -- starter instrument per class (auto-equipped on new game)
 local STARTER_INSTRUMENT = {
   bard    = "wandering_lute",
-  cleric  = "pilgrim_lyre",
-  warrior = "iron_edge",
-  mage    = "ash_staff",
+  cleric  = "violin",
+  warrior = "iron_fork",
+  mage    = "cassette_sampler",
 }
 
 -- which instrument each cave boss drops the FIRST time it's beaten
 local BOSS_INSTRUMENT_DROP = {
   [1] = "crystal_lute",   -- Cave Echo → bard
-  [2] = "silver_lyre",    -- Forest Sentinel → cleric (silver lyre)
-  [3] = "hymnsword",      -- Tidewatch → warrior
-  [4] = "ember_rod",      -- Dune Rider → mage
+  [2] = "singing_bowl",   -- Forest Sentinel → cleric (Miel's first upgrade)
+  [3] = "bell_fork",      -- Tidewatch → warrior
+  [4] = "sp404",          -- Dune Rider → mage (Diegues' SP-404)
   [5] = "aeolian_lute",   -- Snowgaunt → bard (cold-northern lute)
-  [6] = "sacred_lyre",    -- Locrius → cleric (sacred lyre from cursed crypt)
-  [7] = "stormbrand",     -- Suno → warrior (stripped from his tower)
+  [6] = "lyre",           -- Locrius → cleric (the Lyre from the cursed crypt)
+  [7] = "storm_fork",     -- Suno → warrior (stripped from his tower)
 }
 
 -- inventory: which instruments the party owns (set of ids)
@@ -427,100 +534,188 @@ INST.sprites.aeolian_lute = function(sx, sy)
   screen.level(13); screen.pixel(sx + 7, sy); screen.fill()             -- pegs
 end
 
-INST.sprites.pilgrim_lyre = function(sx, sy)
-  -- Small U-shape lyre with three strings + base
-  screen.level(7); screen.move(sx + 1, sy + 6); screen.line(sx + 1, sy + 1); screen.line(sx + 6, sy + 1); screen.line(sx + 6, sy + 6); screen.stroke()
-  screen.level(11)
-  screen.move(sx + 2, sy + 1); screen.line(sx + 2, sy + 6); screen.stroke()
-  screen.move(sx + 4, sy + 1); screen.line(sx + 4, sy + 6); screen.stroke()
-  screen.move(sx + 5, sy + 1); screen.line(sx + 5, sy + 6); screen.stroke()
-  screen.level(5); screen.rect(sx, sy + 6, 8, 1); screen.fill()         -- base
+-- ── Miel's instruments (cleric) ────────────────────────────────────────
+-- Three escalating sound-medicine instruments. The HEAL action rings
+-- through whichever she's currently equipped with.
+
+INST.sprites.singing_bowl = function(sx, sy)
+  -- Bronze singing bowl on a small cushion + a striker mallet at right.
+  -- Rim hum-shimmer on the upper ring.
+  screen.level(11); screen.move(sx + 1, sy + 4); screen.line(sx + 1, sy + 6); screen.stroke()    -- left rim
+  screen.level(11); screen.move(sx + 6, sy + 4); screen.line(sx + 6, sy + 6); screen.stroke()    -- right rim
+  screen.level(13); screen.move(sx + 1, sy + 4); screen.line(sx + 6, sy + 4); screen.stroke()    -- rim top
+  screen.level(8);  screen.rect(sx + 2, sy + 5, 4, 2); screen.fill()                              -- bowl body
+  screen.level(5);  screen.rect(sx + 1, sy + 7, 6, 1); screen.fill()                              -- cushion
+  -- mallet (vertical, right side)
+  screen.level(7);  screen.move(sx + 7, sy + 1); screen.line(sx + 7, sy + 5); screen.stroke()
+  screen.level(13); screen.pixel(sx + 7, sy); screen.fill()                                       -- mallet head
+  -- shimmer above the rim (slow flicker)
+  if (tick % 18) < 10 then
+    screen.level(15); screen.pixel(sx + 3, sy + 3); screen.pixel(sx + 4, sy + 3); screen.fill()
+  end
 end
 
-INST.sprites.silver_lyre = function(sx, sy)
-  -- Polished U + bright strings + small flourish at top
-  screen.level(13); screen.move(sx + 1, sy + 6); screen.line(sx + 1, sy + 2); screen.line(sx + 6, sy + 2); screen.line(sx + 6, sy + 6); screen.stroke()
-  screen.level(15)
-  screen.move(sx + 2, sy + 2); screen.line(sx + 2, sy + 6); screen.stroke()
-  screen.move(sx + 3, sy + 2); screen.line(sx + 3, sy + 6); screen.stroke()
-  screen.move(sx + 5, sy + 2); screen.line(sx + 5, sy + 6); screen.stroke()
-  -- top flourish
-  screen.level(15); screen.move(sx + 1, sy + 2); screen.line(sx + 3, sy); screen.line(sx + 6, sy + 2); screen.stroke()
-  screen.level(7); screen.rect(sx, sy + 6, 8, 1); screen.fill()
-end
-
-INST.sprites.sacred_lyre = function(sx, sy)
-  -- Ornate lyre with halo above
-  screen.level(13); screen.move(sx + 1, sy + 6); screen.line(sx + 1, sy + 3); screen.line(sx + 6, sy + 3); screen.line(sx + 6, sy + 6); screen.stroke()
-  screen.level(15)
+INST.sprites.lyre = function(sx, sy)
+  -- Classical lyre: U-shape arms, crossbar, soundbox, animated strings
+  screen.level(13); screen.move(sx + 1, sy);     screen.line(sx + 1, sy + 5); screen.stroke()    -- left arm
+  screen.level(13); screen.move(sx + 6, sy);     screen.line(sx + 6, sy + 5); screen.stroke()    -- right arm
+  screen.level(15); screen.move(sx + 1, sy);     screen.line(sx + 6, sy);     screen.stroke()    -- crossbar
+  screen.level(11); screen.rect(sx + 2, sy + 5, 4, 2); screen.fill()                              -- soundbox
+  screen.level(8);  screen.rect(sx + 3, sy + 7, 2, 1); screen.fill()                              -- base
+  -- 4 strings (slow shimmer pulses one at a time)
+  local s = (tick // 4) % 4
   for i = 0, 3 do
-    screen.move(sx + 2 + i, sy + 3); screen.line(sx + 2 + i, sy + 6); screen.stroke()
+    screen.level(s == i and 15 or 7)
+    screen.move(sx + 2 + i, sy + 1); screen.line(sx + 2 + i, sy + 5); screen.stroke()
   end
-  -- halo (small ring above) — gentle pulse
-  local lit = (tick % 16) < 10
-  screen.level(lit and 15 or 11); screen.circle(sx + 3, sy + 1, 2); screen.stroke()
-  screen.level(11); screen.rect(sx, sy + 6, 8, 1); screen.fill()
 end
 
-INST.sprites.iron_edge = function(sx, sy)
-  -- Plain straight blade + simple cross-guard
-  screen.level(13); screen.move(sx + 4, sy); screen.line(sx + 4, sy + 6); screen.stroke()    -- blade
-  screen.level(11); screen.move(sx + 2, sy + 6); screen.line(sx + 6, sy + 6); screen.stroke() -- guard
-  screen.level(5); screen.rect(sx + 3, sy + 7, 2, 1); screen.fill()                          -- pommel
-end
-
-INST.sprites.hymnsword = function(sx, sy)
-  -- Cross-shaped guard, etched note on the blade
-  screen.level(15); screen.move(sx + 4, sy); screen.line(sx + 4, sy + 6); screen.stroke()    -- bright blade
-  screen.level(13); screen.move(sx + 1, sy + 5); screen.line(sx + 7, sy + 5); screen.stroke() -- wide guard
-  screen.level(0); screen.pixel(sx + 4, sy + 2); screen.fill()                               -- engraved note dot
-  screen.level(7); screen.rect(sx + 3, sy + 7, 2, 1); screen.fill()                          -- gold pommel
-end
-
-INST.sprites.stormbrand = function(sx, sy)
-  -- Jagged blade + spark animation
+INST.sprites.moog = function(sx, sy)
+  -- Moog: black box with a row of knobs and a tiny patch-bay corner.
+  -- Wood-cheek slabs left + right of a black panel.
+  screen.level(8); screen.rect(sx + 1, sy + 2, 1, 5); screen.fill()                              -- left wood cheek
+  screen.level(8); screen.rect(sx + 6, sy + 2, 1, 5); screen.fill()                              -- right wood cheek
+  screen.level(2); screen.rect(sx + 2, sy + 2, 4, 5); screen.fill()                              -- black panel
+  -- 3 knob row
+  screen.level(11); screen.pixel(sx + 2, sy + 3); screen.pixel(sx + 4, sy + 3); screen.fill()
+  screen.level(13); screen.pixel(sx + 3, sy + 3); screen.pixel(sx + 5, sy + 3); screen.fill()
+  -- patch bay (4 dots)
   screen.level(15)
-  screen.move(sx + 4, sy + 6); screen.line(sx + 3, sy + 4); screen.line(sx + 5, sy + 3)
-  screen.line(sx + 4, sy + 1); screen.stroke()
-  screen.level(11); screen.move(sx + 2, sy + 6); screen.line(sx + 6, sy + 6); screen.stroke()
-  screen.level(3); screen.rect(sx + 3, sy + 7, 2, 1); screen.fill()
-  -- spark flicker at the tip
-  if (tick % 6) < 3 then
-    screen.level(15); screen.pixel(sx + 4, sy); screen.pixel(sx + 5, sy + 1); screen.fill()
+  screen.pixel(sx + 2, sy + 5); screen.pixel(sx + 3, sy + 5)
+  screen.pixel(sx + 4, sy + 5); screen.pixel(sx + 5, sy + 5); screen.fill()
+  -- top edge logo
+  screen.level(11); screen.rect(sx + 2, sy + 1, 4, 1); screen.fill()
+  -- pulse on the central knob (slow oscillator)
+  if (tick % 12) < 6 then
+    screen.level(15); screen.pixel(sx + 4, sy + 3); screen.fill()
   end
 end
 
-INST.sprites.ash_staff = function(sx, sy)
-  -- Wooden staff, gnarled tip
-  screen.level(5); screen.move(sx + 4, sy); screen.line(sx + 4, sy + 7); screen.stroke()
-  screen.level(7); screen.pixel(sx + 4, sy + 1); screen.pixel(sx + 5, sy + 1); screen.fill()  -- knot
-  screen.level(8); screen.pixel(sx + 3, sy + 7); screen.pixel(sx + 5, sy + 7); screen.fill()  -- splayed base
+INST.sprites.harp = function(sx, sy)
+  -- Small concert harp: curved neck + soundbox + 4 strings, gold trim.
+  -- Curved neck (left side):
+  screen.level(13); screen.move(sx + 1, sy);     screen.line(sx + 1, sy + 1); screen.stroke()
+  screen.level(13); screen.move(sx + 2, sy + 1); screen.line(sx + 2, sy + 2); screen.stroke()
+  screen.level(13); screen.move(sx + 3, sy + 2); screen.line(sx + 3, sy + 3); screen.stroke()
+  screen.level(13); screen.move(sx + 4, sy + 3); screen.line(sx + 4, sy + 4); screen.stroke()
+  -- Soundbox (right side, vertical column at x=6)
+  screen.level(11); screen.rect(sx + 6, sy + 1, 1, 6); screen.fill()
+  screen.level(15); screen.pixel(sx + 6, sy);   screen.fill()                                      -- gold cap
+  screen.level(15); screen.pixel(sx + 6, sy + 7); screen.fill()                                    -- gold base
+  -- Strings (diagonal, faint)
+  screen.level(7)
+  screen.move(sx + 2, sy + 1); screen.line(sx + 6, sy + 5); screen.stroke()
+  screen.move(sx + 3, sy + 2); screen.line(sx + 6, sy + 5); screen.stroke()
+  screen.move(sx + 4, sy + 3); screen.line(sx + 6, sy + 5); screen.stroke()
+  screen.move(sx + 4, sy + 4); screen.line(sx + 6, sy + 6); screen.stroke()
 end
 
-INST.sprites.ember_rod = function(sx, sy)
-  -- Dark rod with a glowing ember at the tip (pulses)
-  screen.level(3); screen.move(sx + 4, sy + 1); screen.line(sx + 4, sy + 7); screen.stroke()
-  local hot = (tick % 8) < 5
-  screen.level(hot and 15 or 11); screen.circle(sx + 4, sy + 1, 1); screen.fill()
-  if hot then screen.level(13); screen.pixel(sx + 3, sy); screen.pixel(sx + 5, sy); screen.fill() end
-  screen.level(5); screen.rect(sx + 3, sy + 7, 2, 1); screen.fill()
+INST.sprites.violin = function(sx, sy)
+  -- Violin: hourglass body + neck + 4 tuning pegs, with a pulled bow.
+  -- Body (hourglass)
+  screen.level(13); screen.rect(sx + 1, sy + 3, 5, 4); screen.fill()
+  screen.level(11); screen.pixel(sx,     sy + 4); screen.pixel(sx + 6, sy + 4)                    -- waist notches
+  screen.pixel(sx,     sy + 5); screen.pixel(sx + 6, sy + 5); screen.fill()
+  screen.level(0);  screen.pixel(sx + 2, sy + 5); screen.pixel(sx + 4, sy + 5); screen.fill()     -- f-holes
+  -- Neck + pegs
+  screen.level(8);  screen.rect(sx + 3, sy, 1, 3); screen.fill()
+  screen.level(15); screen.pixel(sx + 2, sy);  screen.pixel(sx + 4, sy); screen.fill()            -- pegs
+  -- Bow (diagonal, animated draw)
+  local stroke_phase = (tick % 16) < 8 and 0 or 1
+  screen.level(7)
+  screen.move(sx + 7, sy + 2 + stroke_phase); screen.line(sx + 4, sy + 6 + stroke_phase); screen.stroke()
 end
 
-INST.sprites.astral_wand = function(sx, sy)
-  -- Thin wand with a star at the tip + orbiting particle
-  screen.level(11); screen.move(sx + 4, sy + 2); screen.line(sx + 4, sy + 7); screen.stroke()
-  -- four-point star at tip
-  screen.level(15); screen.pixel(sx + 4, sy); screen.pixel(sx + 4, sy + 2)
-  screen.pixel(sx + 3, sy + 1); screen.pixel(sx + 5, sy + 1); screen.fill()
-  screen.level(13); screen.pixel(sx + 4, sy + 1); screen.fill()
-  -- orbiting particle (4-frame cycle)
-  local f = (tick // 3) % 4
-  local px, py = sx + 4, sy + 1
-  if f == 0 then px, py = sx + 6, sy + 2
-  elseif f == 1 then px, py = sx + 5, sy + 3
-  elseif f == 2 then px, py = sx + 3, sy + 3
-  else px, py = sx + 2, sy + 2 end
-  screen.level(11); screen.pixel(px, py); screen.fill()
+-- ── Strom's tuning forks (warrior) ─────────────────────────────────────
+-- All three are the classic two-prong U with a stem/handle. Tier shows in
+-- material weight, accent details, and animation richness.
+
+INST.sprites.iron_fork = function(sx, sy)
+  -- Plain iron tuning fork: two straight prongs + thick handle
+  screen.level(11); screen.move(sx + 2, sy);     screen.line(sx + 2, sy + 4); screen.stroke()  -- left prong
+  screen.level(11); screen.move(sx + 5, sy);     screen.line(sx + 5, sy + 4); screen.stroke()  -- right prong
+  screen.level(11); screen.move(sx + 2, sy + 4); screen.line(sx + 5, sy + 4); screen.stroke()  -- yoke
+  screen.level(7);  screen.rect(sx + 3, sy + 5, 2, 3); screen.fill()                            -- handle
+end
+
+INST.sprites.bell_fork = function(sx, sy)
+  -- Brass tuning fork with a small bell weight at the base of the yoke
+  screen.level(13); screen.move(sx + 2, sy);     screen.line(sx + 2, sy + 4); screen.stroke()
+  screen.level(13); screen.move(sx + 5, sy);     screen.line(sx + 5, sy + 4); screen.stroke()
+  screen.level(13); screen.move(sx + 2, sy + 4); screen.line(sx + 5, sy + 4); screen.stroke()
+  screen.level(15); screen.pixel(sx + 2, sy);    screen.pixel(sx + 5, sy); screen.fill()        -- prong tips gleam
+  screen.level(11); screen.rect(sx + 3, sy + 5, 2, 1); screen.fill()                            -- bell weight
+  screen.level(7);  screen.rect(sx + 3, sy + 6, 2, 2); screen.fill()                            -- handle
+end
+
+INST.sprites.storm_fork = function(sx, sy)
+  -- Storm-charged fork: prongs spark + an arc jumps between them
+  screen.level(15); screen.move(sx + 2, sy);     screen.line(sx + 2, sy + 4); screen.stroke()
+  screen.level(15); screen.move(sx + 5, sy);     screen.line(sx + 5, sy + 4); screen.stroke()
+  screen.level(15); screen.move(sx + 2, sy + 4); screen.line(sx + 5, sy + 4); screen.stroke()
+  -- arcing electric trail between the prongs (animated)
+  if (tick % 6) < 3 then
+    screen.level(13); screen.pixel(sx + 3, sy + 1); screen.pixel(sx + 4, sy + 2); screen.fill()
+  else
+    screen.level(13); screen.pixel(sx + 4, sy + 1); screen.pixel(sx + 3, sy + 2); screen.fill()
+  end
+  screen.level(11); screen.pixel(sx + 2, sy);    screen.pixel(sx + 5, sy); screen.fill()        -- bright tips
+  screen.level(5);  screen.rect(sx + 3, sy + 5, 2, 3); screen.fill()                            -- dark wrapped handle
+end
+
+-- ── Diegues' samplers (mage) ───────────────────────────────────────────
+-- Each instrument is a real-world sampling device.
+
+INST.sprites.cassette_sampler = function(sx, sy)
+  -- Cassette tape: rounded rectangle + 2 spool circles + label strip
+  screen.level(7);  screen.rect(sx + 1, sy + 1, 6, 6); screen.fill()                            -- shell
+  screen.level(0);  screen.pixel(sx + 2, sy + 3); screen.pixel(sx + 5, sy + 3); screen.fill()   -- spool centers
+  screen.level(2);  screen.pixel(sx + 3, sy + 3); screen.pixel(sx + 4, sy + 3); screen.fill()
+  screen.level(11); screen.rect(sx + 2, sy + 5, 4, 1); screen.fill()                            -- label strip
+  screen.level(2);  screen.pixel(sx + 3, sy + 5); screen.pixel(sx + 4, sy + 5); screen.fill()   -- label text dots
+end
+
+INST.sprites.sp404 = function(sx, sy)
+  -- Roland SP-404: black box, 4 orange pads, red record LED
+  screen.level(2);  screen.rect(sx + 1, sy + 1, 6, 6); screen.fill()                            -- body
+  screen.level(11); screen.rect(sx + 1, sy + 1, 6, 1); screen.fill()                            -- top edge highlight
+  -- 2x2 pad grid (orange)
+  screen.level(13)
+  screen.pixel(sx + 2, sy + 3); screen.pixel(sx + 3, sy + 3)
+  screen.pixel(sx + 5, sy + 3); screen.pixel(sx + 6, sy + 3)
+  screen.pixel(sx + 2, sy + 5); screen.pixel(sx + 3, sy + 5)
+  screen.pixel(sx + 5, sy + 5); screen.pixel(sx + 6, sy + 5); screen.fill()
+  -- record LED (blinks)
+  if (tick % 12) < 6 then
+    screen.level(15); screen.pixel(sx + 6, sy + 1); screen.fill()
+  end
+end
+
+INST.sprites.norns_sampler = function(sx, sy)
+  -- Monome norns: wooden box + OLED bar + 3 circular keys + 3 encoder dots
+  screen.level(8);  screen.rect(sx, sy + 2, 8, 5); screen.fill()                                -- wood body
+  screen.level(11); screen.rect(sx, sy + 2, 8, 1); screen.fill()                                -- top edge
+  screen.level(15); screen.rect(sx + 1, sy + 3, 6, 1); screen.fill()                            -- OLED strip
+  -- soft pulse on the OLED (the screen alive)
+  if (tick % 16) < 8 then
+    screen.level(13); screen.pixel(sx + 2, sy + 3); screen.pixel(sx + 5, sy + 3); screen.fill()
+  end
+  screen.level(2)                                                                                -- buttons + encoders
+  screen.pixel(sx + 1, sy + 5); screen.pixel(sx + 3, sy + 5); screen.pixel(sx + 5, sy + 5); screen.fill()
+  screen.level(11)                                                                               -- encoder caps
+  screen.pixel(sx + 1, sy + 6); screen.pixel(sx + 3, sy + 6); screen.pixel(sx + 5, sy + 6); screen.fill()
+end
+
+INST.sprites.macintosh = function(sx, sy)
+  -- Classic 1984 Macintosh: monitor box + smiley screen + stand + tilt-bob
+  local bob = ((tick % 32) < 16) and 0 or -1
+  screen.level(11); screen.rect(sx + 1, sy + bob, 6, 5); screen.fill()                          -- case
+  screen.level(15); screen.rect(sx + 2, sy + 1 + bob, 4, 2); screen.fill()                      -- screen (white)
+  screen.level(0)                                                                                -- happy-Mac face
+  screen.pixel(sx + 2, sy + 1 + bob); screen.pixel(sx + 5, sy + 1 + bob); screen.fill()         -- eyes
+  screen.pixel(sx + 3, sy + 2 + bob); screen.pixel(sx + 4, sy + 2 + bob); screen.fill()         -- mouth
+  screen.level(8);  screen.rect(sx + 3, sy + 6, 2, 2); screen.fill()                            -- stand/base
+  screen.level(7);  screen.pixel(sx + 5, sy + 4 + bob); screen.fill()                           -- floppy slot
 end
 INST.owned_for = function(class)
   local list = {}
@@ -568,47 +763,256 @@ local SHARD_DISPLAY = {
 }
 local SHARD_TOTAL = #SHARD_ORDER
 
+-- ── Recent-shard reaction system ─────────────────────────────────────────
+-- Every shard-aware NPC can prepend a one-line reaction to whichever
+-- shard the player most recently picked up. Per-NPC tables live in
+-- SHARD_REACT_BY_NPC; SHARD_GENERIC_REACT covers anyone not listed.
+-- Globals (no `local`) to dodge the 200-main-chunk-locals cap.
+SHARD_GENERIC_REACT = {
+  lydian     = "(eyes the Lydian shard) Bright. The first note still hums even at rest.",
+  dorian     = "(notices the Dorian shard) The Hollow Woods went quiet. You felt that, too.",
+  mixolydian = "(spots the Mixolydian shard) Tidewatch let it go. Few have made it ring.",
+  phrygian   = "(sees the Phrygian shard) Desert-warm. It still smells of dust.",
+  aeolian    = "(notes the Aeolian shard) Cold settled in the metal. The North gave you that.",
+  locrian    = "(observes the Locrian shard) The half-step. Heavy in the hand.",
+  ionian     = "(falls quiet at the Ionian shard) The bright ending. Suno's note. The world is whole again.",
+}
+SHARD_REACT_BY_NPC = {
+  Elder = {
+    lydian     = "[Elder] First shard. Bright as the day Modalia formed. Carry it well.",
+    dorian     = "[Elder] The Hollow gave it up. Its silence was never natural.",
+    mixolydian = "[Elder] Tidewatch fell. The fishermen will sing again at sunset.",
+    phrygian   = "[Elder] The Dune Rider rides no more. The east breathes easier.",
+    aeolian    = "[Elder] Five reclaimed. The fountain found its key tonight.",
+    locrian    = "[Elder] The crypt is silent. You have done what no Sage could.",
+    ionian     = "[Elder] The bright finish. Suno waits in his domain. Go.",
+  },
+  Sergei = {
+    lydian     = "[Sergei] One shard. The math is just starting to make sense.",
+    dorian     = "[Sergei] (turns the cable in his hand) Two. The pattern's there.",
+    mixolydian = "[Sergei] Tidewatch. (...stares.) That was the chord I couldn't crack at nineteen.",
+    phrygian   = "[Sergei] Desert resonance. Different timbre. Same coil under it.",
+    aeolian    = "[Sergei] Cold-bend in the wave. North chord's shorter than I'd modeled.",
+    locrian    = "[Sergei] Half-step. He hates that interval -- that's why he buried it.",
+    ionian     = "[Sergei] All seven on the wire. We can ring his silencers down. Tonight.",
+  },
+  Pip = {
+    lydian     = "[Pip] You found one! Mama said a hum came through the floor at dawn.",
+    dorian     = "[Pip] Two now! The lamp-bee-thing flew different last night.",
+    mixolydian = "[Pip] Three! The fountain went bloop-bloop like it was listening.",
+    phrygian   = "[Pip] FOUR! The wind tasted like sand for a whole afternoon.",
+    aeolian    = "[Pip] Five! I tried to whistle the cold one. It made my teeth buzz.",
+    locrian    = "[Pip] Six. (...quiet.) Mama said this one was the saddest. She cried a little.",
+    ionian     = "[Pip] Seven shards! The fountain SANG! Mama danced! She never dances!",
+  },
+  Wina = {
+    lydian     = "[Wina] (the lake darkens then brightens) The first hum returns. Old water remembers.",
+    dorian     = "[Wina] (water ripples without wind) Hollow's note. A sad one. A real one.",
+    mixolydian = "[Wina] (a small wave laps the shore) Tide gave you its blessing. Rare.",
+    phrygian   = "[Wina] (sand drifts onto the lake's edge) The desert came visiting in dream.",
+    aeolian    = "[Wina] (mist gathers) North's note. Breath alone won't carry it. Voice will.",
+    locrian    = "[Wina] (water pulls back from her feet) The half-step. The lake is afraid.",
+    ionian     = "[Wina] (the lake stills, glass-perfect) Sing it for him. He's earned it.",
+  },
+  Brann = {
+    lydian     = "[Brann] (taps the shard with a hammer-tap) Rings true. First always does.",
+    dorian     = "[Brann] (squints) Forge-temper'd by the cave itself. Good ore-work.",
+    mixolydian = "[Brann] Coast-steel chord. Hardest to pull out clean. You did.",
+    phrygian   = "[Brann] (whistles) Desert-bloom. Hot work, that one.",
+    aeolian    = "[Brann] Cold-set. The Snowgaunt tempered it for free. Lucky you.",
+    locrian    = "[Brann] (sets down the hammer) Locrian. Don't carry it longer than you have to.",
+    ionian     = "[Brann] All seven. (taps once, gently.) It's done. Or it will be.",
+  },
+  Aurin = {
+    lydian     = "[Aurin] The first note returns. The Sunward shore felt it before I did.",
+    dorian     = "[Aurin] Two now. The Dorian hum carries from the Hollow.",
+    mixolydian = "[Aurin] (her eyes find Strom's) Three. The tide-spawn fight no more.",
+    phrygian   = "[Aurin] Four reclaimed. The eastern dunes thank you in winds.",
+    aeolian    = "[Aurin] Five. The North hums different now. Steadier.",
+    locrian    = "[Aurin] Six. The half-step's grip is broken.",
+    ionian     = "[Aurin] All seven. The chord is whole. The Sunward shore prepares for sunrise.",
+  },
+  Veris = {
+    lydian     = "[Veris] You have the first. The cave's voice softens.",
+    dorian     = "[Veris] Two reclaimed. The forest sleeps deeper tonight.",
+    mixolydian = "[Veris] Three. Tidewatch's silence is the loudest gift the coast ever gave.",
+    phrygian   = "[Veris] Four. Desert wind carries fewer hooves now.",
+    aeolian    = "[Veris] Five. Five voices mended. The Snowgaunt sleeps where he should have all along.",
+    locrian    = "[Veris] Six. The crypt's chord ended. Quiet, the way old things end.",
+    ionian     = "[Veris] Seven. The forest will hear what comes next. We all will.",
+  },
+  Sela = {
+    lydian     = "[Sela] First shard already? Word came on the gull-wind.",
+    dorian     = "[Sela] Two. The Hollow's quiet. The old paths walk again.",
+    mixolydian = "[Sela] Tidewatch. The fishers came in singing today. First time in years.",
+    phrygian   = "[Sela] The Dune Rider rides no more. Strangers used to vanish in his hooves' echo.",
+    aeolian    = "[Sela] Five. The Northern winds came in clean for the first time in a season.",
+    locrian    = "[Sela] (lowers her voice) Six. The crypt-quiet is a real quiet now.",
+    ionian     = "[Sela] All seven? Take the boat free. First and last round are mine.",
+  },
+  Marek = {
+    lydian     = "[Marek] Caravans gossip. First shard, eh? A good rumor to ride east on.",
+    dorian     = "[Marek] (nods slowly) Two. The desert breathed easier this morning.",
+    mixolydian = "[Marek] Tidewatch. (...sets down the saffron.) That changes the trade routes.",
+    phrygian   = "[Marek] You took the Rider on his own ground. (Tessen kek-keks.) She approves.",
+    aeolian    = "[Marek] Cold-shard. The North traders bring different songs now.",
+    locrian    = "[Marek] (quiet) Six. Even Tessen sat still all morning.",
+    ionian     = "[Marek] (rises) All seven. Caravan's first stop tomorrow is Suno's gate. With you.",
+  },
+  Skari = {
+    lydian     = "[Skari] One. (...Vix opens an eye.) The pelts smell less of cold dust.",
+    dorian     = "[Skari] Two. The pass is quieter. Travelers used to go missing.",
+    mixolydian = "[Skari] Tidewatch's chord. The fjord ice cracked early this year.",
+    phrygian   = "[Skari] Phrygian. Even Vix's tail twitched. Rare for her.",
+    aeolian    = "[Skari] (sets down the trap) The Snowgaunt slept long. You sang him under.",
+    locrian    = "[Skari] Six. (...long pause.) That one came north on the wind. Heavy.",
+    ionian     = "[Skari] All seven. I'll close shop. Vix and I want to see what comes next.",
+  },
+  Iska = {
+    lydian     = "[Iska] (sand sifts from her cloak) The first shard sings even in this dust.",
+    dorian     = "[Iska] Two. The old paths to the Hollow are walkable again.",
+    mixolydian = "[Iska] Tidewatch. The fish-runners say the boats came home full.",
+    phrygian   = "[Iska] (sets down the cloak) The Dune Rider's hooves don't echo here anymore.",
+    aeolian    = "[Iska] Five. Even the desert hears the cold music now.",
+    locrian    = "[Iska] Six. The crypt's silence carried south. Stranger weather.",
+    ionian     = "[Iska] All seven. End it. The dunes will be quieter for the telling.",
+  },
+  Wenna = {
+    lydian     = "[Wenna] (humming) One bright note in the cold.",
+    dorian     = "[Wenna] Two. The Hollow's lullaby was an old song. I knew it as a girl.",
+    mixolydian = "[Wenna] Tidewatch's chord. Even the icicles changed pitch.",
+    phrygian   = "[Wenna] Phrygian. Strange -- the desert and the North share a key.",
+    aeolian    = "[Wenna] (sings half a phrase) Aeolian. The Snowgaunt's waltz can't tolerate other meters. You drowned his time with yours.",
+    locrian    = "[Wenna] Six shards. The world's almost right. I can sing whole verses now.",
+    ionian     = "[Wenna] (laughs softly) All seven. End this. Then I'll teach you the harmony.",
+  },
+  Tova = {
+    lydian     = "[Tova] The first hum. Lyssa at the inn says you spoke right.",
+    dorian     = "[Tova] Two. The four sages will know within the week.",
+    mixolydian = "[Tova] Tidewatch's silence reached us before you did. Aurin sent word.",
+    phrygian   = "[Tova] Four. Veris was right; you would surprise us all.",
+    aeolian    = "[Tova] Five. Mira saw the storm break around the Snowgaunt's tower.",
+    locrian    = "[Tova] Six. Iolen lit the crypt's lamp. The dark stayed dark, but quieter.",
+    ionian     = "[Tova] Seven. (...sits down.) The Sage-circle's work is done. Yours begins.",
+  },
+  Hens = {
+    lydian     = "[Hens] (counts under her breath) One in. Six to go. Need a salve for the road?",
+    dorian     = "[Hens] Two. Caravans are arriving with stranger songs. Good for business.",
+    mixolydian = "[Hens] Tidewatch. (laughs) Half my saffron was bound for the coast.",
+    phrygian   = "[Hens] Phrygian. Tonics fly off the shelf when there's good news.",
+    aeolian    = "[Hens] Five. The shopkeepers held a meeting. We all noticed.",
+    locrian    = "[Hens] Six. (steps closer) Not a word out of the village all morning. Not a word.",
+    ionian     = "[Hens] All seven? Last round of items free. Don't tell the elder. (winks)",
+  },
+  Mira = {
+    lydian     = "[Mira] First shard. The reedbed bent to it. I'd never seen wind do that.",
+    dorian     = "[Mira] Two. The lake birds sang the same line twice in a row. Twice.",
+    mixolydian = "[Mira] Tidewatch's chord broke. The herring jumped at sunrise.",
+    phrygian   = "[Mira] Four reclaimed. The dunes stilled -- I felt it through the river ice.",
+    aeolian    = "[Mira] Cold-shard. The Snowgaunt's waltz used to bend the river. Not anymore.",
+    locrian    = "[Mira] Six. The crypt let the half-step go. The earth stopped humming.",
+    ionian     = "[Mira] Seven. Everything sings. Everything will keep singing.",
+  },
+  Iolen = {
+    lydian     = "[Iolen] First shard. (lights a wick) The dark moved a half-pace away.",
+    dorian     = "[Iolen] Two. The Hollow's silence used to be a thing alive. Now it's just silence.",
+    mixolydian = "[Iolen] Tidewatch. (...tries the lamp again.) The flame doesn't stutter as much.",
+    phrygian   = "[Iolen] Four. Phrygian is the brave one. The dust loved it.",
+    aeolian    = "[Iolen] Five. Aeolian is the cold candle. It steadies the other flames.",
+    locrian    = "[Iolen] (turns the lamp up) Six. The dark backs farther out of the room.",
+    ionian     = "[Iolen] (lamp blooms bright) Seven. The lamp burns clean. Go end this.",
+  },
+}
+
+function recent_shard()
+  if not shards then return nil end
+  -- Walk newest-first; the latest collected shard wins the "most recent"
+  -- slot regardless of order picked up (i.e. ionian beats locrian beats aeolian...).
+  for i = #SHARD_ORDER, 1, -1 do
+    if shards[SHARD_ORDER[i]] then return SHARD_ORDER[i] end
+  end
+  return nil
+end
+
+function shard_react_line(npc_name)
+  local s = recent_shard()
+  if not s then return nil end
+  local npc_table = SHARD_REACT_BY_NPC[npc_name]
+  if npc_table and npc_table[s] then return npc_table[s] end
+  return SHARD_GENERIC_REACT[s]
+end
+
+-- Wraps an NPC's dialogue lines table by prepending the per-NPC reaction
+-- line (when any shard has been claimed). Pre-shard, returns lines as-is.
+function with_shard_react(npc_name, lines)
+  local r = shard_react_line(npc_name)
+  if not r then return lines end
+  local out = {r}
+  for _, l in ipairs(lines) do out[#out + 1] = l end
+  return out
+end
+
 -- ============================================================ OPENING CUTSCENE
 
 -- Each panel: {text, scene}. scene picks a background drawing routine.
 local CUTSCENE_LINES = {
   -- ── COSMIC LORE ──
-  {text = "Long ago, on planet Modalia, the Crystal Synth gave music — and life — to all.", scene = "cosmic"},
-  {text = "Seven shards. Seven modes. One chord, holding the world in tune.", scene = "cosmic"},
-  {text = "The Lydian. Dorian. Mixolydian. Phrygian. Aeolian. Locrian. Ionian.", scene = "cosmic"},
-  {text = "When the Crystal sang as one, mountains hummed. Rivers found their tempo.", scene = "cosmic"},
-  {text = "Then it shattered. The seven scattered, one to each musical nation.", scene = "cosmic"},
-  {text = "For an age, the world hummed in fragmented harmony.", scene = "cosmic"},
+  {text = "Long ago, on planet Modalia, the Crystal Synth gave music — and life — to all.", scene = "cosmic_stars"},
+  {text = "Seven shards. Seven modes. One chord, holding the world in tune.", scene = "cosmic_chord"},
+  {text = "The Lydian. Dorian. Mixolydian. Phrygian. Aeolian. Locrian. Ionian.", scene = "cosmic_modes"},
+  {text = "When the Crystal sang as one, mountains hummed. Rivers found their tempo.", scene = "cosmic_world"},
+  {text = "Then it shattered. The seven scattered, one to each musical nation.", scene = "cosmic_shatter"},
+  {text = "For an age, the world hummed in fragmented harmony.", scene = "cosmic_drift"},
   -- ── DARK FORESHADOW ──
-  {text = "Then Suno rose — once a wandering noble, now the dark lord of the silenced lands.", scene = "dark"},
-  {text = "He hunts every shard, to fold the seven into one bell — and ring it shut.", scene = "dark"},
-  {text = "Where his silencers march, the songs go cold.", scene = "dark"},
-  {text = "Villages forget their lullabies. Mothers forget their children's names.", scene = "dark"},
-  -- ── VILLAGE SCENE (Alder introduction) ──
-  {text = "On a quiet evening, in a small village clearing...", scene = "village"},
-  {text = "...a wandering troupe arrives by lantern-light, weary from the road.", scene = "village"},
-  {text = "Among them: Alder, a young bard with a borrowed lute.", scene = "village"},
-  {text = "He plays for coin and supper. He knows nothing of fate.", scene = "village"},
-  {text = "Tonight he plays for Princess Miel, who fled the capital in her brother's clothes.", scene = "village"},
-  {text = "Strom, an old soldier, listens silently from the shadow of a tree.", scene = "village"},
-  {text = "Diegues, last student of the shuttered Academy, reads by the firelight.", scene = "village"},
-  -- ── TENSION ──
-  {text = "But Suno's scouts have followed Miel into the woods.", scene = "threat"},
-  {text = "By dawn, the music must not stop. By dawn, four strangers must become one.", scene = "threat"},
-  {text = "Alder is about to learn what his songs were truly meant for.", scene = "threat"},
+  {text = "Then Suno rose — once a wandering noble, now the dark lord of the silenced lands.", scene = "dark_suno"},
+  {text = "He hunts every shard, to fold the seven into one bell — and ring it shut.", scene = "dark_march"},
+  {text = "Where his silencers march, the songs go cold. Mothers forget their children's names.", scene = "dark_village"},
+  -- ── LIRAEL: ORDINARY NIGHT (raid arrives; control hands to Miel after final panel) ──
+  {text = "On the Aeolian shore stands Lirael, a small kingdom that still keeps the chord.", scene = "lirael_coast"},
+  {text = "Tonight, like every night, the keep-bell rings the evening hour.", scene = "lirael_belltower"},
+  {text = "In the great hall, a scribe scratches at parchment. A page yawns at his post.", scene = "lirael_hall"},
+  {text = "Captain Ren walks the south wall and counts his guards by name.", scene = "lirael_southwall"},
+  {text = "In her chamber, Queen Miel sets her crown on the dressing table.", scene = "lirael_chamber"},
+  {text = "She blows out two of the three candles. She does not blow out the third.", scene = "lirael_candles"},
+  {text = "Outside, on the road from the west, a lamp goes out that should not.", scene = "lirael_road"},
+  {text = "On the south wall, a sentry does not answer the next watchword.", scene = "lirael_sentry"},
+  {text = "The captain stops walking. He waits one beat too long. He runs.", scene = "lirael_captain_run"},
+  {text = "In the courtyard the bell sounds again — wrong, sharp, twice.", scene = "lirael_courtyard"},
+  {text = "The south gate takes the first blow. The old stones remember.", scene = "lirael_gate"},
+  {text = "In her chamber, the queen has not yet woken. The third candle is guttering.", scene = "lirael_candles_dim"},
 }
 
--- ENDING cutscene panels (run after defeating Suno).
+-- ENDING cutscene panels (run after defeating Suno). Long-form FF4-style
+-- denouement: each character gets a quiet beat, then the world inhales,
+-- then the fountain sings, then the credits roll like wind.
 local ENDING_LINES = {
-  {text = "Suno's tower fell silent at last.", scene = "dark"},
-  {text = "The seven shards lifted from your hands —", scene = "cosmic"},
+  {text = "Suno's tower fell silent at last. Not the silence he wanted -- the other one.", scene = "dark"},
+  {text = "The kind that comes after a chord finally resolves.", scene = "dark"},
+  {text = "(He does not move. He does not need to. It is over.)", scene = "dark"},
+  -- Shards return
+  {text = "The seven shards lifted from your hands of their own weight.", scene = "cosmic"},
   {text = "Lydian. Dorian. Mixolydian. Phrygian.", scene = "cosmic"},
   {text = "Aeolian. Locrian. Ionian.", scene = "cosmic"},
-  {text = "They returned to the sky as a single chord.", scene = "cosmic"},
+  {text = "They turned in the air, slow as a question being asked correctly for the first time.", scene = "cosmic"},
+  {text = "Then they returned to the sky as a single chord.", scene = "cosmic"},
+  -- The world breathes
   {text = "Music ran back into Modalia like a held breath let go.", scene = "village"},
-  {text = "In the village square, a fountain sang for the first time in an age.", scene = "village"},
-  {text = "Alder, Miel, Strom, Diegues — your names became a song,", scene = "village"},
-  {text = "and the song was carried on every wind.", scene = "cosmic"},
+  {text = "Mountains found their hum. Rivers found their tempo.", scene = "village"},
+  {text = "In the village square, the fountain sang for the first time in an age.", scene = "village"},
+  {text = "A child stopped to listen. Then her mother. Then her mother's mother.", scene = "village"},
+  -- Character beats
+  {text = "Strom set his hammer down beside Reya's grave and did not pick it up again.", scene = "village"},
+  {text = "Diegues carried his notebook back to where the Academy had stood. He started a new one.", scene = "village"},
+  {text = "Alder taught the lullaby his mother had hummed to anyone who'd listen. Many did.", scene = "village"},
+  {text = "Miel walked west, alone, to the Aeolian shore. Lirael's stones were warm again.", scene = "village"},
+  {text = "She left her grandmother's book open on a windowsill. The wind read a page.", scene = "village"},
+  {text = "Sergei rebuilt the resonator. He said it sounded like an apology. Niko played a beat under it.", scene = "village"},
+  {text = "Paj wrote down the function for what they had done. It would not fit on the page.", scene = "village"},
+  {text = "She drew a circle around it instead, and labeled the circle: HELD.", scene = "village"},
+  -- The song travels
+  {text = "Alder, Miel, Strom, Diegues, Sergei, Paj, Niko --", scene = "cosmic"},
+  {text = "your names became a song.", scene = "cosmic"},
+  {text = "And the song was carried on every wind.", scene = "cosmic"},
   {text = "FIN.", scene = "cosmic"},
 }
 
@@ -1146,6 +1550,53 @@ do
     },
   }
 
+  -- CASTLE (prologue throne room, map 20): coup-in-progress underscore.
+  -- Hammered low pulse on the warrior, dissonant suspended pad on the
+  -- cleric (minor 2nd against tonic), urgent 8th-note mage figure that
+  -- climbs and falls, brittle bard accents on the offbeats. Builds
+  -- tension as Miel walks toward Suno; doesn't relent until she's out
+  -- through the tapestry.
+  OW_THEMES.castle = {
+    pattern = {
+      -- Warrior: insistent dotted-quarter pulse on A1, with G1/E1 stabs
+      -- dragging the chord downward (the floor giving way).
+      warrior = mk{
+        {1, 1}, {7, 1}, {13, 5}, {19, 1}, {25, 4}, {31, 1},
+        {33, 1}, {39, 1}, {45, 5}, {51, 1}, {57, 4}, {63, 1},
+        {65, 1}, {71, 1}, {77, 5}, {83, 1}, {89, 4}, {95, 1},
+        {97, 1}, {103, 1}, {109, 5}, {115, 1}, {121, 4}, {127, 1},
+      },
+      -- Cleric: held A3 with a brief minor-2nd C4 stab to twist the harmony.
+      cleric = mk{
+        {1, 11}, {25, 12},
+        {33, 11}, {57, 12},
+        {65, 11}, {89, 12},
+        {97, 11}, {121, 12},
+      },
+      -- Mage: urgent 8th-note climb-and-fall A4 → C5 → D5 → E5 → D5 → C5
+      -- (mirrors a heart racing).
+      mage = mk{
+        {1, 16}, {5, 17}, {9, 18}, {13, 19}, {17, 18}, {21, 17}, {25, 16}, {29, 14},
+        {33, 16}, {37, 17}, {41, 18}, {45, 19}, {49, 18}, {53, 17}, {57, 16}, {61, 14},
+        {65, 16}, {69, 17}, {73, 18}, {77, 19}, {81, 18}, {85, 17}, {89, 16}, {93, 14},
+        {97, 16}, {101, 17}, {105, 18}, {109, 19}, {113, 18}, {117, 17}, {121, 16}, {125, 14},
+      },
+      -- Bard: brittle high accents on offbeats, A5 / G5 alternating.
+      bard = mk{
+        {3, 21}, {11, 20}, {19, 21}, {27, 20},
+        {35, 21}, {43, 20}, {51, 21}, {59, 20},
+        {67, 21}, {75, 20}, {83, 21}, {91, 20},
+        {99, 21}, {107, 20}, {115, 21}, {123, 20},
+      },
+    },
+    artic = {
+      warrior = {vel=0.95, attack=0.003, release=0.18, wet=0.20},
+      cleric  = {vel=0.55, attack=0.10,  release=4.50, wet=0.85},
+      mage    = {vel=0.75, attack=0.005, release=0.30, wet=0.40},
+      bard    = {vel=0.65, attack=0.002, release=0.20, wet=0.55},
+    },
+  }
+
   -- CHAMBER (cave 7 — Suno's): heavy minimal throne hall; massive drone +
   -- three-note descent in the bard
   OW_THEMES.chamber = {
@@ -1160,6 +1611,103 @@ do
       cleric  = {vel=0.65, attack=0.60, release=10.0, wet=0.95},
       warrior = {vel=0.55, attack=0.005, release=2.50, wet=0.75},
       bard    = {vel=0.40, attack=0.020, release=2.00, wet=0.90},
+    },
+  }
+
+  -- LIRAEL RUINS (map 23): mournful Aeolian descent. The cleric breathes
+  -- a slow held A3 → G3 → F3 → E3 ladder; the mage answers with a tiny
+  -- minor-third figure; the warrior gives a single low pulse on the one;
+  -- the bard places a brittle high A every fourth bar (the bell). Long
+  -- attacks + heavy reverb so the chamber feels empty even with notes in it.
+  OW_THEMES.lirael = {
+    pattern = {
+      -- A3 G3 F3 E3 descent. Positions resolve in the aeolian scale at
+      -- octave 2-3: scale[15]=A3, [14]=G3, [13]=F3, [12]=E3. The
+      -- previous pattern used 0/-1/-2 as indices which Lua looked up
+      -- as nil → "arithmetic on nil" crash on the first cleric pulse.
+      cleric  = mk{ {1, 15}, {33, 14}, {65, 13}, {97, 12} },
+      mage    = mk{ {17, 11}, {21, 12}, {49, 11}, {53, 12},
+                    {81, 11}, {85, 12}, {113, 11}, {117, 12} },
+      warrior = mk{ {1, 1}, {65, 1} },
+      bard    = mk{ {1, 22}, {65, 22} },
+    },
+    artic = {
+      cleric  = {vel=0.55, attack=0.80, release=6.50, wet=0.95},
+      mage    = {vel=0.40, attack=0.05, release=2.50, wet=0.95},
+      warrior = {vel=0.50, attack=0.05, release=4.00, wet=0.85},
+      bard    = {vel=0.65, attack=0.001, release=4.50, wet=1.00},
+    },
+  }
+
+  -- VELTHE'S OBSERVATORY (map 24): mathematical Lydian sequence. The
+  -- mage runs a 5-note climbing figure that resets on the 4 (a #11
+  -- coloration); the cleric holds a brilliant high pad; the warrior
+  -- pulses a clean major triad on every bar one; the bard accents
+  -- the offbeats. Bright and curious — the sound of someone doing
+  -- the math while the stars hold still.
+  OW_THEMES.observatory = {
+    pattern = {
+      mage    = mk{ {1, 11}, {5, 13}, {9, 15}, {13, 18}, {17, 19},
+                    {33, 11}, {37, 13}, {41, 15}, {45, 18}, {49, 19},
+                    {65, 11}, {69, 13}, {73, 15}, {77, 18}, {81, 19},
+                    {97, 11}, {101, 13}, {105, 15}, {109, 18}, {113, 19} },
+      cleric  = mk{ {1, 15}, {65, 15} },
+      warrior = mk{ {1, 1}, {33, 1}, {65, 1}, {97, 1} },
+      bard    = mk{ {7, 21}, {15, 22}, {23, 21},
+                    {39, 21}, {47, 22}, {55, 21},
+                    {71, 21}, {79, 22}, {87, 21},
+                    {103, 21}, {111, 22}, {119, 21} },
+    },
+    artic = {
+      mage    = {vel=0.55, attack=0.005, release=0.40, wet=0.50},
+      cleric  = {vel=0.45, attack=0.40, release=8.00, wet=0.95},
+      warrior = {vel=0.55, attack=0.005, release=1.20, wet=0.45},
+      bard    = {vel=0.50, attack=0.002, release=0.30, wet=0.65},
+    },
+  }
+
+  -- REYA'S CAIRN (map 25): a single bell tone with a long reverb tail.
+  -- Almost nothing else. Cleric strikes A4 every 8 bars and lets it
+  -- decay; warrior sustains a low pedal; that's the whole arrangement.
+  -- Designed to make the player aware they're standing somewhere quiet.
+  OW_THEMES.cairn = {
+    pattern = {
+      cleric  = mk{ {1, 15}, {65, 15} },
+      warrior = mk{ {1, 1} },
+      mage    = mk{},
+      bard    = mk{},
+    },
+    artic = {
+      cleric  = {vel=0.85, attack=0.001, release=12.0, wet=1.00},
+      warrior = {vel=0.30, attack=0.40, release=15.0, wet=0.95},
+      mage    = {vel=0.0, attack=0.001, release=0.001, wet=0.0},
+      bard    = {vel=0.0, attack=0.001, release=0.001, wet=0.0},
+    },
+  }
+
+  -- ACADEMY (map 19): scholarly contemplation. Students-at-work feel.
+  -- Mage: 4-note recurring study figure (D-F-A-G, climb-and-fall) — the
+  -- math being worked on the slate. Cleric: held high pedal — the
+  -- afternoon light through the high window. Warrior: deep bell on bar
+  -- 1 of every 4 — the chime that marks lecture rotation. Bard: soft
+  -- pizzicato dot on weak beats — the quill's tap. Dorian-leaning so it
+  -- sounds thoughtful rather than melancholy or triumphal.
+  OW_THEMES.academy = {
+    pattern = {
+      mage    = mk{ { 1, 11}, { 9, 13}, {17, 16}, {25, 14},
+                    {33, 11}, {41, 13}, {49, 16}, {57, 14},
+                    {65, 11}, {73, 13}, {81, 16}, {89, 14},
+                    {97, 11}, {105,13}, {113,16}, {121,14} },
+      cleric  = mk{ {1, 15}, {65, 15} },                     -- held high pad
+      warrior = mk{ {1, 1}, {65, 1} },                       -- deep bell every 4 bars
+      bard    = mk{ {7, 21}, {23, 21}, {39, 21}, {55, 21},   -- offbeat quill taps
+                    {71, 21}, {87, 21}, {103, 21}, {119, 21} },
+    },
+    artic = {
+      mage    = {vel=0.50, attack=0.05,  release=1.20, wet=0.55},
+      cleric  = {vel=0.40, attack=0.60,  release=8.00, wet=0.90},
+      warrior = {vel=0.55, attack=0.10,  release=4.00, wet=0.85},
+      bard    = {vel=0.40, attack=0.001, release=0.30, wet=0.40},
     },
   }
 end
@@ -1183,75 +1731,319 @@ do
   -- Standard random-encounter battle theme — 8 bars of 16 steps each.
   -- Bass ostinato in 8th notes (steps 1, 3, 5, 7, 9, 11, 13, 15 of each bar).
   -- Chord movement: i — i — bVII — i (A minor → A minor → G → A minor).
+  -- ENCOUNTER: 32 bars (512 steps), FF4/FF6/FF9-style structure.
+  -- Layout: 2-bar intro + 8-bar A verse + 8-bar B chorus + 8-bar A' verse'
+  -- + 6-bar B' tag/resolve. Key: A natural minor / pentatonic-friendly.
+  -- Scale indices: 1=A1, 5=G2, 6=A2, 11=A3, 13=D4, 14=E4, 16=A4, 18=D5,
+  -- 21=A5, 22=C6, 24=E6, 25=G6.
   BATTLE_THEMES.encounter = {
+    pattern_len = 512,
     pattern = {
-      -- WARRIOR: low driving bass ostinato (8th notes). Pulse pattern with
-      -- syncopated accent on offbeats every other bar.
+      -- WARRIOR: walking-minor bass. Each bar: 8th notes with movement.
+      -- Bar 1 (i):    A A G A E A G A
+      -- Bar 2 (i):    A A G E A E G A
+      -- Bar 3 (bVII): G G F G D G F G  (one degree lower)
+      -- Bar 4 (i):    A A G E A G E A   (turnaround)
+      -- B section starts bar 5 — climbs up to bVI for tension.
+      -- Bar 5 (i):    A C E A C E G E   (more motion)
+      -- Bar 6 (bVI):  F F E F D F E F   (peak tension)
+      -- Bar 7 (V):    E E D E C E D E   (resolution prep)
+      -- Bar 8 (i):    A A G E A G E A
       warrior = {
-        -- bar 1: A pedal — 1,1,1,1,1,1,4,1
-        1, 0, 1, 0, 1, 0, 1, 0,  1, 0, 1, 0, 4, 0, 1, 0,
-        -- bar 2: A pedal w/ walk to 3
-        1, 0, 1, 0, 1, 0, 3, 0,  1, 0, 1, 0, 1, 0, 4, 0,
-        -- bar 3: bVII (G) — same shape one step lower
-        4, 0, 4, 0, 4, 0, 4, 0,  4, 0, 4, 0, 6, 0, 4, 0,
-        -- bar 4: back to A
-        1, 0, 1, 0, 4, 0, 1, 0,  1, 0, 1, 0, 1, 0, 6, 0,
-        -- bar 5: A pedal again
-        1, 0, 1, 0, 1, 0, 1, 0,  1, 0, 1, 0, 4, 0, 1, 0,
-        -- bar 6: A → C walk-up
-        1, 0, 1, 0, 3, 0, 1, 0,  3, 0, 1, 0, 4, 0, 6, 0,
-        -- bar 7: bVI (F) feel
-        2, 0, 2, 0, 2, 0, 4, 0,  2, 0, 4, 0, 6, 0, 4, 0,
-        -- bar 8: descending walk back to A
-        4, 0, 3, 0, 1, 0, 4, 0,  1, 0, 1, 0, 1, 0, 4, 0,
+        -- 1=A, 2=C, 3=D, 4=E, 5=G in slot indices.
+        -- ── Verse A (bars 1-4) ──
+        -- Bar 1 (i):    A . A . G . A .   E . A . G . A .
+         1, 0, 1, 0, 5, 0, 1, 0,   4, 0, 1, 0, 5, 0, 1, 0,
+        -- Bar 2 (i):    A . A . G . E .   A . E . G . A .
+         1, 0, 1, 0, 5, 0, 4, 0,   1, 0, 4, 0, 5, 0, 1, 0,
+        -- Bar 3 (bVII): G . G . E . G .   D . G . E . G .
+         5, 0, 5, 0, 4, 0, 5, 0,   3, 0, 5, 0, 4, 0, 5, 0,
+        -- Bar 4 (i):    A . A . G . E .   A . G . E . A .
+         1, 0, 1, 0, 5, 0, 4, 0,   1, 0, 5, 0, 4, 0, 1, 0,
+        -- ── Verse A' (bars 5-8) — same chords, slight rhythmic variation ──
+        -- Bar 5 (i):    A . C . E . A .   C . E . G . E .
+         1, 0, 2, 0, 4, 0, 1, 0,   2, 0, 4, 0, 5, 0, 4, 0,
+        -- Bar 6 (bVI):  A2 (high). C . E . A2 .  D . A2 . E . A2 .
+         6, 0, 6, 0, 4, 0, 6, 0,   3, 0, 6, 0, 4, 0, 6, 0,
+        -- Bar 7 (V):    E . E . D . E .   C . E . D . E .
+         4, 0, 4, 0, 3, 0, 4, 0,   2, 0, 4, 0, 3, 0, 4, 0,
+        -- Bar 8 (i):    A . A . G . E .   A . G . E . A .
+         1, 0, 1, 0, 5, 0, 4, 0,   1, 0, 5, 0, 4, 0, 1, 0,
+        -- ── Chorus B (bars 9-12) — push higher, syncopation ──
+        -- Bar 9 (i lift): A . E . A2 . G .   A2 . G . E . A2 .
+         1, 0, 4, 0, 6, 0, 5, 0,   6, 0, 5, 0, 4, 0, 6, 0,
+        -- Bar 10 (bVII high): G . D . G . A2 . D . A2 . G . A2 .
+         5, 0, 3, 0, 5, 0, 6, 0,   3, 0, 6, 0, 5, 0, 6, 0,
+        -- Bar 11 (bVI peak): A2 . C2-high . E . A2 . C2 . A2 . E . A2 .
+         6, 0, 7, 0, 4, 0, 6, 0,   7, 0, 6, 0, 4, 0, 6, 0,
+        -- Bar 12 (V tension): E . D . E . G .   D . G . E . D .
+         4, 0, 3, 0, 4, 0, 5, 0,   3, 0, 5, 0, 4, 0, 3, 0,
+        -- ── Chorus B' / Resolve (bars 13-16) — descend home ──
+        -- Bar 13 (i return): A . A . G . E .   A . E . G . A .
+         1, 0, 1, 0, 5, 0, 4, 0,   1, 0, 4, 0, 5, 0, 1, 0,
+        -- Bar 14 (bVII): G . E . G . D .   G . E . D . G .
+         5, 0, 4, 0, 5, 0, 3, 0,   5, 0, 4, 0, 3, 0, 5, 0,
+        -- Bar 15 (V): E . E . D . E .   C . E . D . E .
+         4, 0, 4, 0, 3, 0, 4, 0,   2, 0, 4, 0, 3, 0, 4, 0,
+        -- Bar 16 (i tag): A . . . G . . .   A . . . . . A . (sustain home)
+         1, 0, 0, 0, 5, 0, 0, 0,   1, 0, 0, 0, 0, 0, 1, 0,
+        -- ── Bridge (bars 17-20) — half-time pedal, modal lift to V ──
+        -- Bar 17 (i breath): A . . . . . A .   G . . . . . A .
+         1, 0, 0, 0, 0, 0, 1, 0,   5, 0, 0, 0, 0, 0, 1, 0,
+        -- Bar 18 (i): A . . . A . G .   E . . . G . A .
+         1, 0, 0, 0, 1, 0, 5, 0,   4, 0, 0, 0, 5, 0, 1, 0,
+        -- Bar 19 (bVII): G . . . G . D .   G . . . D . G .
+         5, 0, 0, 0, 5, 0, 3, 0,   5, 0, 0, 0, 3, 0, 5, 0,
+        -- Bar 20 (V tension): E . . . D . E .   C . D . E . G .
+         4, 0, 0, 0, 3, 0, 4, 0,   2, 0, 3, 0, 4, 0, 5, 0,
+        -- ── Climax (bars 21-24) — full 16th-note drive ──
+        -- Bar 21 (i lift):       A . E . A2 . G .   A2 . G . E . A2 .
+         1, 0, 4, 0, 6, 0, 5, 0,   6, 0, 5, 0, 4, 0, 6, 0,
+        -- Bar 22 (bVII high):    G . D . G . A2 .   D . A2 . G . A2 .
+         5, 0, 3, 0, 5, 0, 6, 0,   3, 0, 6, 0, 5, 0, 6, 0,
+        -- Bar 23 (bVI peak):     A2 . C2 . E . A2 .  C2 . A2 . E . A2 .
+         6, 0, 7, 0, 4, 0, 6, 0,   7, 0, 6, 0, 4, 0, 6, 0,
+        -- Bar 24 (V tension):    E . D . E . G .   D . G . E . D .
+         4, 0, 3, 0, 4, 0, 5, 0,   3, 0, 5, 0, 4, 0, 3, 0,
+        -- ── Reprise A (bars 25-28) — return home, walking 8ths ──
+        -- Bar 25 (i):    A . A . G . A .   E . A . G . A .
+         1, 0, 1, 0, 5, 0, 1, 0,   4, 0, 1, 0, 5, 0, 1, 0,
+        -- Bar 26 (i):    A . A . G . E .   A . E . G . A .
+         1, 0, 1, 0, 5, 0, 4, 0,   1, 0, 4, 0, 5, 0, 1, 0,
+        -- Bar 27 (bVII): G . G . E . G .   D . G . E . G .
+         5, 0, 5, 0, 4, 0, 5, 0,   3, 0, 5, 0, 4, 0, 5, 0,
+        -- Bar 28 (i):    A . A . G . E .   A . G . E . A .
+         1, 0, 1, 0, 5, 0, 4, 0,   1, 0, 5, 0, 4, 0, 1, 0,
+        -- ── Final tag (bars 29-32) — descend home, sustain ──
+        -- Bar 29 (i return): A . A . G . E .   A . E . G . A .
+         1, 0, 1, 0, 5, 0, 4, 0,   1, 0, 4, 0, 5, 0, 1, 0,
+        -- Bar 30 (bVII): G . E . G . D .   G . E . D . G .
+         5, 0, 4, 0, 5, 0, 3, 0,   5, 0, 4, 0, 3, 0, 5, 0,
+        -- Bar 31 (V): E . E . D . E .   C . E . D . E .
+         4, 0, 4, 0, 3, 0, 4, 0,   2, 0, 4, 0, 3, 0, 4, 0,
+        -- Bar 32 (i FINAL): A . . . . . . .   A . . . . . . .  (long sustain)
+         1, 0, 0, 0, 0, 0, 0, 0,   1, 0, 0, 0, 0, 0, 0, 0,
       },
-      -- CLERIC: chord pad — one held note per bar; chord changes at bars 3,5,7
+      -- CLERIC: chord pad, one note per bar following the implied chord
+      -- progression: i i bVII i i bVI V i.
       cleric = {
-        6, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,    -- A pad
-        6, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,
-        9, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,    -- G pad
-        6, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,
-        6, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,
-        7, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,    -- C pad
-        4, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,    -- F pad
-        6, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,
+        -- One held pad chord per bar; follows i-i-bVII-i / i-bVI-V-i / i-bVII-bVI-V / i-bVII-V-i.
+        -- Bars 1-4 (Verse A)
+        11, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,   -- A
+        11, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,   -- A
+        10, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,   -- G (bVII)
+        11, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,   -- A
+        -- Bars 5-8 (Verse A')
+        11, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,   -- A
+        12, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,   -- C (bVI peak)
+         9, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,   -- E (V)
+        11, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,   -- A
+        -- Bars 9-12 (Chorus B / climb)
+        11, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,   -- A (lift)
+        10, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,   -- G high
+        12, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,   -- C peak
+         9, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,   -- E
+        -- Bars 13-16 (Chorus B' / resolve)
+        11, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,   -- A return
+        10, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,   -- G
+         9, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,   -- E
+        11, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,   -- A home
+        -- ── Bridge (bars 17-20) — i / bVII / bVI / V ──
+        11, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,   -- A
+        10, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,   -- G
+        12, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,   -- C
+         9, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,   -- E
+        -- ── Climax (bars 21-24) — i lift / bVII high / bVI peak / V ──
+        11, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,   -- A lift
+        10, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,   -- G
+        12, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,   -- C peak
+         9, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,   -- E
+        -- ── Reprise A (bars 25-28) — i / i / bVII / i ──
+        11, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,   -- A
+        11, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,   -- A
+        10, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,   -- G
+        11, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,   -- A
+        -- ── Final tag (bars 29-32) — i / bVII / V / i ──
+        11, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,   -- A
+        10, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,   -- G
+         9, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,   -- E
+        11, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,   -- A FINAL
       },
-      -- MAGE: melodic line — fast staccato. Minor scale runs.
+      -- MAGE: real melodic theme. Phrase structure:
+      --   bars 1-2: antecedent — opens on A4, leaps up to D5, settles on E4
+      --   bars 3-4: consequent — same opening, lands on A4 (resolution)
+      --   bars 5-6: B-section climb — pushes up to D5/E5 area
+      --   bars 7-8: descent home — A5 → settle on A4
+      -- Quarter notes (every 4 steps), not 16ths, so phrases breathe.
       mage = {
-        13, 0,14, 0,15, 0,14, 0, 13, 0,11, 0,13, 0,15, 0,
-        16, 0,15, 0,14, 0,13, 0, 11, 0,13, 0,14, 0,16, 0,
-        15, 0,14, 0,13, 0,11, 0, 13, 0,11, 0, 9, 0,11, 0,
-        13, 0,14, 0,15, 0,16, 0, 15, 0,14, 0,13, 0,15, 0,
-        13, 0,14, 0,15, 0,14, 0, 13, 0,11, 0,13, 0,16, 0,
-        18, 0,16, 0,15, 0,14, 0, 13, 0,11, 0,13, 0,15, 0,
-        14, 0,13, 0,11, 0, 9, 0, 11, 0,13, 0,14, 0,15, 0,
-        16, 0,15, 0,13, 0,11, 0, 13, 0,11, 0,13, 0,15, 0,
+        -- ── Verse A (bars 1-4) — antecedent / consequent pair ──
+        -- Bar 1: A4 . D5 . E4 . D4 .  (the theme opens with the leap up to D5)
+        16, 0, 0, 0,18, 0, 0, 0, 14, 0, 0, 0,13, 0, 0, 0,
+        -- Bar 2: E4 . D4 . A4 . . .  (settles, breath)
+        14, 0, 0, 0,13, 0, 0, 0, 16, 0, 0, 0, 0, 0, 0, 0,
+        -- Bar 3: A4 . C5 . D5 . C5 .
+        16, 0, 0, 0,17, 0, 0, 0, 18, 0, 0, 0,17, 0, 0, 0,
+        -- Bar 4: A4 . G4 . E4 . A4 .  (consequent resolves home)
+        16, 0, 0, 0,15, 0, 0, 0, 14, 0, 0, 0,16, 0, 0, 0,
+        -- ── Verse A' (bars 5-8) — same theme, octave bump up ──
+        -- Bar 5: A4 . D5 . A5 . D5 .  (octave call)
+        16, 0, 0, 0,18, 0, 0, 0, 21, 0, 0, 0,18, 0, 0, 0,
+        -- Bar 6: E5 . D5 . A4 . . .
+        19, 0, 0, 0,18, 0, 0, 0, 16, 0, 0, 0, 0, 0, 0, 0,
+        -- Bar 7: A4 . D5 . A5 . G5 . (climbs)
+        16, 0, 0, 0,18, 0, 0, 0, 21, 0, 0, 0,20, 0, 0, 0,
+        -- Bar 8: A5 . D5 . A4 . D5 . (lands, leaves a hook into chorus)
+        21, 0, 0, 0,18, 0, 0, 0, 16, 0, 0, 0,18, 0, 0, 0,
+        -- ── Chorus B (bars 9-12) — tighter rhythm, climbs to peak ──
+        -- Bar 9:  D5 . E5 . D5 . C5 .
+        18, 0, 0, 0,19, 0, 0, 0, 18, 0, 0, 0,17, 0, 0, 0,
+        -- Bar 10: A5 . G5 . E5 . D5 .
+        21, 0, 0, 0,20, 0, 0, 0, 19, 0, 0, 0,18, 0, 0, 0,
+        -- Bar 11: C6 . D6 . C6 . A5 .  (peak)
+        22, 0, 0, 0,23, 0, 0, 0, 22, 0, 0, 0,21, 0, 0, 0,
+        -- Bar 12: G6 . E6 . A5 . D5 .  (top, then descent begins)
+        25, 0, 0, 0,24, 0, 0, 0, 21, 0, 0, 0,18, 0, 0, 0,
+        -- ── Chorus B' (bars 13-16) — descend home, sustain ──
+        -- Bar 13: E5 . D5 . C5 . E5 .
+        19, 0, 0, 0,18, 0, 0, 0, 17, 0, 0, 0,19, 0, 0, 0,
+        -- Bar 14: E5 . D5 . A4 . A4 .
+        19, 0, 0, 0,18, 0, 0, 0, 16, 0, 0, 0,16, 0, 0, 0,
+        -- Bar 15: A4 . D5 . E4 . D4 .  (theme A reprise)
+        16, 0, 0, 0,18, 0, 0, 0, 14, 0, 0, 0,13, 0, 0, 0,
+        -- Bar 16: A4 . . . A3 . . .  (long sustain home, octave drop)
+        16, 0, 0, 0, 0, 0, 0, 0, 11, 0, 0, 0, 0, 0, 0, 0,
+        -- ── Bridge (bars 17-20) — theme A reprised an octave up ──
+        -- Bar 17: A5 . D6 . E5 . D5 .
+        21, 0, 0, 0,23, 0, 0, 0, 19, 0, 0, 0,18, 0, 0, 0,
+        -- Bar 18: E5 . D5 . A5 . . .
+        19, 0, 0, 0,18, 0, 0, 0, 21, 0, 0, 0, 0, 0, 0, 0,
+        -- Bar 19: A5 . C6 . D6 . C6 .
+        21, 0, 0, 0,22, 0, 0, 0, 23, 0, 0, 0,22, 0, 0, 0,
+        -- Bar 20: A5 . G5 . E5 . A5 .  (consequent up high)
+        21, 0, 0, 0,20, 0, 0, 0, 19, 0, 0, 0,21, 0, 0, 0,
+        -- ── Climax (bars 21-24) — peak melodic line ──
+        -- Bar 21: D5 . E5 . D5 . C5 .
+        18, 0, 0, 0,19, 0, 0, 0, 18, 0, 0, 0,17, 0, 0, 0,
+        -- Bar 22: A5 . G5 . E5 . D5 .
+        21, 0, 0, 0,20, 0, 0, 0, 19, 0, 0, 0,18, 0, 0, 0,
+        -- Bar 23: C6 . D6 . C6 . A5 .  (peak)
+        22, 0, 0, 0,23, 0, 0, 0, 22, 0, 0, 0,21, 0, 0, 0,
+        -- Bar 24: G6 . E6 . A5 . D5 .  (top + descent begins)
+        25, 0, 0, 0,24, 0, 0, 0, 21, 0, 0, 0,18, 0, 0, 0,
+        -- ── Reprise A (bars 25-28) — return to opening theme ──
+        -- Bar 25: A4 . D5 . E4 . D4 .
+        16, 0, 0, 0,18, 0, 0, 0, 14, 0, 0, 0,13, 0, 0, 0,
+        -- Bar 26: E4 . D4 . A4 . . .
+        14, 0, 0, 0,13, 0, 0, 0, 16, 0, 0, 0, 0, 0, 0, 0,
+        -- Bar 27: A4 . C5 . D5 . C5 .
+        16, 0, 0, 0,17, 0, 0, 0, 18, 0, 0, 0,17, 0, 0, 0,
+        -- Bar 28: A4 . G4 . E4 . A4 .  (consequent resolves)
+        16, 0, 0, 0,15, 0, 0, 0, 14, 0, 0, 0,16, 0, 0, 0,
+        -- ── Final tag (bars 29-32) — descend home, settle on A ──
+        -- Bar 29: E5 . D5 . C5 . E5 .
+        19, 0, 0, 0,18, 0, 0, 0, 17, 0, 0, 0,19, 0, 0, 0,
+        -- Bar 30: E5 . D5 . A4 . A4 .
+        19, 0, 0, 0,18, 0, 0, 0, 16, 0, 0, 0,16, 0, 0, 0,
+        -- Bar 31: A4 . D5 . E4 . D4 .  (theme A reprise)
+        16, 0, 0, 0,18, 0, 0, 0, 14, 0, 0, 0,13, 0, 0, 0,
+        -- Bar 32: A4 . . . . . . . . . . . . . . .  (long final)
+        16, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,
       },
-      -- BARD: high accent stabs on offbeats — call-and-response feel.
+      -- BARD: counter-line. Mostly silent in A section (lets the lead
+      -- breathe), then doubles lead at the octave above on the climax
+      -- bars 5-6, then offbeat call-response on bars 7-8.
       bard = {
-         0, 0, 0, 0,21, 0, 0, 0,  0, 0, 0, 0,22, 0, 0, 0,
-         0, 0, 0, 0,21, 0, 0, 0,  0, 0,22, 0,21, 0,19, 0,
-         0, 0, 0, 0,19, 0, 0, 0,  0, 0, 0, 0,21, 0,19, 0,
-         0, 0, 0, 0,21, 0, 0, 0,  0, 0,22, 0,21, 0, 0, 0,
-         0, 0, 0, 0,21, 0,22, 0,  0, 0, 0, 0,21, 0,22, 0,
-         0, 0, 0, 0,22, 0,24, 0,  0, 0, 0, 0,22, 0,21, 0,
-         0, 0, 0, 0,19, 0,21, 0,  0, 0, 0, 0,19, 0,17, 0,
-         0, 0, 0, 0,21, 0,22, 0,  0, 0,21, 0,19, 0,21, 0,
+        -- ── Verse A (bars 1-4) — sparse, lets the lead breathe ──
+        -- Bar 1: silent
+         0, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,
+        -- Bar 2: small answer chime
+         0, 0, 0, 0, 0, 0, 0, 0,  0, 0,21, 0, 0, 0, 0, 0,
+        -- Bar 3: silent
+         0, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,
+        -- Bar 4: closing chime that lands with the consequent
+         0, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0,21, 0, 0, 0,
+        -- ── Verse A' (bars 5-8) — joins the lead at the octave ──
+        -- Bar 5: A5 . D6 . A6 . D6 . (matches lead at +1 octave)
+        21, 0, 0, 0,23, 0, 0, 0, 25, 0, 0, 0,23, 0, 0, 0,
+        -- Bar 6: E6 . D6 . A5 . . .
+        24, 0, 0, 0,23, 0, 0, 0, 21, 0, 0, 0, 0, 0, 0, 0,
+        -- Bar 7: silent (hand back to lead)
+         0, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,
+        -- Bar 8: lift response
+         0, 0, 0, 0,22, 0, 0, 0,  0, 0, 0, 0,23, 0, 0, 0,
+        -- ── Chorus B (bars 9-12) — octave-doubles the climb ──
+        -- Bar 9: doubling lead +1 octave
+        23, 0, 0, 0,24, 0, 0, 0, 23, 0, 0, 0,22, 0, 0, 0,
+        -- Bar 10: same shape, climbing
+        25, 0, 0, 0,24, 0, 0, 0, 23, 0, 0, 0,22, 0, 0, 0,
+        -- Bar 11: peak — lead is at top so bard goes harmony underneath
+        18, 0, 0, 0,19, 0, 0, 0, 18, 0, 0, 0,17, 0, 0, 0,
+        -- Bar 12: at the top with the lead
+        25, 0, 0, 0,24, 0, 0, 0, 23, 0, 0, 0,22, 0, 0, 0,
+        -- ── Chorus B' / Resolution (bars 13-16) — call & response ──
+        -- Bar 13: offbeat call-response
+         0, 0,22, 0, 0, 0,21, 0,  0, 0,22, 0, 0, 0,23, 0,
+        -- Bar 14: descending answers
+         0, 0,21, 0, 0, 0,19, 0,  0, 0,21, 0, 0, 0,16, 0,
+        -- Bar 15: silent (lead reprise alone)
+         0, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,
+        -- Bar 16: triumphant tag — high A drop to A
+        25, 0, 0, 0,24, 0, 0, 0, 21, 0, 0, 0,16, 0, 0, 0,
+        -- ── Bridge (bars 17-20) — bard takes lead at the top ──
+        -- Bar 17: A6 . D6 . A5 . D6 .  (very high lead while mage is quiet)
+        25, 0, 0, 0,23, 0, 0, 0, 21, 0, 0, 0,23, 0, 0, 0,
+        -- Bar 18: E6 . D6 . A5 . . .
+        24, 0, 0, 0,23, 0, 0, 0, 21, 0, 0, 0, 0, 0, 0, 0,
+        -- Bar 19: A5 . C6 . D6 . C6 .
+        21, 0, 0, 0,22, 0, 0, 0, 23, 0, 0, 0,22, 0, 0, 0,
+        -- Bar 20: silent (clears for climax handoff)
+         0, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,
+        -- ── Climax (bars 21-24) — octave-doubles mage at peak ──
+        -- Bar 21: D6 . E6 . D6 . C6 .  (doubles bar 21 mage +1 oct)
+        23, 0, 0, 0,24, 0, 0, 0, 23, 0, 0, 0,22, 0, 0, 0,
+        -- Bar 22: G6 . E6 . D6 . C6 .
+        25, 0, 0, 0,24, 0, 0, 0, 23, 0, 0, 0,22, 0, 0, 0,
+        -- Bar 23: harmony underneath the peak (3rd below)
+        18, 0, 0, 0,19, 0, 0, 0, 18, 0, 0, 0,17, 0, 0, 0,
+        -- Bar 24: G6 . E6 . D6 . C6 .  (top with lead)
+        25, 0, 0, 0,24, 0, 0, 0, 23, 0, 0, 0,22, 0, 0, 0,
+        -- ── Reprise A (bars 25-28) — sparse, lets mage breathe ──
+        -- Bar 25: silent
+         0, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,
+        -- Bar 26: small answer chime
+         0, 0, 0, 0, 0, 0, 0, 0,  0, 0,21, 0, 0, 0, 0, 0,
+        -- Bar 27: silent
+         0, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,
+        -- Bar 28: closing chime
+         0, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0,21, 0, 0, 0,
+        -- ── Final tag (bars 29-32) — call & response into resolve ──
+        -- Bar 29: offbeat call-response
+         0, 0,22, 0, 0, 0,21, 0,  0, 0,22, 0, 0, 0,23, 0,
+        -- Bar 30: descending answers
+         0, 0,21, 0, 0, 0,19, 0,  0, 0,21, 0, 0, 0,16, 0,
+        -- Bar 31: silent (lead reprise alone)
+         0, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,
+        -- Bar 32: triumphant tag — G6 → E6 → A5 → A4 (final descent)
+        25, 0, 0, 0,24, 0, 0, 0, 21, 0, 0, 0,16, 0, 0, 0,
       },
     },
     artic = {
-      warrior = {vel=0.85, attack=0.003, release=0.18, wet=0.20},  -- punchy bass
-      cleric  = {vel=0.40, attack=0.20,  release=4.00, wet=0.80},  -- sustained pad
-      mage    = {vel=0.70, attack=0.002, release=0.12, wet=0.30},  -- staccato lead
-      bard    = {vel=0.60, attack=0.001, release=0.18, wet=0.55},  -- crisp stabs
+      warrior = {vel=0.78, attack=0.003, release=0.22, wet=0.10},  -- walking bass
+      cleric  = {vel=0.40, attack=0.30,  release=5.00, wet=0.35},  -- sustained pad (was 0.85; cut to clear the wash)
+      mage    = {vel=0.65, attack=0.010, release=0.55, wet=0.25},  -- singing lead
+      bard    = {vel=0.45, attack=0.005, release=0.40, wet=0.30},  -- counter-melody
     },
   }
 
-  -- Boss battle — slower, heavier, more menacing. Half-time bass + more pad.
+  -- Boss battle — 32 bars (512 steps), heavier and more menacing than encounter.
+  -- Layout: A theme (bars 1-8) + A' octave-up (9-16) + dread bridge (17-24)
+  -- + climax & final (25-32). Half-time bass keeps the doom feel even at
+  -- climax. Cleric pad climbs from A2 (bar 1) to C4 (peak) and back home.
   BATTLE_THEMES.boss = {
+    pattern_len = 512,
     pattern = {
       warrior = {
-        -- quarter-note bass (steps 1, 5, 9, 13 of each bar) — heavier feel
+        -- ── A theme (bars 1-8) — half-time, heavy ──
         1, 0, 0, 0, 1, 0, 0, 0,  1, 0, 0, 0, 4, 0, 0, 0,
         1, 0, 0, 0, 1, 0, 0, 0,  3, 0, 0, 0, 1, 0, 0, 0,
         4, 0, 0, 0, 4, 0, 0, 0,  4, 0, 0, 0, 6, 0, 0, 0,
@@ -1260,20 +2052,74 @@ do
         4, 0, 0, 0, 4, 0, 0, 0,  6, 0, 0, 0, 4, 0, 0, 0,
         1, 0, 0, 0, 1, 0, 0, 0,  3, 0, 0, 0, 1, 0, 0, 0,
         1, 0, 0, 0, 4, 0, 0, 0,  1, 0, 0, 0, 1, 0, 0, 0,
+        -- ── A' (bars 9-16) — pickup notes between hits ──
+        1, 0, 0, 0, 1, 0, 5, 0,  1, 0, 0, 0, 4, 0, 0, 0,
+        1, 0, 0, 0, 1, 0, 4, 0,  3, 0, 0, 0, 1, 0, 0, 0,
+        4, 0, 0, 0, 4, 0, 5, 0,  4, 0, 0, 0, 6, 0, 0, 0,
+        1, 0, 0, 0, 4, 0, 0, 0,  1, 0, 0, 0, 6, 0, 5, 0,
+        2, 0, 0, 0, 2, 0, 1, 0,  4, 0, 0, 0, 1, 0, 0, 0,
+        4, 0, 0, 0, 4, 0, 5, 0,  6, 0, 0, 0, 4, 0, 5, 0,
+        1, 0, 0, 0, 1, 0, 0, 0,  3, 0, 0, 0, 5, 0, 4, 0,
+        1, 0, 0, 0, 4, 0, 0, 0,  1, 0, 0, 0, 1, 0, 5, 0,
+        -- ── Bridge (bars 17-24) — slow pedal descent then walking build ──
+        1, 0, 0, 0, 1, 0, 0, 0,  1, 0, 0, 0, 1, 0, 0, 0,
+        5, 0, 0, 0, 5, 0, 0, 0,  5, 0, 0, 0, 5, 0, 0, 0,
+        4, 0, 0, 0, 4, 0, 0, 0,  4, 0, 0, 0, 4, 0, 0, 0,
+        3, 0, 0, 0, 3, 0, 0, 0,  3, 0, 0, 0, 3, 0, 0, 0,
+        1, 0, 1, 0, 1, 0, 1, 0,  5, 0, 5, 0, 5, 0, 5, 0,
+        4, 0, 4, 0, 4, 0, 4, 0,  1, 0, 1, 0, 1, 0, 1, 0,
+        6, 0, 6, 0, 4, 0, 4, 0,  5, 0, 5, 0, 4, 0, 4, 0,
+        1, 0, 4, 0, 1, 0, 4, 0,  1, 0, 0, 0, 1, 0, 0, 0,
+        -- ── Climax & Final (bars 25-32) — 8th-note drive, then resolve ──
+        1, 0, 1, 0, 1, 0, 1, 0,  1, 0, 1, 0, 1, 0, 1, 0,
+        5, 0, 5, 0, 5, 0, 5, 0,  5, 0, 5, 0, 5, 0, 5, 0,
+        4, 0, 4, 0, 4, 0, 4, 0,  4, 0, 4, 0, 4, 0, 4, 0,
+        6, 0, 6, 0, 6, 0, 6, 0,  6, 0, 6, 0, 6, 0, 6, 0,
+        1, 0, 0, 0, 5, 0, 0, 0,  4, 0, 0, 0, 1, 0, 0, 0,
+        1, 0, 0, 0, 4, 0, 0, 0,  5, 0, 0, 0, 1, 0, 0, 0,
+        4, 0, 0, 0, 3, 0, 0, 0,  4, 0, 0, 0, 5, 0, 0, 0,
+        1, 0, 0, 0, 0, 0, 0, 0,  1, 0, 0, 0, 0, 0, 0, 0,
       },
       cleric = {
-        -- minor cluster pad: A held longer + dissonant 2nd on alt bars
+        -- ── A theme (bars 1-8) — minor cluster pad ──
+        6, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,   -- A2
+        7, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,   -- C3
+        9, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,   -- E3
+        6, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,   -- A2
+        4, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,   -- E2
+        4, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,   -- E2
+        7, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,   -- C3
+        6, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,   -- A2
+        -- ── A' (bars 9-16) — same chord motion ──
         6, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,
         7, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,
         9, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,
-        6, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,
+        4, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,
         4, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,
         4, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,
         7, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,
         6, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,
+        -- ── Bridge (bars 17-24) — climbs to peak then drops back ──
+       11, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,   -- A3 lift
+       10, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,   -- G3
+       12, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,   -- C4 peak
+        9, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,   -- E3
+        6, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,   -- A2 drop
+        4, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,   -- E2
+        7, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,   -- C3
+        9, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,   -- E3
+        -- ── Climax & Final (bars 25-32) — peaks then resolves home ──
+       11, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,   -- A3
+       10, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,   -- G3
+        9, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,   -- E3
+       12, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,   -- C4 peak
+       11, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,   -- A3 home
+       10, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,   -- G3
+        9, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,   -- E3
+        6, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,   -- A2 final
       },
       mage = {
-        -- slower dramatic melodic phrases (every 4 steps)
+        -- ── A theme (bars 1-8) — slow dramatic phrases ──
         13, 0, 0, 0,15, 0, 0, 0, 16, 0, 0, 0,15, 0, 0, 0,
         18, 0, 0, 0,16, 0, 0, 0, 15, 0, 0, 0,13, 0, 0, 0,
         15, 0, 0, 0,18, 0, 0, 0, 16, 0, 0, 0,15, 0, 0, 0,
@@ -1282,9 +2128,36 @@ do
         20, 0, 0, 0,18, 0, 0, 0, 16, 0, 0, 0,15, 0, 0, 0,
         15, 0, 0, 0,13, 0, 0, 0, 11, 0, 0, 0,13, 0, 0, 0,
         16, 0, 0, 0,15, 0, 0, 0, 13, 0, 0, 0,11, 0, 0, 0,
+        -- ── A' (bars 9-16) — octave up reprise ──
+        16, 0, 0, 0,18, 0, 0, 0, 19, 0, 0, 0,18, 0, 0, 0,
+        20, 0, 0, 0,18, 0, 0, 0, 16, 0, 0, 0, 0, 0, 0, 0,
+        18, 0, 0, 0,20, 0, 0, 0, 18, 0, 0, 0,16, 0, 0, 0,
+        16, 0, 0, 0,15, 0, 0, 0, 13, 0, 0, 0,11, 0, 0, 0,
+        16, 0, 0, 0,18, 0, 0, 0, 20, 0, 0, 0,19, 0, 0, 0,
+        21, 0, 0, 0,20, 0, 0, 0, 19, 0, 0, 0,18, 0, 0, 0,
+        18, 0, 0, 0,16, 0, 0, 0, 13, 0, 0, 0,11, 0, 0, 0,
+        16, 0, 0, 0,15, 0, 0, 0, 13, 0, 0, 0,11, 0, 0, 0,
+        -- ── Bridge (bars 17-24) — descend dread, then walk back up ──
+        11, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,   -- A3 hold
+        10, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,   -- G3
+         9, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,   -- E3
+         8, 0, 0, 0,11, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,   -- D3 → A3
+        13, 0,14, 0,13, 0,12, 0, 13, 0,14, 0,13, 0,12, 0,
+        16, 0,15, 0,14, 0,13, 0, 16, 0,15, 0,14, 0,13, 0,
+        18, 0,17, 0,16, 0,15, 0, 18, 0,17, 0,16, 0,15, 0,
+        20, 0,19, 0,18, 0,16, 0, 20, 0,19, 0,18, 0,16, 0,
+        -- ── Climax & Final (bars 25-32) ──
+        21, 0, 0, 0,20, 0, 0, 0, 19, 0, 0, 0,18, 0, 0, 0,
+        21, 0, 0, 0,20, 0, 0, 0, 18, 0, 0, 0,16, 0, 0, 0,
+        20, 0, 0, 0,18, 0, 0, 0, 16, 0, 0, 0,15, 0, 0, 0,
+        21, 0, 0, 0,19, 0, 0, 0, 16, 0, 0, 0, 0, 0, 0, 0,
+        16, 0, 0, 0,15, 0, 0, 0, 14, 0, 0, 0,13, 0, 0, 0,
+        13, 0, 0, 0,15, 0, 0, 0, 13, 0, 0, 0,11, 0, 0, 0,
+        11, 0, 0, 0,13, 0, 0, 0, 11, 0, 0, 0, 9, 0, 0, 0,
+        11, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,
       },
       bard = {
-        -- sparse menacing high stabs on bar 2 + bar 4 of each phrase
+        -- ── A theme (bars 1-8) — sparse menacing stabs ──
          0, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0,22, 0, 0, 0,
          0, 0, 0, 0, 0, 0, 0, 0,  0, 0,22, 0,21, 0, 0, 0,
          0, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0,24, 0,22, 0,
@@ -1293,13 +2166,40 @@ do
          0, 0, 0, 0, 0, 0, 0, 0,  0, 0,24, 0,22, 0,21, 0,
          0, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0,21, 0,19, 0,
          0, 0, 0, 0, 0, 0, 0, 0,  0, 0,22, 0,21, 0,19, 0,
+        -- ── A' (bars 9-16) — denser stabs ──
+         0, 0, 0, 0, 0, 0,22, 0,  0, 0, 0, 0,21, 0, 0, 0,
+         0, 0, 0, 0, 0, 0, 0, 0,  0, 0,22, 0,21, 0,19, 0,
+         0, 0, 0, 0, 0, 0, 0, 0,  0, 0,24, 0,22, 0,21, 0,
+         0, 0, 0, 0, 0, 0,21, 0,  0, 0, 0, 0,24, 0,22, 0,
+         0, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0,22, 0, 0, 0,
+         0, 0, 0, 0,22, 0, 0, 0,  0, 0,24, 0,22, 0,21, 0,
+         0, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0,21, 0,19, 0,
+         0, 0, 0, 0, 0, 0, 0, 0,  0, 0,22, 0,21, 0,19, 0,
+        -- ── Bridge (bars 17-24) — silent then build single bells ──
+         0, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,
+         0, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,
+         0, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,
+         0, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0,19, 0,
+         0, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0,21, 0,
+         0, 0, 0, 0, 0, 0,22, 0,  0, 0, 0, 0, 0, 0,21, 0,
+         0, 0, 0, 0, 0, 0,22, 0,  0, 0,21, 0, 0, 0,19, 0,
+         0, 0,22, 0, 0, 0,21, 0,  0, 0,22, 0, 0, 0,23, 0,
+        -- ── Climax & Final (bars 25-32) ──
+        25, 0,24, 0,22, 0,21, 0, 25, 0,24, 0,22, 0,21, 0,
+        25, 0,23, 0,22, 0,21, 0, 25, 0,23, 0,22, 0,21, 0,
+        24, 0,22, 0,21, 0,19, 0, 24, 0,22, 0,21, 0,19, 0,
+        25, 0, 0, 0,22, 0, 0, 0, 25, 0, 0, 0,22, 0, 0, 0,
+         0, 0, 0, 0,22, 0, 0, 0,  0, 0,21, 0, 0, 0, 0, 0,
+         0, 0,22, 0, 0, 0,21, 0,  0, 0, 0, 0, 0, 0, 0, 0,
+         0, 0,21, 0, 0, 0,19, 0,  0, 0, 0, 0, 0, 0, 0, 0,
+        25, 0, 0, 0,21, 0, 0, 0, 16, 0, 0, 0, 0, 0, 0, 0,
       },
     },
     artic = {
-      warrior = {vel=1.00, attack=0.005, release=0.45, wet=0.30},  -- heavy hits
-      cleric  = {vel=0.55, attack=0.30,  release=6.00, wet=0.90},  -- enormous pad
-      mage    = {vel=0.75, attack=0.004, release=0.30, wet=0.55},  -- dramatic
-      bard    = {vel=0.55, attack=0.002, release=0.40, wet=0.75},  -- menacing stabs
+      warrior = {vel=1.00, attack=0.005, release=0.45, wet=0.15},  -- heavy hits
+      cleric  = {vel=0.55, attack=0.30,  release=6.00, wet=0.40},  -- pad (was 0.90; tail was washing the mix)
+      mage    = {vel=0.75, attack=0.004, release=0.30, wet=0.25},  -- dramatic
+      bard    = {vel=0.55, attack=0.002, release=0.40, wet=0.30},  -- menacing stabs
     },
   }
 end
@@ -1364,8 +2264,9 @@ local OW_ARTIC = {
 
 -- ============================================================ STATE
 
-local game_state = "TITLE"  -- TITLE | CUTSCENE | OVERWORLD | DIALOGUE | BATTLE | BATTLE_END | MENU | STATUS
-local tick = 0
+local game_state = "TITLE"  -- TITLE | CUTSCENE | OVERWORLD | DIALOGUE | BATTLE | BATTLE_END | GAME_OVER | MENU | STATUS
+GAME_OVER_TICK = 0  -- frame the GAME_OVER state was entered (for fade-in)
+-- (tick is declared at the top of the file so animated sprites can see it)
 local clock_id
 
 -- l2_held is now a TOGGLE (rising-edge of left trigger flips it).
@@ -1381,7 +2282,7 @@ local last_input = ""
 local last_input_at = 0
 
 -- pause menu
-local MENU_OPTIONS = {"Save Game", "Party Status", "Party", "Items", "Equipment", "Quests", "Bestiary", "Shards", "Debug"}
+local MENU_OPTIONS = {"Save Game", "Party Status", "Party", "Items", "Equipment", "Quests", "Map", "Bestiary", "Shards", "Achievements", "Debug"}
 local menu_idx = 1
 local save_flash_ticks = 0
 local save_flash_text = ""
@@ -1409,8 +2310,25 @@ local TITLE = {idx = 0, flash_ticks = 0, flash_text = ""}
 
 -- bestiary + chest content state, bundled into one table to keep main-chunk
 -- locals under Lua's 200 cap.
-local CONTENT = {
+-- CONTENT is GLOBAL (not local) because closures defined INSIDE this
+-- table literal (e.g. `visible = function() return CONTENT.scene_seen ...`
+-- on the Lirael Ruins WhiteBird and the Observatory NPC) reference
+-- CONTENT before Lua finishes evaluating the literal — at parse time
+-- the local doesn't exist yet, so those closures bind to the global
+-- name. Keeping CONTENT global avoids "attempt to index nil (global
+-- 'CONTENT')" the first time those NPCs become visible at runtime.
+CONTENT = {
+  -- Multipliers for the per-trig reverb send (the 5th arg to engine.trig_*).
+  -- Music = overworld + battle + title + intro + victory + shop + cutscene.
+  -- Combat = player attacks/spells + enemy attack_sound. 1.0 = unscaled,
+  -- 0 = bone-dry, 2 = doubled (clamped to 1). Set live from PARAMS menu.
+  music_reverb_mix = 0.25,
+  combat_reverb_mix = 0.25,
   bestiary = {},   -- visual id -> {name, hp_max, atk, visual}
+  -- Active NPC barks. Each entry: {npc_name, line, t (tick spawned)}.
+  -- Rendered as a small bubble above the NPC for ~90 ticks then pruned.
+  -- Per-NPC cooldown lives on the NPC record itself (n._bark_t).
+  barks = {},
   chests = {
     {id = "ch_village_w",  map = 1, x = 30, y = 12, loot = {g = 30, item = "salve"}},
     {id = "ch_woods_n",    map = 1, x = 47, y = 4,  loot = {g = 60, item = "vial"}},
@@ -1418,9 +2336,9 @@ local CONTENT = {
     {id = "ch_east_dune",  map = 2, x = 26, y = 11, loot = {g = 120, item = "star"}},
     {id = "ch_north_snow", map = 3, x = 22, y = 11, loot = {g = 150, item = "salve"}},
     -- Pass 19: a deep-cave locked stash (Cave 1 interior at 10,8).
-    {id = "ch_cave1_deep", map = 7, x = 10, y = 8,  loot = {g = 200, item = "tonic"}, locked = true},
+    {id = "ch_cave1_deep", map = 7, x = 10, y = 8,  loot = {g = 200, item = "tonic", instrument = "moog"}, locked = true},
     -- Pass 24: side-dungeon big-payoff chest in The Hollow (map 12).
-    {id = "ch_hollow_end", map = 12, x = 10, y = 8, loot = {g = 250, item = "star"}, locked = true},
+    {id = "ch_hollow_end", map = 12, x = 10, y = 8, loot = {g = 250, item = "star", instrument = "macintosh"}, locked = true},
   },
   opened = {},     -- chest id -> true
   flash_ticks = 0,
@@ -1445,6 +2363,7 @@ local CONTENT = {
   -- Campfires: small rest points scattered on overworld; stepping on one heals
   -- the party 25% HP and shows a brief banner. Reusable (no opened state).
   campfires = {
+    {map = 1, x = 16, y = 4},     -- Village clearing above Lyrik (Alder's prologue fire)
     {map = 1, x = 38, y = 9},     -- Hollow Woods
     {map = 1, x = 53, y = 8},     -- Sunward Coast
     {map = 3, x = 10, y = 9},     -- Northern Wilds
@@ -1479,115 +2398,967 @@ local CONTENT = {
   },
   inn_npcs = {},   -- populated below where dialogue funcs are in scope
   shop_npcs = {},
-  -- Cave 1 interior (map id 7). Tiles: 4=wall, 0=cave floor (walkable),
-  -- 17=exit door, 27=boss arena marker. Random encounters roll on step.
-  cave1_map = {
-    {4,4,4,4,4,4,4,4,4,4,4,4},
-    {4,0,0,0,0,0,27,0,0,0,0,4},
-    {4,0,4,4,0,0,0,0,4,4,0,4},
-    {4,0,4,0,0,0,0,0,0,4,0,4},
+  -- Eastern Reaches inn interior: map_id 17. Coastal trader's lodge.
+  -- Single bunk along left wall, long communal table by window, barrels
+  -- where a fisher mends nets, harbor cat curled on a rug.
+  -- Run by Tarn (retired bosun).
+  eastern_inn_map = {
+    {4,4,38,4,4,4,4,4,4,38,4,4},      -- back wall + 2 paintings
+    {4,21,0,0,30,0,0,0,0,0,39,4},      -- single bed + fireplace + plant
+    {4,21,0,0,0,0,0,0,0,0,0,4},
+    {4,0,0,0,32,32,32,32,0,35,0,4},    -- long communal table + barrel
+    {4,0,0,40,0,0,0,0,0,0,0,4},        -- chair tucked at table
+    {4,0,0,0,0,0,23,23,0,35,0,4},      -- rug for cat + barrel
+    {4,24,0,0,0,0,0,0,0,0,24,4},       -- lanterns
+    {4,4,4,4,4,17,17,4,4,4,4,4},
+  },
+  eastern_inn_npcs = {},
+  -- Northern Wilds inn interior: map_id 18. Long-house with central
+  -- hearth instead of corner fireplace. Beds along both side walls,
+  -- fur-rug ring around the hearth, ranger by lantern, wolfhound
+  -- asleep at the fire. Run by Halla.
+  northern_inn_map = {
+    {4,4,4,4,4,38,38,4,4,4,4,4},       -- back wall (paired paintings center)
+    {4,21,21,0,0,0,0,0,0,21,21,4},     -- twin beds both walls
+    {4,0,0,0,0,30,30,0,0,0,0,4},       -- central hearth (2 tiles wide)
+    {4,0,0,0,23,23,23,23,0,0,0,4},     -- fur ring around hearth (top)
+    {4,0,0,0,23,23,23,23,0,0,0,4},     -- fur ring (bottom)
+    {4,40,32,0,0,0,0,0,0,32,40,4},     -- twin chair+table benches at sides
+    {4,24,0,0,0,0,0,0,0,0,24,4},       -- lanterns flanking exit
+    {4,4,4,4,4,17,17,4,4,4,4,4},
+  },
+  northern_inn_npcs = {},
+  -- Eastern Reaches shop interior: map_id 15. Same tile vocabulary as
+  -- the mainland shop_map but laid out distinctly so the Eastern shop
+  -- doesn't feel like a re-skin. Wares emphasize the caravan/trade-stop
+  -- vibe (more barrels, fewer shelves). Run by Marek + the perched
+  -- falcon Tessen.
+  eastern_shop_map = {
+    {4,4,4,4,4,4,41,4,4,4,4,4},          -- top wall: hanging "OPEN" sign
+    {4,31,31,0,0,0,0,0,0,31,31,4},        -- back-wall shelves (gapped)
+    {4,24,0,35,0,0,0,0,35,0,24,4},        -- lanterns + barrels mid-room
+    {4,0,0,0,22,22,33,22,22,0,0,4},       -- counter (till at col 6)
     {4,0,0,0,0,0,0,0,0,0,0,4},
-    {4,0,0,0,4,4,0,4,4,0,0,4},
-    {4,0,0,0,4,0,0,0,4,0,0,4},
-    {4,0,4,0,0,0,0,0,0,4,0,4},
+    {4,42,0,0,35,0,0,35,0,0,39,4},        -- broom L, barrels, plant R
     {4,0,0,0,0,0,0,0,0,0,0,4},
     {4,4,4,4,4,17,17,4,4,4,4,4},
+  },
+  eastern_shop_npcs = {},
+  -- Northern Wilds shop interior: map_id 16. Cold-trade outpost — fewer
+  -- shelves, more barrels, hanging pelts implied by the wares-shelf
+  -- arrangement. Run by Skari (fur-trader-turned-merchant) and Vix, the
+  -- snow fox he could never bring himself to skin.
+  northern_shop_map = {
+    {4,4,4,4,4,4,41,4,4,4,4,4},          -- top wall + sign
+    {4,31,0,31,31,0,0,31,31,0,31,4},      -- shelves staggered (pelts)
+    {4,24,0,0,0,0,0,0,0,0,24,4},          -- lanterns
+    {4,0,0,22,22,22,33,22,22,22,0,4},     -- counter (till at col 6)
+    {4,0,0,0,0,0,0,0,0,0,0,4},
+    {4,35,35,0,0,0,0,0,0,35,35,4},        -- barrels along outer floor
+    {4,42,0,0,0,0,0,0,0,0,39,4},          -- broom + plant
+    {4,4,4,4,4,17,17,4,4,4,4,4},
+  },
+  northern_shop_npcs = {},
+  -- Academy interior (map_id 17). Reached via tile 47 at the SW corner of
+  -- mainland. Tiles: 4=wall, 0=floor, 17=exit door, 30=fireplace,
+  -- 31=bookshelf, 39=plant, 42=broom. Diegues stands center; on first
+  -- entry the silencer-attack scene plays + battle vs Strom.
+  academy_map = {
+    {4, 4, 4, 4, 4, 4, 4, 4, 4, 4},
+    {4,31,31, 4,30,30, 4,31,31, 4},
+    {4, 0, 0, 0, 0, 0, 0, 0, 0, 4},
+    {4, 0, 0, 0, 0, 0, 0, 0, 0, 4},
+    {4, 0, 0, 0, 0, 0, 0, 0, 0, 4},
+    {4, 0, 0, 0, 0, 0, 0, 0, 0, 4},
+    {4, 0, 0, 0, 0, 0, 0, 0, 0, 4},
+    {4,42, 0, 0, 0, 0, 0, 0,39, 4},
+    {4, 4, 4, 4,17,17, 4, 4, 4, 4},
+  },
+  academy_npcs = {},
+  -- Diegues arc story state. Untriggered → scene_done (entry cutscene
+  -- played, Diegues joined, Strom battle launched) → complete (Strom
+  -- defeated and joined). Persists in save data.
+  academy_state = "untriggered",
+
+  -- Playable prologue maps. The castle (id 20) holds Miel's throne room
+  -- + corridor + tapestry door. The escape cave (id 21) is a short cave
+  -- with two monster encounters and a mouth that exits onto the
+  -- mainland village. Tiles: 4=wall, 0=floor, 30=fireplace (back wall),
+  -- 31=bookshelf, 39=plant, 48=tapestry door, 49=cave mouth.
+  -- Castle interior (map 20). 16 wide × 12 tall. THRONE AT TOP, MIEL'S
+  -- CHAMBER AT BOTTOM. Player walks NORTH from chamber → through
+  -- corridor → into throne hall, where Suno's confrontation fires.
+  --
+  -- Layout:
+  --   rows 1-3: throne hall back (hearth wall + bookshelves + throne dais
+  --     at cols 8-9 row 3)
+  --   rows 4-5: throne hall floor (where Miel stands and Suno arrives)
+  --   row 6:    tapestry-escape row (col 8 = tile 48 escape door)
+  --   row 7:    interior wall with two corridors at cols 4 and 11
+  --   rows 8-9: open antechamber + lanterns at edges
+  --   row 10:   chamber wall row (col 4 + col 11 are walls; col 5/12 open)
+  --   row 11:   Miel's chamber (left, with bed at col 2) + side room
+  --   row 12:   south wall with visible double-door (Suno's entry)
+  --
+  -- Tile codes: 4=stone wall, 0=floor, 21=bed, 24=lantern, 30=hearth,
+  -- 31=bookshelf, 39=plant, 42=broom, 48=tapestry escape, 53=throne
+  -- dais (decorative), 55=double-door (decorative).
+  -- Castle THRONE HALL (map 20) — overhauled in Pass 60. Bedroom +
+  -- antechamber gone; this is now strictly the throne hall. Carpet
+  -- runner (tile 2) flows from the south doors up to the dais.
+  -- Tapestry escape preserved at (8, 6). South wall row 9 has two
+  -- interior doors (cols 7-8) leading to the hallway (map 27).
+  -- 16w × 9t.
+  -- Castle THRONE HALL — revised in Pass 61. Tapestry now embedded
+  -- INTO the north wall directly behind the throne; the thrones are
+  -- scooted down to row 4 so the player can step in behind them
+  -- (row 3 is open floor) to reach the tapestry. Row 2 is plain
+  -- stone wall (tile 4) — no more hearth-fireplaces along the top.
+  -- Lanterns moved to the throne-dais row (4) and side walls.
+  castle_map = {
+    {4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4},   -- 1: top wall
+    {4, 4, 4, 4, 4, 4, 4,48,48, 4, 4, 4, 4, 4, 4, 4},   -- 2: north wall + tapestry escape (cols 7-8)
+    {4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4},   -- 3: open floor BEHIND throne (access to tapestry)
+    {4,31,24, 0, 0, 0, 0,53,53, 0, 0, 0, 0,24,31, 4},   -- 4: throne dais cols 7-8; bookshelves + lanterns at edges
+    {4, 0, 0, 0, 0, 0, 0, 2, 2, 0, 0, 0, 0, 0, 0, 4},   -- 5: hall floor + carpet (Miel stands here)
+    {4,42, 0, 0, 0, 0, 0, 2, 2, 0, 0, 0, 0, 0,39, 4},   -- 6: hall floor + carpet + broom/plant flanks
+    {4, 0, 0, 0, 0, 0, 0, 2, 2, 0, 0, 0, 0, 0, 0, 4},   -- 7: hall floor + carpet
+    {4,24, 0, 0, 0, 0, 0, 2, 2, 0, 0, 0, 0, 0,24, 4},   -- 8: lanterns + carpet
+    {4, 4, 4, 4, 4, 4, 4,58,58, 4, 4, 4, 4, 4, 4, 4},   -- 9: south wall + hallway doors (cols 7-8)
+  },
+  castle_npcs = {},
+
+  -- ── Castle expansion (Pass 59) ──────────────────────────────────────
+  -- South of the throne room (map 20): a long hallway (map 27) with
+  -- four side doors to four bespoke rooms. Tile 58 = interior door,
+  -- walkable and routed contextually by step_player based on
+  -- current_map_id + door position. Tile 55 (decorative south double-
+  -- door in map 20) gets a single walkable tile-58 carved into it so
+  -- the player can step from chamber south into the hallway.
+  --
+  -- Map 27 — Castle Hallway. 10w × 14t. North end opens to the throne
+  -- room (cols 4-5 row 14 of map 20 -> map 27 row 1). Two doors on
+  -- each side, evenly spaced: rows 4 + 10. Every door is tile 58.
+  --   left col=1, right col=10 walls; door cells punch through.
+  --
+  -- Door positions in the hallway (col, row):
+  --   (4, 1)  + (5, 1)   north entry from throne
+  --   (1, 4)             west door A → Royal Quarters (map 28)
+  --   (10, 4)            east door A → Music Study   (map 29)
+  --   (1, 10)            west door B → Music Library (map 30)
+  --   (10, 10)           east door B → Castle Overlook (map 31)
+  castle_hallway_map = {
+    {4, 4, 4, 4,58,58, 4, 4, 4, 4},   -- 1: north doors (cols 5-6) → throne hall
+    {4, 0, 0, 0, 0, 0, 0, 0, 0, 4},
+    {4, 0, 0, 0, 0, 0, 0, 0, 0, 4},
+    {58,0, 0, 0, 0, 0, 0, 0, 0,58},   -- 4: doors A — west=Quarters east=Study
+    {4, 0, 0, 0, 0, 0, 0, 0, 0, 4},
+    {4, 0, 0, 0, 0, 0, 0, 0, 0, 4},
+    {4, 0, 0, 0, 0, 0, 0, 0, 0, 4},
+    {4,24, 0, 0, 0, 0, 0, 0,24, 4},   -- 8: lanterns midway down
+    {4, 0, 0, 0, 0, 0, 0, 0, 0, 4},
+    {58,0, 0, 0, 0, 0, 0, 0, 0,58},   -- 10: doors B — west=Library east=Overlook
+    {4, 0, 0, 0, 0, 0, 0, 0, 0, 4},
+    {4, 0, 0, 0, 0, 0, 0, 0, 0, 4},
+    {4, 0, 0, 0, 0, 0, 0, 0, 0, 4},
+    {4, 4, 4, 4,58,58, 4, 4, 4, 4},   -- 14: south doors (cols 5-6) → courtyard
+  },
+  -- Castle hallway NPCs. The Page lives here mid-hallway for repeat
+  -- talks after his initial warning scene.
+  castle_hallway_npcs = {
+    -- Page now stands beside the east-wall lantern at (8, 8) — out of
+    -- the main north-south corridor so he isn't "hovering" between
+    -- the queen and the throne-room doors.
+    { x = 8, y = 8, name = "Page",
+      visible = function() return not CONTENT.courtyard_breached end,
+      dialogue = function()
+        return {
+          "[Page]    The court is doing what it can. Get to the throne, my queen.",
+          "[Page]    The tapestry your grandmother put in -- the seam in the NORTH wall, behind the throne.",
+          "[Page]    Go through it if the throne falls.",
+        }
+      end,
+    },
+    -- BarringGuard: appears at the south doors AFTER the courtyard
+    -- breach. He's the one who slammed the doors and dropped the bar
+    -- behind Miel; talking to him narrates the bashing from outside.
+    { x = 5, y = 13, name = "BarringGuard",
+      visible = function() return CONTENT.courtyard_breached end,
+      dialogue = function()
+        return {
+          "[Guard]    (back braced against the door; another impact rocks it)",
+          "[Guard]    My queen -- the bar is down. They cannot break it on the first push.",
+          "[Guard]    (a second impact; he keeps his shoulder against the wood)",
+          "[Guard]    I will hold here. You go north. You go to the tapestry. NOW.",
+        }
+      end,
+    },
+  },
+
+  -- Map 28 — Miel's Royal Quarters. A bed at the back, a small dressing
+  -- table at the side, a window with a banner, and the door (tile 58)
+  -- on the right wall (returns to hallway col 1).
+  quarters_map = {
+    {4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4},
+    {4,21, 0, 0, 0,30, 0, 0, 0, 0, 0, 4},   -- 2: bed + hearth
+    {4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4},
+    {4,42, 0, 0, 0, 0, 0, 0, 0,24, 0, 4},   -- 4: dressing nook + lantern
+    {4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,58},   -- 5: east door back to hallway
+    {4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4},
+    {4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4},
+  },
+  -- Miel's Quarters NPCs. A small house-cat dozing on the bed (only
+  -- visible AFTER the prologue intro completes — it stays "asleep"
+  -- during the wake-up scene).
+  quarters_npcs = {
+    { x = 7, y = 4, name = "Tisa", kind = "pet",
+      visible = function() return CONTENT.prologue_intro_done end,
+      dialogue = function()
+        return {
+          "(Tisa, the queen's cat, opens one yellow eye. Closes it.)",
+          "(she has slept through every coup in this castle's history. she will sleep through this one.)",
+        }
+      end,
+    },
+  },
+
+  -- Map 29 — Music Study Chambers. Sheet-music piles, instrument stand,
+  -- a candle on a desk. Door on the LEFT wall back to the hallway.
+  study_map = {
+    {4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4},
+    {4, 0, 0,31, 0, 0, 0,42, 0, 0,24, 4},   -- 2: bookshelf + instrument stand + lantern
+    {4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4},
+    {4, 0, 0, 0, 0, 0, 0,30, 0, 0, 0, 4},   -- 4: hearth
+    {58,0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4},   -- 5: west door back to hallway
+    {4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4},
+    {4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4},
+  },
+  -- Music Study Chambers NPC: Vey, the queen's music tutor. Mid-pen
+  -- on a manuscript when Miel walks in. Knows the breach is happening
+  -- but won't leave a piece of music unfinished.
+  study_npcs = {
+    { x = 7, y = 3, name = "Vey",   -- standing in front of his desk/instrument stand (tile 42 at col 7 row 2)
+      dialogue = function()
+        return {
+          "[Vey]    My queen. (does not look up from the staff)",
+          "[Vey]    Three bars from the resolution. If I leave them now I will never finish.",
+          "[Vey]    (sets the pen down anyway) ...go. We will be here when you come back.",
+          "[Vey]    Or we will not. Either way the music will sit on this desk.",
+        }
+      end,
+    },
+  },
+
+  -- Map 30 — Music Library. Three rows of bookshelves with reading
+  -- aisles. Door on the RIGHT wall back to the hallway.
+  library_map = {
+    {4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4},
+    {4, 0,31, 0,31, 0,31, 0,31, 0, 0, 4},   -- 2: shelf row
+    {4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4},
+    {4, 0,31, 0,31, 0,31, 0,31, 0, 0, 4},   -- 4: shelf row
+    {4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,58},   -- 5: east door back to hallway
+    {4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4},
+    {4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4},
+  },
+  -- Music Library NPC: Esa, the librarian. Calmly rebinds a scroll.
+  -- Has been in this room longer than the throne has had a queen.
+  library_npcs = {
+    { x = 5, y = 3, name = "Esa",
+      dialogue = function()
+        return {
+          "[Esa]    (rebinding a scroll; does not stop) Your grandmother's hand on this one.",
+          "[Esa]    She wrote the marginalia in lavender ink. Hard to find lavender ink.",
+          "[Esa]    If they reach this room they will burn most of it.",
+          "[Esa]    I have moved the seven oldest into the south alcove. They will not find it.",
+          "[Esa]    Go, my queen. The chord is older than this castle.",
+        }
+      end,
+    },
+  },
+
+  -- Map 31 — Castle Overlook. A small balcony chamber with a wide window
+  -- (rendered as floor tiles + a "view" panel along the north wall),
+  -- plants flanking it. Door on the LEFT wall back to the hallway.
+  overlook_map = {
+    {4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4},
+    {4,39, 0, 0, 0, 0, 0, 0, 0, 0,39, 4},   -- 2: plants either side
+    {4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4},
+    {4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4},
+    {58,0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4},   -- 5: west door back to hallway
+    {4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4},
+    {4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4},
+  },
+  -- Castle Overlook NPC: Dren, a young watchman. First posting. He
+  -- has counted torches and is trying not to be afraid.
+  overlook_npcs = {
+    { x = 6, y = 4, name = "Dren",
+      dialogue = function()
+        return {
+          "[Dren]   My queen -- I count thirty-four torches at the south gate.",
+          "[Dren]   That is more than the watch can hold. (his voice is steady. it is a small steadiness.)",
+          "[Dren]   I will hold it as long as I can. (...) my mother is at the village shop.",
+          "[Dren]   Tell her -- tell her the watch did not run.",
+        }
+      end,
+    },
+  },
+
+  -- Map 32 — Castle Courtyard (outdoor, walled). Stone-paved court
+  -- bordered by walls on all four sides. Two buildings flank the
+  -- middle (Barracks west, Infirmary east). South wall has a wide
+  -- castle gate (decorative tile 55) — locked from outside during
+  -- the prologue. North end has the door back into the hallway.
+  -- Tiles: 4=stone wall, 0=cobblestone (drawn as plain floor here),
+  -- 58=interior door (to barracks/infirmary/hallway), 55=castle gate
+  -- (decorative, non-walkable for now), 39=potted plant.
+  -- 14w × 12t.
+  courtyard_map = {
+    {4, 4, 4, 4,58,58, 4, 4, 4, 4, 4, 4, 4, 4},   -- 1: north doors → hallway
+    {4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4},
+    {4, 0, 4, 4, 4, 0, 0, 0, 0,39, 0, 0, 0, 4},   -- 3: barracks N wall
+    {4, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4},
+    {4, 0,58, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 4},   -- 5: barracks W door
+    {4, 0, 4, 0, 4, 0, 0, 0, 4, 0, 0,58, 0, 4},   -- 6: infirmary E door
+    {4, 0, 4, 4, 4, 0, 0, 0, 4, 0, 0, 4, 0, 4},
+    {4, 0, 0, 0, 0, 0, 0, 0, 4, 4, 4, 4, 0, 4},   -- 8: infirmary E wall
+    {4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4},
+    {4,39, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,39, 4},
+    {4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4},
+    {4, 4, 4, 4, 4, 4,55,55,55,55, 4, 4, 4, 4},   -- 12: south castle gate (decorative; locked)
+  },
+  -- Courtyard NPCs. Capt.Ren rallies a line of guards at the south
+  -- gate. Talking to her triggers the gate-breach scene (one-shot;
+  -- afterwards the courtyard NPCs vanish — they're fighting or fallen).
+  -- A page-runner sprints between the buildings carrying messages.
+  courtyard_npcs = {
+    { x = 7, y = 10, name = "Capt.Ren",
+      visible = function() return not CONTENT.courtyard_breached end,
+      scene = function()
+        if CONTENT.courtyard_breach_done then return nil end
+        CONTENT.courtyard_breach_done = true
+        return start_courtyard_breach_script and start_courtyard_breach_script() or nil
+      end,
+      dialogue = function()
+        return {
+          "[Capt.Ren] (her sword is drawn, her voice low) My queen. Inside. Now.",
+          "[Capt.Ren] We will hold the south gate until you reach the tapestry.",
+          "[Capt.Ren] (calls over her shoulder) FORM ON ME -- TWO RANKS -- THE QUEEN GOES NORTH.",
+          "[Capt.Ren] (back to Miel, quieter) ...go. Lirael needs its line.",
+        }
+      end,
+    },
+    { x = 3, y = 11, name = "GuardA",
+      visible = function() return not CONTENT.courtyard_breached end,
+      dialogue = function()
+        return {"[Guard] (sets her shield. nods once.) For the line, my queen."}
+      end,
+    },
+    { x = 5, y = 11, name = "GuardB",
+      visible = function() return not CONTENT.courtyard_breached end,
+      dialogue = function()
+        return {"[Guard] (mutters a prayer; doesn't take his eyes off the gate)"}
+      end,
+    },
+    { x = 9, y = 11, name = "GuardC",
+      visible = function() return not CONTENT.courtyard_breached end,
+      dialogue = function()
+        return {"[Guard] (young; voice cracks) I have never -- (...) for the line, my queen."}
+      end,
+    },
+    { x = 11, y = 11, name = "GuardD",
+      visible = function() return not CONTENT.courtyard_breached end,
+      dialogue = function()
+        return {"[Guard] (older; quiet) Get to the tapestry, your majesty. We will buy you the seconds."}
+      end,
+    },
+    { x = 9, y = 4, name = "Runner",
+      visible = function() return not CONTENT.courtyard_breached end,
+      dialogue = function()
+        return {
+          "[Runner] (sprinting; she stops only because you are the queen)",
+          "[Runner] Infirmary's full. Barracks is half-empty -- they're already at the gate.",
+          "[Runner] I take the messages. (looks at the gate) ...someone has to.",
+        }
+      end,
+    },
+  },
+
+  -- Map 33 — Guard Barracks. A short bunkhouse with rows of cots
+  -- (bed tile 21), a wall rack (bookshelf tile 31 reused as a weapon
+  -- rack), a hearth, a lantern. Door (tile 58) on the EAST wall back
+  -- to the courtyard.
+  -- 12w × 7t.
+  barracks_map = {
+    {4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4},
+    {4,21, 0,21, 0,21, 0, 0, 0, 0, 0, 4},   -- 2: cots row 1
+    {4, 0, 0, 0, 0, 0, 0,30, 0, 0, 0, 4},   -- 3: hearth
+    {4,21, 0,21, 0,21, 0, 0, 0,24, 0, 4},   -- 4: cots row 2 + lantern
+    {4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,58},   -- 5: east door back to courtyard
+    {4, 0, 0, 0,31, 0, 0, 0, 0, 0, 0, 4},   -- 6: weapon rack
+    {4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4},
+  },
+  -- Barracks NPCs. Sgt. Hova is the off-duty watch sergeant; Borin is
+  -- a new recruit too young for what's about to happen.
+  barracks_npcs = {
+    { x = 7, y = 3, name = "Sgt.Hova",
+      dialogue = function()
+        return {
+          "[Sgt.Hova] (lacing her boots; she's been on duty thirty-six hours)",
+          "[Sgt.Hova] Your majesty. My squad is at the gate. I'm the last one in.",
+          "[Sgt.Hova] (stands; salutes) The captain doesn't know I'm coming. He'll figure it out.",
+          "[Sgt.Hova] If you make it out -- tell my daughter the cot was warm. She'll laugh.",
+        }
+      end,
+    },
+    { x = 4, y = 4, name = "Borin",
+      dialogue = function()
+        return {
+          "[Borin]  (he is sixteen. his hands shake on the spear)",
+          "[Borin]  My queen. (he means to say more; he doesn't.)",
+          "[Borin]  ...the sergeant says the gate. I'll go to the gate.",
+          "[Borin]  (very quietly) my mother is at the shop. tell her I went.",
+        }
+      end,
+    },
+  },
+
+  -- Map 34 — Castle Infirmary. Two cot beds, a small hearth for
+  -- broth, an apothecary's bookshelf of remedies, a window-plant.
+  -- Door (tile 58) on the WEST wall back to the courtyard.
+  -- 12w × 7t.
+  infirmary_map = {
+    {4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4},
+    {4,21, 0, 0,30, 0, 0, 0, 0, 0,39, 4},   -- 2: cot + hearth + plant
+    {4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4},
+    {4,21, 0, 0, 0, 0, 0, 0, 0, 0,24, 4},   -- 4: cot + lantern
+    {58,0, 0, 0, 0, 0, 0, 0,31, 0, 0, 4},   -- 5: west door + remedy shelf
+    {4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4},
+    {4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4},
+  },
+  -- Infirmary NPCs. Healer Ymra tends an injured guard already
+  -- brought in from the south wall.
+  infirmary_npcs = {
+    { x = 6, y = 3, name = "HealerYmra",
+      dialogue = function()
+        return {
+          "[Ymra]   (washing her hands; doesn't look up) My queen. Sit. No -- don't sit.",
+          "[Ymra]   You're not staying. (looks at you) Of course you're not staying.",
+          "[Ymra]   Take a salve from the shelf. Don't argue. (sets it in your hand)",
+          "[Ymra]   And go. The hall is shorter than it looks when you're running.",
+        }
+      end,
+    },
+    { x = 2, y = 2, name = "WoundedGuard",
+      dialogue = function()
+        return {
+          "[Guard]  (lying on the cot; voice is paper-thin) ...is that the queen.",
+          "[Guard]  ...tell the captain it was me at the south gate. (...) tell him I held.",
+          "[Guard]  (eyes close) ...long enough.",
+        }
+      end,
+    },
+  },
+
+  escape_cave_map = {
+    {4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4},
+    {4, 0, 0, 0, 0, 0, 4, 4, 4, 4, 0, 0, 0, 4},
+    {4, 0, 4, 4, 4, 0, 0, 0, 0, 0, 0, 4, 0, 4},
+    {4, 0, 0, 0, 4, 0, 4, 4, 0, 4, 0, 4, 0, 4},
+    {4, 4, 4, 0, 4, 0, 4, 0, 0, 4, 0, 4, 0, 4},
+    {4, 0, 0, 0, 0, 0, 4, 0, 4, 4, 0, 0, 0, 4},
+    {4, 0, 4, 4, 4, 4, 4, 0, 0, 0, 0, 4, 0, 4},
+    {4, 0, 0, 0, 0, 0, 0, 0, 4, 4, 4, 4, 0, 4},
+    {4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,49, 0, 4},   -- cave mouth at (12,9)
+    {4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4},
+  },
+  escape_cave_npcs = {},
+  -- Prologue state machine. Each transition is one-way:
+  --   "untriggered" — fresh new game, throne room intro hasn't fired.
+  --                   The Suno NPC dialogue moves it to "coup".
+  --   "coup"        — Suno has left, silencers are loose in the corridor.
+  --                   Player must traverse and defeat them, then reach
+  --                   the tapestry tile to advance to "escape".
+  --   "escape"      — In the cave. Monsters spawn. Reaching the cave
+  --                   mouth tile teleports to mainland and sets
+  --                   "complete".
+  --   "complete"    — Prologue done. Game proceeds normally.
+  prologue_state = "untriggered",
+
+  -- Western Region overworld (map 22). Reached via tile 47 at the SW
+  -- corner of mainland. The Academy building sits center-east; tile 50
+  -- on its south face leads inside (academy interior id 19). Tile 47 at
+  -- the east edge returns to mainland. Forest + low ruins aesthetic.
+  -- Tiles: 1=tree-wall, 0=floor/grass, 4=building wall, 8=tree cluster,
+  -- 30=fireplace (visible inside academy), 47=mainland-return door,
+  -- 50=academy-entry door.
+  western_region_map = {
+    {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},   -- top wall
+    {1,0,0,0,0,8,8,0,0,0,0,0,0,0,0,0,0,0,8,8,0,0,0,1},
+    {1,0,8,8,0,0,8,0,0,0,0,0,0,0,0,0,0,0,8,0,0,8,0,1},
+    {1,0,0,0,0,0,0,0,0,4,4,4,4,4,4,0,0,0,0,0,0,0,0,1},   -- academy back wall
+    {1,0,0,0,0,0,0,0,0,4,30,30,30,30,4,0,0,0,0,0,0,0,0,1},   -- fireplace
+    {1,0,0,0,0,0,0,0,0,4, 0, 0, 0, 0,4,0,0,0,0,0,0,0,0,1},   -- building interior visible
+    {1,0,0,0,0,0,0,0,0,4, 4, 4,50, 4,4,0,0,0,0,0,0,0,0,1},   -- front wall + entry tile 50
+    {1,51,8,0,0,0,0,0,0,0, 0, 0, 0, 0,0,0,0,0,0,0,0,0,0,1},  -- Lirael Ruins arch (col 1 row 7)
+    {1,0,8,8,0,0,0,0,0,0, 0, 0, 0, 0,0,0,0,0,0,0,0,0,0,1},
+    {1,0,0,0,0,0,8,8,8,0, 0, 0, 0, 0,0,0,0,0,8,8,8,0,0,1},
+    {1,0,0,0,0,0,8,8,0,0, 0, 0, 0, 0,0,0,0,0,0,8,8,0,0,1},
+    {1,1,1,1,1,1,1,1,1,1, 1, 1, 1, 1,1,1,1,1,1,1,1,1,47,1},   -- east-edge return tile
+  },
+  western_region_npcs = {
+    -- Maro the woods-sketcher — Tovia's apprentice. Stands on the
+    -- approach apron sketching the academy facade. Visible only after
+    -- Tovia first appears (n>=0 always, but flavor varies by progress).
+    { x = 5, y = 8, name = "Maro",
+      dialogue = function()
+        local lead = party[active] and party[active].class
+        local n = 0; for _, v in pairs(shards) do if v then n = n + 1 end end
+        -- Maro recognises Diegues from the academy — she's Tovia's apprentice
+        -- and was sent west to map what the academy hadn't catalogued.
+        if lead == "mage" then
+          return {
+            "[Maro]   (looks up, then up again, slower) -- Diegues?",
+            "[Maro]   You taught my third-year seminar. (...) I missed three of them.",
+            "[Maro]   You said that was fine. You said the readings ran longer than the term.",
+            "[Maro]   I still have the notes you marked. I am still finishing them.",
+          }
+        end
+        if n >= 6 then
+          return {
+            "[Maro]   Tovia said you'd come back through here.",
+            "[Maro]   I'm sketching the academy door before they fix it. Before is a different drawing than after.",
+            "[Maro]   I'd hate to lose the before. The before is what tells the door what it survived.",
+          }
+        end
+        return {
+          "[Maro]   (squints up from a half-finished page) Hello, traveler.",
+          "[Maro]   I am Tovia's apprentice. She sent me west to mark what is not yet on the map.",
+          "[Maro]   The academy door, mostly. And the arch in the trees -- you've seen it? The one with vines.",
+          "[Maro]   Don't touch the vines. They are how the arch tells you it is older than you.",
+        }
+      end,
+    },
+  },
+  -- Lirael Ruins (map id 23) — Miel's burned ancestral home. Reached
+  -- via tile 51 (lirael-entry) on the western_region map after the
+  -- academy arc completes. Single broken courtyard with a still-standing
+  -- bell tower at the back. Ash particles fall ambiently (PARTICLES.tick
+  -- gates this on map==23). Tiles:
+  --   4  = ruined wall (broken stone block, drawn dimmed in this map)
+  --   0  = ash-covered floor (walkable; ambient ash overlay handles the look)
+  --   30 = scorched fireplace / hearth (existing tile, reused)
+  --   31 = broken bookshelf (existing tile, reused)
+  --   32 = bell-tower base (NEW tile)
+  --   53 = empty throne (NEW tile — Miel kneels here for the memory scene)
+  --   47 = mainland-return door (existing tile)
+  lirael_ruins_map = {
+    {4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4},
+    {4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4},
+    {4, 0, 4, 4, 0, 0, 0,32,32, 0, 0, 0, 4, 4, 0, 4},  -- bell tower silhouette
+    {4, 0, 4, 0, 0, 0, 0,32,32, 0, 0, 0, 0, 4, 0, 4},
+    {4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4},
+    {4, 0, 0, 0,30, 0, 0, 0, 0, 0, 0,30, 0, 0, 0, 4},  -- twin scorched hearths
+    {4, 0, 0, 0, 0, 0, 0,53, 0, 0, 0, 0, 0, 0, 0, 4},  -- the empty throne (col 7, row 6)
+    {4, 0, 0,31, 0, 0, 0, 0, 0, 0, 0, 0, 0,31, 0, 4},  -- broken bookshelves
+    {4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4},
+    {4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4},
+    {4, 4, 4, 4, 4, 4, 4, 4,47, 4, 4, 4, 4, 4, 4, 4},  -- south exit, mid-bottom
+  },
+  lirael_ruins_npcs = {
+    -- The white bird — appears in the rafters after the first-visit
+    -- scene. Talking to it (Miel facing the bell-tower base at row 3)
+    -- triggers a single bell-tone + a tiny memory line.
+    { x = 8, y = 3, name = "WhiteBird", kind = "pet",
+      visible = function() return CONTENT.scene_seen and CONTENT.scene_seen.lirael_first end,
+      dialogue = function()
+        sq_trig("cleric", midi_to_freq(96), 0.95, 0.001, 5.0,
+                math.min(1, 1.0 * (CONTENT.combat_reverb_mix or 1.0)))
+        return {
+          "(The bird does not move. It tilts its head.)",
+          "(The bell rings -- once, very small -- without anything touching it.)",
+          "[Miel]   ...you remember her.",
+        }
+      end,
+    },
+    -- The keeper-stone — a small inscribed stone Miel can read. Adds
+    -- a snippet of Velthe's chronicle.
+    { x = 4, y = 6, name = "KeeperStone", kind = "object",
+      dialogue = function()
+        return {
+          "(a small stone with shallow incisions, half-buried at the foot of the broken bookshelf)",
+          "(VELTHE wrote: 'A bell sings what a voice will not. A queen sits where she stood.')",
+          "(Beneath, in a different hand: 'I was here before you. I will be here after.' -- M.)",
+        }
+      end,
+    },
+  },
+  -- Velthe's Observatory (map id 24) — a circular tower interior. The
+  -- chronicler's apprentice (Iola) stands at a brass orrery in the
+  -- center; the walls are dark with shelved star-charts. Tile 32 reused
+  -- as decorative columns; tile 30 (hearth) for the small reading-fire;
+  -- tile 31 for chart-shelves. Tile 47 = south exit.
+  observatory_map = {
+    {4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4},
+    {4, 0, 0, 0, 0, 0, 0,32,32, 0, 0, 0, 0, 0, 0, 4},
+    {4, 0,31, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,31, 0, 4},
+    {4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4},
+    {4, 0, 0, 0, 0, 0, 0,30, 0, 0, 0, 0, 0, 0, 0, 4},  -- reading-fire (col 7 row 5)
+    {4, 0,31, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,31, 0, 4},
+    {4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4},
+    {4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4},
+    {4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4},
+    {4, 4, 4, 4, 4, 4, 4, 4,47, 4, 4, 4, 4, 4, 4, 4},  -- south exit
+  },
+  observatory_npcs = {
+    -- Orrery — interactable centerpiece. Each visit cycles through a
+    -- different constellation: "The Loom", "The Captain", "The Bell",
+    -- "The Long Hand", "The Seventh Sister". Each comes with a single
+    -- held chord and a brief lore line.
+    { x = 7, y = 5, name = "Orrery", kind = "object",
+      dialogue = function()
+        CONTENT.orrery_idx = ((CONTENT.orrery_idx or 0) % 5) + 1
+        local CONST = {
+          {
+            name = "The Loom",
+            note = 60,   -- C
+            lore = {
+              "(The orrery's brass rings turn -- you can feel the air bend slightly.)",
+              "[Iola]   That one is The Loom. Two parallel rings, the hub between them.",
+              "[Iola]   Velthe wrote: 'It weaves what would have unraveled.'",
+              "[Iola]   I think she meant the chord. I am not sure.",
+            },
+          },
+          {
+            name = "The Captain",
+            note = 64,   -- E
+            lore = {
+              "[Iola]   The Captain. A line of three stars and a small one trailing.",
+              "[Iola]   Soldiers of Lirael said it followed them home.",
+              "[Iola]   Whether home was a place or a person, the soldiers did not say.",
+            },
+          },
+          {
+            name = "The Bell",
+            note = 67,   -- G
+            lore = {
+              "[Iola]   The Bell. A perfect ring of seven small stars.",
+              "[Iola]   On clear nights you can hear it -- if you are listening with the right ear.",
+              "[Iola]   I have not heard it. Velthe said she did, once.",
+            },
+          },
+          {
+            name = "The Long Hand",
+            note = 72,   -- C5
+            lore = {
+              "[Iola]   The Long Hand. Five stars in a curved line.",
+              "[Iola]   The chronicle says it points to where the next sage will be born.",
+              "[Iola]   It points east this season. (a small smile) East has been busy.",
+            },
+          },
+          {
+            name = "The Seventh Sister",
+            note = 76,   -- E5
+            lore = {
+              "[Iola]   The Seventh Sister. Six bright stars and one that does not appear except on the nights between seasons.",
+              "[Iola]   Velthe spent twelve years cataloging her. She did not finish.",
+              "[Iola]   I am cataloging her now. I will not finish either.",
+              "[Iola]   That is, perhaps, the point.",
+            },
+          },
+        }
+        local pick = CONST[CONTENT.orrery_idx]
+        sq_trig("cleric", midi_to_freq(pick.note), 0.45, 0.30, 4.0, 0.95)
+        return pick.lore
+      end,
+    },
+    -- Iola — Velthe's apprentice, present after the first-arrival scene.
+    { x = 8, y = 5, name = "Iola",
+      visible = function() return CONTENT.scene_seen and CONTENT.scene_seen.observatory_first end,
+      dialogue = function()
+        local lead = party[active] and party[active].class
+        -- Iola was Velthe's apprentice and remembers Miel as a child running
+        -- the brass rings between Velthe's hands.
+        if lead == "cleric" then
+          return {
+            "[Iola]   Velthe spoke of you the way astronomers speak of comets.",
+            "[Iola]   She wrote in the margin once: \"the granddaughter will come back when the chord is six.\"",
+            "[Iola]   I didn't believe her. She was right, anyway.",
+            "[Iola]   (slides a brass ring across the table to Miel) Keep this. It was hers.",
+          }
+        end
+        -- Diegues studied Velthe's writings — Iola would recognize his stance
+        -- and his notation hand.
+        if lead == "mage" then
+          return {
+            "[Iola]   Ah. (...) The notation on your ledger -- I've seen that hand. In Velthe's hand.",
+            "[Iola]   You read her late papers. Did she persuade you that the chord is geometry?",
+            "[Iola]   I am no longer certain. But the math behaves better when I assume she was right.",
+          }
+        end
+        local owned = 0
+        for _, v in pairs(shards) do if v then owned = owned + 1 end end
+        if owned >= 7 then
+          return {
+            "[Iola]   (you have all seven now -- the chord is whole)",
+            "[Iola]   Velthe wrote one last sentence after she lost her voice.",
+            "[Iola]   She wrote: \"the seventh hears the first.\" I never understood that.",
+            "[Iola]   I understand it now. (a long pause) Go finish him.",
+          }
+        elseif owned >= 5 then
+          return {
+            "[Iola]   Five shards. The orrery hums the Aeolian without me touching it.",
+            "[Iola]   Velthe used to say the chord knew when it was being assembled.",
+            "[Iola]   She said it picked the assembler.",
+          }
+        end
+        return {
+          "[Iola]   The orrery turns. The brass rings remember what they sang.",
+          "[Iola]   You can leave a shard here for an evening if you like. They sing back to each other.",
+          "[Iola]   It is good company for them. They have been alone a long time.",
+        }
+      end,
+    },
+  },
+  -- Far Hills (map id 26) — small explorable overworld north of the
+  -- mainland village, accessed by walking into the small mountain
+  -- (tile 56) just above Alder's fire. The mountain serves as both
+  -- the cave-mouth Miel emerged from after the prologue AND the
+  -- portal to this area. Layout: a low rolling-hill landscape with
+  -- scattered trees, a small ruin in the center, a creek along the
+  -- west edge, a return tile (56) at the south edge to walk back.
+  -- Tiles: 1 = tree, 0 = grass, 8 = sand patch, 4 = ruin wall,
+  -- 56 = mountain (return to mainland), 3 = water.
+  far_hills_map = {
+    {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+    {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+    {1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1},
+    {1, 0, 3, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1},
+    {1, 0, 3, 0, 0, 0, 0, 0, 0, 0, 4, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+    {1, 0, 3, 0, 0, 0, 0, 0, 0, 0, 4, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1},
+    {1, 0, 3, 3, 0, 0, 0, 0, 0, 0, 4, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+    {1, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 1},
+    {1, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1},
+    {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+    {1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+    {1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+    {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 56,1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+    {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+  },
+  far_hills_npcs = {
+    -- A wandering shepherd at the small ruin (col 11 row 5). He's been
+    -- here for years; remembers Miel's grandmother walking through.
+    { x = 11, y = 5, name = "Shepherd",
+      dialogue = function()
+        local lead = party[active] and party[active].class
+        -- The shepherd knew Miel's grandmother; recognises Miel by family
+        -- resemblance, and is wary of soldiers (warrior). Bards he greets
+        -- as kin to the sheep's quiet rhythm.
+        if lead == "cleric" then
+          return {
+            "[Shepherd] (looks up. Looks longer than that.) ...you've got her eyes.",
+            "[Shepherd] She watched my grandfather's sheep one winter, did you know that?",
+            "[Shepherd] She said the chord ran through them too. I thought she was joking.",
+            "[Shepherd] (turns back to the flock) Walk softly, my queen.",
+          }
+        end
+        if lead == "warrior" then
+          return {
+            "[Shepherd] (steps in front of the sheep, instinctively) ...soldier.",
+            "[Shepherd] (sees the company you keep) -- ah. With her. That's all right then.",
+            "[Shepherd] Tread soft. The hills hold a grudge.",
+          }
+        end
+        if lead == "bard" then
+          return {
+            "[Shepherd] A lute up here? The sheep'll like that.",
+            "[Shepherd] (after a moment) They settled to your tuning. That's rare.",
+            "[Shepherd] Play sparing. The hills hear everything.",
+          }
+        end
+        local n = 0; for _, v in pairs(shards) do if v then n = n + 1 end end
+        if n >= 6 then
+          return {
+            "[Shepherd] (squints into the wind) The chord is almost whole.",
+            "[Shepherd] Even the sheep know it. They've started lying down on time again.",
+            "[Shepherd] Finish it. I'll keep the watch out here a while longer.",
+          }
+        end
+        return {
+          "[Shepherd] (a small man in a long oilskin coat)",
+          "[Shepherd] You came up from the cave-mouth.",
+          "[Shepherd] The grandmother of yours used to walk these hills.",
+          "[Shepherd] She always said the chord ran like water through stone here.",
+          "[Shepherd] (turns back to his sheep) Walk softly. The hills are old.",
+        }
+      end,
+    },
+    -- A creek-stone (col 3 row 6) — Miel can read an inscription that
+    -- ties Velthe's chronicle to this place.
+    { x = 3, y = 6, name = "CreekStone", kind = "object",
+      dialogue = function()
+        return {
+          "(a smooth flat stone at the creek's edge, etched with a faint laurel)",
+          "(VELTHE wrote: 'The first chord rang here. The water has remembered it ever since.')",
+        }
+      end,
+    },
+  },
+  -- Cave 1 interior (map id 7). Tiles: 4=wall, 0=cave floor (walkable),
+  -- 17=exit door, 27=boss arena marker. Random encounters roll on step.
+  -- 16x14: switchback corridors broken into stair-stepped chambers.
+  -- Boss in upper-mid; player must serpentine up through three gap tiers.
+  cave1_map = {
+    {4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4},
+    {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4},
+    {4,0,0,0,0,0,0,0,27,0,0,0,0,0,0,4},
+    {4,0,4,4,4,4,0,4,4,4,4,4,4,0,0,4},
+    {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4},
+    {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4},
+    {4,0,0,4,4,4,4,4,4,0,4,4,4,4,0,4},
+    {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4},
+    {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4},
+    {4,0,4,0,4,4,4,4,4,4,4,4,4,0,0,4},
+    {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4},
+    {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4},
+    {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4},
+    {4,4,4,4,4,4,17,17,4,4,4,4,4,4,4,4},
   },
   cave1_npcs = {},          -- populated below
   encounter_step_chance = 0.12,  -- per-step chance to roll a random battle in caves
   -- Cave 2 interior (map id 8). Wider, two-tier sentinel grove with vines.
+  -- 18x13: open grove with a regular grid of tree-pillars; boss stands
+  -- in a cleared central glade between four pillar quadrants.
   cave2_map = {
-    {4,4,4,4,4,4,4,4,4,4,4,4,4,4},
-    {4,0,0,0,0,0,0,0,0,0,0,0,0,4},
-    {4,0,0,4,4,0,0,0,0,4,4,0,0,4},
-    {4,0,0,0,0,0,0,0,0,0,0,0,0,4},
-    {4,0,4,0,0,0,27,0,0,0,0,4,0,4},
-    {4,0,0,0,0,0,0,0,0,0,0,0,0,4},
-    {4,0,0,4,4,0,0,0,0,4,4,0,0,4},
-    {4,0,0,0,0,0,0,0,0,0,0,0,0,4},
-    {4,0,0,0,0,0,0,0,0,0,0,0,0,4},
-    {4,4,4,4,4,4,17,17,4,4,4,4,4,4},
+    {4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4},
+    {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4},
+    {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4},
+    {4,0,0,4,0,0,4,0,0,4,0,0,4,0,0,0,0,4},
+    {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4},
+    {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4},
+    {4,0,0,4,0,0,4,0,0,27,0,0,4,0,0,0,0,4},
+    {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4},
+    {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4},
+    {4,0,0,4,0,0,4,0,0,4,0,0,4,0,0,0,0,4},
+    {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4},
+    {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4},
+    {4,4,4,4,4,4,4,4,17,17,4,4,4,4,4,4,4,4},
   },
   cave2_npcs = {},
   -- Cave 3 interior (map id 9). Tidewater grotto: water tiles inside.
+  -- 16x13: two horizontal water channels segment the grotto into three
+  -- chambers; narrow dry causeways at cols 1 and 5/11/15 form bridges.
   cave3_map = {
-    {4,4,4,4,4,4,4,4,4,4,4,4},
-    {4,0,0,0,0,0,27,0,0,0,0,4},
-    {4,0,0,3,3,0,0,0,3,3,0,4},
-    {4,0,0,3,0,0,0,0,0,3,0,4},
-    {4,0,0,0,0,0,0,0,0,0,0,4},
-    {4,0,4,0,0,0,0,0,0,4,0,4},
-    {4,0,0,0,3,3,3,3,0,0,0,4},
-    {4,0,0,0,3,0,0,3,0,0,0,4},
-    {4,0,0,0,0,0,0,0,0,0,0,4},
-    {4,4,4,4,4,17,17,4,4,4,4,4},
+    {4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4},
+    {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4},
+    {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4},
+    {4,0,3,3,3,0,3,3,3,3,0,3,3,3,0,4},
+    {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4},
+    {4,0,0,0,0,0,0,0,27,0,0,0,0,0,0,4},
+    {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4},
+    {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4},
+    {4,0,3,3,3,0,3,3,3,3,0,3,3,3,0,4},
+    {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4},
+    {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4},
+    {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4},
+    {4,4,4,4,4,4,17,17,4,4,4,4,4,4,4,4},
   },
   cave3_npcs = {},
   -- Cave 4 (Dune Rider) interior — desert grotto with sand-pillar islands.
+  -- 18x13: open desert hall with scattered sand-pillar islands and two
+  -- 2x2 dunes; boss stands in the deep right-hand alcove.
   cave4_map = {
-    {4,4,4,4,4,4,4,4,4,4,4,4},
-    {4,0,0,0,0,0,0,0,0,0,0,4},
-    {4,0,0,0,8,8,0,0,0,0,0,4},
-    {4,0,0,0,8,8,0,0,4,4,0,4},
-    {4,0,0,0,0,0,0,0,0,0,0,4},
-    {4,0,4,4,0,0,27,0,0,0,0,4},
-    {4,0,0,0,0,0,0,0,0,0,0,4},
-    {4,0,0,8,8,0,0,0,4,0,0,4},
-    {4,0,0,0,0,0,0,0,0,0,0,4},
-    {4,4,4,4,4,17,17,4,4,4,4,4},
+    {4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4},
+    {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4},
+    {4,0,0,8,0,0,0,8,8,0,0,0,0,0,8,0,0,4},
+    {4,0,0,0,0,0,0,8,8,0,0,8,0,0,0,0,0,4},
+    {4,0,0,0,0,8,0,0,0,0,0,0,0,0,0,0,0,4},
+    {4,0,8,0,0,0,0,0,0,0,0,0,0,0,0,8,0,4},
+    {4,0,0,0,0,0,0,0,0,0,0,0,27,0,0,0,0,4},
+    {4,0,0,0,8,0,0,0,0,0,0,8,0,0,0,0,0,4},
+    {4,0,0,0,0,0,0,8,0,8,8,0,0,0,8,0,0,4},
+    {4,0,0,0,0,0,0,0,0,8,8,0,0,0,0,0,0,4},
+    {4,0,0,8,0,0,0,0,8,0,0,0,0,8,0,8,0,4},
+    {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4},
+    {4,4,4,4,4,4,17,17,4,4,4,4,4,4,4,4,4,4},
   },
   cave4_npcs = {},
   -- Cave 5 (Snowgaunt) interior — frozen vault with ice-pillar maze.
+  -- 20x14: ice-pillar lattice + a partition wall with three gaps splits
+  -- the vault into upper and lower chambers. Boss is high in the upper
+  -- chamber; player must thread the lattice from the south door first.
   cave5_map = {
-    {4,4,4,4,4,4,4,4,4,4,4,4,4,4},
-    {4,0,0,0,0,0,0,0,0,0,0,0,0,4},
-    {4,0,0,4,0,0,0,0,0,0,4,0,0,4},
-    {4,0,0,0,0,0,27,0,0,0,0,0,0,4},
-    {4,0,0,0,0,0,0,0,0,0,0,0,0,4},
-    {4,0,4,4,0,0,4,4,0,0,4,4,0,4},
-    {4,0,0,0,0,0,0,0,0,0,0,0,0,4},
-    {4,0,0,4,0,0,0,0,0,0,4,0,0,4},
-    {4,0,0,0,0,0,0,0,0,0,0,0,0,4},
-    {4,4,4,4,4,4,17,17,4,4,4,4,4,4},
+    {4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4},
+    {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4},
+    {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4},
+    {4,0,0,0,4,0,0,0,4,0,27,0,4,0,0,0,4,0,0,4},
+    {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4},
+    {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4},
+    {4,0,0,0,4,0,0,0,4,0,0,0,4,0,0,0,4,0,0,4},
+    {4,0,4,4,0,4,4,4,4,4,4,4,0,4,4,4,4,0,0,4},
+    {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4},
+    {4,0,0,0,4,0,0,0,4,0,0,0,4,0,0,0,4,0,0,4},
+    {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4},
+    {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4},
+    {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4},
+    {4,4,4,4,4,4,4,4,17,17,4,4,4,4,4,4,4,4,4,4},
   },
   cave5_npcs = {},
   -- Side dungeon "The Hollow" (map id 12). Optional, no shard, no boss —
   -- just exploration + a treasure hunter NPC + a deep chest. Sized 12x10.
+  -- 16x14: branching corridors. Two long fork-walls split the cavern
+  -- into three vertical lanes, with narrow gaps at different y-rows so
+  -- you weave between branches. Central pillar block. No boss (side
+  -- dungeon: exploration + a treasure hunter NPC + a deep chest).
   hollow_map = {
-    {4,4,4,4,4,4,4,4,4,4,4,4},
-    {4,0,0,0,0,0,0,0,0,0,0,4},
-    {4,0,0,4,0,0,0,0,4,0,0,4},
-    {4,0,0,0,0,0,0,0,0,0,0,4},
-    {4,0,4,0,0,4,4,0,0,4,0,4},
-    {4,0,0,0,0,0,0,0,0,0,0,4},
-    {4,0,0,4,0,0,0,0,0,0,0,4},
-    {4,0,0,0,0,0,0,0,0,4,0,4},
-    {4,0,0,0,0,0,0,0,0,0,0,4},
-    {4,4,4,4,4,17,17,4,4,4,4,4},
+    {4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4},
+    {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4},
+    {4,0,4,0,0,0,0,0,0,0,0,0,0,4,0,4},
+    {4,0,0,0,0,4,0,0,0,0,4,0,0,0,0,4},
+    {4,0,4,0,0,4,0,0,0,0,4,0,0,4,0,4},
+    {4,0,0,0,0,4,0,0,0,0,4,0,0,0,0,4},
+    {4,0,0,0,0,4,0,4,4,0,4,0,0,0,0,4},
+    {4,0,0,0,0,0,0,4,4,0,4,0,0,0,0,4},
+    {4,0,0,0,0,4,0,0,0,0,0,0,0,0,0,4},
+    {4,0,0,0,0,4,0,0,0,0,4,0,0,0,0,4},
+    {4,0,0,0,0,4,0,0,0,0,4,0,0,0,0,4},
+    {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4},
+    {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4},
+    {4,4,4,4,4,4,17,17,4,4,4,4,4,4,4,4},
   },
   hollow_npcs = {},
   -- Cave 6 (Locrian Crypt) interior — final-island vault. Tile 27 = boss
   -- arena marker. Map id 13.
+  -- 18x16: long tomb with a transverse divider wall (gaps at cols 1
+  -- and 14) and a row of nave columns. Boss is in the upper sanctum
+  -- past the divider.
   cave6_map = {
-    {4,4,4,4,4,4,4,4,4,4,4,4,4,4},
-    {4,0,0,0,0,0,0,0,0,0,0,0,0,4},
-    {4,0,4,0,0,0,27,0,0,0,0,4,0,4},
-    {4,0,4,0,0,0,0,0,0,0,0,4,0,4},
-    {4,0,0,0,4,4,0,0,4,4,0,0,0,4},
-    {4,0,0,0,4,0,0,0,0,4,0,0,0,4},
-    {4,0,0,0,4,0,0,0,0,4,0,0,0,4},
-    {4,0,4,0,0,0,0,0,0,0,0,4,0,4},
-    {4,0,0,0,0,0,0,0,0,0,0,0,0,4},
-    {4,4,4,4,4,4,17,17,4,4,4,4,4,4},
+    {4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4},
+    {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4},
+    {4,0,0,0,0,0,0,4,0,27,4,0,0,0,0,0,0,4},
+    {4,0,0,0,4,0,0,0,0,0,4,0,0,4,0,0,0,4},
+    {4,0,0,0,0,0,0,4,0,0,0,0,0,0,0,0,0,4},
+    {4,0,0,0,0,0,0,4,0,0,4,0,0,0,0,0,0,4},
+    {4,0,0,0,4,0,0,0,0,0,0,0,0,4,0,0,0,4},
+    {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4},
+    {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4},
+    {4,0,0,0,4,0,0,0,0,0,0,0,0,4,0,0,0,4},
+    {4,0,4,0,4,4,4,4,4,4,4,4,4,4,0,4,0,4},
+    {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4},
+    {4,0,0,0,4,0,0,0,0,0,0,0,0,4,0,0,0,4},
+    {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4},
+    {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4},
+    {4,4,4,4,4,4,4,4,17,17,4,4,4,4,4,4,4,4},
   },
   cave6_npcs = {},
   -- Cave 7 (Suno's Chamber) interior — small antechamber to the final
   -- battle. Map id 14. No NPC, just the long walk to the throne tile.
+  -- 12x6: deliberately small. The final approach to Suno is a tight
+  -- corridor flanked by twin columns — climactic, not exploratory.
   cave7_map = {
     {4,4,4,4,4,4,4,4,4,4,4,4},
     {4,0,0,0,0,0,0,0,0,0,0,4},
-    {4,0,4,0,0,0,27,0,0,0,4,4},
-    {4,0,4,0,0,0,0,0,0,0,4,4},
+    {4,0,4,0,0,0,27,0,0,4,0,4},
+    {4,0,4,0,0,0,0,0,0,4,0,4},
     {4,0,0,0,0,0,0,0,0,0,0,4},
     {4,4,4,4,4,17,17,4,4,4,4,4},
   },
@@ -1645,7 +3416,14 @@ local STORY = {
   scenes = {
     {
       id = "intro",
-      trig = function() return true end,
+      -- Only fires once all four starters are gathered (post-Academy
+      -- under the new playable prologue). Originally trig=true which
+      -- would have surfaced the four-character scene when only Miel +
+      -- Alder were present.
+      trig = function()
+        return class_in_party and class_in_party("cleric") and class_in_party("bard")
+           and class_in_party("warrior") and class_in_party("mage")
+      end,
       lines = {
         "[Miel]    Slept on the road three years.",
         "[Miel]    First mattress in months. I'd forgotten.",
@@ -1686,10 +3464,10 @@ local STORY = {
       id = "after_mixolydian",
       trig = function() return shards.mixolydian end,
       lines = {
-        "[Miel]  Father wanted me wed to Suno's envoy.",
-        "[Miel]  I left at dusk in my brother's clothes.",
-        "[Alder] So you're not really a princess?",
-        "[Miel]  I am. I've stopped answering to it.",
+        "[Miel]  My nation fell on a Tuesday. The silencers came at dawn.",
+        "[Miel]  I held the throne three years before that. Three quiet years.",
+        "[Alder] So you're not really -- you're a queen?",
+        "[Miel]  I was. I rule no land now. I rule what I carry.",
         "[Strom] We answer to better names now.",
       },
     },
@@ -1768,44 +3546,63 @@ local STORY = {
     -- ── SOLO VIGNETTES — one per character at certain shard milestones ──
     {
       id = "solo_alder",
-      trig = function() return shards.lydian end,
+      trig = function()
+        return shards.lydian and class_in_party and class_in_party("bard")
+      end,
       lines = {
-        "[Alder] (alone, tuning the lute by the fire)",
-        "[Alder] My mother used to hum this one.",
-        "[Alder] I never asked her where she learned it.",
-        "[Alder] I should have asked her so many things.",
+        "[Alder]  (alone, tuning the lute by the fire)",
+        "[Alder]  My mother used to hum this one.",
+        "[Alder]  When I was small I thought she was making it up.",
+        "[Alder]  She wasn't. It was older than her. Older than her mother.",
+        "[Alder]  I never asked her where she learned it. I never asked her so many things.",
+        "(He plays a single chord. The fire bends toward it, just slightly.)",
+        "[Alder]  ...alright. I'll ask everything else twice.",
       },
     },
     {
       id = "solo_miel",
       trig = function() return shards.dorian end,
       lines = {
-        "[Miel] (writing in a small leather book)",
-        "[Miel] I left a letter for him on the bedside table.",
-        "[Miel] By dawn he will have read it.",
-        "[Miel] By dusk he will not have forgiven me.",
-        "[Miel] I am not sure I want him to.",
+        "[Miel]   (writing in a small leather book by lamplight)",
+        "[Miel]   I left a letter for him on the bedside table.",
+        "[Miel]   He -- the steward who held the keep with me until the last week.",
+        "[Miel]   By dawn he will have read it. By dusk he will not have forgiven me.",
+        "[Miel]   I told him I was leaving Lirael alive. That I was the rest of it.",
+        "[Miel]   I am not sure I want him to forgive me. I am sure I want him to live.",
+        "(She closes the book. Tucks it inside her coat. Listens to her own breath.)",
+        "[Miel]   ...alright. The next page tomorrow.",
       },
     },
     {
       id = "solo_strom",
-      trig = function() return shards.mixolydian end,
+      trig = function()
+        return shards.mixolydian and class_in_party and class_in_party("warrior")
+      end,
       lines = {
-        "[Strom] (sharpening his blade slowly)",
-        "[Strom] My captain. I never said her name aloud.",
-        "[Strom] I think if I say it now the wind will carry it.",
-        "[Strom] And maybe — a little — she will hear me.",
-        "[Strom] ...Iela.",
+        "[Strom]  (sharpening his blade slowly, with long even strokes)",
+        "[Strom]  My captain. I never said her name aloud after she fell.",
+        "[Strom]  Not at the wake. Not at the cairn. Not when her brother came asking.",
+        "[Strom]  I thought saying it would make her gone twice.",
+        "[Strom]  Sergei knew her brother. Different rig, same hands.",
+        "[Strom]  He told me her name back to me. Told me it was hers to be carried, not hidden.",
+        "[Strom]  I think if I say it now the wind will carry it. And maybe -- a little -- she will hear me.",
+        "[Strom]  ...Reya.",
+        "(The fire pops. The wind moves through it once, then settles.)",
       },
     },
     {
       id = "solo_diegues",
-      trig = function() return shards.phrygian end,
+      trig = function()
+        return shards.phrygian and class_in_party and class_in_party("mage")
+      end,
       lines = {
-        "[Diegues] (a notebook open on his knee)",
+        "[Diegues] (a notebook open on his knee; the page is half-written)",
         "[Diegues] The Academy held that the seven were one.",
-        "[Diegues] Fragmented, they cannot be themselves.",
-        "[Diegues] I never quite believed it. Until tonight.",
+        "[Diegues] One chord, sustained across the world. Mountains tuned to it. Rivers tempo'd by it.",
+        "[Diegues] Fragmented, they cannot be themselves. I never quite believed that.",
+        "[Diegues] I thought a shard could still ring true alone.",
+        "[Diegues] Then Suno's silencers came for the Academy and I heard what alone sounds like.",
+        "[Diegues] (writes a single sentence, underlines it twice) The seven were one.",
         "[Diegues] We will reassemble it. Or die explaining why.",
       },
     },
@@ -1817,7 +3614,7 @@ local STORY = {
         "[Sergei] (unspooling cable across the inn floor)",
         "[Strom]  You're laying wire indoors?",
         "[Sergei] I lay wire wherever the room lets me.",
-        "[Sergei] Listen — your captain. Iela.",
+        "[Sergei] Listen — your captain. Reya.",
         "[Sergei] I knew her brother. Different rig. Same hands.",
         "[Strom]  ...thank you.",
       },
@@ -1886,12 +3683,10 @@ local STORY = {
         return n >= 1
       end,
       lines = {
-        "[Miel]   The pale-coat in the plaza —",
-        "[Miel]   she said my father's name like she owed it.",
+        "[Miel]   The pale-coat in the plaza -- she greeted me by my old title.",
+        "[Miel]   I haven't been called Queen in two years. She knew. She wanted me to know she knew.",
         "[Strom]  Iret. Suno's diplomat.",
-        "[Strom]  She came to my barracks once. Captain",
-        "[Strom]  laughed her out the door. Two months",
-        "[Strom]  later there were no barracks.",
+        "[Strom]  She came to my barracks once. Captain laughed her out the door. Two months later there were no barracks.",
         "[Diegues] So she's an opening move.",
         "[Diegues] Suno tests every door before he kicks it.",
       },
@@ -1953,7 +3748,7 @@ local STORY = {
       },
     },
 
-    -- Miel's deeper backstory: the marriage she fled. Triggers at 4+ shards.
+    -- Miel's deeper backstory: the fall of her kingdom. 4+ shards.
     {
       id = "miel_marriage",
       trig = function()
@@ -1961,15 +3756,13 @@ local STORY = {
         return n >= 4
       end,
       lines = {
-        "[Miel]   Father wasn't a coward. He was tired.",
-        "[Miel]   Tired of burying neighbors.",
-        "[Miel]   He thought a Court wedding would —",
-        "[Miel]   shelter us. Like a tarp over a fire.",
-        "[Strom]  And the envoy?",
-        "[Miel]   I left him my brother's coat at the altar.",
-        "[Miel]   With a note. Asking him to keep it warm.",
-        "[Alder]  ...Miel. That's the meanest thing.",
-        "[Miel]   I was seventeen. I am no longer seventeen.",
+        "[Miel]   My court advised surrender. I refused.",
+        "[Miel]   Three days later the silencers were in the throne room.",
+        "[Strom]  And the crown?",
+        "[Miel]   I left it on the throne. With a note.",
+        "[Miel]   It said: a kingdom is not a chord. It does not need a holder.",
+        "[Alder]  ...Miel. That's heavy.",
+        "[Miel]   I was twenty-two. I rule what I carry now. I carry less.",
       },
     },
 
@@ -2317,6 +4110,326 @@ local STORY = {
       },
     },
 
+    -- Cave 6 (Crypt of Locrius) entry — the silence is the wrong kind.
+    {
+      id = "enter_cave6",
+      trig = function() return CONTENT and CONTENT.cave_entered and CONTENT.cave_entered[6] end,
+      lines = {
+        "[Miel]    The crypt smells of nothing. That isn't right.",
+        "[Diegues] Crypts are loud with rot. This one is silent.",
+        "[Strom]   Locrius. He took the half-step from the chord. He keeps it under his tongue.",
+        "[Alder]   We can give it back to him.",
+        "[Miel]    Quietly, then. So he hears us late.",
+      },
+    },
+    -- Cave 7 (Suno's Chamber) entry — the last room, the last quiet.
+    {
+      id = "enter_cave7",
+      trig = function() return CONTENT and CONTENT.cave_entered and CONTENT.cave_entered[7] end,
+      lines = {
+        "[Diegues] (closes his notebook for the first time in months)",
+        "[Diegues] I won't need to write what happens next. We'll either remember it or we won't.",
+        "[Strom]   I followed his orders for thirty years. Today I deliver them back.",
+        "[Alder]   I've been picking the chord for weeks. It's almost in tune.",
+        "[Miel]    (cups her hand to her ear. Listens to the room.)",
+        "[Miel]    Grandmother. Listen with me.",
+        "(The door at the far end of the chamber is the same door from the throne room.)",
+        "(Of course it is.)",
+      },
+    },
+
+    -- MIEL'S LIRAEL DREAM. Plays once at inn rest, mid-game, when Miel
+    -- is in lead. A flashback dream — the night before her court fled.
+    {
+      id = "miel_lirael_dream",
+      trig = function()
+        return CONTENT and class_in_party and class_in_party("cleric")
+           and party[active] and party[active].class == "cleric"
+           and (shards.mixolydian or shards.phrygian)
+           and not shards.locrian
+      end,
+      lines = {
+        "(Miel sleeps. The dream is the same one she has had every month for a year.)",
+        "(Lirael's main hall, lit by morning. She is twelve. Her grandmother is alive again.)",
+        "[Grandmother] (handing her a small leather book) Write everything down, mira. Even the small days.",
+        "[Miel-twelve] Why?",
+        "[Grandmother] So when the big days come you remember you've already lived a thousand small ones. They will hold you.",
+        "(The dream pivots. Smoke. The hall is on fire. Her grandmother is gone.)",
+        "(Miel-twelve does not run. She picks up the book from the floor where it has fallen and walks east.)",
+        "[Miel]    (waking) ...the book is in my coat. It has always been in my coat.",
+        "(She sleeps the rest of the night holding it.)",
+      },
+    },
+
+    -- STROM'S DREAM. Mirrors Miel's. Plays once mid-game when Strom is
+    -- in lead. A flashback to his captain Reya's last morning.
+    {
+      id = "strom_reya_dream",
+      trig = function()
+        return CONTENT and class_in_party and class_in_party("warrior")
+           and party[active] and party[active].class == "warrior"
+           and (shards.aeolian or shards.phrygian)
+           and not shards.locrian
+      end,
+      lines = {
+        "(Strom sleeps the way old soldiers sleep -- on his back, sword arm out.)",
+        "(The dream is the same morning. Always the same morning.)",
+        "(Reya is rolling her bedroll. The light is bad. She is laughing at something he hasn't said yet.)",
+        "[Reya]    You ever going to teach me that drop-elbow swing?",
+        "[Strom-young] (laughing too) When you stop being faster than me at everything else.",
+        "[Reya]    Coward. (she shoulders the bedroll) Move, then. Long road today.",
+        "(Strom-young moves. The dream pivots. The road is over before noon. He carries her bedroll back alone.)",
+        "[Strom]   (waking, very quietly) ...Reya.",
+        "(He breathes through it. Outside, the wind moves a tree. He goes back to sleep on his other side.)",
+      },
+    },
+
+    -- LIRAEL MEMORIAL. Plays once at the village fountain when Miel leads
+    -- a party of four. Provides closure on her arc before the finale.
+    {
+      id = "lirael_memorial",
+      trig = function()
+        return CONTENT and #party >= 4
+           and party[active] and party[active].class == "cleric"
+           and shards.locrian   -- gated late-game so it lands with weight
+      end,
+      lines = {
+        "(Miel stops at the village fountain. She does not drink.)",
+        "[Miel]    My grandmother brought water from this well, before she was queen.",
+        "[Miel]    She walked from Lirael, west across the woods, and back again. Twice.",
+        "[Alder]   The well sings, sometimes. Did you know?",
+        "[Miel]    (smiles, very small) I had hoped.",
+        "[Diegues] (writing) The Aeolian shore. Population once 4,000. Now: one.",
+        "[Strom]   Two. (he nods to Miel) She brought herself with her.",
+        "[Miel]    (takes the dipper. Drinks. Sets it down carefully.) Lirael remembers.",
+      },
+    },
+
+    -- FIRST FULL PARTY. The night Strom joins (post-Academy). All four
+    -- starters share a quiet inn moment for the first time.
+    {
+      id = "first_full_party",
+      trig = function()
+        return CONTENT and CONTENT.academy_state == "complete"
+           and class_in_party and class_in_party("warrior") and class_in_party("mage")
+           and class_in_party("bard") and class_in_party("cleric")
+      end,
+      lines = {
+        "(Four bowls. Four travelers. The innkeeper sets the last bowl down without comment.)",
+        "[Alder]   We're a quartet now.",
+        "[Diegues] Four-part counterpoint. Standard arrangement.",
+        "[Strom]   I haven't been at a table of four since before the war.",
+        "[Strom]   (...quietly...) It is louder than I remember. In a good way.",
+        "[Miel]    To the people who held doors open for us today.",
+        "[Alder]   To the doors.",
+        "[Diegues] To Quill, and his fountain pen.",
+        "[Strom]   To the hammer-arm I will not raise again.",
+        "(They eat. Outside, the wind moves through the woods. The fire in the grate ticks down.)",
+      },
+    },
+
+    -- STROM + DIEGUES: post-academy night. The hammer-man and the
+    -- half-deaf scholar trade quiet sentences after their first inn
+    -- meal together. Plays at the rest after first_full_party.
+    {
+      id = "strom_diegues_first_quiet",
+      trig = function()
+        return CONTENT and CONTENT.academy_state == "complete"
+           and class_in_party and class_in_party("warrior") and class_in_party("mage")
+           and STORY.seen.first_full_party
+      end,
+      lines = {
+        "(After supper. Strom is at the window. Diegues at the desk, writing.)",
+        "[Diegues] (without looking up) You haven't taken your boots off in two days.",
+        "[Strom]   I have not.",
+        "[Diegues] (still not looking up) That'll wear on you.",
+        "[Strom]   It will. (he undoes the laces. Sets the boots by the door.)",
+        "[Strom]   What are you writing.",
+        "[Diegues] An apology. To my old dean.",
+        "[Strom]   Did he die in the attack.",
+        "[Diegues] No. He left the year before. Said he was tired of the math.",
+        "[Diegues] I always thought him a coward. I'm writing to apologize for thinking it.",
+        "[Strom]   (a small, surprised exhale) Send it.",
+        "[Diegues] (...) I will. Tomorrow.",
+        "(They sit in the kind of quiet that two strangers earn the right to.)",
+      },
+    },
+
+    -- ALDER WRITES IT. Plays after he's been on the road with the party
+    -- long enough to actually hear them.
+    {
+      id = "alder_writes_it",
+      trig = function() return shards.aeolian end,
+      lines = {
+        "[Alder]   (he's writing on the back of an inn-bill)",
+        "[Miel]    What's the song called?",
+        "[Alder]   I haven't decided.",
+        "[Alder]   It's about a queen who walked out of a hill, and a soldier who put his hammer down,",
+        "[Alder]   and a scholar who kept his pen, and a bard who learned to listen.",
+        "[Strom]   (a small, surprised laugh) That's a generous bard.",
+        "[Alder]   It's only true if I write it.",
+        "[Diegues] (looks up from his own notebook) ...write it.",
+      },
+    },
+
+    -- FIRST NIGHT WITH ALDER. Plays at the first inn rest after Alder
+    -- joins — Miel + Alder only, before Diegues/Strom recruit.
+    {
+      id = "first_night_with_alder",
+      trig = function()
+        return CONTENT and class_in_party and class_in_party("bard") and class_in_party("cleric")
+           and not class_in_party("mage") and not class_in_party("warrior")
+      end,
+      lines = {
+        "(Two bowls. The innkeeper sets the second one down without comment.)",
+        "[Alder]   (eats half a bowl in silence; sets the spoon down)",
+        "[Alder]   I was thinking. About the song you hum.",
+        "[Miel]    Mm.",
+        "[Alder]   It's not just a court song. It has a very specific meter.",
+        "[Alder]   It only works if you're walking. The intervals match a stride.",
+        "[Miel]    (small, surprised) ...you're right. I'd never noticed.",
+        "[Alder]   Your grandmother sang it walking, didn't she.",
+        "[Miel]    Twice. From Lirael and back. (...softly...) Twice.",
+        "[Alder]   (picks up the lute; doesn't play; just holds it) Then we keep walking.",
+      },
+    },
+
+    -- VILLAGE FOUNTAIN AT NIGHT. Early Miel reflection — before any
+    -- shards collected, just to seed the Lirael thread.
+    {
+      id = "miel_fountain_early",
+      trig = function()
+        return CONTENT and CONTENT.prologue_state == "complete"
+           and class_in_party and class_in_party("cleric")
+           and not (shards.dorian or shards.mixolydian)
+      end,
+      lines = {
+        "(Late evening. The plaza fountain runs even at this hour.)",
+        "[Miel]    My grandmother walked from this well, west, to the Aeolian shore.",
+        "[Miel]    Twice in her life. She told the story differently each time.",
+        "[Alder]   Which version was true?",
+        "[Miel]    Whichever she happened to be telling.",
+        "(She leaves a small coin in the basin. Walks back to the inn.)",
+      },
+    },
+
+    -- ALL SEVEN ASSEMBLED. Fires once when every character (4 starters
+    -- + 3 recruits) has been added to CHARACTERS — the band is whole
+    -- even if not all are in active party at the moment.
+    {
+      id = "all_seven_assembled",
+      trig = function()
+        if not CHARACTERS then return false end
+        return CHARACTERS.mage and CHARACTERS.cleric and CHARACTERS.warrior
+           and CHARACTERS.bard and CHARACTERS.engineer and CHARACTERS.mathwiz
+           and CHARACTERS.drummer
+      end,
+      lines = {
+        "(The inn's common room. Seven travelers, two tables pulled together.)",
+        "[Alder]   ...is everyone here? Like -- all of us?",
+        "[Strom]   We are seven.",
+        "[Sergei]  Seven for seven shards. Good ratio.",
+        "[Paj]     Statistically, this is the most acoustically interesting table I've ever joined.",
+        "[Niko]    (taps the table four times, slowly) On the four. Always on the four.",
+        "[Diegues] Quiet a moment.",
+        "(Diegues raises his glass. The room hushes. Even the innkeeper.)",
+        "[Diegues] To the people who are not here. We carry your songs.",
+        "[Miel]    To the people who are.",
+        "(Seven glasses meet. The chord they ring is, in fact, almost in tune.)",
+      },
+    },
+
+    -- SERGEI'S RESONATOR PLAN. Mid-late game. Sergei announces he wants
+    -- to rebuild his old amplifier tower — the one Suno burned. Ties
+    -- the ending callback (Sergei rebuilt the resonator) to actual
+    -- player-visible setup.
+    {
+      id = "sergei_resonator_plan",
+      trig = function()
+        return CONTENT and CONTENT.recruits[1] and CONTENT.recruits[1].joined
+           and shards.aeolian
+      end,
+      lines = {
+        "[Sergei]  (laying cable along the inn's floor again, more carefully than before)",
+        "[Sergei]  Listen. I've been thinking.",
+        "[Diegues] (without looking up) That's never neutral, when you say it.",
+        "[Sergei]  When this is over -- I'm rebuilding the Old Resonator.",
+        "[Sergei]  Not the same. Better. Quieter when it should be. Louder when it answers.",
+        "[Strom]   (a quiet exhale) Then it would have a job again.",
+        "[Sergei]  I want it to carry the chord we're making. Whole. To the next valley.",
+        "[Sergei]  And the one after. So no one ever has to relearn it from scratch.",
+        "[Miel]    (sets her cup down) That's the right thing to build.",
+        "[Sergei]  ...thanks. I'd been worried it sounded sentimental.",
+        "[Alder]   (grins) It is sentimental. That's why it's right.",
+      },
+    },
+
+    -- DIEGUES'S CODEX. Late-game inn scene. Diegues reads a passage
+    -- from his rebuilt notebook to the others. Closes a thread on the
+    -- Academy arc (his pen pen survived; his work continues).
+    {
+      id = "diegues_codex",
+      trig = function()
+        return shards.aeolian and class_in_party and class_in_party("mage")
+           and CONTENT and CONTENT.academy_state == "complete"
+      end,
+      lines = {
+        "[Diegues] (closes the notebook; opens it again at the front)",
+        "[Diegues] I started this codex three days after the Academy fell.",
+        "[Diegues] First entry: \"the Crystal Synth was never seven shards. It was one chord, sustained.\"",
+        "[Diegues] Second entry: \"a chord requires people to keep it going. Sustained does not mean self-sustaining.\"",
+        "[Strom]   (quietly) Read the third.",
+        "[Diegues] (turns the page) \"...the people I have begun to keep it with are: Miel, Alder, Strom.\"",
+        "[Diegues] (writes a new line on the next page; reads it aloud as he writes)",
+        "[Diegues] \"And tonight: Sergei, Paj, Niko. The chord is not yet whole. The list is.\"",
+        "(Strom watches him write. Does not say anything. Does not need to.)",
+      },
+    },
+
+    -- PIP'S GIFT. Late-game village scene. Pip presents Miel with
+    -- something she's been making. Quiet, sweet, ties the village child
+    -- to the queen-on-the-run thread.
+    {
+      id = "pip_gift",
+      trig = function()
+        return shards.locrian and class_in_party and class_in_party("cleric")
+           and party[active] and party[active].class == "cleric"
+      end,
+      lines = {
+        "(Pip is waiting in the doorway when you wake. She's been waiting a while; her hair is squashed on one side.)",
+        "[Pip]    I made you a thing.",
+        "[Pip]    (she holds up a small folded paper crown. The folds are not perfect.)",
+        "[Pip]    I asked Mama what queens wore and she said you didn't always need a real one.",
+        "[Pip]    So I made you this. (...) it's mostly sturdy.",
+        "[Miel]   (kneels; takes it carefully) Pip. Thank you.",
+        "[Miel]   (sets the paper crown gently in her coat pocket. Touches it once.)",
+        "[Miel]   I'll wear it when it counts.",
+        "[Pip]    (whispers) I tested it for two whole days.",
+        "(She bolts back to her mother. The kitchen door bangs open and shut.)",
+      },
+    },
+
+    -- FIRST INN AFTER ESCAPE. Plays at the very first inn rest after
+    -- the prologue is complete. Covers Miel-solo or Miel + Alder
+    -- depending on whether she's met Alder yet.
+    {
+      id = "first_inn_after_escape",
+      trig = function()
+        return CONTENT and CONTENT.prologue_state == "complete"
+           and class_in_party and class_in_party("cleric")
+           and not (shards.lydian or shards.dorian)
+      end,
+      lines = {
+        "(The bed is small. The blanket is rough. Miel touches it like it's a museum piece.)",
+        "[Miel]   (...) it's been a year and a month and seventeen days since I slept indoors.",
+        "[Miel]   I started counting on day eight. Force of habit.",
+        "(She does not undress. She lies down in her cloak. The candle on the bedside table is small. She watches it.)",
+        "[Miel]   (very softly) ...goodnight, Lirael. ...goodnight, grandmother.",
+        "(She blows out the candle. The wind outside the inn moves through the eaves like it's looking for something.)",
+        "(In the morning the bread will be hot. In the morning she will count differently.)",
+      },
+    },
+
     -- BAND IS A BAND. The morning of the final.
     {
       id = "band_is_a_band",
@@ -2337,13 +4450,54 @@ local STORY = {
   },
 }
 
+-- Map dialogue [Speaker] tag → class so we can drop lines whose speaker
+-- isn't currently in the active party. Narrator lines (no tag) and
+-- speakers we don't know about are always kept.
+STORY.SPEAKER_CLASS = {
+  Miel = "cleric", Strom = "warrior", Diegues = "mage", Alder = "bard",
+  Sergei = "engineer", Paj = "mathwiz", Niko = "drummer",
+}
+
+-- Filter a STORY scene's lines so we don't have Strom delivering a line
+-- when he's not even in the party yet. We walk the lines, drop any with
+-- a [Speaker] tag whose mapped class isn't in the active party, and
+-- collapse stranded narrator-only sequences down to nothing if the WHOLE
+-- thing collapses (caller treats as no-scene).
+STORY.filter_party_lines = function(lines)
+  if not lines then return nil end
+  local out = {}
+  local kept_speech = false
+  for _, line in ipairs(lines) do
+    local sp = line:match("^%[(%S+)%]")
+    if sp then
+      local cls = STORY.SPEAKER_CLASS[sp]
+      if cls and not class_in_party(cls) then
+        -- speaker not in party — drop this line
+      else
+        out[#out + 1] = line
+        kept_speech = true
+      end
+    else
+      -- narrator line — keep
+      out[#out + 1] = line
+    end
+  end
+  -- If we dropped EVERY tagged line and only narrator survives, the
+  -- scene reads weird ("the party stands silently"). Treat that as
+  -- "scene not applicable" so the caller doesn't mark it seen.
+  if not kept_speech then return nil end
+  return out
+end
+
 STORY.play = function()
   for _, sc in ipairs(STORY.scenes) do
     if not STORY.seen[sc.id] and sc.trig() then
-      STORY.seen[sc.id] = true
-      -- present as a fake-NPC dialogue (advance_dialogue handles the lines)
-      start_dialogue({name = "_party_scene", dialogue = sc.lines})
-      return true
+      local filtered = STORY.filter_party_lines(sc.lines)
+      if filtered then
+        STORY.seen[sc.id] = true
+        start_dialogue({name = "_party_scene", dialogue = filtered})
+        return true
+      end
     end
   end
   return false
@@ -2355,9 +4509,13 @@ STORY.play_id = function(id)
   if STORY.seen[id] then return false end
   for _, sc in ipairs(STORY.scenes) do
     if sc.id == id and sc.trig() then
-      STORY.seen[id] = true
-      start_dialogue({name = "_party_scene", dialogue = sc.lines})
-      return true
+      local filtered = STORY.filter_party_lines(sc.lines)
+      if filtered then
+        STORY.seen[id] = true
+        start_dialogue({name = "_party_scene", dialogue = filtered})
+        return true
+      end
+      return false
     end
   end
   return false
@@ -2410,7 +4568,7 @@ end
 local random_battle = false
 -- chance per overworld step to spawn a random encounter (outside the village)
 -- Pass 35: bumped from 0.04 → 0.07 (more frequent road encounters).
-local ENCOUNTER_CHANCE = 0.07
+local ENCOUNTER_CHANCE = 0.03
 
 -- Bundled shop/economy state (kept in one table to stay under Lua's 200-local cap)
 local SHOP = {
@@ -2422,14 +4580,75 @@ local SHOP = {
   flash_ticks = 0,
   flash_text = "",
   items = {
-    salve = { name = "Salve", cost = 20, desc = "+35 HP all" },
-    vial  = { name = "Vial",  cost = 30, desc = "+10 MP all" },
-    star  = { name = "Star",  cost = 80, desc = "Revive KO"  },
-    ether = { name = "Ether", cost = 45, desc = "+25 MP all" },
-    tonic = { name = "Tonic", cost = 60, desc = "+ATK 1 fight" },
-    key   = { name = "Key",   cost = 95, desc = "Open lock"   },
+    salve = { name = "Salve", cost = 5,  desc = "+35 HP all" },
+    vial  = { name = "Vial",  cost = 8,  desc = "+10 MP all" },
+    star  = { name = "Star",  cost = 20, desc = "Revive KO"  },
+    ether = { name = "Ether", cost = 11, desc = "+25 MP all" },
+    tonic = { name = "Tonic", cost = 15, desc = "+ATK 1 fight" },
+    key   = { name = "Key",   cost = 24, desc = "Open lock"   },
+    -- One-shot instrument purchases — sold once each. The shop hides
+    -- entries already owned (see UI.draw_shop) so the menu doesn't
+    -- bloat. is_instrument routes the purchase through instruments_owned
+    -- instead of the consumable inv counter.
+    field_lute     = { name="Field Lute",     cost=120, desc="bard upgrade",    is_instrument=true },
+    bowed_psaltery = { name="Bowed Psaltery", cost=120, desc="cleric upgrade",  is_instrument=true },
+    tinker_fork    = { name="Tinker Fork",    cost=120, desc="warrior upgrade", is_instrument=true },
+    field_recorder = { name="Field Recorder", cost=120, desc="mage upgrade",    is_instrument=true },
   },
-  order = {"salve", "vial", "ether", "star", "tonic", "key"},
+  order = {"salve", "vial", "ether", "star", "tonic", "key",
+           "field_lute", "bowed_psaltery", "tinker_fork", "field_recorder"},
+}
+
+-- ──────────────────────────────────────────────────────────────────────────
+-- SCENE — a lightweight choreography system for FF-style cutscenes that
+-- play in the OVERWORLD/DIALOGUE state. A scene script is an array of
+-- "step" tables; the per-tick advancer (tick_scene) walks the script,
+-- tweening actor positions and handing off to the dialogue system when a
+-- step has lines. Actors are temporary sprites drawn on top of the map at
+-- fractional tile coordinates (so we can interpolate cleanly).
+--
+-- Step shapes (any unrecognised key is ignored, so steps can carry
+-- per-scene metadata if useful):
+--   {spawn   = id, class = "cleric", x = 6, y = 5, facing = "south", name = "Miel"}
+--   {move    = id, to = {x = X, y = Y}, ticks = N}
+--   {face    = id, facing = "south"}
+--   {despawn = id}                or  {despawn_all = true}
+--   {wait    = N}                  -- pause N ticks before next step
+--   {dialogue = {lines}, npc = optional_npc_table_for_speaker_sprite}
+--   {camera_to = {x, y}, ticks = N}
+--   {fade_in = N}    {fade_out = N}
+--   {sfx = {class = "cleric", note = 72, vel = .6, attack = .01, release = 1.5, wet = .8}}
+--   {shake = {mag = 2, ticks = 8}}
+--   {teleport_player = {x, y, facing = "down"}}
+--   {flash = "* banner text *", ticks = 36}
+--   {set = function() ... end}     -- arbitrary state poke
+--   {hide_player = true}           {show_player = true}
+-- The scene ends after its last step; SCENE.on_complete (if set) is then
+-- called once. Scenes are blocking — overworld input is suppressed while
+-- SCENE.active is true.
+SCENE = {
+  active = false,
+  script = nil,
+  step   = 1,
+  wait   = 0,
+  actors = {},          -- list of actor records (see scene_spawn)
+  on_complete = nil,
+  fade   = 0,           -- current fade-to-black amount, 0..15
+  fade_target = 0,
+  fade_speed  = 0,      -- per-tick delta toward fade_target
+  hide_player = false,
+  cam_tween   = nil,    -- {fx, fy, tx, ty, t, dur}
+  letterbox = 0,        -- top/bottom black bar height in pixels (0..6)
+  letterbox_target = 0,
+}
+
+-- ──────────────────────────────────────────────────────────────────────────
+-- PARTICLES — region-ambient overlays (snow drift in northern, leaves in
+-- woods, ash in ruins, mist along coast, sand in dune). Lightweight pool;
+-- spawn rate + drift behavior set by current map / region.
+PARTICLES = {
+  pool = {},            -- list of {x, y, vx, vy, life, lev, kind}
+  enabled = true,
 }
 
 -- ENDING state runs the final cutscene panels by index
@@ -2443,6 +4662,17 @@ local BPM_MIN, BPM_MAX, BPM_STEP = 60, 180, 1
 -- overworld state
 local player = { x = 6, y = 6, facing = "down" }
 local cam = { x = 1, y = 1 }
+-- Forward decls pulled UP here so that scene-builder functions defined
+-- BEFORE their original declarations (start_prologue_throne_scene,
+-- SCENE.draw, etc.) can capture them as upvalues.
+--   update_camera: avoids "attempt to call a nil value" crash from
+--     scene helpers that call update_camera() at scene start.
+--   NPC_SPRITES: lets SCENE.draw look up bespoke per-NPC sprites
+--     (Suno, the boss silhouettes, etc.) instead of falling through
+--     to SPRITE_BY_CLASS — otherwise Suno renders with the warrior
+--     sprite (Strom's), the boss silhouettes don't appear, etc.
+local update_camera
+local NPC_SPRITES
 
 -- dialogue state
 local dlg = { npc = nil, line = 1 }
@@ -2466,6 +4696,7 @@ local cave_state = {
   [5] = {victories = 0, cleared = false},
   [6] = {victories = 0, cleared = false},
   [7] = {victories = 0, cleared = false},
+  [8] = {victories = 0, cleared = false},   -- post-endgame: The First Chord
 }
 local current_cave = 1
 
@@ -2520,20 +4751,20 @@ local cutscene_idx = 1
 -- MAINLAND (64x16): cols 1-32 = Village; 33-48 = Hollow Woods; 49-64 = Sunward Coast.
 -- Mountain pass (id 15) at row 1 col 13 → Northern Wilds (current_map_id 3).
 local MAINLAND = {
-  {1,1,1,1,1,1,1,1,1,1,1,0,15,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},
+  {1,1,1,1,1,1,1,1,1,1,1,0,15,0,1,1,56,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},  -- col 17 row 1: Far Hills cave-mouth (small mountain)
   {1,0,0,0,0,0,0,0,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1, 1,0,0,0,1,1,0,0,0,0,1,1,1,0,0,1, 1,0,0,0,0,0,0,0,8,8,0,0,0,1,0,1},
   {1,0,4,4,4,0,0,0,4,4,4,0,2,0,0,0,0,0,4,4,4,0,0,0,0,0,0,0,0,0,0,1, 0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,1, 1,0,1,0,0,0,0,0,0,8,8,0,0,0,0,1},
   {1,0,4,0,4,0,0,0,4,0,4,0,2,0,0,0,0,0,4,0,4,0,0,0,1,0,0,0,0,0,0,1, 0,0,0,0,0,0,36,1,0,0,43,0,0,0,1,1, 1,0,0,0,0,0,0,0,0,0,8,8,0,0,1,1},
   {1,0,4,5,4,0,0,0,4,5,4,0,2,0,0,0,0,0,4,5,4,2,2,2,2,2,2,2,2,2,1,1, 0,2,2,2,2,2,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
-  {1,0,0,0,0,0,0,0,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,2,0,0,0,2,0,0,0,1,0,0,0,1,0,0, 1,0,0,0,0,1,0,0,0,0,0,0,1,0,0,1},
+  {1,0,0,0,0,0,0,0,0,0,0,0,2,0,54,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,2,0,0,0,2,0,0,0,1,0,0,0,1,0,0, 1,0,0,0,0,1,0,0,0,0,0,0,1,0,0,1},  -- col 15 row 6: village plaza flag
   {1,0,0,13,0,12,0,0,0,0,0,0,2,0,14,0,18,0,0,0,0,0,0,0,0,0,0,0,6,0,0,0, 0,2,0,0,0,2,2,2,2,2,2,2,7,0,0,0, 2,2,2,2,2,2,2,2,2,2,2,2,2,9,0,10},
   {1,1,0,0,0,0,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1,1, 0,2,0,0,0,2,0,0,0,0,0,0,0,0,1,1, 0,0,0,0,2,0,0,0,0,0,0,0,8,8,0,1},
-  {1,1,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4,5,4,0,0,0,0,0,1, 1,2,0,0,0,0,0,0,0,0,0,0,1,0,0,1, 1,0,0,0,2,0,0,0,0,0,0,0,8,8,0,1},
+  {1,1,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4,5,4,0,57,0,0,0,1, 1,2,0,0,0,0,0,0,0,0,0,0,1,0,0,1, 1,0,0,0,2,0,0,0,0,0,0,0,8,8,0,1},  -- col 28: anvil tile next to Brann the smith (col 27 = Brann NPC)
   {1,0,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4,0,4,0,1,0,0,0,1, 1,2,0,0,0,0,0,0,0,0,0,1,0,0,0,1, 1,0,0,0,0,0,0,0,0,0,8,8,8,0,0,1},
   {1,0,0,0,0,0,2,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,4,4,4,0,0,0,0,0,1, 1,1,0,0,0,0,0,0,0,0,1,1,0,0,1,1, 1,0,0,0,0,0,0,0,8,8,8,8,0,0,0,1},
   {1,0,1,0,0,0,0,0,45,45,45,3,3,3,3,3,3,3,3,3,3,3,3,3,3,0,0,0,0,0,0,1, 1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1, 1,1,0,0,0,0,8,8,8,8,0,0,0,0,0,1},
   {1,0,0,0,0,0,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,0,0,0,0,0,1, 1,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1, 1,1,1,0,0,8,8,8,0,0,0,0,0,0,0,1},
-  {1,0,0,0,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,0,0,0,1,1, 1,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1, 1,1,1,1,8,8,8,0,0,0,0,0,0,0,0,1},
+  {1,47,0,0,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,0,0,0,1,1, 1,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1, 1,1,1,1,8,8,8,0,0,0,0,0,0,0,0,1},
   {1,1,1,1,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,1,1,1,1,1, 1,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1, 1,1,1,1,8,8,8,0,0,0,0,0,0,0,0,1},
   {1,1,1,1,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,1,1,1, 1,1,0,0,1,1,1,1,1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},
 }
@@ -2566,7 +4797,7 @@ local NORTHERN_WILDS = {
   {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},
   {1,0,0,0,0,0,0,0,0,0,0,0,0,0,8,8,8,0,0,0,0,0,0,0,0,0,0,1},
   {1,0,1,0,0,0,0,8,8,8,8,0,0,0,0,8,8,8,0,0,0,0,1,0,0,0,0,1},
-  {1,0,0,0,0,1,0,0,8,8,0,0,0,2,0,0,8,8,0,0,0,0,0,0,1,0,0,1},
+  {1,0,0,0,0,1,0,0,8,8,0,0,0,2,0,0,8,8,0,0,0,0,0,0,52,0,0,1},  -- Velthe Observatory entry @ col 25 row 4
   {1,0,0,0,0,0,0,0,0,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
   {1,0,1,0,0,0,0,0,0,1,0,0,0,2,0,0,0,0,0,1,0,0,1,0,0,0,0,1},
   {1,0,0,0,0,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,16,0,0,0,0,0,0,1},
@@ -2606,18 +4837,2827 @@ local MAP_H = #map
 
 -- npc.dialogue is a function returning the current line set, so it can vary by progress
 -- NPC lists are per-continent; `npcs` points at the active list.
+-- Helper: returns true if the named class is currently in active party.
+function class_in_party(class)
+  for _, p in ipairs(party or {}) do
+    if p.class == class then return true end
+  end
+  return false
+end
+
+-- Per-fire campfire scenes. Each fire is keyed by "map:x:y" and holds an
+-- ordered list of {requires, lines} entries. The picker returns the
+-- first entry whose required classes are ALL in the active party — so a
+-- richer 2-character scene wins when both members are present, falling
+-- back to a solo line otherwise. Scenes whose participants haven't
+-- joined yet simply don't fire (the heal still applies).
+CAMPFIRE_SCENES = {
+  -- Mainland village clearing (above Lyrik) — the prologue fire.
+  ["1:16:4"] = {
+    {requires = {"cleric", "bard"}, lines = {
+      "(Miel sits at the fire. Alder tunes the lute and pretends not to watch her.)",
+      "[Alder]   First night out, you usually look back. You haven't.",
+      "[Miel]    Looking back doesn't change what's there.",
+      "[Alder]   That's a queen-thing to say. (...quietly...) okay.",
+    }},
+    {requires = {"cleric"}, lines = {
+      "(Miel sits alone. The flames lean east, away from the cave she came from.)",
+      "[Miel]    East, then. The fire keeps the dark small. It will do.",
+    }},
+  },
+  -- Hollow Woods fire (mainland 38,9).
+  ["1:38:9"] = {
+    {requires = {"warrior", "cleric"}, lines = {
+      "(Strom feeds the fire a fistful of dry needles.)",
+      "[Strom]   My captain liked woods like these.",
+      "[Strom]   Said trees keep their secrets longer than men.",
+      "[Miel]    Then we are in good company tonight.",
+    }},
+    {requires = {"warrior"}, lines = {
+      "(Strom watches the smoke find the canopy.)",
+      "[Strom]   I forget what year my captain died. Years matter less out here.",
+    }},
+    {requires = {"bard", "cleric"}, lines = {
+      "(Alder picks a slow line on the lute. Miel listens to the trees behind it.)",
+      "[Alder]   Hollow Woods. Wrong name. They've been listening this whole time.",
+      "[Miel]    They don't speak. But they answer.",
+    }},
+    {requires = {"cleric"}, lines = {
+      "(Miel watches a moth find the flame.)",
+      "[Miel]    Even out here, the small things sing. I'd forgotten.",
+    }},
+  },
+  -- Sunward Coast fire (mainland 53,8).
+  ["1:53:8"] = {
+    {requires = {"bard", "mage"}, lines = {
+      "(Alder tunes the lute by the fire's pop and crackle.)",
+      "[Alder]   Salt makes the gut strings sing wider tonight.",
+      "[Diegues] An overtone, mostly. The third partial.",
+      "[Alder]   You always know the word for it. I love that.",
+      "[Alder]   Sit with me a minute though. Same fire, two ways in.",
+      "[Diegues] (he sets the book down. Listens.)",
+    }},
+    {requires = {"bard"}, lines = {
+      "(Alder strums softly. The waves keep his time.)",
+      "[Alder]   First time on a coast. Strings sound bigger here.",
+    }},
+    {requires = {"mage"}, lines = {
+      "(Diegues holds his book closed for once, watching the surf.)",
+      "[Diegues] The Academy taught me to chart waves as functions.",
+      "[Diegues] (...sets the book down.) Tonight they look like songs.",
+    }},
+    {requires = {"cleric"}, lines = {
+      "(Miel walks to the surf-line and back, hands behind her.)",
+      "[Miel]    My nation never had a coast. I am told you can hear what isn't there in it.",
+    }},
+  },
+  -- Northern Wilds fire (map 3, 10, 9).
+  ["3:10:9"] = {
+    {requires = {"cleric", "warrior"}, lines = {
+      "(Snow falls onto the fire and hisses out.)",
+      "[Miel]    My grandmother walked these passes.",
+      "[Miel]    She sang to keep the cold off her hands.",
+      "[Strom]   Sing it now, Miel. We'll keep watch.",
+      "[Miel]    (...softly, in a key the snow forgets...)",
+    }},
+    {requires = {"cleric"}, lines = {
+      "(Miel cups her hands at the fire. The cold doesn't quite reach her.)",
+      "[Miel]    Grandmother's song. I never thought I'd need it for me.",
+    }},
+    {requires = {"warrior"}, lines = {
+      "(Strom puts his back to the wind. The fire holds.)",
+      "[Strom]   Cold like this remembers a man longer than warm does.",
+    }},
+  },
+}
+
+-- ── Academy story arc helpers ────────────────────────────────────────────
+-- start_academy_intro(): plays the entry cutscene (dialogue lines), and
+-- on close fires the post_dialogue hook which adds Diegues to the party
+-- and launches the Strom battle.
+-- start_strom_battle(): builds the Strom enemy entry + sets up battle
+-- state. Defeat is wired in damage_enemy via academy_strom_defeated().
+-- finish_academy_arc(): runs the epilogue scene + adds Strom to the
+-- party + sets academy_state = "complete".
+
+function start_academy_intro()
+  CONTENT.academy_state = "scene_done"
+  -- Player parked at center; she's been hidden during the scene and
+  -- spawned as a Miel actor so we can pose her independently.
+  player.x, player.y = 6, 6
+  player.facing = "up"
+  update_camera()
+  -- Academy is 10w x 9h, view is 16x8 — the whole room fits on-screen
+  -- so we don't need pans, but letterbox + character entry choreography
+  -- elevates the intro to FF4-tier.
+  local script = {
+    {hide_player = true},
+    {letterbox_in = true},
+    {wait = 12},
+    -- Diegues at the lectern (col 4 row 4), facing the player initially.
+    {spawn = "diegues", class = "mage", name = "Diegues", x = 4, y = 4, facing = "down"},
+    -- Spawn Miel just inside the door (player position) facing up.
+    {spawn = "miel", class = "cleric", name = "Miel", x = 6, y = 7, facing = "up"},
+    {wait = 8},
+    -- Diegues spots Miel — "shock" turn + small upward bump.
+    {look = "diegues", toward = "miel"},
+    {bump = "diegues", dir = "up", ticks = 3},
+    {sfx = {class = "mage", note = 72, vel = 0.55, attack = 0.005, release = 0.40, wet = 0.55}},
+    {wait = 8},
+    {dialogue = {
+      "(Smoke pours through the doorway. Bookshelves are toppled. Pages drift in the bad light.)",
+      "(A man in cracked spectacles stands his ground over a stack of papers — a chair-leg in one hand, a count in his head.)",
+      "[Diegues] (sees you, eyes wide) Don't come in -- the silencers --",
+      "[Diegues] They want this hall as a tower. A silencing one. They want the chord here.",
+    }, npc = {name = "Diegues"}},
+    -- Strom enters from the south doorway (academy interior — door at
+    -- col 4-5 row 9). He walks two steps in, hammer dragging SFX.
+    {spawn = "strom", class = "warrior", name = "Strom", x = 5, y = 8, facing = "up", bob = false},
+    {sfx = {class = "warrior", note = 22, vel = 0.85, attack = 0.005, release = 0.40, wet = 0.10}},
+    {shake = {mag = 2, ticks = 6}},
+    {wait = 12},
+    {move = "strom", to = {x = 5, y = 7}, ticks = 24},
+    {wait = 6},
+    -- Miel turns to look at Strom; shock bump.
+    {look = "miel", toward = "strom"},
+    {bump = "miel", dir = "up", ticks = 3},
+    {wait = 4},
+    -- Strom turns to face Miel.
+    {look = "strom", toward = "miel"},
+    {sfx = {class = "warrior", note = 18, vel = 0.65, attack = 0.005, release = 0.30, wet = 0.05}},
+    {wait = 12},
+    {dialogue = {
+      "[Strom]   (turns slowly toward you) More strays, scholar?",
+      "[Strom]   Step aside, or join the wreckage.",
+    }, npc = {name = "Strom"}},
+    -- Diegues walks down from the lectern to flank Miel.
+    {move = "diegues", to = {x = 6, y = 5}, ticks = 36},
+    {look = "diegues", toward = "miel"},
+    {wait = 6},
+    {dialogue = {
+      "[Diegues] (low, to Miel) The hammer-man -- he was a captain once.",
+      "[Diegues] He led a company through the Eastern Reaches.",
+      "[Diegues] They have made him into something worse.",
+    }, npc = {name = "Diegues"}},
+    -- Diegues looks down at his improvised weapon, then back at Strom.
+    {face = "diegues", facing = "down"},
+    {wait = 8},
+    {look = "diegues", toward = "strom"},
+    {wait = 8},
+    {dialogue = {
+      "[Diegues] (looks at his chair-leg, then at you, then back at Strom)",
+      "[Diegues] (...sets his jaw...) I will stand with you.",
+      "[Diegues] After this -- I am yours.",
+    }, npc = {name = "Diegues"}},
+    -- A held breath: dust settles, fire crackles.
+    {wait = 18},
+    {dialogue = {
+      "(Miel falls in beside Diegues without a word.)",
+      "(The dust in the air settles for one breath.)",
+      "(The fire crackles. Then everything moves at once.)",
+    }, npc = nil},
+    {wait = 8},
+    {dialogue = {
+      "[Strom]   So be it.",
+    }, npc = {name = "Strom"}},
+    {flash = "* DIEGUES JOINS *", ticks = 36},
+    {sfx = {class = "mage", note = 79, vel = 0.65, attack = 0.005, release = 1.20, wet = 0.55}},
+    {wait = 18},
+    {despawn = "diegues"}, {despawn = "strom"}, {despawn = "miel"},
+    {teleport_player = {x = 6, y = 6, facing = "up"}},
+    {show_player = true},
+    {letterbox_out = true},
+  }
+  SCENE.start(script, function()
+    if CHARACTERS and CHARACTERS.mage and not class_in_party("mage") then
+      party[#party + 1] = CHARACTERS.mage
+    end
+    start_strom_battle()
+  end)
+end
+
+-- ── Cave-boss approach scenes ──────────────────────────────────────────
+-- One per boss. Played the first time the player crosses the boss
+-- arena tile; subsequent attempts skip straight to combat. FF4-style
+-- atmospheric build with a moment of party reaction.
+BOSS_APPROACH = {
+  [1] = {  -- Cave 1: Echo
+    "(The cave widens into a chamber. The drip from the ceiling hits the floor a half-beat too late.)",
+    "(...far back in the dark, the drip answers itself.)",
+    "[Miel]   It's listening.",
+    "(A voice -- her own voice -- comes back from the wall, twisted to a different key.)",
+    "[Echo]   ((It's listening.))",
+    "(Something at the back of the chamber takes a step. The party draws together.)",
+  },
+  [2] = {  -- Cave 2: Sentinel
+    "(The grove opens. In its center, a wooden figure three meters tall, covered in moss.)",
+    "(It does not move. It has not moved in a very long time.)",
+    "[Strom]  (a step backward) That's not a tree. Get back, get back --",
+    "(The Sentinel raises a single arm. The forest goes still. Even the birds.)",
+    "(Beren said: \"The Sentinel sleeps for good now.\" That was a long time ago. He sleeps no more.)",
+  },
+  [3] = {  -- Cave 3: Tide
+    "(The seawater laps higher than the deepest tide should allow.)",
+    "(Faces appear in the surface. Then disappear. Then appear again, closer.)",
+    "[Aurin] (your memory of her voice) The Tidewatch chord answers prayers and traps both.",
+    "(One of the faces in the water is yours. It does not look frightened.)",
+    "(Tidewatch rises out of the pool. The chord pulls tight.)",
+  },
+  [4] = {  -- Cave 4: Dunerider
+    "(Sand. Wind. Hoofprints in a six-beat rhythm, very fast, then two beats back.)",
+    "(The Dune Rider crests the dune. He has been riding for years to reach this exact moment.)",
+    "[Iska]  (your memory of her voice) Six beats out, two back. Strike on the rest.",
+    "(He stops. The horse stops. The wind does not stop.)",
+    "[Dune Rider] (low, almost a song) ...you are not what I was sent for. You will do.",
+  },
+  [5] = {  -- Cave 5: Snowgaunt
+    "(The snow stops falling. Even the wind stops.)",
+    "(A figure in long white robes turns from the icicle wall. He is conducting silence.)",
+    "[Snowgaunt] (a voice like wind off a lake) Three. Three is the meter. Three is the only meter.",
+    "(You can feel your party's heartbeats trying to find his three-count.)",
+    "[Wenna] (your memory of her voice) Drown his time with yours.",
+  },
+  [6] = {  -- Cave 6: Locrius
+    "(The crypt smells of nothing. Crypts are usually loud with rot. This one is silent.)",
+    "(Locrius rises from the central plinth. His teeth are perfectly even.)",
+    "[Locrius] (a voice exactly between two notes) You've come a long way to be wrong by half a step.",
+    "[Locrius] My king has been waiting. He thinks you'll arrive tired.",
+    "[Veris]  (your memory of her voice) He cannot hold off-time. Strike where he cannot follow.",
+  },
+  [7] = {  -- Cave 7: Suno (final)
+    "(The chord that holds Suno's domain pulls tight as a wire over your heads.)",
+    "(The Tuning King stands at the center of the chamber, exactly where he was when last you saw him -- larger.)",
+    "[Suno]   (without turning) You should be a wagon-print in the road by now. A small one.",
+    "[Suno]   And yet. Six shards in your pack. A queen who walks instead of sings.",
+    "[Suno]   (a slow breath) I underestimated the room I left you in.",
+    "[Miel]   You left me in my grandmother's room.",
+    "[Miel]   I came here so I could sing for it.",
+    "[Suno]   (turns, slowly) Then sing.",
+    "(The six shards in your pack ring once, all together. The seventh is in the room with you.)",
+  },
+}
+
+-- ── First-arrival story scenes ─────────────────────────────────────────
+-- Generic "play this beat the first time the player arrives at <id>" hook.
+-- Scenes are keyed by short id strings; CONTENT.scene_seen tracks fired
+-- ones so each plays exactly once. Use queue_first_arrival(id, lines)
+-- inside a travel_to hook to fire one if not yet seen.
+function queue_first_arrival(id, lines)
+  CONTENT.scene_seen = CONTENT.scene_seen or {}
+  if CONTENT.scene_seen[id] then return end
+  CONTENT.scene_seen[id] = true
+  dlg.lines = pack_dialogue_lines(lines, nil)
+  dlg.line = 1
+  dlg.npc = nil
+  game_state = "DIALOGUE"
+end
+
+-- ── Prologue helpers (Suno coup, silencers, cave monsters) ──────────────
+
+-- start_prologue_throne_scene() — choreographed FF-style cutscene that
+-- replaces the static talk-to-Suno dialogue with moving sprites:
+--   1. Door slam SFX + screen shake (Suno is breaking in).
+--   2. Suno (warrior sprite, dim re-color via separate draw fn) walks in
+--      from the south end of the hall toward the dais.
+--   3. Two silencers (warrior sprite) flank him at his heel.
+--   4. Suno stops one step short of Miel; the silencers wait at the rear.
+--   5. Dialogue plays beat-by-beat with Suno turning to face Miel.
+--   6. Suno turns south, walks back out; doors thud.
+--   7. Silencers step forward into Miel's path (will become attackable
+--      NPCs after the scene ends, via the existing "coup" state visibility).
+--   8. Miel realises the secret door (whispered dialogue).
+--   9. Camera holds on Miel; player gains control.
+-- start_prologue_castle_intro() — opening beat on first castle entry.
+-- Miel wakes in her private chamber, hears the raid happening through
+-- the walls, decides to investigate. Hands control to the player
+-- after a few dialogue beats. The full throne-room confrontation
+-- with Suno fires when Miel actually walks into the throne hall (see
+-- start_prologue_throne_scene which is now triggered by tile entry,
+-- not map entry).
+function start_prologue_castle_intro()
+  CONTENT.prologue_intro_done = true
+  -- Pass 60 overhaul: Miel wakes in her Royal Quarters (map 28),
+  -- beside the bed at (3, 2). She rises to the sound of the south
+  -- door coming down. The hallway sits east through the door; the
+  -- throne room sits two screens north (hallway → throne).
+  player.x, player.y = 3, 2
+  player.facing = "down"
+  update_camera()
+  local script = {
+    {hide_player = true},
+    {set = function() SCENE.fade = 15 end},
+    {focus = {x = 5, y = 3}, ticks = 1},
+    {fade_in = 24},
+    {wait = 12},
+    -- Distant courtyard commotion: a faraway shout (bard high note),
+    -- then the cold ring of a bell, then the first real impact from
+    -- the south gate (deep warrior thud). All muffled by distance —
+    -- the chamber walls dampen them.
+    {sfx = {class = "bard", note = 79, vel = 0.45, attack = 0.05, release = 1.5, wet = 0.85}},
+    {wait = 10},
+    {sfx = {class = "cleric", note = 84, vel = 0.40, attack = 0.02, release = 4.0, wet = 1.0}},
+    {wait = 14},
+    {sfx = {class = "warrior", note = 26, vel = 0.70, attack = 0.001, release = 0.40, wet = 0.40}},
+    {shake = {mag = 1, ticks = 6}},
+    {wait = 12},
+    -- Spawn Miel beside her bed, facing south.
+    {spawn = "miel", class = "cleric", name = "Miel", x = 3, y = 2, facing = "down", bob = false},
+    {wait = 14},
+    {dialogue = {
+      "(Miel wakes. The candles in her chamber are wrong -- two are out, the third is guttering.)",
+      "(Beyond the walls: shouts in the courtyard. A bell rings once and is cut short.)",
+      "(Then the muffled crack of something heavy striking the south gate.)",
+    }, npc = nil},
+    -- A second courtyard wave: more distant shouts + a sharp clash.
+    {sfx = {class = "bard", note = 76, vel = 0.50, attack = 0.05, release = 1.0, wet = 0.85}},
+    {wait = 6},
+    {sfx = {class = "warrior", note = 31, vel = 0.65, attack = 0.001, release = 0.25, wet = 0.35}},
+    {wait = 6},
+    {sfx = {class = "warrior", note = 24, vel = 0.85, attack = 0.001, release = 0.40, wet = 0.30}},
+    {shake = {mag = 1, ticks = 6}},
+    {wait = 8},
+    {dialogue = {
+      "[Miel]    (very quietly, to herself)",
+      "[Miel]    The south gate. (...) They reached the courtyard already.",
+      "[Miel]    The watch is fighting.",
+    }, npc = {name = "Miel"}},
+    {wait = 6},
+    {dialogue = {
+      "(She rises. The hallway is east through the chamber door. The throne room sits at its north end.)",
+    }, npc = nil},
+    {wait = 8},
+    {despawn = "miel"},
+    {teleport_player = {x = 3, y = 2, facing = "down"}},
+    {show_player = true},
+    {flash = "* find the throne room *", ticks = 80},
+  }
+  SCENE.start(script)
+end
+
+-- start_courtyard_breach_script() — Pass 61. Returns a SCENE script
+-- that npc.scene() can return. Capt.Ren shouts the warning, the
+-- south gate caves in, silencers pour through and engage the guard
+-- line. The guards fall one by one; the captain falls last,
+-- shouting Miel to run. The scene ends by teleporting Miel back to
+-- the castle hallway (map 27) just inside the south doors and
+-- marking the courtyard as breached so the NPCs vanish.
+function start_courtyard_breach_script()
+  local px, py = player.x, player.y
+  return {
+    {hide_player = true},
+    {letterbox_in = true},
+    {focus = {x = 7, y = 8}, ticks = 18},
+    -- Spawn Miel where the player was standing.
+    {spawn = "miel", class = "cleric", name = "Miel", x = px, y = py, facing = "down", bob = false},
+    -- Spawn the captain + four guards in their visible positions so
+    -- the scene's actors take over the static NPC sprites.
+    {spawn = "cap",  class = "warrior", name = "Capt.Ren", x = 7, y = 10, facing = "down", bob = false},
+    {spawn = "gA",   class = "warrior", name = "GuardA",   x = 3, y = 11, facing = "down", bob = false},
+    {spawn = "gB",   class = "warrior", name = "GuardB",   x = 5, y = 11, facing = "down", bob = false},
+    {spawn = "gC",   class = "warrior", name = "GuardC",   x = 9, y = 11, facing = "down", bob = false},
+    {spawn = "gD",   class = "warrior", name = "GuardD",   x = 11, y = 11, facing = "down", bob = false},
+    {wait = 14},
+    -- Captain's rally line.
+    {dialogue = {
+      "[Capt.Ren] HOLD THE LINE. THE QUEEN GOES NORTH.",
+    }, npc = {name = "Capt.Ren"}},
+    {wait = 8},
+    -- The gate breaks. Two heavy thuds + screen shake.
+    {sfx = {class = "warrior", note = 22, vel = 0.95, attack = 0.001, release = 0.40, wet = 0.10}},
+    {shake = {mag = 3, ticks = 10}},
+    {wait = 10},
+    {sfx = {class = "warrior", note = 20, vel = 0.95, attack = 0.001, release = 0.50, wet = 0.10}},
+    {shake = {mag = 4, ticks = 14}},
+    {wait = 8},
+    {dialogue = {
+      "(the south gate splits inward with a sound like a chord breaking)",
+    }, npc = nil},
+    -- Spawn silencers OFF-MAP below the gate (row 13-14). Actor coords
+    -- can be outside the tile grid; the scene draw clips them when
+    -- they walk into view. They emerge through the gate tiles row 12.
+    {spawn = "s1", class = "warrior", name = "Silencer1", x = 6, y = 14, facing = "up", bob = false},
+    {spawn = "s2", class = "warrior", name = "Silencer2", x = 8, y = 14, facing = "up", bob = false},
+    {spawn = "s3", class = "warrior", name = "Silencer3", x = 7, y = 14, facing = "up", bob = false},
+    {spawn = "s4", class = "warrior", name = "Silencer4", x = 9, y = 14, facing = "up", bob = false},
+    {wait = 8},
+    -- Silencers pour through the gate (row 12) into the courtyard.
+    {move = "s1", to = {x = 6, y = 12}, ticks = 22},
+    {move = "s2", to = {x = 8, y = 12}, ticks = 22},
+    {move = "s3", to = {x = 7, y = 12}, ticks = 22},
+    {move = "s4", to = {x = 9, y = 12}, ticks = 22},
+    {wait = 4},
+    -- Guards step toward them. Captain doesn't move (holds the center).
+    {move = "gA", to = {x = 4, y = 11}, ticks = 18},
+    {move = "gB", to = {x = 6, y = 11}, ticks = 18},
+    {move = "gC", to = {x = 9, y = 11}, ticks = 18},
+    {move = "gD", to = {x = 11, y = 11}, ticks = 18},
+    {wait = 8},
+    -- First clash: SFX + shake. GuardB and Silencer1 collide.
+    {sfx = {class = "warrior", note = 36, vel = 0.85, attack = 0.001, release = 0.20, wet = 0.10}},
+    {bump = "gB", dir = "down", ticks = 4},
+    {bump = "s1", dir = "up",   ticks = 4},
+    {wait = 12},
+    {sfx = {class = "warrior", note = 32, vel = 0.85, attack = 0.001, release = 0.20, wet = 0.10}},
+    {bump = "gC", dir = "down", ticks = 4},
+    {bump = "s2", dir = "up",   ticks = 4},
+    {wait = 12},
+    -- GuardB falls.
+    {dialogue = {
+      "[Capt.Ren] BREN -- HOLD --",
+      "(GuardB drops where he stood. The silencer steps over him without slowing.)",
+    }, npc = {name = "Capt.Ren"}},
+    {despawn = "gB"},
+    {wait = 8},
+    -- Second clash. GuardA + GuardD collapse.
+    {sfx = {class = "warrior", note = 30, vel = 0.95, attack = 0.001, release = 0.30, wet = 0.10}},
+    {bump = "gA", dir = "left",  ticks = 4},
+    {bump = "gD", dir = "right", ticks = 4},
+    {wait = 10},
+    {despawn = "gA"},
+    {despawn = "gD"},
+    {wait = 8},
+    {dialogue = {
+      "(the line breaks. The silencers walk through it as if it were not there.)",
+    }, npc = nil},
+    {wait = 8},
+    -- The captain turns to Miel and shouts.
+    {face = "cap", facing = "up"},
+    {look = "miel", toward = "cap"},
+    {wait = 6},
+    {dialogue = {
+      "[Capt.Ren] MIEL -- GO -- THE THRONE -- (a silencer's blade catches her arm; she barely flinches)",
+      "[Capt.Ren] -- NOW, MY QUEEN -- GO --",
+    }, npc = {name = "Capt.Ren"}},
+    {wait = 6},
+    -- GuardC falls last.
+    {sfx = {class = "warrior", note = 28, vel = 0.85, attack = 0.001, release = 0.30, wet = 0.10}},
+    {bump = "gC", dir = "down", ticks = 4},
+    {wait = 10},
+    {despawn = "gC"},
+    {wait = 4},
+    -- Captain falls.
+    {sfx = {class = "warrior", note = 26, vel = 0.95, attack = 0.001, release = 0.50, wet = 0.15}},
+    {shake = {mag = 2, ticks = 8}},
+    {bump = "cap", dir = "down", ticks = 6},
+    {wait = 14},
+    {dialogue = {
+      "(Capt.Ren goes down on one knee. Then both. Then over.)",
+      "[Miel]    ...captain.",
+    }, npc = {name = "Miel"}},
+    {wait = 8},
+    -- Miel runs north toward the hallway doors (cols 5-6 row 1).
+    {face = "miel", facing = "up"},
+    {move = "miel", to = {x = px, y = 4}, ticks = 36},
+    {focus = "miel", ticks = 30},
+    {move = "miel", to = {x = 5, y = 2}, ticks = 32},
+    {wait = 6},
+    -- Cleanup + state flag + teleport back into the castle.
+    {despawn = "cap"},
+    {despawn = "s1"}, {despawn = "s2"}, {despawn = "s3"}, {despawn = "s4"},
+    {despawn = "miel"},
+    {set = function() CONTENT.courtyard_breached = true end},
+    {set = function() travel_to(27, 5, 13) end},
+    {teleport_player = {x = 5, y = 13, facing = "up"}},
+    {show_player = true},
+    {letterbox_out = true},
+    {flash = "* RETURN TO THE THRONE ROOM *", ticks = 90},
+  }
+end
+
+-- start_page_warning_scene() — Pass 60. The royal Page sprints down
+-- from the throne-room doors to Miel as she steps into the hallway
+-- for the first time. Brief, urgent. Plays once per save.
+function start_page_warning_scene()
+  local px, py = player.x, player.y
+  local script = {
+    {hide_player = true},
+    {letterbox_in = true},
+    {focus = {x = 5, y = 4}, ticks = 14},
+    {spawn = "miel", class = "cleric", name = "Miel", x = px, y = py, facing = "up", bob = false},
+    -- Page bursts in from the north doors (cols 5-6 row 1).
+    {spawn = "page", class = "bard", name = "Page",
+     x = 5, y = 1, facing = "down", bob = false},
+    {wait = 8},
+    {sfx = {class = "warrior", note = 60, vel = 0.45, attack = 0.005, release = 0.30, wet = 0.20}},
+    {move = "page", to = {x = 5, y = math.max(py - 1, 2)}, ticks = 36},
+    {face = "page", facing = "down"},
+    {look = "miel", toward = "page"},
+    {wait = 8},
+    {dialogue = {
+      "[Page]    My queen -- (out of breath) -- they came in through the south.",
+      "[Page]    The captain says -- they were waiting for the bell. They knew.",
+      "[Page]    The throne hall is still ours. Go now. Take the tapestry escape if --",
+      "[Page]    (a thud below; he flinches but does not stop)",
+      "[Page]    -- if it comes to that. The court will buy you time.",
+    }, npc = {name = "Page"}},
+    {wait = 12},
+    {dialogue = {
+      "[Page]    (kneels, briefly. Touches his brow.) For Lirael.",
+    }, npc = {name = "Page"}},
+    {wait = 8},
+    -- Page sprints back north out the doors.
+    {move = "page", to = {x = 5, y = 1}, ticks = 28},
+    {despawn = "page"},
+    {despawn = "miel"},
+    {teleport_player = {x = px, y = py, facing = "up"}},
+    {show_player = true},
+    {letterbox_out = true},
+    {flash = "* find the throne room *", ticks = 60},
+  }
+  SCENE.start(script)
+end
+
+function start_prologue_throne_scene()
+  CONTENT.prologue_state = "coup"
+  -- Set scene_done = TRUE up front so the throne-trigger never re-fires
+  -- (the trigger checks `not scene_done`). Static silencer visibility
+  -- now ALSO gates on `not SCENE.active` so they don't materialise
+  -- mid-cutscene. Previously scene_done was only set as the final
+  -- script step; if anything went wrong we'd softlock the player into
+  -- the trigger zone forever.
+  CONTENT.prologue_scene_done = true
+  -- Throne hall is now at the TOP of the new castle map (rows 1-6).
+  -- Throne dais at (8-9, 3). Tapestry escape at (8, 6). Player has
+  -- walked NORTH from the chamber, through the corridor at row 7, and
+  -- crossed into the throne hall at row 5.
+  --
+  -- We force the camera to cam.y = 1 (showing rows 1-8) via a focus to
+  -- (8, 5) — clamps to cam.y = max(1, min(5, 5-4)) = 1. With cam.y=1:
+  --   row 4 (Miel) → screen y = 24 (above box top y=26 ✓)
+  --   row 5 (Suno) → screen y = 32 (sprite top at y=32, inside box)
+  -- That's not quite enough. Better: cam.y = 2 (force via focus to
+  -- (8, 6)). View rows 2-9. Row 4 → y=16 (above ✓). Row 5 → y=24
+  -- (above ✓). Row 6 → y=32 (inside box).
+  -- Best: cam.y=2. Miel at row 4, Suno walks up to row 5. Both above box.
+  -- Pass 61 throne overhaul: thrones moved to row 4 (cols 7-8) and the
+  -- tapestry is now in the north wall at row 2. Miel now stands at
+  -- (8, 5) — directly south of the right-hand throne — facing Suno's
+  -- approach. Suno + silencers will line up at row 6 (one step closer
+  -- to the south door, so they read as the invading party).
+  player.x, player.y = 8, 5
+  player.facing = "down"
+  update_camera()
+  local script = {
+    {hide_player = true},
+    {spawn = "miel", class = "cleric", name = "Miel", x = 8, y = 5, facing = "down", bob = false},
+    -- Force cam.y = 2 → rows 2-9 visible. Rows 4 + 5 above box.
+    {focus = {x = 8, y = 6}, ticks = 1},
+    {wait = 8},
+    -- Miel SEES + HEARS the south doors being breached. Three rising
+    -- thuds, each with a heavier shake, building tension before the
+    -- doors actually split. Miel turns to face the doors.
+    {face = "miel", facing = "down"},
+    {sfx = {class = "warrior", note = 24, vel = 0.85, attack = 0.001, release = 0.30, wet = 0.10}},
+    {shake = {mag = 2, ticks = 6}},
+    {wait = 10},
+    {dialogue = {
+      "(the south doors of the throne hall shudder. dust falls from the lintel.)",
+    }, npc = nil},
+    {sfx = {class = "warrior", note = 22, vel = 0.95, attack = 0.001, release = 0.35, wet = 0.10}},
+    {shake = {mag = 3, ticks = 8}},
+    {wait = 10},
+    {dialogue = {
+      "[Miel]    (eyes fixed on the doors) ...they reached the hall.",
+    }, npc = {name = "Miel"}},
+    {wait = 6},
+    {sfx = {class = "warrior", note = 20, vel = 1.00, attack = 0.001, release = 0.45, wet = 0.10}},
+    {shake = {mag = 4, ticks = 12}},
+    {wait = 4},
+    {dialogue = {
+      "(the south doors split inward with a single tearing crack.)",
+    }, npc = nil},
+    {wait = 6},
+    -- Suno + silencers ENTER through the south doors (row 9 cols 7-8).
+    -- Spawn them just off-screen at row 10 (below the south wall), then
+    -- walk them north THROUGH the door tiles into the hall. Reads as
+    -- "they came in through the front" instead of materialising in the
+    -- middle of the room. Actor coords can be off-map for the spawn —
+    -- only the walked-to destinations need to be on real tiles.
+    {spawn = "suno",  class = "warrior", name = "Suno",      x = 8, y = 10, facing = "up", bob = false},
+    {spawn = "sil_l", class = "warrior", name = "Silencer1", x = 7, y = 10, facing = "up", bob = false},
+    {spawn = "sil_r", class = "warrior", name = "Silencer2", x = 8, y = 11, facing = "up", bob = false},
+    {wait = 6},
+    -- Step 1: through the doors. Suno + Sil_l onto the two door tiles
+    -- (row 9, cols 8 + 7). Sil_r holds back one tile (col 8 row 10)
+    -- so the door procession reads cleanly.
+    {move = "suno",  to = {x = 8, y = 9}, ticks = 18},
+    {move = "sil_l", to = {x = 7, y = 9}, ticks = 18},
+    {wait = 8},
+    -- Step 2: into the hall — Suno + Sil_l advance to row 8, then row 7.
+    -- Sil_r steps onto a door tile to fill the procession.
+    {move = "suno",  to = {x = 8, y = 8}, ticks = 18},
+    {move = "sil_l", to = {x = 7, y = 8}, ticks = 18},
+    {move = "sil_r", to = {x = 8, y = 9}, ticks = 18},
+    {wait = 6},
+    -- Step 3: final approach — Suno to col 8 row 6 (one south of Miel),
+    -- silencers flank east + west of him.
+    {move = "suno",  to = {x = 8, y = 6}, ticks = 26},
+    {move = "sil_l", to = {x = 7, y = 6}, ticks = 22},
+    {move = "sil_r", to = {x = 9, y = 6}, ticks = 22},
+    {wait = 4},
+    {face = "suno", facing = "up"},
+    {face = "sil_l", facing = "up"},
+    {face = "sil_r", facing = "up"},
+    {wait = 6},
+    -- Beat 1: the address. Both Miel and Suno are visible on screen.
+    {dialogue = {
+      "(The throne-room doors split. The hinges scream once and then are quiet.)",
+      "(He enters without hurry. He is taller than the doorframe.)",
+      "(The lantern in his fist burns the wrong color.)",
+      "[Suno]    Miel of Lirael.",
+      "[Suno]    Last queen of a country that is already a memory.",
+    }, npc = {name = "Suno"}},
+    -- Miel speaks back. Auto-look between them so the body language
+    -- reads correctly: they face each other across the dais.
+    {look = "suno", toward = "miel"},
+    {look = "miel", toward = "suno"},
+    {wait = 8},
+    {dialogue = {
+      "[Miel]    (quietly, without rising)",
+      "[Miel]    You will not stand on that dais.",
+    }, npc = {name = "Miel"}},
+    -- Beat 2: the demand. Suno is already directly facing Miel.
+    {look = "suno", toward = "miel"},
+    {wait = 6},
+    {dialogue = {
+      "[Suno]    (he stops one step short of it)",
+      "[Suno]    No. You will give me what is on it.",
+      "[Suno]    The Aeolian shard. Place it in my hand.",
+    }, npc = {name = "Suno"}},
+    {wait = 4},
+    {dialogue = {
+      "[Miel]    It is not in this room.",
+    }, npc = {name = "Miel"}},
+    -- Suno tilts his lantern — turn left briefly, then back to Miel.
+    -- A held minor-second cluster signals his menace.
+    {face = "suno", facing = "left"},
+    {sfx = {class = "cleric", note = 36, vel = 0.55, attack = 0.05, release = 1.6, wet = 0.85}},
+    {wait = 14},
+    {look = "suno", toward = "miel"},
+    {wait = 8},
+    -- Beat 3: the lie-detector ultimatum.
+    {dialogue = {
+      "[Suno]    (a smile, brief and joyless)",
+      "[Suno]    Then sing one note and the silencers will believe you.",
+      "[Suno]    The shard answers your blood.",
+      "[Suno]    Lie to me with your voice and I will hear it.",
+    }, npc = {name = "Suno"}},
+    -- Miel does not move. A held silence beat.
+    {wait = 12},
+    {dialogue = {
+      "(Miel does not look up. She watches the cracks in the marble at her feet.)",
+      "(She does not sing.)",
+    }, npc = nil},
+    {wait = 12},
+    -- Beat 4: the order. Suno turns away first (face down) before he
+    -- speaks the line — the back-of-the-head line is more chilling.
+    {face = "suno", facing = "down"},
+    {wait = 6},
+    {dialogue = {
+      "[Suno]    (a long beat) ...as you like.",
+      "[Suno]    (to the silencers) Take her. Hands first.",
+      "[Suno]    She does not need her voice for the road.",
+      "[Suno]    I will be in the corridor. Do not break her quickly.",
+    }, npc = {name = "Suno"}},
+    -- Suno walks back out south through the corridor. Silencers
+    -- advance into the throne hall — they stop at (7, 5) and (9, 5)
+    -- flanking Miel's position, blocking her south retreat.
+    {move = "suno", to = {x = 4, y = 5}, ticks = 22},
+    {move = "sil_l", to = {x = 7, y = 4}, ticks = 18},
+    {move = "sil_r", to = {x = 9, y = 4}, ticks = 18},
+    {wait = 22},
+    {move = "suno", to = {x = 4, y = 8}, ticks = 36},
+    {wait = 36},
+    -- Suno crosses the threshold. Doors thud. He's gone.
+    {despawn = "suno"},
+    {sfx = {class = "warrior", note = 24, vel = 0.85, attack = 0.001, release = 0.30, wet = 0.05}},
+    {shake = {mag = 2, ticks = 6}},
+    {wait = 6},
+    -- Beat 5: Miel's whispered realization. Camera tight on her.
+    {dialogue = {
+      "(Miel exhales. Her hand finds the cold edge of the dais.)",
+      "[Miel]    (very quietly, only to herself)",
+      "[Miel]    ...grandmother. The fault in the floor.",
+      "[Miel]    The room behind the south wall.",
+    }, npc = {name = "Miel"}},
+    {wait = 6},
+    -- Miel turns to face the south wall (the tapestry).
+    {face = "miel", facing = "down"},
+    {wait = 12},
+    {dialogue = {
+      "(She has known the seam since she was a child.)",
+      "(She has never had cause to open it.)",
+      "(She has cause now.)",
+    }, npc = nil},
+    {wait = 12},
+    -- Despawn scene silencers + Miel actor. The static silencer NPCs
+    -- now become visible (we set prologue_scene_done = true in the
+    -- final `set` step), so the player walks into the corridor and
+    -- finds Silencer1 and Silencer2 to fight.
+    {despawn = "sil_l"},
+    {despawn = "sil_r"},
+    {despawn = "miel"},
+    -- Drop player at (8, 5) — walkable throne-hall floor, facing south
+    -- toward the tapestry escape at (8, 6).
+    {teleport_player = {x = 8, y = 5, facing = "down"}},
+    {show_player = true},
+    {wait = 6},
+    {flash = "* the tapestry. south. *", ticks = 80},
+  }
+  SCENE.start(script)
+end
+
+-- start_prologue_silencer(idx) builds a low-tier Silencer enemy and
+-- launches battle. The defeat path consumes the silencer slot so the
+-- NPC vanishes from the castle on next render.
+function start_prologue_silencer(idx)
+  CONTENT.silencer_defeated = CONTENT.silencer_defeated or {false, false}
+  enemy = {
+    name = "Silencer",
+    visual = "silencer",
+    hp = 28, hp_max = 28,
+    atk = 4, def = 4,
+    alive = true,
+    last_attack = -99,
+    pattern_idx = 1,
+    attack_pattern = {8, 8, 12},
+    attack_sound = {class="warrior", note=24, vel=0.65, attack=0.005, release=0.20, wet=0.10},
+    is_prologue_silencer = true,
+    silencer_idx = idx,
+  }
+  battle_outcome = nil
+  game_state = "BATTLE"
+  params:set("clock_tempo", BATTLE_BPM)
+  for _, p in ipairs(party) do
+    p.atb = 0; p.shield = false; p.buffed = false; p.blocking = false; p.reflect = false; p.reflect_ticks = 0
+  end
+  TITLE.battle_step = 0
+  redraw()
+end
+
+function finish_prologue_silencer(idx)
+  CONTENT.silencer_defeated = CONTENT.silencer_defeated or {false, false}
+  CONTENT.silencer_defeated[idx] = true
+  -- Tiny XP grant so Miel actually progresses through the tutorial.
+  -- Standard gain_xp iterates alive party — solo Miel takes the whole share.
+  if gain_xp then gain_xp(28) end
+  CONTENT.banner_text  = "Silencer falls   +28 XP"
+  CONTENT.banner_ticks = 30
+  enemy = nil
+  battle_outcome = nil
+  game_state = "OVERWORLD"
+  params:set("clock_tempo", OVERWORLD_BPM)
+  redraw()
+end
+
+-- start_prologue_cave_monster(idx) — 3 cave-wisp creatures Miel can fight
+-- in the escape cave. Lower difficulty than silencers (she's tired, but
+-- so are they). Drops a few gold each.
+function start_prologue_cave_monster(idx)
+  CONTENT.cave_monster_defeated = CONTENT.cave_monster_defeated or {false, false, false}
+  enemy = {
+    name = "Cave Wisp",
+    visual = "wisp",
+    hp = 22, hp_max = 22,
+    atk = 3, def = 2,
+    alive = true,
+    last_attack = -99,
+    pattern_idx = 1,
+    attack_pattern = {10, 10, 14},
+    attack_sound = {class="mage", note=84, vel=0.45, attack=0.002, release=0.40, wet=0.55},
+    is_prologue_cave = true,
+    cave_idx = idx,
+  }
+  battle_outcome = nil
+  game_state = "BATTLE"
+  params:set("clock_tempo", BATTLE_BPM)
+  for _, p in ipairs(party) do
+    p.atb = 0; p.shield = false; p.buffed = false; p.blocking = false; p.reflect = false; p.reflect_ticks = 0
+  end
+  TITLE.battle_step = 0
+  redraw()
+end
+
+function finish_prologue_cave_monster(idx)
+  CONTENT.cave_monster_defeated = CONTENT.cave_monster_defeated or {false, false, false}
+  CONTENT.cave_monster_defeated[idx] = true
+  if gain_xp then gain_xp(18) end
+  SHOP.gold = (SHOP.gold or 0) + 5
+  CONTENT.banner_text  = "Wisp dissolves   +18 XP  +5g"
+  CONTENT.banner_ticks = 30
+  enemy = nil
+  battle_outcome = nil
+  game_state = "OVERWORLD"
+  params:set("clock_tempo", OVERWORLD_BPM)
+  redraw()
+end
+
+function start_strom_battle()
+  -- Custom boss-tier enemy. Stats balanced for an early-game 2-3 member
+  -- party. Drops nothing — defeat triggers the join scene, not loot.
+  enemy = {
+    name = "Strom",
+    visual = "strom",   -- bespoke heavy-warrior+hammer sprite in DRAW_ENEMY
+    hp = 240, hp_max = 240,
+    atk = 14, def = 10,
+    alive = true,
+    last_attack = -99,
+    pattern_idx = 1,
+    attack_pattern = {6, 6, 8, 6, 10},   -- mostly 6-tick gaps, occasional bigger
+    attack_sound = {class="warrior", note=28, vel=0.85, attack=0.005, release=0.30, wet=0.18},
+    -- Marks this enemy so the win path takes the academy-arc branch
+    -- instead of the standard cave/boss loot logic.
+    is_strom_arc = true,
+  }
+  battle_outcome = nil
+  game_state = "BATTLE"
+  params:set("clock_tempo", BATTLE_BPM)
+  -- reset everyone's ATB
+  for _, p in ipairs(party) do
+    p.atb = 0; p.shield = false; p.buffed = false; p.blocking = false; p.reflect = false; p.reflect_ticks = 0
+    if p.alive then p.hp = math.max(p.hp, math.floor(p.hp_max * 0.5)) end
+  end
+  TITLE.battle_step = 0
+  redraw()
+end
+
+function finish_academy_arc()
+  CONTENT.academy_state = "complete"
+  -- Heal everyone post-battle.
+  for _, p in ipairs(party) do
+    if p.alive then p.hp = p.hp_max; p.mp = p.mp_max end
+  end
+  player.x, player.y = 6, 6
+  player.facing = "right"
+  update_camera()
+  -- Choreographed epilogue. Letterboxed. Strom on his knees center;
+  -- Diegues approaches from the lectern; Miel watches from her side
+  -- of the room. Sprite poses + facing changes punctuate every beat.
+  local script = {
+    {hide_player = true},
+    {letterbox_in = true},
+    {spawn = "miel",    class = "cleric",  name = "Miel",    x = 6, y = 6, facing = "right", bob = false},
+    {spawn = "strom",   class = "warrior", name = "Strom",   x = 8, y = 6, facing = "left", bob = false},
+    {spawn = "diegues", class = "mage",    name = "Diegues", x = 4, y = 4, facing = "right"},
+    {wait = 12},
+    -- Hammer falls (loud SFX + shake).
+    {sfx = {class = "warrior", note = 24, vel = 0.95, attack = 0.001, release = 0.30, wet = 0.10}},
+    {shake = {mag = 3, ticks = 8}},
+    {wait = 14},
+    {dialogue = {
+      "(Strom drops the hammer.)",
+      "(It rings the stone floor like a misplayed chord.)",
+    }, npc = nil},
+    -- Strom kneels (face down — looking at his hands).
+    {face = "strom", facing = "down"},
+    {wait = 14},
+    {dialogue = {
+      "[Strom]   (kneels. Hands open. Helmet off.)",
+      "[Strom]   (he is older than he looked.)",
+    }, npc = {name = "Strom"}},
+    -- Diegues steps down from the lectern toward Strom.
+    {move = "diegues", to = {x = 6, y = 5}, ticks = 28},
+    {look = "diegues", toward = "strom"},
+    {wait = 8},
+    -- Strom faces Diegues to speak (head still down — face down).
+    {dialogue = {
+      "[Strom]   I followed orders for thirty years.",
+      "[Strom]   I am told now -- by a queen, a bard, a half-deaf scholar --",
+      "[Strom]   that they were lies.",
+      "[Strom]   That is an unusual jury.",
+    }, npc = {name = "Strom"}},
+    {wait = 6},
+    {dialogue = {
+      "[Diegues] You stopped before the killing blow.",
+      "[Diegues] You stopped twice.",
+    }, npc = {name = "Diegues"}},
+    -- Strom raises his head (face left toward Diegues).
+    {face = "strom", facing = "left"},
+    {wait = 6},
+    {dialogue = {
+      "[Strom]   (looks at his hands) ...I did.",
+      "[Strom]   I stopped because the song under your humming --",
+    }, npc = {name = "Strom"}},
+    -- Strom turns to face Miel directly (a bigger turn — face up to
+    -- look up at her standing position).
+    {look = "strom", toward = "miel"},
+    {wait = 6},
+    -- Miel turns to acknowledge him.
+    {look = "miel", toward = "strom"},
+    {wait = 6},
+    {dialogue = {
+      "[Strom]   (looks at Miel) -- I knew it.",
+      "[Strom]   My mother sang it on the laundry line.",
+      "[Strom]   I haven't thought of her in -- (...) a long time.",
+    }, npc = {name = "Strom"}},
+    {wait = 8},
+    {dialogue = {
+      "[Diegues] (quietly) Then this is the day she shows up again.",
+    }, npc = {name = "Diegues"}},
+    {wait = 12},
+    -- Strom rises. Face down briefly (looks at hands), then face Miel.
+    {face = "strom", facing = "down"},
+    {sfx = {class = "warrior", note = 30, vel = 0.55, attack = 0.05, release = 1.0, wet = 0.20}},
+    {wait = 12},
+    {face = "strom", facing = "left"},
+    {wait = 8},
+    {dialogue = {
+      "[Strom]   (rises, slowly. Wipes ash from his cheek.)",
+      "[Strom]   I owe Suno a dishonorable retirement.",
+      "[Strom]   Where you go, I will keep watch.",
+    }, npc = {name = "Strom"}},
+    -- Strom + Diegues take their formation positions beside Miel.
+    {move = "strom",   to = {x = 7, y = 6}, ticks = 18},
+    {move = "diegues", to = {x = 5, y = 6}, ticks = 18},
+    {look = "strom", toward = "miel"},
+    {look = "diegues", toward = "miel"},
+    {wait = 12},
+    {flash = "* STROM JOINS *", ticks = 36},
+    {sfx = {class = "warrior", note = 36, vel = 0.85, attack = 0.005, release = 0.50, wet = 0.20}},
+    {wait = 18},
+    {despawn = "strom"}, {despawn = "diegues"}, {despawn = "miel"},
+    {teleport_player = {x = 6, y = 6, facing = "down"}},
+    {show_player = true},
+    {letterbox_out = true},
+  }
+  SCENE.start(script, function()
+    if CHARACTERS and CHARACTERS.warrior and not class_in_party("warrior") then
+      party[#party + 1] = CHARACTERS.warrior
+    end
+    game_state = "OVERWORLD"
+    update_camera()
+    redraw()
+  end)
+end
+
+-- start_academy_choir_scene() — Choir Hour. Diegues stands at the
+-- lectern conducting four young students arranged in a small semi-
+-- circle. They rise, sing a held four-part chord, sit. A whole-academy
+-- moment of return-to-normal that reads as a small mercy after the
+-- silencer arc. Plays one held chord across mage/cleric/bard/warrior.
+-- start_six_shards_scene() — fires the first time the player has six
+-- shards. The party converges at the village fountain (the canonical
+-- "we're going" moment). Letterboxed; cleric chord on the held beat.
+function start_six_shards_scene()
+  -- Force-warp to the mainland village fountain area regardless of where
+  -- the player just won the battle. Fountain is at mainland (15, 7);
+  -- spawn Miel just south of it.
+  travel_to(1, 15, 8)
+  player.facing = "up"
+  update_camera()
+  local script = {
+    {hide_player = true},
+    {set = function() SCENE.fade = 15 end},
+    {letterbox_in = true},
+    {focus = {x = 15, y = 7}, ticks = 1},
+    {fade_in = 48},
+    {wait = 24},
+    -- The fountain runs full now (it's at 6 shards visually). A high
+    -- cleric chord rings out over the plaza.
+    {sfx = {class = "cleric", note = 84, vel = 0.50, attack = 0.30, release = 6.0, wet = 1.00}},
+    {wait = 24},
+    {dialogue = {
+      "(The fountain in the village plaza runs higher than it has in a generation.)",
+      "(Six shards. The chord is one note short of whole.)",
+    }, npc = nil},
+    -- Spawn the present party at the fountain.
+    {spawn = "miel", class = "cleric", name = "Miel", x = 15, y = 8, facing = "up", bob = false},
+  }
+  if class_in_party("warrior") then
+    table.insert(script, {spawn = "strom", class = "warrior", name = "Strom",
+                          x = 14, y = 8, facing = "up", bob = false})
+  end
+  if class_in_party("mage") then
+    table.insert(script, {spawn = "diegues", class = "mage", name = "Diegues",
+                          x = 16, y = 8, facing = "up", bob = false})
+  end
+  if class_in_party("bard") then
+    table.insert(script, {spawn = "alder", class = "bard", name = "Alder",
+                          x = 13, y = 8, facing = "right", bob = false})
+  end
+  table.insert(script, {wait = 18})
+  -- Each present companion has a brief reaction.
+  if class_in_party("bard") then
+    table.insert(script, {dialogue = {
+      "[Alder]    (looks at the fountain)",
+      "[Alder]    The water didn't run like this when I wrote my last song.",
+      "[Alder]    I'll need a new last song.",
+    }, npc = {name = "Alder"}})
+  end
+  if class_in_party("warrior") then
+    table.insert(script, {dialogue = {
+      "[Strom]    The tower opens at five. We have six.",
+      "[Strom]    Suno is a long walk away.",
+      "[Strom]    But it is a walk.",
+    }, npc = {name = "Strom"}})
+  end
+  if class_in_party("mage") then
+    table.insert(script, {dialogue = {
+      "[Diegues]  (taps the small leather book against his palm)",
+      "[Diegues]  Six. The orrery in the observatory will know already.",
+      "[Diegues]  The seventh note will fit. The math says so.",
+      "[Diegues]  I have stopped doubting the math.",
+    }, npc = {name = "Diegues"}})
+  end
+  table.insert(script, {wait = 14})
+  -- Miel's resolution.
+  table.insert(script, {dialogue = {
+    "[Miel]     (touches the basin's lip)",
+    "[Miel]     Tomorrow morning we go to the tower.",
+    "[Miel]     If we do not come back -- (...) -- the village should at least know who tried.",
+    "[Miel]     Tonight, the inn. Tonight, the fire.",
+  }, npc = {name = "Miel"}})
+  table.insert(script, {wait = 18})
+  -- Held chord across whatever party we have. Bottom-up stack.
+  table.insert(script, {sfx = {class = "warrior", note = 48, vel = 0.50, attack = 0.40, release = 6.0, wet = 0.95}})
+  table.insert(script, {wait = 6})
+  if class_in_party("warrior") or class_in_party("mage") or class_in_party("bard") then
+    table.insert(script, {sfx = {class = "cleric", note = 60, vel = 0.50, attack = 0.40, release = 6.0, wet = 0.95}})
+    table.insert(script, {wait = 6})
+  end
+  if class_in_party("mage") then
+    table.insert(script, {sfx = {class = "mage", note = 67, vel = 0.50, attack = 0.40, release = 6.0, wet = 0.95}})
+    table.insert(script, {wait = 6})
+  end
+  if class_in_party("bard") then
+    table.insert(script, {sfx = {class = "bard", note = 72, vel = 0.50, attack = 0.40, release = 6.0, wet = 0.95}})
+    table.insert(script, {wait = 6})
+  end
+  table.insert(script, {wait = 24})
+  table.insert(script, {despawn = "miel"})
+  if class_in_party("warrior") then table.insert(script, {despawn = "strom"}) end
+  if class_in_party("mage")    then table.insert(script, {despawn = "diegues"}) end
+  if class_in_party("bard")    then table.insert(script, {despawn = "alder"}) end
+  table.insert(script, {teleport_player = {x = 15, y = 8, facing = "up"}})
+  table.insert(script, {show_player = true})
+  table.insert(script, {letterbox_out = true})
+  table.insert(script, {flash = "* the chord is six notes *", ticks = 60})
+  SCENE.start(script)
+end
+
+-- start_new_game_plus() — confirmed from CREDITS state. Preserves the
+-- player's accumulated power (levels, instruments, gold, party comp)
+-- but resets the world progression (shards, cave clears, scene-seen
+-- flags, sidequest counters). Drops the party back at the village
+-- post-cave exit so the journey can replay at higher base power.
+function start_new_game_plus()
+  -- Reset progression state.
+  shards = {}
+  for i = 1, 7 do
+    if cave_state[i] then
+      cave_state[i].victories = 0
+      cave_state[i].cleared = false
+    end
+  end
+  CONTENT.scene_seen = {}
+  CONTENT.events_seen = {}   -- ambient one-shot events refire on NG+
+  -- Quest counters back to zero (gold and items kept — they're "earned").
+  if QUESTS.hens then QUESTS.hens.wins = 0; QUESTS.hens.discount = false end
+  if QUESTS.brann then QUESTS.brann.wins = 0; QUESTS.brann.claimed = false end
+  if QUESTS.tova then
+    QUESTS.tova.spoke = {}
+    QUESTS.tova.claimed = false
+  end
+  -- Endgame banner gets a one-tick fire-and-forget.
+  CONTENT.banner_text  = "* NEW GAME + *"
+  CONTENT.banner_ticks = 90
+  if unlock_achievement then unlock_achievement("ng_plus", "Encore") end
+  -- Drop back at the village (mainland), south of the cave-mouth.
+  travel_to(1, 17, 2)
+  player.facing = "down"
+  game_state = "OVERWORLD"
+  if save_game then save_game() end
+  redraw()
+end
+
+-- start_endgame_scene() — fires the FIRST time the player has 7 shards.
+-- The chord is whole. Party gathers at the village fountain again, the
+-- full chord rings out, and the screen fades to a credits roll. After
+-- credits, the player can press A to enter NEW GAME+ (retains levels,
+-- instruments, gold; resets shards/cave-clears so the journey can
+-- repeat at higher base power).
+function start_endgame_scene()
+  travel_to(1, 15, 8)
+  player.facing = "up"
+  update_camera()
+  local script = {
+    {hide_player = true},
+    {set = function() SCENE.fade = 15 end},
+    {letterbox_in = true},
+    {focus = {x = 15, y = 7}, ticks = 1},
+    {fade_in = 60},
+    {wait = 24},
+    -- Full chord: warrior-cleric-mage-bard stack rings out at the fountain.
+    {sfx = {class = "warrior", note = 48, vel = 0.55, attack = 0.50, release = 8.0, wet = 1.00}},
+    {wait = 8},
+    {sfx = {class = "cleric",  note = 60, vel = 0.55, attack = 0.50, release = 8.0, wet = 1.00}},
+    {wait = 8},
+    {sfx = {class = "mage",    note = 67, vel = 0.55, attack = 0.50, release = 8.0, wet = 1.00}},
+    {wait = 8},
+    {sfx = {class = "bard",    note = 72, vel = 0.55, attack = 0.50, release = 8.0, wet = 1.00}},
+    {wait = 36},
+    {dialogue = {
+      "(The seven shards lift from the fountain basin and turn slowly in the air.)",
+      "(They settle into a single ring -- and the ring sings.)",
+      "(Modalia hears it. Every village. Every road. The far hills.)",
+      "(The hum that the world had forgotten remembers itself.)",
+    }, npc = nil},
+  }
+  -- Spawn the present party for a final farewell line each.
+  table.insert(script, {spawn = "miel", class = "cleric", name = "Miel",
+                        x = 15, y = 8, facing = "up", bob = false})
+  if class_in_party("warrior") then
+    table.insert(script, {spawn = "strom", class = "warrior", name = "Strom",
+                          x = 14, y = 8, facing = "up", bob = false})
+  end
+  if class_in_party("mage") then
+    table.insert(script, {spawn = "diegues", class = "mage", name = "Diegues",
+                          x = 16, y = 8, facing = "up", bob = false})
+  end
+  if class_in_party("bard") then
+    table.insert(script, {spawn = "alder", class = "bard", name = "Alder",
+                          x = 13, y = 8, facing = "up", bob = false})
+  end
+  table.insert(script, {wait = 18})
+  if class_in_party("bard") then
+    table.insert(script, {dialogue = {
+      "[Alder]    A new last song. (...) I knew I'd need one.",
+    }, npc = {name = "Alder"}})
+  end
+  if class_in_party("warrior") then
+    table.insert(script, {dialogue = {
+      "[Strom]    The campaigns are over. (looks east) Reya would have liked this morning.",
+    }, npc = {name = "Strom"}})
+  end
+  if class_in_party("mage") then
+    table.insert(script, {dialogue = {
+      "[Diegues]  (closes the leather book) The math is closed. The song is open.",
+    }, npc = {name = "Diegues"}})
+  end
+  table.insert(script, {dialogue = {
+    "[Miel]     (kneels, palm flat to the basin)",
+    "[Miel]     Queen of nothing. (...) Player of one whole chord.",
+    "[Miel]     That will do.",
+  }, npc = {name = "Miel"}})
+  table.insert(script, {wait = 36})
+  -- Fade to black and trigger CREDITS state.
+  table.insert(script, {fade_out = 60})
+  table.insert(script, {wait = 30})
+  table.insert(script, {set = function()
+    -- Stamp endgame_done so the quest journal reflects it. Then
+    -- transition to the CREDITS game state which renders the roll
+    -- and waits for A → NG+ confirm.
+    CONTENT.endgame_done = true
+    game_state = "CREDITS"
+    CONTENT.credits_t = tick
+  end})
+  SCENE.start(script)
+end
+
+-- start_diegues_study_scene() — quiet character beat. Diegues sits at
+-- the lectern reading his old chronicle pages; Miel watches from a
+-- few tiles away. The page he's reading is one HE wrote in the very
+-- first cutscene of the game; he is not the same person who wrote it.
+function start_diegues_study_scene()
+  player.x, player.y = 6, 6
+  player.facing = "up"
+  update_camera()
+  local script = {
+    {hide_player = true},
+    {set = function() SCENE.fade = 15 end},
+    {letterbox_in = true},
+    {focus = {x = 4, y = 4}, ticks = 1},
+    {fade_in = 36},
+    -- Diegues at the lectern, head down (face down — he's reading).
+    {spawn = "diegues", class = "mage", name = "Diegues", x = 4, y = 4, facing = "down", bob = false},
+    -- Miel hangs back near the door.
+    {spawn = "miel", class = "cleric", name = "Miel", x = 6, y = 6, facing = "left", bob = false},
+    {wait = 24},
+    {dialogue = {
+      "(Diegues is at the lectern. He has been there a while.)",
+      "(The page in front of him is one of his own.)",
+      "(The handwriting is younger than he is.)",
+    }, npc = nil},
+    {wait = 12},
+    -- Diegues turns the page. Pause. Looks up at Miel.
+    {sfx = {class = "mage", note = 60, vel = 0.30, attack = 0.10, release = 0.6, wet = 0.65}},
+    {wait = 12},
+    {look = "diegues", toward = "miel"},
+    {wait = 14},
+    {dialogue = {
+      "[Diegues]  (without preamble)",
+      "[Diegues]  I wrote this when I was twenty.",
+      "[Diegues]  I had a theory about the chord.",
+      "[Diegues]  I was wrong about most of it.",
+    }, npc = {name = "Diegues"}},
+    {wait = 8},
+    {dialogue = {
+      "[Diegues]  I left the wrong parts in. On purpose.",
+      "[Diegues]  So that whoever found this would know:",
+      "[Diegues]  someone tried. Someone was wrong. They tried anyway.",
+    }, npc = {name = "Diegues"}},
+    {wait = 12},
+    -- Miel walks down to him.
+    {move = "miel", to = {x = 5, y = 5}, ticks = 32},
+    {look = "miel", toward = "diegues"},
+    {wait = 8},
+    {dialogue = {
+      "[Miel]     ...thank you for staying.",
+    }, npc = {name = "Miel"}},
+    {wait = 12},
+    {dialogue = {
+      "[Diegues]  (closes the book; small smile)",
+      "[Diegues]  Thank you for coming back to make me right.",
+    }, npc = {name = "Diegues"}},
+    {sfx = {class = "cleric", note = 67, vel = 0.45, attack = 0.20, release = 4.0, wet = 0.95}},
+    {wait = 18},
+    {despawn = "diegues"}, {despawn = "miel"},
+    {teleport_player = {x = 6, y = 6, facing = "up"}},
+    {show_player = true},
+    {letterbox_out = true},
+    {set = function() unlock_achievement("diegues_study", "Diegues' Study") end},
+  }
+  SCENE.start(script)
+end
+
+function start_academy_choir_scene()
+  player.x, player.y = 6, 6
+  player.facing = "up"
+  update_camera()
+  local script = {
+    {hide_player = true},
+    {set = function() SCENE.fade = 15 end},
+    {letterbox_in = true},
+    {focus = {x = 6, y = 4}, ticks = 1},
+    {fade_in = 36},
+    -- Diegues at the lectern (col 4 row 4).
+    {spawn = "diegues", class = "mage", name = "Diegues", x = 4, y = 4, facing = "right", bob = false},
+    -- Four students in a semicircle, each a different class for sprite
+    -- variety. They're seated (no bob) until they rise.
+    {spawn = "student1", class = "bard",    name = "Iva",   x = 6, y = 4, facing = "left",  bob = false},
+    {spawn = "student2", class = "cleric",  name = "Tem",   x = 8, y = 4, facing = "left",  bob = false},
+    {spawn = "student3", class = "warrior", name = "Ord",   x = 6, y = 5, facing = "left",  bob = false},
+    {spawn = "student4", class = "mage",    name = "Lis",   x = 8, y = 5, facing = "left",  bob = false},
+    {wait = 18},
+    {dialogue = {
+      "(The Hall of Resonance is no longer quiet.)",
+      "(Four students stand at the front of the room. Diegues has a baton in his hand he has never owned a baton before.)",
+      "[Diegues] (raises the baton) On three.",
+      "[Diegues] (more quietly, to himself) I have wanted to say 'on three' in this room for a long time.",
+    }, npc = {name = "Diegues"}},
+    -- Diegues raises the baton: face up.
+    {face = "diegues", facing = "up"},
+    {wait = 8},
+    -- Beat 1: each student takes a soft inhale (small face-up turn).
+    {face = "student1", facing = "up"},
+    {face = "student2", facing = "up"},
+    {face = "student3", facing = "up"},
+    {face = "student4", facing = "up"},
+    {wait = 6},
+    -- The held chord — bottom-up so it stacks like a real choir entry.
+    {sfx = {class = "warrior", note = 48, vel = 0.55, attack = 0.40, release = 6.0, wet = 0.95}},
+    {wait = 6},
+    {sfx = {class = "cleric",  note = 60, vel = 0.55, attack = 0.40, release = 6.0, wet = 0.95}},
+    {wait = 6},
+    {sfx = {class = "mage",    note = 67, vel = 0.55, attack = 0.40, release = 6.0, wet = 0.95}},
+    {wait = 6},
+    {sfx = {class = "bard",    note = 72, vel = 0.55, attack = 0.40, release = 6.0, wet = 0.95}},
+    {wait = 36},
+    {dialogue = {
+      "(Four voices. One chord. The plaster dust on the floor stops drifting for the length of the held note.)",
+      "(Diegues lowers the baton. He is smiling without realizing.)",
+      "[Diegues] (very quietly, to no one) ...it works.",
+    }, npc = {name = "Diegues"}},
+    {wait = 18},
+    -- Students sit again (face down).
+    {face = "student1", facing = "left"},
+    {face = "student2", facing = "left"},
+    {face = "student3", facing = "left"},
+    {face = "student4", facing = "left"},
+    {face = "diegues", facing = "right"},
+    {wait = 12},
+    {despawn = "student1"},
+    {despawn = "student2"},
+    {despawn = "student3"},
+    {despawn = "student4"},
+    {despawn = "diegues"},
+    {teleport_player = {x = 6, y = 6, facing = "up"}},
+    {show_player = true},
+    {letterbox_out = true},
+    {flash = "* Choir Hour ends *", ticks = 36},
+    {set = function() unlock_achievement("choir_hour", "Choir Hour") end},
+  }
+  SCENE.start(script)
+end
+
+-- start_inn_dawn_scene() — small one-line departure beat after a rest.
+-- Picks a single non-leader party member at random; they appear beside
+-- Miel for a beat, deliver one short morning line in their voice, then
+-- vanish. The line pool is keyed by class so each character feels
+-- distinctly themselves at first light.
+-- start_village_arrival_scene() — Miel emerges from the escape cave
+-- onto the mainland for the first time. The "queen of nothing" beat.
+-- FF6-style fade-from-black + a held breath; no party (yet — Alder
+-- joins next). Solo Miel walks down the path.
+function start_village_arrival_scene()
+  local px, py = player.x, player.y
+  local script = {
+    {hide_player = true},
+    {set = function() SCENE.fade = 15 end},
+    {letterbox_in = true},
+    {focus = {x = px, y = py}, ticks = 1},
+    -- Slow fade-in — sun on the face after a year of dark.
+    {fade_in = 60},
+    {wait = 36},
+    -- Soft morning-light SFX: a high bell-shimmer.
+    {sfx = {class = "cleric", note = 84, vel = 0.30, attack = 1.0, release = 5.0, wet = 1.00}},
+    {wait = 18},
+    {dialogue = {
+      "(Light. Real light, not torch-light.)",
+      "(The cave mouth opens onto a village she has never seen.)",
+    }, npc = nil},
+    -- Spawn Miel at the cave mouth, facing south (the village).
+    {spawn = "miel", class = "cleric", name = "Miel", x = px, y = py, facing = "down", bob = false},
+    {wait = 14},
+    {dialogue = {
+      "(Smoke rises from breakfast fires.)",
+      "(Somewhere a child laughs at something a chicken did.)",
+    }, npc = nil},
+    {wait = 10},
+    {dialogue = {
+      "[Miel]    (sets the hood back; the sun is on her face for the first time in a year)",
+    }, npc = {name = "Miel"}},
+    -- A long pause before the line.
+    {wait = 24},
+    {dialogue = {
+      "[Miel]    (...quietly...) Queen of nothing, then.",
+    }, npc = {name = "Miel"}},
+    {wait = 18},
+    -- Miel walks down one tile from the mountain — she's emerging from
+    -- it, into the village. Camera tracks her.
+    {move = "miel", to = {x = px, y = py + 1}, ticks = 32},
+    {focus = "miel", ticks = 24},
+    {wait = 8},
+    -- Her hum begins.
+    {sfx = {class = "cleric", note = 67, vel = 0.50, attack = 0.40, release = 4.5, wet = 0.95}},
+    {wait = 18},
+    {dialogue = {
+      "(She walks down from the cave. Her hum is small but it carries.)",
+      "(A bard at a fire below looks up.)",
+    }, npc = nil},
+    {wait = 12},
+    {despawn = "miel"},
+    {teleport_player = {x = px, y = py + 1, facing = "down"}},
+    {show_player = true},
+    {letterbox_out = true},
+  }
+  SCENE.start(script)
+end
+
+-- start_escape_cave_scene() — first step into the escape cave (map 21)
+-- after using the tapestry. Solo Miel scene: fade from black, the
+-- tapestry "falls back" (one shake + dim sting), Miel hums and walks
+-- a few steps east into the dark.
+function start_escape_cave_scene()
+  local px, py = player.x, player.y
+  local script = {
+    {hide_player = true},
+    {set = function() SCENE.fade = 15 end},
+    {focus = {x = px, y = py}, ticks = 1},
+    {fade_in = 14},
+    {wait = 4},
+    -- Tapestry falls back: short dim sting + small shake.
+    {sfx = {class = "warrior", note = 28, vel = 0.55, attack = 0.05, release = 0.6, wet = 0.30}},
+    {shake = {mag = 1, ticks = 4}},
+    {wait = 4},
+    {dialogue = {
+      "(The tapestry falls back into place behind her.)",
+      "(The cave smells of wet stone and a cold older than the keep.)",
+    }, npc = nil},
+    -- Spawn Miel facing east (the path forward).
+    {spawn = "miel", class = "cleric", name = "Miel", x = px, y = py, facing = "right", bob = false},
+    {wait = 6},
+    {dialogue = {
+      "[Miel]    (very small) ...grandmother walked this once.",
+      "[Miel]    She came back dressed as a baker.",
+      "[Miel]    No one knew where she had been.",
+    }, npc = {name = "Miel"}},
+    {wait = 4},
+    {dialogue = {
+      "(The dark stretches forward.)",
+      "(There is something in it that is not dark.)",
+    }, npc = nil},
+    -- Miel hums; sustained cleric tone.
+    {sfx = {class = "cleric", note = 67, vel = 0.45, attack = 0.30, release = 5.0, wet = 0.95}},
+    {wait = 6},
+    {dialogue = {
+      "(She hums her grandmother's song. She walks east.)",
+    }, npc = nil},
+    -- Walk forward two tiles east.
+    {move = "miel", to = {x = math.min(px + 2, 13), y = py}, ticks = 24},
+    {focus = "miel", ticks = 20},
+    {wait = 4},
+    {despawn = "miel"},
+    {teleport_player = {x = math.min(px + 2, 13), y = py, facing = "right"}},
+    {show_player = true},
+  }
+  SCENE.start(script)
+end
+
+-- start_tower_entry_scene() — first time crossing the Tower tile
+-- (mainland plaza). Party gathers at the threshold, tower-hum SFX
+-- escalates, fade to black, warp to Suno's Domain entrance. The
+-- SUNOS arrival scene fires automatically on landing because we
+-- haven't visited map 4 yet.
+function start_tower_entry_scene()
+  local px, py = player.x, player.y
+  local script = {
+    {hide_player = true},
+    {letterbox_in = true},
+    {focus = {x = px, y = py - 1}, ticks = 18},
+    {wait = 18},
+    -- Tower hum: held cleric drone with very long release.
+    {sfx = {class = "cleric", note = 36, vel = 0.55, attack = 1.5, release = 8.0, wet = 0.95}},
+    {wait = 18},
+    {dialogue = {
+      "(The tower has not opened in a century.)",
+      "(It opens now -- a long, low note from somewhere inside it.)",
+    }, npc = nil},
+    -- Spawn party at the player tile, in formation.
+    {spawn = "miel", class = "cleric", name = "Miel", x = px, y = py, facing = "up", bob = false},
+  }
+  if class_in_party("warrior") then
+    table.insert(script, {spawn = "strom", class = "warrior", name = "Strom",
+                          x = px - 1, y = py, facing = "up", bob = false})
+  end
+  if class_in_party("mage") then
+    table.insert(script, {spawn = "diegues", class = "mage", name = "Diegues",
+                          x = px + 1, y = py, facing = "up", bob = false})
+  end
+  if class_in_party("bard") then
+    table.insert(script, {spawn = "alder", class = "bard", name = "Alder",
+                          x = px, y = py + 1, facing = "up", bob = false})
+  end
+  table.insert(script, {wait = 18})
+  -- A second, deeper tower hum.
+  table.insert(script, {sfx = {class = "warrior", note = 24, vel = 0.85,
+                               attack = 0.80, release = 8.0, wet = 0.95}})
+  table.insert(script, {shake = {mag = 1, ticks = 8}})
+  table.insert(script, {wait = 14})
+  -- Per-character one-line goodbye to the village.
+  if class_in_party("warrior") then
+    table.insert(script, {dialogue = {
+      "[Strom]    (looks back over his shoulder)",
+      "[Strom]    The village is asleep. Good. Let it stay that way.",
+    }, npc = {name = "Strom"}})
+  end
+  if class_in_party("mage") then
+    table.insert(script, {dialogue = {
+      "[Diegues]  (writes one last sentence in the small notebook)",
+      "[Diegues]  In case I do not come back.",
+    }, npc = {name = "Diegues"}})
+  end
+  if class_in_party("bard") then
+    table.insert(script, {dialogue = {
+      "[Alder]    (one quiet chord across all six strings)",
+      "[Alder]    For the village.",
+    }, npc = {name = "Alder"}})
+    table.insert(script, {sfx = {class = "bard", note = 67, vel = 0.55,
+                                 attack = 0.04, release = 4.0, wet = 0.95}})
+  end
+  table.insert(script, {wait = 12})
+  table.insert(script, {dialogue = {
+    "[Miel]     (touches the threshold with one hand)",
+    "[Miel]     Six. The seventh is up the road.",
+    "[Miel]     ...let's go.",
+  }, npc = {name = "Miel"}})
+  -- Step forward one tile.
+  table.insert(script, {move = "miel", to = {x = px, y = py - 1}, ticks = 18})
+  if class_in_party("bard") then
+    table.insert(script, {move = "alder", to = {x = px, y = py}, ticks = 18})
+  end
+  if class_in_party("mage") then
+    table.insert(script, {move = "diegues", to = {x = px + 1, y = py - 1}, ticks = 18})
+  end
+  if class_in_party("warrior") then
+    table.insert(script, {move = "strom", to = {x = px - 1, y = py - 1}, ticks = 18})
+  end
+  table.insert(script, {wait = 18})
+  -- Fade to black, then warp.
+  table.insert(script, {fade_out = 36})
+  table.insert(script, {wait = 6})
+  table.insert(script, {despawn = "miel"})
+  if class_in_party("warrior") then table.insert(script, {despawn = "strom"}) end
+  if class_in_party("mage")    then table.insert(script, {despawn = "diegues"}) end
+  if class_in_party("bard")    then table.insert(script, {despawn = "alder"}) end
+  SCENE.start(script, function()
+    -- Warp to Suno's Domain. The arrival scene auto-fires on map 4.
+    travel_to(4, 12, 12)
+    redraw()
+  end)
+end
+
+-- start_eastern_arrival_scene() — first time Miel + party land at the
+-- Eastern Reaches dock. Boat-arrival beat: camera holds on the pier,
+-- gulls call out (bird particle), party walks ashore, brief dialogue.
+function start_eastern_arrival_scene()
+  local px, py = player.x, player.y
+  local script = {
+    {hide_player = true},
+    {set = function() SCENE.fade = 15 end},
+    {letterbox_in = true},
+    {focus = {x = px, y = py}, ticks = 1},
+    {fade_in = 36},
+    {wait = 18},
+    -- A gull-cry stand-in: short bright bard tone.
+    {sfx = {class = "bard", note = 88, vel = 0.45, attack = 0.005, release = 0.40, wet = 0.85}},
+    {wait = 14},
+    {dialogue = {
+      "(Salt in the air. The dock-boards creak under your boots.)",
+      "(Eastern Reaches. The sea wider here than the village ever knew.)",
+    }, npc = nil},
+    -- Spawn party in a small cluster at the player position.
+    {spawn = "miel", class = "cleric", name = "Miel", x = px, y = py, facing = "right", bob = false},
+  }
+  if class_in_party("bard") then
+    table.insert(script, {spawn = "alder", class = "bard", name = "Alder",
+                          x = px - 1, y = py, facing = "right", bob = false})
+  end
+  if class_in_party("warrior") then
+    table.insert(script, {spawn = "strom", class = "warrior", name = "Strom",
+                          x = px, y = py + 1, facing = "right", bob = false})
+  end
+  if class_in_party("mage") then
+    table.insert(script, {spawn = "diegues", class = "mage", name = "Diegues",
+                          x = px - 1, y = py + 1, facing = "right", bob = false})
+  end
+  -- Two-beat dialogue with sprite turns to the sea (face right).
+  table.insert(script, {wait = 18})
+  table.insert(script, {sfx = {class = "bard", note = 76, vel = 0.40,
+                               attack = 0.005, release = 0.6, wet = 0.85}})
+  table.insert(script, {wait = 12})
+  if class_in_party("warrior") then
+    table.insert(script, {dialogue = {
+      "[Strom]   (looks east) The Reaches.",
+      "[Strom]   I marched these dunes once. We never came back the same.",
+    }, npc = {name = "Strom"}})
+  elseif class_in_party("bard") then
+    table.insert(script, {dialogue = {
+      "[Alder]   (sets the lute on his back) New air, new keys.",
+      "[Alder]   Easterners hum sharper. Sand does that to a voice.",
+    }, npc = {name = "Alder"}})
+  else
+    table.insert(script, {dialogue = {
+      "[Miel]    (the sun on her face) ...east.",
+      "[Miel]    Grandmother spoke of this air.",
+    }, npc = {name = "Miel"}})
+  end
+  table.insert(script, {wait = 18})
+  table.insert(script, {despawn = "miel"})
+  if class_in_party("bard")    then table.insert(script, {despawn = "alder"}) end
+  if class_in_party("warrior") then table.insert(script, {despawn = "strom"}) end
+  if class_in_party("mage")    then table.insert(script, {despawn = "diegues"}) end
+  table.insert(script, {teleport_player = {x = px, y = py, facing = player.facing}})
+  table.insert(script, {show_player = true})
+  table.insert(script, {letterbox_out = true})
+  table.insert(script, {flash = "* Eastern Reaches *", ticks = 60})
+  SCENE.start(script)
+end
+
+-- start_northern_arrival_scene() — first time crossing the mountain
+-- pass into the snowfield. Wind sting, snow particles already firing
+-- via PARTICLES.tick on map==3.
+function start_northern_arrival_scene()
+  local px, py = player.x, player.y
+  local script = {
+    {hide_player = true},
+    {set = function() SCENE.fade = 15 end},
+    {letterbox_in = true},
+    {focus = {x = px, y = py}, ticks = 1},
+    {fade_in = 48},
+    {wait = 24},
+    -- Wind: held bard tone with very long release.
+    {sfx = {class = "bard", note = 60, vel = 0.30, attack = 1.0, release = 6.0, wet = 1.00}},
+    {wait = 24},
+    {dialogue = {
+      "(The pass crests. The world drops away into white.)",
+      "(Northern Wilds. The snow has not stopped since the chord broke.)",
+    }, npc = nil},
+    {spawn = "miel", class = "cleric", name = "Miel", x = px, y = py, facing = "down", bob = false},
+  }
+  if class_in_party("warrior") then
+    table.insert(script, {spawn = "strom", class = "warrior", name = "Strom",
+                          x = px - 1, y = py, facing = "down", bob = false})
+  end
+  table.insert(script, {wait = 18})
+  if class_in_party("warrior") then
+    table.insert(script, {dialogue = {
+      "[Strom]   (pulls his cloak tight) I lost my company in a snow like this.",
+      "[Strom]   (...) I lost my captain too.",
+      "[Strom]   We will not lose anyone today.",
+    }, npc = {name = "Strom"}})
+  else
+    table.insert(script, {dialogue = {
+      "[Miel]    (her breath is white. The world is whiter.)",
+      "[Miel]    The Aeolian shore is somewhere through this.",
+      "[Miel]    Grandmother said the cold has its own song. We just have to outlast it.",
+    }, npc = {name = "Miel"}})
+  end
+  table.insert(script, {wait = 18})
+  table.insert(script, {despawn = "miel"})
+  if class_in_party("warrior") then table.insert(script, {despawn = "strom"}) end
+  table.insert(script, {teleport_player = {x = px, y = py, facing = player.facing}})
+  table.insert(script, {show_player = true})
+  table.insert(script, {letterbox_out = true})
+  table.insert(script, {flash = "* Northern Wilds *", ticks = 60})
+  SCENE.start(script)
+end
+
+-- start_sunos_arrival_scene() — first time stepping into Suno's Domain.
+-- Heavy. Full fade-in from black, letterboxed, low drone. Party draws
+-- closer together at the threshold.
+function start_sunos_arrival_scene()
+  local px, py = player.x, player.y
+  local script = {
+    {hide_player = true},
+    {set = function() SCENE.fade = 15 end},
+    {letterbox_in = true},
+    {focus = {x = px, y = py}, ticks = 1},
+    {fade_in = 60},
+    {wait = 36},
+    -- A held low warrior drone — Suno's chord, far away but everywhere.
+    {sfx = {class = "warrior", note = 24, vel = 0.85, attack = 1.5, release = 8.0, wet = 0.95}},
+    {wait = 24},
+    {dialogue = {
+      "(The air is still. The kind of still that means someone is listening.)",
+      "(Suno's Domain. The chord that holds it presses on your shoulders.)",
+    }, npc = nil},
+    {spawn = "miel", class = "cleric", name = "Miel", x = px, y = py, facing = "up", bob = false},
+  }
+  if class_in_party("warrior") then
+    table.insert(script, {spawn = "strom", class = "warrior", name = "Strom",
+                          x = px - 1, y = py, facing = "up", bob = false})
+  end
+  if class_in_party("mage") then
+    table.insert(script, {spawn = "diegues", class = "mage", name = "Diegues",
+                          x = px + 1, y = py, facing = "up", bob = false})
+  end
+  if class_in_party("bard") then
+    table.insert(script, {spawn = "alder", class = "bard", name = "Alder",
+                          x = px, y = py + 1, facing = "up", bob = false})
+  end
+  table.insert(script, {wait = 18})
+  -- Each present companion gets a short reaction. Stack them up.
+  if class_in_party("warrior") then
+    table.insert(script, {dialogue = {
+      "[Strom]   (tightens grip on the hammer) ...he's home.",
+    }, npc = {name = "Strom"}})
+  end
+  if class_in_party("mage") then
+    table.insert(script, {dialogue = {
+      "[Diegues] (counts the silence in beats) Four. Six. Eight.",
+      "[Diegues] He's holding the room in 4/4.",
+      "[Diegues] We can break that.",
+    }, npc = {name = "Diegues"}})
+  end
+  if class_in_party("bard") then
+    table.insert(script, {dialogue = {
+      "[Alder]   (a single chord, half-strummed) ...the lute is going sharp.",
+      "[Alder]   The air's tuned wrong here.",
+    }, npc = {name = "Alder"}})
+  end
+  table.insert(script, {wait = 12})
+  table.insert(script, {dialogue = {
+    "[Miel]    (touches the shard at her throat) Six. The seventh is in this room somewhere.",
+    "[Miel]    Let's go finish it.",
+  }, npc = {name = "Miel"}})
+  table.insert(script, {wait = 18})
+  table.insert(script, {despawn = "miel"})
+  if class_in_party("warrior") then table.insert(script, {despawn = "strom"}) end
+  if class_in_party("mage")    then table.insert(script, {despawn = "diegues"}) end
+  if class_in_party("bard")    then table.insert(script, {despawn = "alder"}) end
+  table.insert(script, {teleport_player = {x = px, y = py, facing = player.facing}})
+  table.insert(script, {show_player = true})
+  table.insert(script, {letterbox_out = true})
+  table.insert(script, {flash = "* Suno's Domain *", ticks = 60})
+  SCENE.start(script)
+end
+
+-- start_strom_dream_scene() — black-screen flashback, no actors
+-- visible. Pure SFX + dialogue. Reya's voice in Strom's memory of his
+-- last morning with her. Fires once on first inn-rest with Strom.
+function start_strom_dream_scene()
+  local script = {
+    {hide_player = true},
+    {set = function() SCENE.fade = 15 end},   -- start fully black
+    {letterbox_in = true},
+    {wait = 24},
+    -- Distant rain (held bard tone, very long release).
+    {sfx = {class = "bard", note = 48, vel = 0.30, attack = 1.5, release = 8.0, wet = 1.00}},
+    {wait = 24},
+    {dialogue = {
+      "(Strom dreams.)",
+      "(He dreams the same dream he has dreamed for years.)",
+    }, npc = nil},
+    {wait = 12},
+    {dialogue = {
+      "(It is a morning. There is rain on canvas.)",
+      "(Reya is rolling her bedroll. The light is bad. She is laughing at something he hasn't said yet.)",
+    }, npc = nil},
+    {wait = 12},
+    -- Reya's voice (memory).
+    {dialogue = {
+      "[Reya]     You ever going to teach me that drop-elbow swing?",
+    }, npc = {name = "Reya"}},
+    {wait = 6},
+    {dialogue = {
+      "[Strom]    (his own voice, very young) ...when you stop being faster than me at everything else.",
+    }, npc = {name = "Strom"}},
+    {wait = 6},
+    {dialogue = {
+      "[Reya]     Coward. (she shoulders the bedroll) Move, then. Long road today.",
+    }, npc = {name = "Reya"}},
+    {wait = 18},
+    -- Distant cleric tone — the cairn answering across years.
+    {sfx = {class = "cleric", note = 72, vel = 0.55, attack = 0.40, release = 6.0, wet = 1.00}},
+    {wait = 24},
+    {dialogue = {
+      "(He wakes. The inn is quiet. Outside, real rain.)",
+      "[Strom]    (very quietly, to no one)",
+      "[Strom]    ...Reya.",
+    }, npc = {name = "Strom"}},
+    {wait = 18},
+    {fade_in = 36},
+    {wait = 6},
+    {show_player = true},
+    {letterbox_out = true},
+    {set = function() unlock_achievement("strom_dream", "Strom Dreams") end},
+  }
+  SCENE.start(script)
+end
+
+function start_inn_dawn_scene()
+  local px, py = player.x, player.y
+  -- Find a non-leader companion to speak.
+  local candidates = {}
+  for i, p in ipairs(party) do
+    if i ~= active and p.alive then
+      candidates[#candidates + 1] = p
+    end
+  end
+  if #candidates == 0 then return end
+  local who = candidates[math.random(#candidates)]
+  -- Per-class one-liners + speaker name.
+  local NAME = {
+    cleric = "Miel", bard = "Alder", warrior = "Strom", mage = "Diegues",
+    engineer = "Sergei", mathwiz = "Paj", drummer = "Niko",
+  }
+  local POOL = {
+    bard = {
+      "[Alder]   (yawns) The kettle was singing in F. I've never heard a kettle in F before.",
+      "[Alder]   I dreamt the lute played itself. It was better than I am at it.",
+      "[Alder]   (stretches) Right. Verse one of today: walk. Verse two: see what happens.",
+    },
+    warrior = {
+      "[Strom]   (already up) Two hours' light burned. We'll make it up by lunch.",
+      "[Strom]   The boots dried. The road won't.",
+      "[Strom]   I checked the door before I slept. I am told this is unnecessary now.",
+    },
+    mage = {
+      "[Diegues] (closes a small notebook) I have written down a dream. I will explain it later.",
+      "[Diegues] The hearth banked itself overnight. That is mathematically improbable.",
+      "[Diegues] Coffee. Then theory. (...he reaches for the kettle)",
+    },
+    engineer = {
+      "[Sergei]  Cable's coiled. Tools are dry. We move when you move.",
+      "[Sergei]  I patched the floorboard outside our door. Nobody asked me to. I felt better afterward.",
+      "[Sergei]  Slept four hours. That's plenty.",
+    },
+    mathwiz = {
+      "[Paj]     (counts) Six breaths to standing. Eleven to the door. Thirty-eight to the road.",
+      "[Paj]     I dreamed in matrices. They balanced.",
+      "[Paj]     Statistically, today is more likely to be eventful than yesterday.",
+    },
+    drummer = {
+      "[Niko]    Slept on a four. Woke up on a one. Easy.",
+      "[Niko]    Innkeeper's snoring kept the tempo. Two-to-three meter, rough but committed.",
+      "[Niko]    (cracks knuckles) Pocket. All day.",
+    },
+    cleric = {
+      "[Miel]    (does not say anything for a moment)",
+      "[Miel]    (touches the door-frame on the way out, by habit. Her grandmother used to.)",
+    },
+  }
+  local lines = POOL[who.class] or {"(...the morning is small and quiet.)"}
+  local line = lines[math.random(#lines)]
+  local script = {
+    {hide_player = true},
+    {spawn = "miel", class = "cleric", name = "Miel", x = px, y = py, facing = player.facing or "down"},
+    {spawn = "buddy", class = who.class, name = NAME[who.class],
+     x = px + 1, y = py, facing = "left"},
+    {wait = 12},
+    {sfx = {class = "cleric", note = 67, vel = 0.30, attack = 0.40, release = 3.0, wet = 0.85}},
+    {wait = 6},
+    {dialogue = {line}, npc = {name = NAME[who.class]}},
+    {wait = 8},
+    {despawn = "buddy"},
+    {despawn = "miel"},
+    {teleport_player = {x = px, y = py, facing = player.facing}},
+    {show_player = true},
+  }
+  SCENE.start(script)
+end
+
+-- start_finale_scene() — the boss-approach sequence for cave 7. Suno
+-- stands at the back of the chamber; party walks forward; chord rings
+-- when shards resonate. Sets up the Suno fight via post_completion.
+-- start_alder_ambient_scene() — small flavor moment. Alder appears
+-- next to Miel for one beat, plays a short phrase on the lute, and
+-- vanishes. No dialogue text — just the music. Reads as "the bard
+-- can't help himself."
+function start_alder_ambient_scene()
+  local px, py = player.x, player.y
+  local script = {
+    {hide_player = true},
+    {spawn = "miel", class = "cleric", name = "Miel", x = px, y = py, facing = player.facing or "down", bob = false},
+    {spawn = "alder", class = "bard", name = "Alder", x = px - 1, y = py, facing = "right", bob = false},
+    {wait = 8},
+    -- Three-note phrase (bard voice).
+    {sfx = {class = "bard", note = 67, vel = 0.55, attack = 0.005, release = 1.6, wet = 0.85}},
+    {wait = 12},
+    {sfx = {class = "bard", note = 71, vel = 0.55, attack = 0.005, release = 1.6, wet = 0.85}},
+    {wait = 12},
+    {sfx = {class = "bard", note = 74, vel = 0.55, attack = 0.005, release = 2.2, wet = 0.85}},
+    {wait = 24},
+    {despawn = "alder"}, {despawn = "miel"},
+    {teleport_player = {x = px, y = py, facing = player.facing}},
+    {show_player = true},
+  }
+  SCENE.start(script)
+end
+
+-- start_first_shard_scene() — bespoke aftermath for Cave 1's victory.
+-- The Lydian Shard hums on the way home; party stops at the village
+-- fountain, which has been dry for a generation, and watches it run.
+function start_first_shard_scene()
+  -- Force-warp to the village fountain area so the scene reads.
+  travel_to(1, 15, 8)
+  player.facing = "up"
+  update_camera()
+  local script = {
+    {hide_player = true},
+    {set = function() SCENE.fade = 15 end},
+    {letterbox_in = true},
+    {focus = {x = 15, y = 7}, ticks = 1},
+    {fade_in = 48},
+    {wait = 24},
+    -- The shard hums — bright, sustained cleric note.
+    {sfx = {class = "cleric", note = 84, vel = 0.55, attack = 0.20, release = 6.0, wet = 1.00}},
+    {wait = 24},
+    {dialogue = {
+      "(The shard in Miel's pack hums all the way home.)",
+      "(The village wakes early. Smoke from breakfast fires. The fountain in the plaza --)",
+    }, npc = nil},
+    {spawn = "miel", class = "cleric", name = "Miel", x = 15, y = 8, facing = "up", bob = false},
+  }
+  if class_in_party("bard") then
+    table.insert(script, {spawn = "alder", class = "bard", name = "Alder",
+                          x = 14, y = 8, facing = "up", bob = false})
+  end
+  if class_in_party("warrior") then
+    table.insert(script, {spawn = "strom", class = "warrior", name = "Strom",
+                          x = 16, y = 8, facing = "up", bob = false})
+  end
+  if class_in_party("mage") then
+    table.insert(script, {spawn = "diegues", class = "mage", name = "Diegues",
+                          x = 13, y = 8, facing = "up", bob = false})
+  end
+  table.insert(script, {wait = 18})
+  -- The fountain begins to run — a higher cleric tone arpeggiates.
+  table.insert(script, {sfx = {class = "cleric", note = 72, vel = 0.55, attack = 0.005, release = 1.5, wet = 0.95}})
+  table.insert(script, {wait = 6})
+  table.insert(script, {sfx = {class = "cleric", note = 79, vel = 0.55, attack = 0.005, release = 1.5, wet = 0.95}})
+  table.insert(script, {wait = 6})
+  table.insert(script, {sfx = {class = "cleric", note = 84, vel = 0.55, attack = 0.005, release = 2.5, wet = 0.95}})
+  table.insert(script, {wait = 18})
+  table.insert(script, {dialogue = {
+    "(The fountain begins to run.)",
+    "(It has not run in twenty years.)",
+    "(A child in the plaza drops a pebble in -- it lands with a small bell-tone.)",
+  }, npc = nil})
+  table.insert(script, {wait = 12})
+  -- Per-character one-line wonder.
+  if class_in_party("bard") then
+    table.insert(script, {dialogue = {
+      "[Alder]    (the lute is sharp by exactly the right amount)",
+      "[Alder]    I think it's been waiting for the chord.",
+    }, npc = {name = "Alder"}})
+  end
+  if class_in_party("mage") then
+    table.insert(script, {dialogue = {
+      "[Diegues]  (writes the time of day in the small notebook)",
+      "[Diegues]  First note. The pattern starts here.",
+    }, npc = {name = "Diegues"}})
+  end
+  if class_in_party("warrior") then
+    table.insert(script, {dialogue = {
+      "[Strom]    (kneels at the basin's edge; cups a hand of water)",
+      "[Strom]    ...the village is going to drink well tonight.",
+    }, npc = {name = "Strom"}})
+  end
+  table.insert(script, {wait = 8})
+  table.insert(script, {dialogue = {
+    "[Miel]     One.",
+    "[Miel]     Six to go.",
+  }, npc = {name = "Miel"}})
+  table.insert(script, {wait = 18})
+  table.insert(script, {despawn = "miel"})
+  if class_in_party("bard")    then table.insert(script, {despawn = "alder"}) end
+  if class_in_party("warrior") then table.insert(script, {despawn = "strom"}) end
+  if class_in_party("mage")    then table.insert(script, {despawn = "diegues"}) end
+  table.insert(script, {teleport_player = {x = 15, y = 8, facing = "up"}})
+  table.insert(script, {show_player = true})
+  table.insert(script, {letterbox_out = true})
+  table.insert(script, {flash = "* the chord remembers itself *", ticks = 60})
+  SCENE.start(script)
+end
+
+-- start_boss_aftermath_scene(cv) — fires the moment exit_battle returns
+-- the player to the overworld after a boss kill in caves 1-6. The
+-- chamber is now quiet; a single shard-shimmer chord rings, the party
+-- exchanges one quiet line, then control returns. Lightweight — these
+-- are "epilogue beats", not full set-pieces.
+function start_boss_aftermath_scene(cv)
+  -- Cave 1 (Echo) is the FIRST shard — this scene gets a richer beat:
+  -- the shard hums in your pack on the way home, party stops to listen,
+  -- the fountain begins to run for the first time in a generation.
+  if cv == 1 and start_first_shard_scene then
+    start_first_shard_scene()
+    return
+  end
+  local px, py = player.x, player.y
+  local LINE = {
+    [1] = {  -- Echo (legacy fallback)
+      who = "Diegues",
+      lines = {
+        "[Diegues]  (writes one line)",
+        "[Diegues]  Echo. The chamber is quiet now. Only ours.",
+      },
+    },
+    [2] = {  -- Sentinel
+      who = "Strom",
+      lines = {
+        "[Strom]    The Sentinel sleeps. As it always should have.",
+        "[Strom]    Beren was right.",
+      },
+    },
+    [3] = {  -- Tidewatch
+      who = "Miel",
+      lines = {
+        "[Miel]     (kneels at the tidepool's edge; the water is still)",
+        "[Miel]     Tidewatch's chord ends. The shore can rest.",
+      },
+    },
+    [4] = {  -- Dune Rider
+      who = "Alder",
+      lines = {
+        "[Alder]    Six beats out, two back. Iska was right.",
+        "[Alder]    I'm writing that line down.",
+      },
+    },
+    [5] = {  -- Snowgaunt
+      who = "Strom",
+      lines = {
+        "[Strom]    His three-count broke before ours did.",
+        "[Strom]    The wind is moving again.",
+      },
+    },
+    [6] = {  -- Locrius
+      who = "Diegues",
+      lines = {
+        "[Diegues]  Half a step. He was wrong by exactly half a step.",
+        "[Diegues]  (closes the small notebook)",
+        "[Diegues]  We are not.",
+      },
+    },
+  }
+  local L = LINE[cv]
+  if not L then return end
+  -- Map the speaker's class for sprite spawn.
+  local CLASS = {Diegues = "mage", Strom = "warrior", Miel = "cleric", Alder = "bard"}
+  local sp_class = CLASS[L.who] or "cleric"
+  -- Only spawn the speaker if they're in the party (so the scene fits
+  -- the actual party composition).
+  local in_party = (sp_class == "cleric") or class_in_party(sp_class)
+  if not in_party then
+    -- Fallback: drop the speaker check; have Miel speak the moment.
+    L.who = "Miel"
+    sp_class = "cleric"
+  end
+  local script = {
+    {hide_player = true},
+    {letterbox_in = true},
+    {focus = {x = px, y = py}, ticks = 12},
+    {wait = 18},
+    -- Shard-shimmer chord — quiet, one cleric tone with long release.
+    {sfx = {class = "cleric", note = 84, vel = 0.35, attack = 0.30, release = 5.0, wet = 1.00}},
+    {wait = 24},
+    {spawn = "miel", class = "cleric", name = "Miel", x = px, y = py, facing = "up", bob = false},
+  }
+  if L.who ~= "Miel" then
+    table.insert(script, {spawn = "speaker", class = sp_class, name = L.who,
+                          x = px - 1, y = py, facing = "right", bob = false})
+    table.insert(script, {look = "miel", toward = "speaker"})
+  end
+  table.insert(script, {wait = 18})
+  table.insert(script, {dialogue = L.lines, npc = {name = L.who}})
+  table.insert(script, {wait = 18})
+  table.insert(script, {despawn = "miel"})
+  if L.who ~= "Miel" then table.insert(script, {despawn = "speaker"}) end
+  table.insert(script, {teleport_player = {x = px, y = py, facing = player.facing}})
+  table.insert(script, {show_player = true})
+  table.insert(script, {letterbox_out = true})
+  SCENE.start(script)
+end
+
+-- start_boss_approach_scene(cv) — choreographs the moment a player
+-- crosses a boss-arena tile in caves 1-6 (cave 7 has its own
+-- start_finale_scene). Generic structure: letterbox in, atmospheric
+-- SFX cluster, party companions step into formation around Miel,
+-- per-cave dialogue with sprite movement, then transition to combat.
+function start_boss_approach_scene(cv)
+  local px, py = player.x, player.y
+  -- Per-cave atmosphere: opening SFX cluster (one or two triggers),
+  -- a "boss tone" that lands on the dialogue cue, and the boss-class
+  -- to spawn as a visible actor (so you SEE the enemy enter, like FF).
+  local SETUP = {
+    [1] = {  -- Echo (cave 1) — drip-cave, distorted voice answer
+      open_sfx = {class = "warrior", note = 36, vel = 0.45, attack = 0.001, release = 0.10, wet = 0.95},
+      tone     = {class = "cleric",  note = 64, vel = 0.65, attack = 0.10, release = 4.0, wet = 1.00},
+      boss_class = "mage", boss_name = "Echo",
+    },
+    [2] = {  -- Sentinel (cave 2) — wooden moss giant
+      open_sfx = {class = "warrior", note = 24, vel = 0.55, attack = 0.05, release = 1.2, wet = 0.45},
+      tone     = {class = "warrior", note = 30, vel = 0.85, attack = 0.20, release = 5.0, wet = 0.80},
+      boss_class = "warrior", boss_name = "Sentinel",
+    },
+    [3] = {  -- Tidewatch (cave 3) — water-faces
+      open_sfx = {class = "cleric",  note = 48, vel = 0.55, attack = 0.30, release = 3.0, wet = 1.00},
+      tone     = {class = "bard",    note = 60, vel = 0.65, attack = 0.05, release = 4.5, wet = 1.00},
+      boss_class = "cleric", boss_name = "Tidewatch",
+    },
+    [4] = {  -- Dune Rider (cave 4) — six-beat hoofprints
+      open_sfx = {class = "warrior", note = 40, vel = 0.85, attack = 0.001, release = 0.15, wet = 0.30},
+      tone     = {class = "warrior", note = 28, vel = 0.75, attack = 0.05, release = 2.5, wet = 0.45},
+      boss_class = "warrior", boss_name = "Dune Rider",
+    },
+    [5] = {  -- Snowgaunt (cave 5) — silent conductor
+      open_sfx = {class = "bard",    note = 84, vel = 0.30, attack = 0.40, release = 6.0, wet = 1.00},
+      tone     = {class = "cleric",  note = 72, vel = 0.55, attack = 0.40, release = 7.0, wet = 1.00},
+      boss_class = "mage", boss_name = "Snowgaunt",
+    },
+    [6] = {  -- Locrius (cave 6) — between-notes
+      open_sfx = {class = "mage",    note = 67, vel = 0.45, attack = 0.10, release = 2.0, wet = 0.95},
+      tone     = {class = "cleric",  note = 70, vel = 0.65, attack = 0.30, release = 5.0, wet = 1.00},
+      boss_class = "mage", boss_name = "Locrius",
+    },
+  }
+  local s = SETUP[cv]
+  if not s then enter_battle(cv); return end
+  -- Per-cave bespoke dialogue, tagged with speaker so the dialogue
+  -- header gets the right sprite + name.
+  local DLG = {
+    [1] = {
+      {dialogue = {
+        "(The cave widens into a chamber.)",
+        "(The drip from the ceiling hits the floor a half-beat too late.)",
+        "(...far back in the dark, the drip answers itself.)",
+      }, npc = nil},
+      {dialogue = {
+        "[Miel]    It's listening.",
+      }, npc = {name = "Miel"}},
+      {dialogue = {
+        "(A voice -- her own voice -- comes back from the wall, twisted to a different key.)",
+        "[Echo]    ((It's listening.))",
+      }, npc = {name = "Echo"}},
+      {dialogue = {
+        "(Something at the back of the chamber takes a step.)",
+        "(The party draws together.)",
+      }, npc = nil},
+    },
+    [2] = {
+      {dialogue = {
+        "(The grove opens.)",
+        "(In its center, a wooden figure three meters tall, covered in moss.)",
+        "(It does not move. It has not moved in a very long time.)",
+      }, npc = nil},
+      {dialogue = {
+        "[Strom]   (a step backward) That's not a tree.",
+        "[Strom]   Get back, get back --",
+      }, npc = {name = "Strom"}},
+      {dialogue = {
+        "(The Sentinel raises a single arm.)",
+        "(The forest goes still. Even the birds.)",
+      }, npc = nil},
+      {dialogue = {
+        "(Beren said: \"The Sentinel sleeps for good now.\")",
+        "(That was a long time ago.)",
+        "(He sleeps no more.)",
+      }, npc = nil},
+    },
+    [3] = {
+      {dialogue = {
+        "(The seawater laps higher than the deepest tide should allow.)",
+        "(Faces appear in the surface. Then disappear.)",
+        "(Then appear again, closer.)",
+      }, npc = nil},
+      {dialogue = {
+        "[Aurin]   (your memory of her voice)",
+        "[Aurin]   The Tidewatch chord answers prayers and traps both.",
+      }, npc = {name = "Aurin"}},
+      {dialogue = {
+        "(One of the faces in the water is yours.)",
+        "(It does not look frightened.)",
+      }, npc = nil},
+      {dialogue = {
+        "(Tidewatch rises out of the pool.)",
+        "(The chord pulls tight.)",
+      }, npc = nil},
+    },
+    [4] = {
+      {dialogue = {
+        "(Sand. Wind.)",
+        "(Hoofprints in a six-beat rhythm, very fast, then two beats back.)",
+      }, npc = nil},
+      {dialogue = {
+        "(The Dune Rider crests the dune.)",
+        "(He has been riding for years to reach this exact moment.)",
+      }, npc = nil},
+      {dialogue = {
+        "[Iska]    (your memory of her voice)",
+        "[Iska]    Six beats out, two back. Strike on the rest.",
+      }, npc = {name = "Iska"}},
+      {dialogue = {
+        "(He stops. The horse stops.)",
+        "(The wind does not stop.)",
+      }, npc = nil},
+      {dialogue = {
+        "[Rider]   (low, almost a song)",
+        "[Rider]   ...you are not what I was sent for.",
+        "[Rider]   You will do.",
+      }, npc = {name = "Rider"}},
+    },
+    [5] = {
+      {dialogue = {
+        "(The snow stops falling.)",
+        "(Even the wind stops.)",
+      }, npc = nil},
+      {dialogue = {
+        "(A figure in long white robes turns from the icicle wall.)",
+        "(He is conducting silence.)",
+      }, npc = nil},
+      {dialogue = {
+        "[Snowgaunt] (a voice like wind off a lake)",
+        "[Snowgaunt] Three. Three is the meter.",
+        "[Snowgaunt] Three is the only meter.",
+      }, npc = {name = "Snowgaunt"}},
+      {dialogue = {
+        "(You can feel your party's heartbeats trying to find his three-count.)",
+      }, npc = nil},
+      {dialogue = {
+        "[Wenna]   (your memory of her voice)",
+        "[Wenna]   Drown his time with yours.",
+      }, npc = {name = "Wenna"}},
+    },
+    [6] = {
+      {dialogue = {
+        "(The crypt smells of nothing.)",
+        "(Crypts are usually loud with rot. This one is silent.)",
+      }, npc = nil},
+      {dialogue = {
+        "(Locrius rises from the central plinth.)",
+        "(His teeth are perfectly even.)",
+      }, npc = nil},
+      {dialogue = {
+        "[Locrius] (a voice exactly between two notes)",
+        "[Locrius] You've come a long way to be wrong by half a step.",
+      }, npc = {name = "Locrius"}},
+      {dialogue = {
+        "[Locrius] My king has been waiting.",
+        "[Locrius] He thinks you'll arrive tired.",
+      }, npc = {name = "Locrius"}},
+      {dialogue = {
+        "[Veris]   (your memory of her voice)",
+        "[Veris]   He cannot hold off-time.",
+        "[Veris]   Strike where he cannot follow.",
+      }, npc = {name = "Veris"}},
+    },
+  }
+  -- Build the script. Open with letterbox, hold camera on the player
+  -- area for atmosphere, fire SFX, optionally spawn the boss as a
+  -- visible actor at the back of the room (above the player by 3
+  -- tiles), then run dialogue blocks with brief waits between.
+  local script = {
+    {hide_player = true},
+    {letterbox_in = true},
+    {wait = 12},
+    {sfx = s.open_sfx},
+    {wait = 18},
+    -- Spawn the boss as a visible actor at (px, py - 4) so the player
+    -- sees it standing in the chamber. Boss is non-bobbing (still).
+    {spawn = "boss", class = s.boss_class, name = s.boss_name,
+     x = px, y = math.max(1, py - 4), facing = "down", bob = false},
+    -- Spawn party at the player position; they'll step into formation
+    -- as the dialogue progresses. Miel front-and-center.
+    {spawn = "miel", class = "cleric", name = "Miel", x = px, y = py, facing = "up", bob = false},
+  }
+  -- Add other party members as side-actors if present.
+  if class_in_party("warrior") then
+    script[#script + 1] = {spawn = "strom", class = "warrior", name = "Strom",
+                           x = px - 1, y = py + 1, facing = "up", bob = false}
+  end
+  if class_in_party("mage") then
+    script[#script + 1] = {spawn = "diegues", class = "mage", name = "Diegues",
+                           x = px + 1, y = py + 1, facing = "up", bob = false}
+  end
+  if class_in_party("bard") then
+    script[#script + 1] = {spawn = "alder", class = "bard", name = "Alder",
+                           x = px, y = py + 1, facing = "up", bob = false}
+  end
+  -- Pause for the read.
+  script[#script + 1] = {wait = 18}
+  -- Boss-tone — the held SFX that signals the encounter is real.
+  script[#script + 1] = {sfx = s.tone}
+  script[#script + 1] = {shake = {mag = 1, ticks = 6}}
+  script[#script + 1] = {wait = 24}
+  -- Inject per-cave dialogue blocks. Between blocks, add small waits
+  -- and a "draw together" formation step on the second-to-last beat.
+  local blocks = DLG[cv] or {}
+  for i, b in ipairs(blocks) do
+    script[#script + 1] = b
+    script[#script + 1] = {wait = 8}
+    -- On block 3, party "draws together" — small bumps toward Miel.
+    if i == 3 then
+      if class_in_party("warrior") then
+        script[#script + 1] = {move = "strom", to = {x = px - 1, y = py}, ticks = 12}
+      end
+      if class_in_party("mage") then
+        script[#script + 1] = {move = "diegues", to = {x = px + 1, y = py}, ticks = 12}
+      end
+      if class_in_party("bard") then
+        script[#script + 1] = {move = "alder", to = {x = px, y = py + 1}, ticks = 12}
+      end
+      script[#script + 1] = {wait = 12}
+    end
+  end
+  -- Final beat: boss looms — small forward bump, second tone, transition.
+  script[#script + 1] = {bump = "boss", dir = "down", ticks = 4}
+  script[#script + 1] = {sfx = s.tone}
+  script[#script + 1] = {shake = {mag = 2, ticks = 8}}
+  script[#script + 1] = {wait = 24}
+  script[#script + 1] = {despawn = "boss"}
+  script[#script + 1] = {despawn = "miel"}
+  if class_in_party("warrior") then script[#script + 1] = {despawn = "strom"} end
+  if class_in_party("mage")    then script[#script + 1] = {despawn = "diegues"} end
+  if class_in_party("bard")    then script[#script + 1] = {despawn = "alder"} end
+  script[#script + 1] = {teleport_player = {x = px, y = py, facing = "up"}}
+  script[#script + 1] = {show_player = true}
+  script[#script + 1] = {letterbox_out = true}
+  SCENE.start(script, function() enter_battle(cv) end)
+end
+
+function start_finale_scene()
+  local sx, sy = player.x, player.y
+  -- Cave 7 is 16 wide x 14 tall; boss at (8, 3). Suno spawns at (8, 2)
+  -- — back wall. Camera will move from "wide shot" of the chamber to
+  -- a tight focus on Suno, then back wide.
+  local script = {
+    {hide_player = true},
+    {set = function() SCENE.fade = 15 end},
+    {letterbox_in = true},
+    -- Camera starts centered on Suno's spawn position so the player
+    -- sees the chamber AS Miel sees it.
+    {focus = {x = 8, y = 4}, ticks = 1},
+    {fade_in = 36},
+    {wait = 18},
+    -- Spawn Miel at her player coords + Suno at his throne.
+    {spawn = "miel", class = "cleric", name = "Miel", x = sx, y = sy, facing = "up", bob = false},
+    {spawn = "suno", class = "warrior", name = "Suno", x = 8, y = 2, facing = "up", bob = false},
+    -- A long held drone (the "domain chord") opens.
+    {sfx = {class = "warrior", note = 24, vel = 0.85, attack = 0.30, release = 6.0, wet = 0.95}},
+    {wait = 36},
+    {dialogue = {
+      "(The chord that holds Suno's domain pulls tight as a wire over your heads.)",
+      "(He stands at the center of the chamber.)",
+      "(Larger than you remembered.)",
+    }, npc = nil},
+    -- Suno speaks with his back to Miel.
+    {dialogue = {
+      "[Suno]    (without turning)",
+      "[Suno]    You should be a wagon-print in the road by now.",
+      "[Suno]    A small one.",
+    }, npc = {name = "Suno"}},
+    {wait = 8},
+    {dialogue = {
+      "[Suno]    And yet.",
+      "[Suno]    Six shards in your pack. A queen who walks instead of sings.",
+    }, npc = {name = "Suno"}},
+    {wait = 6},
+    {dialogue = {
+      "[Suno]    (a slow breath)",
+      "[Suno]    I underestimated the room I left you in.",
+    }, npc = {name = "Suno"}},
+    -- Miel steps forward. Camera tracks her.
+    {move = "miel", to = {x = sx, y = sy - 1}, ticks = 24},
+    {focus = "miel", ticks = 24},
+    {sfx = {class = "cleric", note = 60, vel = 0.55, attack = 0.10, release = 1.5, wet = 0.85}},
+    {wait = 8},
+    {dialogue = {
+      "[Miel]    You left me in my grandmother's room.",
+    }, npc = {name = "Miel"}},
+    {wait = 6},
+    {dialogue = {
+      "[Miel]    I came here so I could sing for it.",
+    }, npc = {name = "Miel"}},
+    -- Camera focuses tight on Suno for the turn.
+    {focus = "suno", ticks = 18},
+    {wait = 12},
+    -- Suno turns slowly. Three facing changes for the slow read.
+    {face = "suno", facing = "left"},
+    {sfx = {class = "warrior", note = 36, vel = 0.50, attack = 0.40, release = 1.2, wet = 0.55}},
+    {wait = 14},
+    {face = "suno", facing = "down"},
+    {sfx = {class = "warrior", note = 40, vel = 0.55, attack = 0.40, release = 1.2, wet = 0.55}},
+    {wait = 16},
+    {dialogue = {
+      "[Suno]    Then sing.",
+    }, npc = {name = "Suno"}},
+    -- The shards ring. Camera pulls back wide to take in both characters.
+    {focus = {x = 8, y = 5}, ticks = 18},
+    {sfx = {class = "cleric", note = 67, vel = 0.85, attack = 0.005, release = 4.0, wet = 1.0}},
+    {wait = 8},
+    {sfx = {class = "mage",   note = 71, vel = 0.75, attack = 0.005, release = 4.0, wet = 1.0}},
+    {wait = 8},
+    {sfx = {class = "bard",   note = 79, vel = 0.65, attack = 0.005, release = 4.0, wet = 1.0}},
+    {shake = {mag = 2, ticks = 12}},
+    {wait = 36},
+    {dialogue = {
+      "(The six shards in your pack ring once, all together.)",
+      "(The seventh -- somewhere on his belt -- answers.)",
+    }, npc = nil},
+    {flash = "* the chord pulls itself together *", ticks = 60},
+    {wait = 24},
+    -- Letterbox out + fade transition into the battle.
+    {letterbox_out = true},
+    {despawn = "suno"}, {despawn = "miel"},
+    {teleport_player = {x = sx, y = sy, facing = "up"}},
+    {show_player = true},
+  }
+  SCENE.start(script, function()
+    enter_battle(7)
+  end)
+end
+
+-- start_observatory_first_visit() — first walk into Velthe's Observatory.
+-- Iola the apprentice is mid-experiment — she's plucking small chord
+-- intervals out of a brass orrery — and looks up when Miel arrives.
+-- The scene awards a unique "Sightings Lens" instrument the player can
+-- equip on the bard or mage class.
+function start_observatory_first_visit()
+  player.x, player.y = 8, 9
+  player.facing = "up"
+  update_camera()
+  local script = {
+    {hide_player = true},
+    {set = function() SCENE.fade = 15 end},
+    {letterbox_in = true},
+    -- Camera holds on the orrery first — establishing shot of the
+    -- centerpiece before introducing characters.
+    {focus = {x = 8, y = 5}, ticks = 1},
+    {fade_in = 36},
+    {wait = 18},
+    -- A 3-note brass arpeggio rises off the orrery.
+    {sfx = {class = "mage", note = 72, vel = 0.55, attack = 0.005, release = 0.50, wet = 0.65}},
+    {wait = 10},
+    {sfx = {class = "mage", note = 76, vel = 0.55, attack = 0.005, release = 0.50, wet = 0.65}},
+    {wait = 10},
+    {sfx = {class = "mage", note = 79, vel = 0.55, attack = 0.005, release = 0.50, wet = 0.65}},
+    {wait = 18},
+    {dialogue = {
+      "(The room is round. The walls are darker than they should be -- charts upon charts.)",
+      "(In the center: a brass orrery, gently turning.)",
+      "(A young woman with chalk-white hair plucks a tiny note off one of its rings.)",
+    }, npc = nil},
+    -- Spawn Iola at the orrery, Miel just inside the door.
+    {spawn = "iola", class = "mage", name = "Iola", x = 8, y = 5, facing = "down", bob = false},
+    {spawn = "miel", class = "cleric", name = "Miel", x = 8, y = 9, facing = "up", bob = false},
+    -- Pan camera to frame both characters.
+    {focus = {x = 8, y = 7}, ticks = 30},
+    {wait = 12},
+    {dialogue = {
+      "[Iola]    (looks up; not surprised)",
+      "[Iola]    Velthe wrote you'd come.",
+      "[Iola]    She did not say when. She rarely did.",
+    }, npc = {name = "Iola"}},
+    -- Iola walks down toward Miel.
+    {move = "iola", to = {x = 8, y = 7}, ticks = 36},
+    {look = "iola", toward = "miel"},
+    {wait = 8},
+    {dialogue = {
+      "[Iola]    I am Iola. I sweep the orrery. I clean the lenses.",
+      "[Iola]    I copy out what she could not finish.",
+    }, npc = {name = "Iola"}},
+    {wait = 6},
+    {dialogue = {
+      "[Iola]    And I am told to give you this --",
+      "[Iola]    (lifts a small silver lens on a leather thong)",
+      "[Iola]    The Sightings Lens. Old. Quiet.",
+      "[Iola]    It reads the chord one bar ahead.",
+    }, npc = {name = "Iola"}},
+    {flash = "* Sightings Lens obtained *", ticks = 60},
+    {sfx = {class = "cleric", note = 96, vel = 0.65, attack = 0.005, release = 3.0, wet = 0.95}},
+    {set = function()
+      if instruments_owned then
+        instruments_owned.sightings_lens = true
+      end
+      unlock_achievement("velthe_sightings", "Velthe's Sightings")
+    end},
+    {wait = 18},
+    {dialogue = {
+      "[Iola]    Equip it on a hand that already plays well.",
+      "[Iola]    It will not teach a beginner.",
+    }, npc = {name = "Iola"}},
+    {wait = 12},
+    {dialogue = {
+      "[Iola]    When all seven shards are home -- come back.",
+      "[Iola]    I will teach you what Velthe could not.",
+      "[Iola]    Until then. Stars hold.",
+    }, npc = {name = "Iola"}},
+    {wait = 12},
+    {despawn = "iola"}, {despawn = "miel"},
+    {teleport_player = {x = 8, y = 9, facing = "up"}},
+    {show_player = true},
+    {letterbox_out = true},
+  }
+  SCENE.start(script)
+end
+
+-- start_lirael_first_visit() — Miel's first time inside her grandmother's
+-- ruined hall. Choreographed memory scene with optional party reactions
+-- if Strom / Diegues / Alder are present. Pure emotional beat — no
+-- combat — and unlocks a one-time "small mercy" reward (a Tonic).
+function start_lirael_first_visit()
+  player.x, player.y = 8, 9
+  player.facing = "up"
+  update_camera()
+  local script = {}
+  local has = {
+    bard = class_in_party("bard"),
+    warrior = class_in_party("warrior"),
+    mage = class_in_party("mage"),
+  }
+  -- Establishing: hide player, letterbox in, fade FROM black so the
+  -- arrival has weight. Camera starts on the throne (the destination)
+  -- before we even introduce Miel.
+  script[#script + 1] = {hide_player = true}
+  script[#script + 1] = {set = function() SCENE.fade = 15 end}   -- start black
+  script[#script + 1] = {letterbox_in = true}
+  script[#script + 1] = {focus = {x = 8, y = 6}, ticks = 1}
+  script[#script + 1] = {fade_in = 36}
+  script[#script + 1] = {wait = 24}
+  -- Single bell glint heard from the silence.
+  script[#script + 1] = {sfx = {class = "cleric", note = 84, vel = 0.30,
+                                attack = 0.005, release = 5.0, wet = 1.0}}
+  script[#script + 1] = {wait = 36}
+  script[#script + 1] = {dialogue = {
+    "(The arch is a wound the wind has not stopped pressing on.)",
+    "(Inside: the bell tower still standing.)",
+    "(Two hearths long since cold. The throne, broken-backed, in the middle of nothing.)",
+  }, npc = nil}
+  -- Pan camera back to the entrance to introduce the party.
+  script[#script + 1] = {focus = {x = 8, y = 9}, ticks = 36}
+  script[#script + 1] = {wait = 6}
+  -- Spawn party at the south arch.
+  script[#script + 1] = {spawn = "miel", class = "cleric", name = "Miel",
+                         x = 8, y = 9, facing = "up"}
+  if has.bard    then script[#script + 1] = {spawn = "alder",   class = "bard",    name = "Alder",   x = 7, y = 9, facing = "up", bob = false} end
+  if has.warrior then script[#script + 1] = {spawn = "strom",   class = "warrior", name = "Strom",   x = 9, y = 9, facing = "up", bob = false} end
+  if has.mage    then script[#script + 1] = {spawn = "diegues", class = "mage",    name = "Diegues", x = 9, y = 9, facing = "up", bob = false} end
+  if has.mage and has.warrior then
+    -- shift Diegues to (10, 9) so they don't stack
+    script[#script + 1] = {set = function()
+      local d = SCENE.get("diegues")
+      if d then d.x = 10; d.fx = 10; d.tx = 10; d.fx_from = 10 end
+    end}
+  end
+  script[#script + 1] = {wait = 24}
+  script[#script + 1] = {dialogue = {
+    "(Miel does not say anything for a long time.)",
+  }, npc = nil}
+  script[#script + 1] = {wait = 12}
+  -- Miel walks alone toward the throne. Camera tracks her.
+  script[#script + 1] = {move = "miel", to = {x = 8, y = 7}, ticks = 80}
+  script[#script + 1] = {focus = "miel", ticks = 60}
+  script[#script + 1] = {wait = 6}
+  script[#script + 1] = {move = "miel", to = {x = 7, y = 7}, ticks = 28}
+  script[#script + 1] = {face = "miel", facing = "up"}
+  script[#script + 1] = {wait = 24}
+  -- A long held silence in front of the throne.
+  script[#script + 1] = {dialogue = {
+    "[Miel]    (her voice is steady. Surprisingly steady.)",
+    "[Miel]    I sat in your lap until I was nine.",
+    "[Miel]    After that I stood at your knee.",
+  }, npc = {name = "Miel"}}
+  script[#script + 1] = {wait = 12}
+  script[#script + 1] = {dialogue = {
+    "[Miel]    I am the queen of Lirael now.",
+    "[Miel]    Queen of an ash field with a bell on it.",
+  }, npc = {name = "Miel"}}
+  script[#script + 1] = {wait = 8}
+  script[#script + 1] = {dialogue = {
+    "[Miel]    Grandmother.",
+    "[Miel]    The chord is six notes.",
+    "[Miel]    I am bringing the seventh home.",
+  }, npc = {name = "Miel"}}
+  -- Optional reactions from companions. We add them only if the
+  -- character is present, so the scene scales with whoever's in the party.
+  if has.warrior then
+    script[#script + 1] = {move = "strom", to = {x = 7, y = 8}, ticks = 32}
+    script[#script + 1] = {face = "strom", facing = "up"}
+    script[#script + 1] = {wait = 6}
+    script[#script + 1] = {dialogue = {
+      "[Strom]  (kneels. Stays there.)",
+      "[Strom]  ...I burned a town like this once. I do not remember the bell.",
+      "[Strom]  I will remember this one.",
+    }, npc = {name = "Strom"}}
+  end
+  if has.mage then
+    script[#script + 1] = {move = "diegues", to = {x = 9, y = 7}, ticks = 32}
+    script[#script + 1] = {face = "diegues", facing = "left"}
+    script[#script + 1] = {wait = 6}
+    script[#script + 1] = {dialogue = {
+      "[Diegues] (writes. He is always writing.)",
+      "[Diegues] Lirael. One bell. Two hearths. A throne with a fault in the back.",
+      "[Diegues] An archive of one. I will copy it twice and lose neither.",
+    }, npc = {name = "Diegues"}}
+  end
+  if has.bard then
+    script[#script + 1] = {move = "alder", to = {x = 8, y = 7}, ticks = 32}
+    script[#script + 1] = {face = "alder", facing = "left"}
+    script[#script + 1] = {wait = 6}
+    script[#script + 1] = {dialogue = {
+      "[Alder]  (unslings the lute. Plays one note, very softly. The note holds.)",
+      "[Alder]  (does not name the chord)",
+    }, npc = {name = "Alder"}}
+    script[#script + 1] = {sfx = {class = "bard", note = 67, vel = 0.55,
+                                  attack = 0.04, release = 3.6, wet = 0.90}}
+  end
+  -- The bell. A single tone — louder than the chamber should allow.
+  script[#script + 1] = {wait = 12}
+  script[#script + 1] = {sfx = {class = "cleric", note = 84, vel = 0.95,
+                                attack = 0.001, release = 5.0, wet = 1.0}}
+  script[#script + 1] = {shake = {mag = 1, ticks = 4}}
+  script[#script + 1] = {wait = 36}
+  script[#script + 1] = {dialogue = {
+    "(The bell rings once, of its own accord. Nothing has touched it.)",
+    "(In the rafters: a small bird, white, that was not there a moment ago.)",
+    "(Miel takes one step back from the throne. She does not bow. She does not need to.)",
+  }, npc = nil}
+  script[#script + 1] = {flash = "* a small mercy is granted *", ticks = 60}
+  script[#script + 1] = {set = function()
+    -- Tangible reward so the visit is mechanically meaningful: a Tonic.
+    SHOP.inv = SHOP.inv or {}
+    SHOP.inv.tonic = (SHOP.inv.tonic or 0) + 1
+  end}
+  script[#script + 1] = {wait = 24}
+  -- Letterbox out, fade through, return control.
+  script[#script + 1] = {letterbox_out = true}
+  if has.bard    then script[#script + 1] = {despawn = "alder"} end
+  if has.mage    then script[#script + 1] = {despawn = "diegues"} end
+  if has.warrior then script[#script + 1] = {despawn = "strom"} end
+  script[#script + 1] = {despawn = "miel"}
+  script[#script + 1] = {teleport_player = {x = 7, y = 7, facing = "up"}}
+  script[#script + 1] = {show_player = true}
+  SCENE.start(script)
+end
+
+function pick_campfire_scene(map_id, x, y)
+  local key = map_id .. ":" .. x .. ":" .. y
+  local list = CAMPFIRE_SCENES[key]
+  if not list then return nil end
+  for _, entry in ipairs(list) do
+    local ok = true
+    for _, cls in ipairs(entry.requires) do
+      if not class_in_party(cls) then ok = false; break end
+    end
+    if ok then return entry.lines end
+  end
+  return nil
+end
+
+-- start_campfire_scene(f, lines) — choreograph a campfire memory beat.
+-- f is the fire record {map, x, y}; lines is the dialogue array picked
+-- by pick_campfire_scene. We place each currently-active party member at
+-- a stable seat around the fire (offsets are deterministic by class so
+-- positions stay consistent across visits), zoom the camera, then play
+-- the dialogue with the seated sprites visible. After the scene the
+-- party "stands up" — sprites despawn and player input resumes.
+function start_campfire_scene(f, lines)
+  if not lines or #lines == 0 then return false end
+  -- Deterministic 6-seat ring around the fire. We pick seats per class so
+  -- e.g. Strom always sits west of the flame, Diegues always east — feels
+  -- like the party has a habitual arrangement.
+  local fx, fy = f.x, f.y
+  local SEATS = {
+    cleric  = {dx = -1, dy = -1, facing = "right"},  -- Miel: NW
+    bard    = {dx =  1, dy = -1, facing = "left"},   -- Alder: NE
+    warrior = {dx = -2, dy =  0, facing = "right"},  -- Strom: W
+    mage    = {dx =  2, dy =  0, facing = "left"},   -- Diegues: E
+    engineer= {dx = -1, dy =  1, facing = "right"},  -- Sergei: SW
+    mathwiz = {dx =  1, dy =  1, facing = "left"},   -- Paj: SE
+    drummer = {dx =  0, dy =  2, facing = "up"},     -- Niko: S
+  }
+  local NAME = {
+    cleric = "Miel", bard = "Alder", warrior = "Strom", mage = "Diegues",
+    engineer = "Sergei", mathwiz = "Paj", drummer = "Niko",
+  }
+  local script = {
+    {hide_player = true},  -- Miel becomes a seated actor instead
+    {letterbox_in = true},
+    -- Camera tightens on the fire so the seated party fills the frame.
+    {focus = {x = fx, y = fy}, ticks = 18},
+    {wait = 12},
+  }
+  -- Spawn each active party member in their seat with bob disabled (a
+  -- seated character should be still). Player position stays at fire
+  -- tile underneath.
+  local seated = {}
+  for _, p in ipairs(party) do
+    if p.alive and SEATS[p.class] then
+      local s = SEATS[p.class]
+      local sid = "fire_" .. p.class
+      seated[#seated + 1] = sid
+      script[#script + 1] = {
+        spawn = sid, class = p.class, name = NAME[p.class],
+        x = fx + s.dx, y = fy + s.dy, facing = s.facing, bob = false,
+      }
+    end
+  end
+  -- A small "settle in" beat before talking starts.
+  script[#script + 1] = {wait = 18}
+  -- One soft sustained chord so the moment lands musically.
+  script[#script + 1] = {sfx = {class = "cleric", note = 60, vel = 0.40,
+                                attack = 0.20, release = 3.0, wet = 0.85}}
+  script[#script + 1] = {wait = 8}
+  -- The dialogue itself. Single big block — the SCENE engine will hand it
+  -- to the existing pack_dialogue_lines + DIALOGUE flow.
+  script[#script + 1] = {dialogue = lines, npc = nil}
+  -- Stand up: tiny "rising" beat before despawning.
+  script[#script + 1] = {wait = 12}
+  for _, sid in ipairs(seated) do
+    script[#script + 1] = {despawn = sid}
+  end
+  script[#script + 1] = {show_player = true}
+  script[#script + 1] = {letterbox_out = true}
+  SCENE.start(script)
+  return true
+end
+
 local MAINLAND_NPCS = {
+  -- Alder, sitting beside the village clearing's morning fire, three
+  -- tiles directly above Lyrik (16,7). Visible only until he joins;
+  -- talking to him is a one-shot recruit scene.
+  { x = 17, y = 4, name = "Alder",
+    visible = function()
+      -- Hide the static Alder NPC during ANY active scene — otherwise
+      -- the scene-spawned Alder actor renders ON TOP of him and the
+      -- player sees two of him at the same tile (or one at the fire
+      -- and one walking to Miel).
+      return not class_in_party("bard")
+         and not (SCENE and SCENE.active)
+    end,
+    -- Choreographed recruit. Alder is seated by the fire (no bob, sprite
+    -- facing left toward the player). When Miel walks up the scene fires:
+    -- a soft lute strum (his idle), Miel's involuntary hum, Alder
+    -- standing, picking up the lute, and stepping to the player's tile.
+    scene = function()
+      local px, py = player.x, player.y
+      local script = {
+        {hide_player = true},
+        {letterbox_in = true},
+        -- Spawn Miel + Alder. Alder is seated at the fire (no bob).
+        {spawn = "miel",  class = "cleric", name = "Miel",  x = px, y = py, facing = "up", bob = false},
+        {spawn = "alder", class = "bard",   name = "Alder", x = 17, y = 4, facing = "down", bob = false},
+        -- Camera focuses on the fire (puts Alder + Miel both in frame).
+        {focus = {x = 17, y = 5}, ticks = 30},
+        {wait = 18},
+        -- Alder's idle strum — bardic tone, gentle.
+        {sfx = {class = "bard", note = 67, vel = 0.45, attack = 0.005, release = 1.6, wet = 0.85}},
+        {wait = 14},
+        -- Alder notices Miel — looks left.
+        {face = "alder", facing = "left"},
+        {sfx = {class = "bard", note = 64, vel = 0.35, attack = 0.005, release = 0.8, wet = 0.85}},
+        {wait = 12},
+        {dialogue = {
+          "[Alder]  (looks up from his lute) Morning.",
+          "[Alder]  You came in from the woods?",
+          "[Alder]  There's no path back that way. Just the old hill --",
+          "[Alder]  and the hill doesn't open. Not for anyone I've heard of.",
+        }, npc = {name = "Alder"}},
+        -- A held breath. Alder waits for Miel to answer; she doesn't.
+        {sfx = {class = "bard", note = 60, vel = 0.40, attack = 0.005, release = 1.0, wet = 0.85}},
+        {wait = 14},
+        {dialogue = {
+          "(He sets the lute across his knees and watches you.)",
+          "(The fire pops between you.)",
+        }, npc = nil},
+        -- Miel's involuntary hum — a sustained cleric tone over multiple
+        -- ticks so it lands as the moment that changes everything.
+        {wait = 6},
+        {sfx = {class = "cleric", note = 67, vel = 0.50, attack = 0.30, release = 4.5, wet = 0.95}},
+        {wait = 12},
+        -- Alder goes still — quick face-down recoil, then returns gaze.
+        {face = "alder", facing = "down"},
+        {bump = "alder", dir = "down", ticks = 3},
+        {wait = 8},
+        {look = "alder", toward = "miel"},
+        {wait = 14},
+        {dialogue = {
+          "[Alder]  (very quietly)",
+          "[Alder]  ...that's a court song.",
+          "[Alder]  I've only ever heard old people sing it.",
+        }, npc = {name = "Alder"}},
+        {wait = 6},
+        {dialogue = {
+          "[Alder]  My grandfather sang it once. He'd been in the war for the Aeolian shore.",
+          "[Alder]  He cried when he got to the third verse.",
+          "[Alder]  I never understood why.",
+        }, npc = {name = "Alder"}},
+        -- A long beat: Alder looks down at his boots, then back up.
+        {face = "alder", facing = "down"},
+        {wait = 18},
+        {look = "alder", toward = "miel"},
+        {wait = 8},
+        {dialogue = {
+          "(He looks at you. Looks at the cave-mouth in the hill behind you.)",
+          "(Looks at his own boots.)",
+          "[Alder]  (...slowly...) I think I understand why now.",
+        }, npc = {name = "Alder"}},
+        -- Alder stands. Camera tracks him as he walks to Miel.
+        {wait = 6},
+        {move = "alder", to = {x = px + 1, y = py}, ticks = 48},
+        {focus = "alder", ticks = 32},
+        {look = "alder", toward = "miel"},
+        {wait = 8},
+        {dialogue = {
+          "[Alder]  I'm Alder.",
+          "[Alder]  Four years on the road -- coin, supper, somewhere to sleep.",
+          "[Alder]  That's been the deal.",
+          "[Alder]  Today the deal changes.",
+        }, npc = {name = "Alder"}},
+        {wait = 6},
+        {dialogue = {
+          "[Alder]  Wherever you're going, queen-of-the-quiet-hum, I'm coming.",
+        }, npc = {name = "Alder"}},
+        {sfx = {class = "bard", note = 79, vel = 0.65, attack = 0.005, release = 2.0, wet = 0.85}},
+        {flash = "* ALDER JOINS *", ticks = 36},
+        {wait = 24},
+        {despawn = "alder"}, {despawn = "miel"},
+        {teleport_player = {x = px, y = py, facing = player.facing}},
+        {show_player = true},
+        {letterbox_out = true},
+        {set = function()
+          if CHARACTERS and CHARACTERS.bard and not class_in_party("bard") then
+            party[#party + 1] = CHARACTERS.bard
+          end
+        end},
+      }
+      return script
+    end,
+    dialogue = function()
+      -- Fallback (shouldn't hit; scene fires first). Kept for safety so
+      -- start_dialogue still finds a dialogue if SCENE.start can't run.
+      if CHARACTERS and CHARACTERS.bard and not class_in_party("bard") then
+        party[#party + 1] = CHARACTERS.bard
+      end
+      return {
+        "[Alder] Wherever you're going -- I'm coming.",
+        "(Alder joins the party.)",
+      }
+    end,
+  },
   { x = 4, y = 6, name = "Tova",
+    barks = {"hmm.", "(turns a page)", "fascinating.", "ah, the dean.", "(scribbles)"},
     dialogue = function()
       local lead = party[active] and party[active].class
       -- Tova lights up when Diegues (mage / scholar) is in the lead.
       if lead == "mage" then
-        return {
+        return with_shard_react("Tova", {
           "(her eyes brighten when she sees Diegues)",
           "Academy boy, are you? I read your dean's last paper.",
           "Brilliant. Wrong about the chord -- but brilliant.",
           "Ask me about the seven before you leave.",
-        }
+        })
       end
       -- SIDEQUEST: meet all four regional sages, return for a lore reward.
       local s = QUESTS.tova.spoke
@@ -2626,126 +7666,231 @@ local MAINLAND_NPCS = {
       if visited == 4 and not QUESTS.tova.claimed then
         QUESTS.tova.claimed = true
         SHOP.gold = SHOP.gold + 80
-        return {
+        return with_shard_react("Tova", {
           "You spoke with Veris. Aurin. Mira. And Iolen of the highlands too.",
           "Each holds a fragment of the chord. Together they form the old map.",
           "Take this -- earned, not given.",
           "(+80 gold)",
-        }
+        })
       elseif QUESTS.tova.claimed then
-        return {
+        return with_shard_react("Tova", {
           "The map of the seven sings to me more clearly now, thanks to you.",
           "Suno fears the chord most of all. Strike one shard, the next rings true.",
-        }
+        })
       elseif visited > 0 then
-        return {
+        return with_shard_react("Tova", {
           "You've met " .. visited .. " of the four sages.",
           "Veris in the Wood. Aurin on the Coast. Mira in the Reaches. Iolen in the Wilds.",
           "Find them all -- return to me.",
-        }
+        })
       end
       if shards.aeolian then
-        return {
+        return with_shard_react("Tova", {
           "The Aeolian Shard! Few survive the Snowgaunt's keening waltz.",
           "You bear the lonely song now. Two shards still elude us, child.",
-        }
+        })
       elseif shards.lydian then
-        return {
+        return with_shard_react("Tova", {
           "I once charted seven nations. Each held a shard. Each fell silent.",
           "When Suno turned the world quiet, I retired to my books. Until now.",
           "(Quest: meet the four regional sages.)",
-        }
+        })
       end
-      return {
+      return with_shard_react("Tova", {
         "I am Tova. I read the old runes.",
         "The Crystal Synth was a chord -- seven notes ringing as one.",
         "Suno hunts each note alone. Find them before they go cold.",
         "(Quest: meet the four regional sages.)",
-      }
+      })
     end,
   },
   -- (Plaza Hens removed Pass 24 — she now runs the item-shop interior;
   -- the village no longer has a duplicate outdoor shop NPC.)
   { x = 19, y = 6, name = "Elder",
     dialogue = function()
-      if shards.dorian then
-        return {
+      local lead = party[active] and party[active].class
+      -- The village Elder knew Miel's grandmother, and remembers seeing
+      -- Miel as a child; he respects Strom from the campaigns, and is
+      -- amused by Diegues' academic gravity. Alder he raised.
+      if lead == "cleric" then
+        return with_shard_react("Elder", {
+          "[Elder]  ...my queen. I never thought I'd say those words again.",
+          "[Elder]  Your grandmother stood where you are standing now, once.",
+          "[Elder]  I gave her the same advice I'll give you: walk softly. Listen long.",
+        })
+      end
+      if lead == "warrior" then
+        return with_shard_react("Elder", {
+          "[Elder]  (nods, once. Soldier's nod.) -- Strom.",
+          "[Elder]  The garrison knew your name. Some of us still do.",
+          "[Elder]  Whatever you carried out of those years, you don't carry it alone now.",
+        })
+      end
+      if lead == "bard" then
+        return with_shard_react("Elder", {
+          "[Elder]  Alder. (smiles, slowly) You came back.",
+          "[Elder]  I taught you a chord on the front step once. You spent a year disagreeing with it.",
+          "[Elder]  You sound right now. The disagreement settled.",
+        })
+      end
+      if lead == "mage" then
+        return with_shard_react("Elder", {
+          "[Elder]  Academy man. I hosted three of you in '52 -- they ate everything.",
+          "[Elder]  You write as if the page might escape. (chuckles)",
+          "[Elder]  Listen as much as you write, scholar. Modalia talks back.",
+        })
+      end
+      -- Count reclaimed shards generically. The previous version only
+      -- branched on shards.lydian and shards.dorian, so the "Two shards"
+      -- line locked in for every count from 2 to 6.
+      local n = 0
+      for _, v in pairs(shards) do if v then n = n + 1 end end
+      if n >= 7 then
+        return with_shard_react("Elder", {
+          "Seven shards. The Crystal Synth is whole.",
+          "Go to Suno's domain. End this. Modalia has waited long enough.",
+        })
+      elseif n == 6 then
+        return with_shard_react("Elder", {
+          "Six shards reclaimed. Only the last sleeps in Suno's domain.",
+          "He will not let it go quietly. Be ready.",
+        })
+      elseif n == 5 then
+        return with_shard_react("Elder", {
+          "Five shards. The fountain in the plaza sings again at night.",
+          "Two more. Suno feels every one of them slip from his grasp.",
+        })
+      elseif n == 4 then
+        return with_shard_react("Elder", {
+          "Four shards. Halfway. The world hums differently now.",
+          "Three remain. Press on -- Suno's strength is not infinite.",
+        })
+      elseif n == 3 then
+        return with_shard_react("Elder", {
+          "Three shards reclaimed. Suno's grip on Modalia weakens.",
+          "Four still scattered. The deeper caves call to you next.",
+        })
+      elseif n == 2 then
+        return with_shard_react("Elder", {
           "Two shards. Truly remarkable. The Hollow Woods lie quiet now.",
           "But Suno gathers his armies. Five shards remain, scattered.",
           "Press on, heroes.",
-        }
-      elseif shards.lydian then
-        return {
+        })
+      elseif n == 1 then
+        return with_shard_react("Elder", {
           "You found the Lydian Shard. But Suno hunts six more.",
           "The Hollow Woods lie east. Veris waits within.",
           "She knows of the next shard.",
-        }
+        })
       end
-      return {
+      return with_shard_react("Elder", {
         "Travelers from afar? Suno's shadow grows.",
         "He hunts the Crystal Synth, shattered when Modalia formed.",
         "A shard sleeps east in the cave. Recover it before he does.",
-      }
+      })
     end,
   },
   { x = 27, y = 9, name = "Brann",
+    barks = {"(clang)", "iron, sing.", "tempering.", "(blows on ember)", "shape it true."},
     dialogue = function()
+      local lead = party[active] and party[active].class
+      -- Brann is the village smith; recognizes Strom from old garrison
+      -- repair-work, and respects Miel's lineage.
+      if lead == "warrior" then
+        return with_shard_react("Brann", {
+          "[Brann]  (sets the tongs down) Strom. I tempered your old hammer twice.",
+          "[Brann]  Third time was someone else's. They didn't carry it like you did.",
+          "[Brann]  Bring me anything you find that wants singing into. I'll do right by it.",
+        })
+      end
+      if lead == "cleric" then
+        return with_shard_react("Brann", {
+          "[Brann]  Your grandmother used to sit on that stump and watch me work.",
+          "[Brann]  Said the anvil rang in Aeolian. (smiles) She was wrong; it's plain D.",
+          "[Brann]  But I never argued with her, and I won't argue with you.",
+        })
+      end
       -- SIDEQUEST: 10 random encounter wins → 200g + a free Star item.
       local q = QUESTS.brann
       if q.wins >= q.target and not q.claimed then
         q.claimed = true
         SHOP.gold = SHOP.gold + 200
         SHOP.inv.star = SHOP.inv.star + 1
-        return {
+        return with_shard_react("Brann", {
           "Ten road fights. You bring me ore-stained metal each time.",
           "I melted, I folded, I sang it true.",
           "Take this -- and 200g for the slag.",
           "(+200 gold, +1 Star)",
-        }
+        })
       elseif q.claimed then
-        return {
+        return with_shard_react("Brann", {
           "Anvil's quiet today. Good road work?",
           "Bring me anything weird from the deeps. I always have a forge waiting.",
-        }
+        })
       elseif q.wins > 0 then
-        return {
+        return with_shard_react("Brann", {
           "Heard you've cleared " .. q.wins .. "/" .. q.target .. " road fights.",
           "Each one drops slag I can refine. Bring me ten, I'll forge you a marvel.",
-        }
+        })
       end
       if shards.mixolydian then
-        return {
+        return with_shard_react("Brann", {
           "Hammered all night. Coast steel doesn't temper itself, you know.",
           "Survive ten road fights -- I'll forge you something worth the breath.",
           "(Quest: 10 random-encounter wins.)",
-        }
+        })
       end
-      return {
+      return with_shard_react("Brann", {
         "Brann. Smith. Don't touch the anvil. Adventurers always touch the anvil.",
         "Survive ten road fights -- bring me the slag. I'll forge a marvel.",
         "(Quest: 10 random-encounter wins.)",
-      }
+      })
     end,
   },
   { x = 14, y = 8, name = "Pip",
+    barks = {"woah.", "(chases a chicken)", "uncle Brann!", "did you see that?", "i can run faster!"},
     dialogue = function()
+      local lead = party[active] and party[active].class
+      -- Pip is a village kid with a hero-eyed view of the warrior, and
+      -- finds the bard's lute fascinating. He knows them by sight now.
+      if lead == "warrior" then
+        return with_shard_react("Pip", {
+          "[Pip] WOAH. Is that a real sword? Have you fought a wolf?",
+          "[Pip] Uncle Brann said you carried a hammer once. Can I try?",
+          "[Pip] (...) okay, okay -- when I'm bigger.",
+        })
+      end
+      if lead == "bard" then
+        return with_shard_react("Pip", {
+          "[Pip] (eyes the lute) Can it really make the river quiet down?",
+          "[Pip] Lyrik said yes but Lyrik says yes to a lot of things.",
+          "[Pip] Play one. PLEEEASE.",
+        })
+      end
+      if lead == "mage" then
+        return with_shard_react("Pip", {
+          "[Pip] You write a LOT. Are you writing about me?",
+          "[Pip] (peers at the page) That's the same word three times!",
+          "[Pip] (...) is that a spell?",
+        })
+      end
       local n = 0; for _, v in pairs(shards) do if v then n = n + 1 end end
       if n >= 7 then
-        return {
+        return with_shard_react("Pip", {
           "The fountain's singing again! Mama said it hadn't sung in years.",
           "She cried when she heard it. Did you bring the songs back?",
-        }
+        })
       elseif n >= 4 then
-        return {
+        return with_shard_react("Pip", {
           "I tried to sing the Lydian last night. Mama said I sounded close.",
           "She says I'll sing better when all the shards come home.",
-        }
+        })
       elseif n >= 1 then
         -- After your first shard but still early
-        return {
+        return with_shard_react("Pip", {
           "I heard a humming this morning. Mama said the wind sounded different.",
           "Was that you? Did you find one? Keep going! Bring more songs back!",
-        }
+        })
       end
       -- Pre-first-shard: cycle through 3 sets so Pip doesn't repeat the same
       -- line every time you talk to her at the very beginning.
@@ -2763,87 +7908,337 @@ local MAINLAND_NPCS = {
           "Gurgles aren't songs. Bring the songs back, okay?",
         },
       }
-      return variants[(tick // 60) % #variants + 1]
+      return with_shard_react("Pip", variants[(tick // 60) % #variants + 1])
+    end,
+  },
+  -- Village Fountain. The plaza centerpiece. A "Lirael well" stone basin
+  -- whose chord-bell awakens with shards collected. Reactive lore that
+  -- ties Pip's "the fountain SANG!" line to a real interactable.
+  { x = 13, y = 4, name = "Fountain", kind = "object",
+    dialogue = function()
+      local lead = party[active] and party[active].class
+      -- The basin was carved from Lirael stone — Miel's line. When she
+      -- approaches, it stirs differently.
+      if lead == "cleric" then
+        return with_shard_react("Fountain", {
+          "(the basin shifts when you lean over it. The water makes a sound just for you.)",
+          "(the carving along the lip reads: \"by Lirael, for Modalia.\" In your grandmother's hand.)",
+        })
+      end
+      local n = 0
+      for _, v in pairs(shards) do if v then n = n + 1 end end
+      if n >= 7 then
+        return with_shard_react("Fountain", {
+          "(the basin sings clear notes from the bottom up. The water runs in seven layered streams.)",
+          "(every chord that ever fell in here is rising again, slowly, in order.)",
+          "[Pip]    (somewhere behind you) MAMA, MAMA, IT'S DOING THE SONG.",
+        })
+      elseif n >= 5 then
+        return with_shard_react("Fountain", {
+          "(the basin hums faintly. You can feel it through your boots.)",
+          "(the water has been moving in time with the wind for a week now. It hadn't, before.)",
+        })
+      elseif n >= 1 then
+        return with_shard_react("Fountain", {
+          "(the basin is dry-rimmed but the water at the center is moving.)",
+          "(it stops when you watch it. Starts again when you look away.)",
+        })
+      end
+      return {
+        "(the village fountain. Old Lirael-stone, brought from the western shore in someone's lifetime.)",
+        "(the water gurgles. It used to sing, the elder said. Now it gurgles. A child has scratched a name in the rim.)",
+        "(...the name is half-worn. It might be VELTHE. It might be MIEL. It might be both, intersecting.)",
+      }
     end,
   },
   { x = 16, y = 7, name = "Lyrik",
     dialogue = function()
-      if shards.lydian then
-        return {
-          "The Lydian song returns! I can feel it in the air.",
-          "Each shard you reclaim weakens Suno's grip. Continue east, brave ones.",
-        }
+      local lead = party[active] and party[active].class
+      local n = 0
+      for _, v in pairs(shards) do if v then n = n + 1 end end
+      -- Lyrik is a wandering chronicler with a harp; she recognises Alder
+      -- as another working musician and knows his old lute.
+      if lead == "bard" then
+        return with_shard_react("Lyrik", {
+          "[Lyrik]  (sets the harp down, half-stands) Alder. You're alive.",
+          "[Lyrik]  The wandering lute. I thought I'd be chronicling a memorial for you.",
+          "[Lyrik]  Play me a phrase, will you? I want to see if it still rings true to the chord.",
+          "[Lyrik]  (after a pause) -- it does. (smiles) Good.",
+        })
       end
-      return {
-        "Greetings, musicians. I sing the old chronicles.",
-        "When the Crystal Synth split, each shard found a nation.",
-        "Modalia waits for heroes. Travel well, friends.",
-      }
+      if n >= 7 then
+        return with_shard_react("Lyrik", {
+          "[Lyrik]  All seven returned. The chronicle I sing now ends differently than I'd written it.",
+          "[Lyrik]  (sets down the harp; bows once, slowly)",
+          "[Lyrik]  When the song was sung as one, the rivers found their tempo.",
+          "[Lyrik]  They are finding it again. I can hear them, even from this square.",
+        })
+      elseif n >= 4 then
+        return with_shard_react("Lyrik", {
+          "[Lyrik]  I sing the old chronicles. Tonight I'm rewriting four verses at once.",
+          "[Lyrik]  Each shard you reclaim, I add a stanza. My harp is going hoarse keeping up.",
+          "[Lyrik]  Three to go. May the chord find you, friends.",
+        })
+      elseif n >= 1 then
+        return with_shard_react("Lyrik", {
+          "[Lyrik]  The first hum returned to the air last evening. I felt it in my fingertips.",
+          "[Lyrik]  When the Crystal Synth split, each shard found a nation. I sing those nations.",
+          "[Lyrik]  Six left. The harp is patient.",
+        })
+      end
+      return with_shard_react("Lyrik", {
+        "[Lyrik]  (a wandering chronicler, harp slung across her back)",
+        "[Lyrik]  Greetings, musicians. I sing the old chronicles when anyone will listen.",
+        "[Lyrik]  When the Crystal Synth split, each shard found a nation.",
+        "[Lyrik]  The Lydian to the south. The Aeolian to the western shore.",
+        "[Lyrik]  All seven scattered. All seven still singing, faintly, where they fell.",
+        "[Lyrik]  Modalia waits for heroes. Travel well, friends.",
+      })
     end,
   },
   { x = 56, y = 6, name = "Wren",
     dialogue = function()
+      local lead = party[active] and party[active].class
+      -- Wren is a wanderer-singer who's been on the road nine years; she
+      -- knows musicians by ear and recognises Alder's lute, and the
+      -- Lirael-line cleric vibrato.
+      if lead == "bard" then
+        return with_shard_react("Wren", {
+          "[Wren]   That lute. I know that lute. Alder?",
+          "[Wren]   We crossed paths in the dunes -- you played the broken hymn for me.",
+          "[Wren]   I sang it back at three different fires after that. People always cried.",
+        })
+      end
+      if lead == "cleric" then
+        return with_shard_react("Wren", {
+          "[Wren]   ...your hum is in the same key as the wells along the coast.",
+          "[Wren]   That's a Lirael trait. (looks at you longer) Oh.",
+          "[Wren]   I'll add a verse for you tonight, my queen.",
+        })
+      end
       local n = 0
       for _, v in pairs(shards) do if v then n = n + 1 end end
-      if n >= 6 then
-        return {
-          "I sing where the seven once sang. Six shards in your hands. One left.",
-          "Suno hoards the Ionian -- the bright one. Take it. End the silence. End him.",
-        }
+      if n >= 7 then
+        return with_shard_react("Wren", {
+          "[Wren]   You did it. The seven are one.",
+          "[Wren]   I have walked this country for nine years following the music.",
+          "[Wren]   Tonight I'll sleep in a town I picked. Not one I had to flee to.",
+          "[Wren]   Thank you. The road thanks you.",
+        })
+      elseif n >= 6 then
+        return with_shard_react("Wren", {
+          "[Wren]   I sing where the seven once sang. Six shards in your hands now.",
+          "[Wren]   The seventh -- the Ionian -- Suno hoards it like a candle in a windless room.",
+          "[Wren]   You are the wind, friends. Walk in.",
+        })
       elseif n >= 3 then
-        return {
-          "Wren. I follow the music wherever music still dares to sing.",
-          "Three shards already. Brave troupe.",
-          "When you find the Ionian, the chord will ring. We'll all hear it.",
-        }
+        return with_shard_react("Wren", {
+          "[Wren]   Wren. I follow the music wherever music still dares to sing.",
+          "[Wren]   Three shards already. Brave troupe.",
+          "[Wren]   I crossed the eastern dunes last week. The wind sounded different. Carrying.",
+          "[Wren]   When you find the Ionian, the chord will ring. We will all hear it. We will know.",
+        })
       end
-      return {
-        "Wren. Wandering minstrel. I follow the music, when it lasts.",
-        "The Ionian shard -- the seventh -- is locked in Suno's tower itself.",
-        "Six others lie scattered. Find them.",
-      }
+      return with_shard_react("Wren", {
+        "[Wren]   Wren. Wandering minstrel.",
+        "[Wren]   I follow the music when it lasts. Lately it doesn't last long.",
+        "[Wren]   The Ionian shard -- the seventh -- is locked in Suno's tower itself.",
+        "[Wren]   Six others lie scattered, one to each of the old musical nations. Find them, if you can.",
+        "[Wren]   I'll be here when you do. Or down the road. The road and I are old friends.",
+      })
     end,
   },
   { x = 51, y = 6, name = "Aurin",
+    visible = function() return not (SCENE and SCENE.active) end,
+    -- Choreographed first meeting: Aurin stands at the lighthouse base,
+    -- the sea behind her. Bell-ring SFX, slow walk down to greet Miel.
+    scene = function()
+      if QUESTS and QUESTS.tova and QUESTS.tova.spoke and QUESTS.tova.spoke.Aurin then
+        return nil
+      end
+      local px, py = player.x, player.y
+      local script = {
+        {hide_player = true},
+        {letterbox_in = true},
+        {focus = {x = px, y = py}, ticks = 18},
+        {wait = 18},
+        -- Distant lighthouse-bell SFX.
+        {sfx = {class = "cleric", note = 84, vel = 0.40, attack = 0.30, release = 5.0, wet = 1.00}},
+        {wait = 24},
+        {dialogue = {
+          "(The wind carries a single bell-tone from somewhere east.)",
+          "(A tall woman in a sea-cloak walks down the path. She has been counting boats by ear.)",
+        }, npc = nil},
+        {spawn = "miel", class = "cleric", name = "Miel", x = px, y = py, facing = "right", bob = false},
+        {spawn = "aurin", class = "cleric", name = "Aurin", x = math.min(px + 4, 60), y = py, facing = "left", bob = false},
+        {wait = 12},
+        {move = "aurin", to = {x = px + 1, y = py}, ticks = 60},
+        {focus = "aurin", ticks = 36},
+        {look = "aurin", toward = "miel"},
+        {wait = 8},
+        {dialogue = {
+          "[Aurin]   I am Aurin, of the Sunward shore.",
+          "[Aurin]   I keep the lighthouse and the chord-records both.",
+        }, npc = {name = "Aurin"}},
+        {wait = 8},
+        {dialogue = {
+          "[Aurin]   The third shard, Mixolydian, lies in the sunken cavern east.",
+          "[Aurin]   Suno's tide-spawn guard it well.",
+          "[Aurin]   The sea has waited a long time for heroes.",
+        }, npc = {name = "Aurin"}},
+        {wait = 6},
+        {dialogue = {
+          "[Aurin]   Wake the song. Let it sing.",
+        }, npc = {name = "Aurin"}},
+        {wait = 18},
+        {despawn = "aurin"}, {despawn = "miel"},
+        {teleport_player = {x = px, y = py, facing = player.facing}},
+        {show_player = true},
+        {letterbox_out = true},
+        {set = function()
+          QUESTS.tova.spoke = QUESTS.tova.spoke or {}
+          QUESTS.tova.spoke.Aurin = true
+        end},
+      }
+      return script
+    end,
     dialogue = function()
       local lead = party[active] and party[active].class
+      local n = 0; for _, v in pairs(shards) do if v then n = n + 1 end end
+      if n >= 7 then
+        return with_shard_react("Aurin", {
+          "[Aurin]  All seven, then. The Sunward shore was the third to remember.",
+          "[Aurin]  My grandmother held the chord at her wedding. Her mother held it at hers.",
+          "[Aurin]  I will hold it at mine. Whoever I marry will have to put up with the singing.",
+          "[Aurin]  ...thank you. From every wedding to come. Thank you.",
+        })
+      end
       -- class-aware opener: Aurin recognizes Strom (warrior) as a fellow soldier
       if lead == "warrior" then
-        return {
-          "(her eyes find Strom's first)",
-          "I know that posture. The same rest, the same sword arm.",
-          "You're a soldier still. Be careful here. The tide-spawn don't fight by rank.",
-        }
+        return with_shard_react("Aurin", {
+          "[Aurin]  (her eyes find Strom's first)",
+          "[Aurin]  I know that posture. The same rest, the same sword arm.",
+          "[Aurin]  You're a soldier still. Be careful here. The tide-spawn don't fight by rank.",
+          "[Aurin]  My brother served at Lirael. He spoke of a captain named Reya. Knew her?",
+        })
       end
       if shards.mixolydian then
-        return {
-          "The Sunward chord rings true. I'd never have believed it.",
-          "Three shards reclaimed. Four to go, brave hearts. Sail on, friends.",
-        }
+        return with_shard_react("Aurin", {
+          "[Aurin]  The Sunward chord rings true. I'd never have believed it in my lifetime.",
+          "[Aurin]  Three shards reclaimed. The herring jumped at sunrise -- like they'd never stopped.",
+          "[Aurin]  Four to go, brave hearts. Sail on, friends.",
+        })
       end
-      return {
-        "I am Aurin, of the Sunward shore.",
-        "The third shard, Mixolydian, lies in the sunken cavern east.",
-        "Suno's tide-spawn guard it well. The sea has waited for heroes.",
-        "Wake the song. Let it sing.",
-      }
+      return with_shard_react("Aurin", {
+        "[Aurin]  I am Aurin, of the Sunward shore. I keep the lighthouse and the chord-records both.",
+        "[Aurin]  The third shard, Mixolydian, lies in the sunken cavern east.",
+        "[Aurin]  Suno's tide-spawn guard it well. The sea has waited a long time for heroes.",
+        "[Aurin]  Wake the song. Let it sing.",
+      })
     end,
   },
   { x = 36, y = 7, name = "Veris",
-    dialogue = function()
-      if shards.dorian then
-        return {
-          "The Dorian Shard sings again! The Sentinel sleeps at last.",
-          "Beyond these woods lies more. Other nations need their songs.",
-          "Find them. Save Modalia.",
-        }
+    visible = function() return not (SCENE and SCENE.active) end,
+    -- Choreographed first-meeting: Veris emerges from a tree-line off-
+    -- screen and walks slowly to Miel. Subsequent visits use the static
+    -- progression-aware dialogue.
+    scene = function()
+      if QUESTS and QUESTS.tova and QUESTS.tova.spoke and QUESTS.tova.spoke.Veris then
+        return nil   -- not first meeting; fall through to dialogue
       end
-      return {
-        "I am Veris, sage of the Wood.",
-        "The Dorian Shard sleeps deep, guarded by the Forest Sentinel.",
-        "Old, vast, and slow to wake. But wake it must, in your hands.",
-        "The cave lies east of here.",
+      local px, py = player.x, player.y
+      local script = {
+        {hide_player = true},
+        {letterbox_in = true},
+        {focus = {x = px, y = py}, ticks = 18},
+        {wait = 18},
+        -- A leaf-rustle SFX (low bard tone).
+        {sfx = {class = "bard", note = 64, vel = 0.30, attack = 0.30, release = 3.0, wet = 0.95}},
+        {wait = 18},
+        {dialogue = {
+          "(The trees thin.)",
+          "(A small woman steps out from between two oaks.)",
+          "(She has been waiting in their shadow long enough that the bark remembers her shape.)",
+        }, npc = nil},
+        -- Spawn Veris a few tiles north of Miel; spawn Miel.
+        {spawn = "miel", class = "cleric", name = "Miel", x = px, y = py, facing = "up", bob = false},
+        {spawn = "veris", class = "cleric", name = "Veris", x = px, y = math.max(1, py - 4), facing = "down", bob = false},
+        {wait = 12},
+        -- Veris walks down to Miel.
+        {move = "veris", to = {x = px, y = py - 1}, ticks = 60},
+        {focus = "veris", ticks = 36},
+        {look = "veris", toward = "miel"},
+        {wait = 12},
+        {dialogue = {
+          "[Veris]   I am Veris, sage of the Wood.",
+          "[Veris]   I have been waiting for you, though I did not know what you would look like.",
+        }, npc = {name = "Veris"}},
+        {wait = 8},
+        {dialogue = {
+          "[Veris]   The Dorian Shard sleeps deep, guarded by the Forest Sentinel.",
+          "[Veris]   Old, vast, and slow to wake.",
+          "[Veris]   But wake it must, in your hands.",
+        }, npc = {name = "Veris"}},
+        {wait = 6},
+        {dialogue = {
+          "[Veris]   The cave lies east of here.",
+          "[Veris]   Walk soft. The trees are listening.",
+        }, npc = {name = "Veris"}},
+        {wait = 18},
+        {despawn = "veris"}, {despawn = "miel"},
+        {teleport_player = {x = px, y = py, facing = player.facing}},
+        {show_player = true},
+        {letterbox_out = true},
+        {set = function()
+          QUESTS.tova.spoke = QUESTS.tova.spoke or {}
+          QUESTS.tova.spoke.Veris = true
+        end},
       }
+      return script
+    end,
+    dialogue = function()
+      local lead = party[active] and party[active].class
+      -- Veris is the forest sage; recognizes Miel by family, Diegues by
+      -- his Dorian-mode papers, and Alder from the old village fires.
+      if lead == "cleric" then
+        return with_shard_react("Veris", {
+          "[Veris]  (touches her brow) ...my queen. The trees told me you were close.",
+          "[Veris]  Your grandmother walked these woods once a season. I miss her.",
+          "[Veris]  Walk carefully. The Sentinel is not the only thing that wakes when royalty passes.",
+        })
+      end
+      if lead == "mage" then
+        return with_shard_react("Veris", {
+          "[Veris]  I read your monograph on Dorian harmonics. The woods agreed with two of three points.",
+          "[Veris]  (the third was about the rate of moss growth; the woods have opinions.)",
+          "[Veris]  Walk soft. The Sentinel hates pencils, oddly enough.",
+        })
+      end
+      if lead == "bard" then
+        return with_shard_react("Veris", {
+          "[Veris]  Alder. The fires used to throw your shadow onto the leaves of these trees.",
+          "[Veris]  Play one phrase, would you? The Sentinel sleeps better when there's music.",
+        })
+      end
+      local n = 0; for _, v in pairs(shards) do if v then n = n + 1 end end
+      if n >= 7 then
+        return with_shard_react("Veris", {
+          "[Veris]   You came back through the woods, all seven shards singing in your pack.",
+          "[Veris]   I felt the Sentinel turn over in his sleep. Glad. He has been glad for a week.",
+          "[Veris]   (offers you a sprig of pressed flowers) For your queen. From the woods.",
+        })
+      elseif shards.dorian then
+        return with_shard_react("Veris", {
+          "[Veris]   The Dorian Shard sings again. The Sentinel sleeps at last.",
+          "[Veris]   The forest has not been this quiet since I was a girl.",
+          "[Veris]   Beyond these woods lies more. Other nations need their songs.",
+          "[Veris]   Find them. Save Modalia. Bring my regards to the next sage you meet -- Aurin holds the coast.",
+        })
+      end
+      return with_shard_react("Veris", {
+        "[Veris]   The cave lies east of here. Walk soft.",
+        "[Veris]   The trees are listening.",
+      })
     end,
   },
   -- ── RECRUIT NPCs (visible in the world; not yet recruitable into the party) ──
@@ -2856,99 +8251,253 @@ local MAINLAND_NPCS = {
   { x = 43, y = 3, name = "Sergei",
     visible = function()
       local n = 0; for _, v in pairs(shards) do if v then n = n + 1 end end
-      return n >= 1
+      -- Hide during scenes so the scene-spawned Sergei actor doesn't
+      -- render on top of the static one (double Sergei).
+      return n >= 1 and not (SCENE and SCENE.active)
+    end,
+    -- Choreographed quiet-recruit: only fires the moment Sergei joins
+    -- via the post-Tidewatch peaceful path (player won without wiping,
+    -- so the intervention scene didn't fire). Standard talk dialogue
+    -- otherwise.
+    scene = function()
+      if not shards.mixolydian or CONTENT.recruits[1].joined then return nil end
+      CONTENT.recruits[1].joined = true
+      local px, py = player.x, player.y
+      local script = {
+        {hide_player = true},
+        {letterbox_in = true},
+        {spawn = "miel", class = "cleric", name = "Miel", x = px, y = py, facing = "up", bob = false},
+        {spawn = "sergei", class = "engineer", name = "Sergei", x = 43, y = 3, facing = "down", bob = false},
+        {focus = {x = 43, y = 4}, ticks = 24},
+        {wait = 14},
+        -- Cable-thump SFX (engineer-voice = mage at low pitch).
+        {sfx = {class = "mage", note = 36, vel = 0.55, attack = 0.005, release = 0.30, wet = 0.40}},
+        {wait = 8},
+        {dialogue = {
+          "[Sergei]   You took Tidewatch on the chord.",
+          "[Sergei]   Without me having to throw a wrench.",
+        }, npc = {name = "Sergei"}},
+        {wait = 6},
+        -- Sergei sets the cable down — slow turn.
+        {face = "sergei", facing = "left"},
+        {wait = 12},
+        {dialogue = {
+          "[Sergei]   (...he sets the cable down, slow)",
+          "[Sergei]   Suno burned my tower. He took the schematic. I owe him.",
+        }, npc = {name = "Sergei"}},
+        {wait = 6},
+        {look = "sergei", toward = "miel"},
+        {wait = 8},
+        {dialogue = {
+          "[Sergei]   Count me in.",
+          "[Sergei]   Swap me to the active party from the Party menu.",
+        }, npc = {name = "Sergei"}},
+        {flash = "* SERGEI JOINS RESERVE *", ticks = 36},
+        {sfx = {class = "warrior", note = 30, vel = 0.55, attack = 0.05, release = 1.0, wet = 0.30}},
+        {wait = 24},
+        {despawn = "sergei"}, {despawn = "miel"},
+        {teleport_player = {x = px, y = py, facing = player.facing}},
+        {show_player = true},
+        {letterbox_out = true},
+      }
+      return script
     end,
     dialogue = function()
       local n = 0; for _, v in pairs(shards) do if v then n = n + 1 end end
       local lead = party[active] and party[active].class
       if CONTENT.recruits[1].joined then
-        return {
-          "Tidewatch nearly had you. I never thought I'd throw a wrench at a god.",
-          "But Suno burned my work. I owed him the favor.",
-          "I'm in the roster. Swap me in any time.",
-        }
+        if CONTENT.sergei_intervened then
+          return with_shard_react("Sergei", {
+            "Tidewatch nearly had you. I never thought I'd throw a wrench at a god.",
+            "But Suno burned my work. I owed him the favor.",
+            "I'm in the roster. Swap me in any time.",
+          })
+        end
+        return with_shard_react("Sergei", {
+          "You broke Tidewatch's chord. That answers the last question I had.",
+          "I'm in. Swap me in from the Party menu when you want my voice in the mix.",
+        })
+      end
+      -- Post-Tidewatch (mixolydian shard claimed): if the player beat the
+      -- boss without ever wiping, Sergei wasn't given his "intervene"
+      -- cue. He still has every reason to join — recruit him on visit.
+      if shards.mixolydian then
+        CONTENT.recruits[1].joined = true
+        return with_shard_react("Sergei", {
+          "You took Tidewatch on the chord. Without me having to throw a wrench.",
+          "(...he sets the cable down, slow.)",
+          "Suno burned my tower. He took the schematic. I owe him.",
+          "Count me in. Swap me to the active party from the Party menu.",
+        })
       end
       -- Pre-join: layered backstory based on shard count + class lead
       if lead == "warrior" then
-        return {
+        return with_shard_react("Sergei", {
           "A soldier. Good. Listen -- this tower was a music-relay. A resonator.",
           "Carried village songs to villages that had stopped singing.",
           "Suno took the design. Burned the prototype.",
           "Built the silencers from the same coil. (...still hurts, that.)",
-        }
+        })
       end
       if n >= 4 then
-        return {
+        return with_shard_react("Sergei", {
           "Four shards. The math's clean now.",
           "I've traced the wire backward through the rubble.",
           "His silencers and my resonator share a coil.",
           "If you ring the chord, I can cut his with it.",
           "Bring me to Tidewatch. I'll be ready.",
-        }
+        })
       end
       if n >= 2 then
-        return {
+        return with_shard_react("Sergei", {
           "Two shards. Faster than I'd hoped. I built this tower when I was nineteen.",
           "Meant to amplify. To carry songs.",
           "Suno took the schematic and built muzzles.",
           "(...he taps the cracked stone, listens for the hum.)",
           "It still hums faintly. The bones remember.",
-        }
+        })
       end
-      return {
+      return with_shard_react("Sergei", {
         "You found the Old Resonator.",
         "I built it to carry songs across silenced lands.",
         "Suno burned it. Stole the design. Built worse.",
         "I'm here every dawn. Studying the wreckage.",
         "(...unspools cable, doesn't look up.)",
-      }
+      })
     end,
   },
   -- Hidden NPC: lakeside oracle in the village (sits at the very edge of the lake)
   { x = 3, y = 13, name = "Wina",
     dialogue = function()
+      local lead = party[active] and party[active].class
+      -- Wina is an old lake-keeper; she remembers Miel's grandmother
+      -- humming at the water's edge.
+      if lead == "cleric" then
+        return with_shard_react("Wina", {
+          "[Wina]    (looks up. The lake settles for a moment.) ...child of Lirael.",
+          "[Wina]    Your grandmother sat on this same stone. She hummed a low D.",
+          "[Wina]    The water learned it that summer and never quite forgot.",
+          "[Wina]    Sit. Let it sing it back to you.",
+        })
+      end
+      if lead == "bard" then
+        return with_shard_react("Wina", {
+          "[Wina]    A musician at my lake. The water always notices.",
+          "[Wina]    Play softly. Loud songs scare the long-memory carp.",
+        })
+      end
       local n = 0; for _, v in pairs(shards) do if v then n = n + 1 end end
-      return {
-        "(an old woman, watching the lake)",
-        "The water remembers every song that was. Even the ones we never finished singing.",
-        n >= 4 and "I hear yours in it now. That's new."
-              or  "Sing me one, when you have one to sing.",
-      }
+      if n >= 7 then
+        return with_shard_react("Wina", {
+          "[Wina]    (the lake is still as glass. She is smiling, very small.)",
+          "[Wina]    The water has remembered every song that was. Tonight it sings them back.",
+          "[Wina]    All of them. Even the ones we never finished singing.",
+          "[Wina]    My grandmother is in the water somewhere. She is humming. I can hear her.",
+          "[Wina]    (looks up at you) Thank you. (...) sit a while if you can. The lake will sing you a story.",
+        })
+      end
+      return with_shard_react("Wina", {
+        "[Wina]    (an old woman, watching the lake)",
+        "[Wina]    The water remembers every song that was. Even the ones we never finished singing.",
+        n >= 4 and "[Wina]    I hear yours in it now. That's new."
+              or  "[Wina]    Sing me one, when you have one to sing.",
+      })
     end,
   },
   { x = 6, y = 4, name = "Paj",
+    -- Hide during scenes so the scene-spawned Paj actor doesn't render
+    -- on top of the static NPC (double Paj). She has no other gating
+    -- (always visible at this hollow tile when not in a scene).
+    visible = function() return not (SCENE and SCENE.active) end,
+    -- Choreographed recruit moment: only fires at the actual join.
+    -- Paj sets down her pen, walks one step toward Miel, joins.
+    scene = function()
+      if not (cave_state[5] and cave_state[5].cleared) then return nil end
+      if CONTENT.recruits[2].joined then return nil end
+      CONTENT.recruits[2].joined = true
+      local px, py = player.x, player.y
+      local script = {
+        {hide_player = true},
+        {letterbox_in = true},
+        {spawn = "miel", class = "cleric", name = "Miel", x = px, y = py, facing = "up", bob = false},
+        {spawn = "paj", class = "mathwiz", name = "Paj", x = 6, y = 4, facing = "down", bob = false},
+        {focus = {x = 6, y = 4}, ticks = 24},
+        {wait = 14},
+        -- A clean numeric tone (mage-voice, single pitch).
+        {sfx = {class = "mage", note = 84, vel = 0.55, attack = 0.005, release = 1.5, wet = 0.65}},
+        {wait = 12},
+        {dialogue = {
+          "[Paj]      (sets down her pen mid-equation.)",
+          "[Paj]      The Aeolian rang.",
+          "[Paj]      I felt the function resolve through the floorboards.",
+        }, npc = {name = "Paj"}},
+        {wait = 8},
+        {look = "paj", toward = "miel"},
+        {wait = 6},
+        {dialogue = {
+          "[Paj]      Six terms left. Two unknown.",
+          "[Paj]      I'm coming.",
+        }, npc = {name = "Paj"}},
+        {flash = "* PAJ JOINS RESERVE *", ticks = 36},
+        {sfx = {class = "mage", note = 91, vel = 0.45, attack = 0.005, release = 2.0, wet = 0.85}},
+        {wait = 24},
+        {despawn = "paj"}, {despawn = "miel"},
+        {teleport_player = {x = px, y = py, facing = player.facing}},
+        {show_player = true},
+        {letterbox_out = true},
+      }
+      return script
+    end,
     dialogue = function()
       local n = 0; for _, v in pairs(shards) do if v then n = n + 1 end end
+      local lead = party[active] and party[active].class
       -- Paj joins after Cave 5 (Snowgaunt / Aeolian) is cleared.
       if cave_state[5].cleared and not CONTENT.recruits[2].joined then
         CONTENT.recruits[2].joined = true
         return {
-          "The Aeolian Shard. You held it. I felt the function resolve.",
-          "I'm coming with you. Not asking -- telling.",
+          "(she sets down her pen mid-equation.)",
+          "The Aeolian rang. I felt the function resolve through the floorboards.",
+          "Six terms left. Two unknown. I'm coming.",
           "(Paj joined the party. Swap her in from MENU > Party.)",
         }
       elseif CONTENT.recruits[2].joined then
+        if lead == "mage" then
+          return {
+            "Diegues. Your dean was wrong on Velthe's third premise.",
+            "I have a proof. Three pages. Read it on the road tonight.",
+          }
+        end
         return {
-          "I have my notes. I have my coat.",
-          "I'm in the roster -- switch me in any time.",
-          "Two functions still resolve, ours and his.",
+          "I'm in the roster. Switch me in when the math gets loud.",
+          "Two functions still resolve -- ours, and his. Only one remains valid.",
         }
       elseif n >= 5 then
         return {
-          "Five terms in the equation. Two unknown.",
-          "The shape of your trajectory has converged.",
-          "Defeat the Snowgaunt and return to me. I'll join when the Aeolian rings.",
+          "Five terms recovered. The trajectory converges.",
+          "Clear the Snowgaunt and the Aeolian completes the basis.",
+          "When that happens, come find me. I'll know the exact second.",
+        }
+      elseif n >= 4 then
+        return {
+          "Four shards. The chord is almost a closed form.",
+          "I'm working out where Suno can't follow. Math, not music -- but the chord does both.",
         }
       elseif n >= 2 then
+        if lead == "mathwiz" then
+          return {
+            "Oh -- another counter. Sit. I have a question about the third partial.",
+            "(she hands you a half-finished proof.)",
+          }
+        end
         return {
-          "Paj. Math wizard. My family's word, not mine.",
-          "I read Tova's older books while she sleeps.",
-          "There is a function that solves Suno. Find me when you're ready to compile.",
+          "I solve for silence. It's a small field. Tova lent me the texts.",
+          "There's a function buried in Suno's chord -- I can almost compile it.",
         }
       end
       return {
-        "Paj. I count the silences between the notes. Tova lent me her texts. I read fast.",
-        "If you find shards, count them carefully. And please -- return to tell me the totals.",
+        "(she's bent over a notebook, tracing intervals with a pencil stub.)",
+        "I count the silences between notes. There is a pattern. There is always a pattern.",
+        "Bring me shard counts when you have them. Especially the parities.",
       }
     end,
   },
@@ -2956,6 +8505,24 @@ local MAINLAND_NPCS = {
   -- for a one-time tonic + 100g reward.
   { x = 22, y = 6, name = "Pith",
     dialogue = function()
+      local lead = party[active] and party[active].class
+      -- Pith is a cartographer; she's seen Diegues' field notes pinned
+      -- to the academy walls, and is fascinated by Strom's marked-up
+      -- old garrison maps.
+      if lead == "mage" then
+        return {
+          "[Pith]   You sketch landmarks the way I do. Same hand-pressure too. Academy?",
+          "[Pith]   I have a copy of your dean's coast-survey. The marginalia is half yours, isn't it?",
+          "[Pith]   We should compare notes when this is done.",
+        }
+      end
+      if lead == "warrior" then
+        return {
+          "[Pith]   (eyes the campaign-creased map you carry) -- those Lirael grids?",
+          "[Pith]   I was a courier in those years. Drew them around your rest stops.",
+          "[Pith]   Walk careful. The terrain's quieter than it sounds.",
+        }
+      end
       local cleared = 0
       for i = 1, 5 do if cave_state[i].cleared then cleared = cleared + 1 end end
       local q = QUESTS.pith
@@ -2990,6 +8557,22 @@ local MAINLAND_NPCS = {
   -- flavor that changes with shard count.
   { x = 52, y = 8, name = "Anker",
     dialogue = function()
+      local lead = party[active] and party[active].class
+      -- Anker is a road peddler with a peddler's memory for faces; he
+      -- recognises the Lirael coat-of-arms (cleric) and a soldier's gait.
+      if lead == "cleric" then
+        return {
+          "[Anker]  (squints, then doffs his hat very seriously) -- my queen.",
+          "[Anker]  I sold your grandmother a flask of cordial in '37. She tipped me a song.",
+          "[Anker]  Whatever you need on the road, the price is the same: a song. Cheaper than gold, by far.",
+        }
+      end
+      if lead == "warrior" then
+        return {
+          "[Anker]  (sees the gait) Old garrison, eh? That hip ain't going to forget the ride.",
+          "[Anker]  I've a salve good for soldier's hip. Don't tell the apothecaries.",
+        }
+      end
       local n = 0; for _, v in pairs(shards) do if v then n = n + 1 end end
       if n >= 5 then
         return {
@@ -3091,10 +8674,10 @@ local MAINLAND_NPCS = {
       end
       if lead == "cleric" then
         return {
-          "Miel. I knew your father.",
-          "The match he arranged was an act of mercy -- Suno doesn't kill the wed.",
-          "You ran instead. Brave. Stupid. Both.",
-          "Come home. The terms still stand.",
+          "Your Majesty. Or -- you don't answer to that anymore, do you.",
+          "The terms we offered would have kept your throne intact. A vassal seat is still a seat.",
+          "You walked instead. Brave. Stupid. Both.",
+          "The offer stands. Come home.",
         }
       end
       if n >= 4 then
@@ -3216,12 +8799,53 @@ local MAINLAND_NPCS = {
   },
 
   -- Outdoor village pets (Pass 14): non-essential; pure flavor.
-  { x = 8, y = 6, name = "Pim",
+  -- Reactive to shard count — late game Pim acts almost ceremonial.
+  -- VoidEcho — post-endgame superboss gate. Appears at the south edge
+-- of the woods (mainland col 35) ONLY after the player has finished
+-- the endgame credits. Talking to it ends with a post_dialogue hook
+-- that drops the player straight into the cave-8 boss fight.
+  { x = 35, y = 5, name = "VoidEcho",
+    visible = function() return CONTENT.endgame_done end,
+    barks = {"...", "(hums on the wrong note)", "...still here.", "(the air thins)"},
     dialogue = function()
+      CONTENT.post_dialogue = function() enter_battle(8) end
+      return {
+        "(A figure stands where there was none. A shape that does not lie still.)",
+        "(It does not look at you, and yet it does.)",
+        "[VoidEcho] The seventh closed the door. (...) The door is not the wall.",
+        "[VoidEcho] Come hear what Suno was only the echo of.",
+      }
+    end,
+  },
+  -- Owlflute — village stargazer. Only appears at night (sq_is_night
+-- returns true). A tiny lore beat about the moon and Velthe's chord.
+  { x = 14, y = 4, name = "Owlflute",
+    visible = function() return sq_is_night and sq_is_night() end,
+    barks = {"hush...", "(watches the sky)", "the moon hums.", "..."},
+    dialogue = function()
+      return {
+        "[Owlflute] You came up the road by night. That is rare.",
+        "[Owlflute] The moon plays the seventh tonight. Listen for it.",
+        "[Owlflute] (returns to watching)",
+      }
+    end,
+  },
+  { x = 8, y = 6, name = "Pim", kind = "pet",
+    dialogue = function()
+      local n = 0; for _, v in pairs(shards) do if v then n = n + 1 end end
+      if n >= 7 then
+        local lines = {
+          {"Pim sits exactly in the center of a sunbeam.", "He looks at you with what can only be described as approval."},
+          {"Pim allows you to scratch his head.", "(once. then he is done.)"},
+        }
+        return lines[math.random(#lines)]
+      end
       local lines = {
-        {"Pim noses your boot, finds it lacking, and stalks off with great dignity."},
+        {"Pim noses your boot, finds it lacking,", "and stalks off with great dignity."},
         {"Pim sits in a sunbeam.", "Pim does not move when you speak."},
-        {"Pim chitters at a sparrow on the eaves, tail twitching like a metronome."},
+        {"Pim chitters at a sparrow on the eaves,", "tail twitching like a metronome."},
+        {"Pim has dragged a leaf inside.", "It is now a hostage."},
+        {"Pim performs the slow blink of acknowledgment.", "(this is the highest cat compliment.)"},
       }
       return lines[math.random(#lines)]
     end,
@@ -3254,6 +8878,22 @@ local MAINLAND_NPCS = {
   -- Wandering minstrel (Pass 17): cycles through fragments of old tunes
   { x = 19, y = 9, name = "Eos",
     dialogue = function()
+      local lead = party[active] and party[active].class
+      -- Eos is a wandering minstrel; Alder of course knows him from the
+      -- old village circuit, and a cleric's hum jogs his memory.
+      if lead == "bard" then
+        return {
+          "[Eos]    Alder! You owe me a verse from '47. (...) the long one. About the bell.",
+          "[Eos]    I never could remember the second stanza. You hum it -- I'll take it from there.",
+          "(Alder hums. Eos closes his eyes. The lute follows.)",
+        }
+      end
+      if lead == "cleric" then
+        return {
+          "[Eos]    (looks up sharply, then softens) ...you hum like she did.",
+          "[Eos]    Two octaves, same drift on the long ones. I sang for her wedding.",
+        }
+      end
       local fragments = {
         {
           "(...strums a chord and lets it ring...)",
@@ -3290,38 +8930,212 @@ local MAINLAND_NPCS = {
       }
     end,
   },
+  -- Bren the smith — works at a small open-air anvil in the village
+  -- center, two tiles east of Brann (the path runs through here).
+  -- His hammer-strike pattern is the warrior's natural meter
+  -- (4-on-the-floor). Lore deepens as the chord assembles.
+  { x = 29, y = 9, name = "Bren",
+    barks = {"(hammer falls)", "iron is honest.", "(hisses quench)", "mornin'.", "(clang) (clang)"},
+    dialogue = function()
+      local n = 0; for _, v in pairs(shards) do if v then n = n + 1 end end
+      local lead = party[active] and party[active].class
+      -- A tiny anvil ring on dialogue-open.
+      sq_trig("warrior", midi_to_freq(72), 0.55, 0.001, 0.30, 0.30)
+      if n >= 6 then
+        return with_shard_react("Bren", {
+          "[Bren]    (sets the hammer down for the first time today)",
+          "[Bren]    The iron's been singing under my hand. It hasn't done that in years.",
+          "[Bren]    Bring back the seventh and I'll forge you something that remembers.",
+        })
+      end
+      if lead == "warrior" then
+        return with_shard_react("Bren", {
+          "[Bren]    (looks up, recognizes the stance) Ex-army.",
+          "[Bren]    Eastern Reaches campaign? Lirael garrison?",
+          "[Bren]    (smiles, a little tired) ...whichever it was. Sit a moment. I'll heat the kettle.",
+        })
+      end
+      return with_shard_react("Bren", {
+        "[Bren]    (clang) Mornin'. (clang) Don't mind the noise. (clang)",
+        "[Bren]    Iron is honest. It tells you exactly what it is, every time you hit it.",
+        "[Bren]    (clang) People aren't iron. (clang) Pity, sometimes.",
+      })
+    end,
+  },
+  -- Tilo the dock-child — counts boats coming in. His count grows as
+  -- shards return, because the trade routes open.
+  { x = 22, y = 9, name = "Tilo",
+    dialogue = function()
+      local lead = party[active] and party[active].class
+      -- Tilo is the dock-child counting boats. The big-hammer warrior
+      -- and the lute-bard each get a kid's-eye reaction.
+      if lead == "warrior" then
+        return with_shard_react("Tilo", {
+          "[Tilo]    Are you with the boats? You look big enough to BE a boat.",
+          "[Tilo]    Mama says big people fix big things. Are you fixing the road in the water?",
+        })
+      end
+      if lead == "bard" then
+        return with_shard_react("Tilo", {
+          "[Tilo]    (points at the lute) Is that for the fishes? Mama said music makes fish come.",
+          "[Tilo]    Play one. The herring will be SO HAPPY.",
+        })
+      end
+      local n = 0; for _, v in pairs(shards) do if v then n = n + 1 end end
+      if n >= 7 then
+        return with_shard_react("Tilo", {
+          "[Tilo]    (eyes wide, both hands open) Eight boats! Eight! Today!",
+          "[Tilo]    Mama says it hasn't been eight since before I was born.",
+        })
+      elseif n >= 4 then
+        return with_shard_react("Tilo", {
+          "[Tilo]    Three boats today. THREE.",
+          "[Tilo]    The herring man brought a fish that was bigger than my head.",
+          "[Tilo]    He let me touch it. I said hello. The fish did not say hello back.",
+        })
+      end
+      return with_shard_react("Tilo", {
+        "[Tilo]    (counts on fingers, frowns)",
+        "[Tilo]    One boat in this morning. Mama says one is not enough.",
+        "[Tilo]    She says someone broke the road in the water.",
+        "[Tilo]    Someone needs to fix the road in the water.",
+      })
+    end,
+  },
+  -- Aunt Vell — runs a small bee garden at the woods edge. Her bees
+  -- fall quiet when the chord is broken; they sing again as it heals.
+  { x = 5, y = 5, name = "Vell",
+    dialogue = function()
+      local lead = party[active] and party[active].class
+      -- Aunt Vell's bees go quiet when royalty isn't humming nearby —
+      -- a tradition from Miel's grandmother's days. She also knows Alder
+      -- whose lute the bees once danced to.
+      if lead == "cleric" then
+        return with_shard_react("Vell", {
+          "[Vell]    Oh. Oh. (the hives, all at once, start humming)",
+          "[Vell]    They knew you'd come. They've been quiet a year and now they won't stop.",
+          "[Vell]    (laughs through tears) -- this is your grandmother's hum, child. They remember.",
+        })
+      end
+      if lead == "bard" then
+        return with_shard_react("Vell", {
+          "[Vell]    Alder! The hives danced for your last song. They asked me when you were coming back.",
+          "[Vell]    They didn't, of course. But they would have. Play one for them?",
+        })
+      end
+      local n = 0; for _, v in pairs(shards) do if v then n = n + 1 end end
+      if n >= 5 then
+        return with_shard_react("Vell", {
+          "[Vell]    The bees come out at first light again.",
+          "[Vell]    They circle the meadowsweet three times and then they argue. They missed arguing.",
+          "[Vell]    (offers you a tiny jar of honey) Take this. It will keep you on your feet a day longer.",
+        })
+      end
+      return with_shard_react("Vell", {
+        "[Vell]    (a small woman in a wide hat, surrounded by quiet boxes)",
+        "[Vell]    The hives have not hummed since spring. They sit. They wait.",
+        "[Vell]    They know the chord better than I do.",
+        "[Vell]    Bring it back and they will tell me. They will tell me by humming.",
+      })
+    end,
+  },
 }
 
 -- Eastern Reaches NPCs
 local EASTERN_NPCS = {
+  -- Hask, an old fisherman at the eastern dock. Tracks the herring runs
+  -- and what the sea sounds like with each shard recovered.
+  { x = 3, y = 8, name = "Hask",
+    dialogue = function()
+      local lead = party[active] and party[active].class
+      -- Hask is an old fisherman who's seen Lirael coats arrive on
+      -- supply boats since he was a boy.
+      if lead == "cleric" then
+        return with_shard_react("Hask", {
+          "[Hask]   Lirael cuff. (taps his own wrist) I remember your grandmother on the supply boats.",
+          "[Hask]   She gave the herring a name once. Thought she was joking. They came to it.",
+          "[Hask]   Take care, my queen. The Reaches respect the line that taught the sea its tides.",
+        })
+      end
+      if lead == "warrior" then
+        return with_shard_react("Hask", {
+          "[Hask]   Old soldier. The pier dogs respect that gait.",
+          "[Hask]   Don't sit on the third post -- that's mine. (winks) Sit on the fourth.",
+        })
+      end
+      local n = 0; for _, v in pairs(shards) do if v then n = n + 1 end end
+      if n >= 7 then
+        return with_shard_react("Hask", {
+          "[Hask]   The sea is finally singing back. I'd forgotten what it sounded like answering.",
+          "[Hask]   My net came up full this morning. Three different colors of fish. Three.",
+          "[Hask]   (sets the line down) Sit a minute. The water owes you a story.",
+        })
+      elseif n >= 3 then
+        return with_shard_react("Hask", {
+          "[Hask]   The Mixolydian rang last week. The herring jumped at sunrise like they'd never stopped.",
+          "[Hask]   They had stopped. For years.",
+          "[Hask]   Welcome to the Reaches. Don't drop your wallet on the pier.",
+        })
+      end
+      return with_shard_react("Hask", {
+        "[Hask]   (an old fisherman, gnarled hands threading line)",
+        "[Hask]   Welcome to the Reaches. Sea's been quiet lately. Quiet bad.",
+        "[Hask]   Used to be the herring would sing back when you sang to them.",
+        "[Hask]   Now they just stare. (he flicks the line) Bring the chord home and I'll teach you to fish properly.",
+      })
+    end,
+  },
+
   -- Pass 21: Harbormaster of the Reaches' little port-town. Sela handles
   -- ferry rumors and Eastern flavor. Lives near the boat landing.
   { x = 6, y = 9, name = "Sela",
     dialogue = function()
       local lead = party[active] and party[active].class
-      if shards.mixolydian then
-        return {
+      -- Sela's celebration is specifically about the Dune Rider — that's
+      -- the Cave 4 boss whose drop is the *phrygian* shard. Earlier code
+      -- gated this on shards.mixolydian, which is the *tide* (Cave 3)
+      -- reward — so she'd cheer the Rider's defeat right after you beat
+      -- the wrong cave's boss.
+      if shards.phrygian then
+        return with_shard_react("Sela", {
           "Word came on the gull-wind: the Dune Rider rides no more.",
           "Strangers used to vanish in his hooves' echo. No more.",
           "Drink at the inn -- first round's mine.",
-        }
+        })
       end
       if lead == "engineer" then
-        return {
+        return with_shard_react("Sela", {
           "An engineer? Take a look at the dock boards before you walk west, would you?",
           "Salt's chewing them faster than I can mend.",
-        }
+        })
       end
-      return {
+      return with_shard_react("Sela", {
         "Welcome to the Reaches. Inn's east of the dock;",
         "Hens keeps a stall just past it.",
         "Don't wander to cave four 'til your boots dry.",
-      }
+      })
     end,
   },
   -- Hidden: a wanderer in the dunes who hums fragments of forgotten songs
   { x = 12, y = 5, name = "Karoo",
     dialogue = function()
+      local lead = party[active] and party[active].class
+      -- Karoo is a forgetful wanderer; a real musician sometimes
+      -- finishes the line for him, and a cleric's hum unblocks his
+      -- memory entirely for one line.
+      if lead == "bard" then
+        return {
+          "[Karoo]  hm hm hm -- you, you know it. You finish it.",
+          "[Karoo]  (he hums two bars, looks up expectant) ...go on.",
+          "(Alder fills in the line. Karoo's eyes water. He nods, very small.)",
+        }
+      end
+      if lead == "cleric" then
+        return {
+          "[Karoo]  oh -- the hum -- that hum --",
+          "[Karoo]  it was your grandmother's. (he closes his eyes) yes. yes that's it. that's it.",
+        }
+      end
       local n = 0; for _, v in pairs(shards) do if v then n = n + 1 end end
       local lyrics = {
         {"oh-- oh-- the dune was the chord-- and the chord was a-- a--",
@@ -3337,19 +9151,65 @@ local EASTERN_NPCS = {
     end,
   },
   { x = 14, y = 7, name = "Mira",
+    visible = function() return not (SCENE and SCENE.active) end,
+    -- Choreographed first meeting: Mira walks in across the dunes from
+    -- the east. A high-bard wind tone, then her introduction.
+    scene = function()
+      if QUESTS and QUESTS.tova and QUESTS.tova.spoke and QUESTS.tova.spoke.Mira then
+        return nil
+      end
+      local px, py = player.x, player.y
+      local script = {
+        {hide_player = true},
+        {letterbox_in = true},
+        {focus = {x = px, y = py}, ticks = 18},
+        {wait = 18},
+        {sfx = {class = "bard", note = 79, vel = 0.40, attack = 0.50, release = 4.0, wet = 0.95}},
+        {wait = 18},
+        {dialogue = {
+          "(The wind through the dunes carries a voice that is not the wind.)",
+        }, npc = nil},
+        {spawn = "miel", class = "cleric", name = "Miel", x = px, y = py, facing = "right", bob = false},
+        {spawn = "mira", class = "mage", name = "Mira", x = math.min(px + 4, 30), y = py, facing = "left", bob = false},
+        {wait = 12},
+        {move = "mira", to = {x = px + 1, y = py}, ticks = 60},
+        {focus = "mira", ticks = 36},
+        {look = "mira", toward = "miel"},
+        {wait = 8},
+        {dialogue = {
+          "[Mira]    I am Mira, of the Eastern dunes.",
+          "[Mira]    You crossed the sea -- well met.",
+        }, npc = {name = "Mira"}},
+        {wait = 8},
+        {dialogue = {
+          "[Mira]    The Phrygian Shard sleeps east, in the deep cavern of glass.",
+          "[Mira]    The Dune Rider prowls within.",
+          "[Mira]    Old. Patient. Hungry.",
+        }, npc = {name = "Mira"}},
+        {wait = 18},
+        {despawn = "mira"}, {despawn = "miel"},
+        {teleport_player = {x = px, y = py, facing = player.facing}},
+        {show_player = true},
+        {letterbox_out = true},
+        {set = function()
+          QUESTS.tova.spoke = QUESTS.tova.spoke or {}
+          QUESTS.tova.spoke.Mira = true
+        end},
+      }
+      return script
+    end,
     dialogue = function()
       if shards.phrygian then
-        return {
+        return with_shard_react("Mira", {
           "The Phrygian song wakes! The dunes have remembered.",
           "Four shards. Four to go. Press west, then south.",
           "Suno's tower will not stand.",
-        }
+        })
       end
-      return {
-        "I am Mira, of the Eastern dunes. You crossed the sea -- well met.",
-        "The Phrygian Shard sleeps east, in the deep cavern of glass.",
-        "The Dune Rider prowls within. Old. Patient. Hungry.",
-      }
+      return with_shard_react("Mira", {
+        "[Mira]    The Phrygian Shard sleeps east, in the deep cavern of glass.",
+        "[Mira]    The Dune Rider prowls within. Old. Patient. Hungry.",
+      })
     end,
   },
 }
@@ -3382,6 +9242,126 @@ local NORTHERN_NPCS = {
       }
     end,
   },
+  -- Olen, an old wood-cutter who keeps the pass paths cleared. Quiet,
+  -- patient, knows the cold. Reactive to shard count + Strom (warrior)
+  -- in lead (he served, recognizes the type).
+  -- Reya's grave. A small cairn off the main pass road. Strom (warrior
+  -- in lead) gets a long beat; other leads get a quieter observation.
+  -- Late game: she "answers" with a small wind beat.
+  --
+  -- Choreographed: if Strom is in the active party, he walks from Miel
+  -- to the cairn, kneels, places a stone, dialogue plays beat-by-beat,
+  -- then he rises. The first visit unlocks a faint "Reya's Echo" that
+  -- the player hears at later cairn visits and at the final boss.
+  { x = 24, y = 5, name = "ReyaGrave", kind = "object",
+    visible = function() return not (SCENE and SCENE.active) end,
+    scene = function()
+      -- Only choreograph when Strom is present. Otherwise return nil so
+      -- start_dialogue falls back to the standard dialogue branch below.
+      if not class_in_party("warrior") then return nil end
+      -- Strom approaches from Miel's tile (player.x, player.y) to the
+      -- cairn at (24, 5). We spawn him at the player's position so the
+      -- "walk together" sense is preserved.
+      local sx, sy = player.x, player.y
+      local script = {
+        {hide_player = true},
+        {letterbox_in = true},
+        {spawn = "miel", class = "cleric", name = "Miel", x = sx, y = sy, facing = "right", bob = false},
+        {spawn = "strom", class = "warrior", name = "Strom", x = sx, y = sy, facing = "right", bob = false},
+        -- Camera holds on the player + cairn so both are framed.
+        {focus = {x = math.floor((sx + 24) / 2), y = math.floor((sy + 5) / 2)}, ticks = 30},
+        {wait = 8},
+        -- Strom walks toward the cairn (24, 5). One step short so he
+        -- can face it from the south. Camera tracks him.
+        {move = "strom", to = {x = 24, y = 6}, ticks = 80},
+        {focus = "strom", ticks = 60},
+        {face = "strom", facing = "up"},
+        {wait = 12},
+        -- Wind sting + tighter camera on the cairn.
+        {focus = {x = 24, y = 5}, ticks = 18},
+        {sfx = {class = "bard", note = 60, vel = 0.30, attack = 0.80, release = 4.0, wet = 1.0}},
+        {wait = 18},
+        {dialogue = {
+          "(A small cairn at the edge of the pass road. Three stones, then a fourth, then nothing for years.)",
+          "(Strom does not say anything for a moment. He sets his hammer down beside it.)",
+        }, npc = nil},
+        -- Strom kneels (face = down briefly to show movement).
+        {face = "strom", facing = "down"},
+        {wait = 8},
+        {face = "strom", facing = "up"},
+        {dialogue = {
+          "[Strom]   Captain.",
+          "[Strom]   You drilled us in this rain. I think the rain is still yours.",
+          "[Strom]   I'm walking with strangers now. They are better than I expected.",
+          "[Strom]   (he sets a small stone on top of the cairn)",
+        }, npc = {name = "Strom"}},
+        -- A small wind answer. The cairn's top stone shifts.
+        {sfx = {class = "bard", note = 72, vel = 0.45, attack = 0.50, release = 5.0, wet = 1.0}},
+        {shake = {mag = 1, ticks = 4}},
+        {wait = 18},
+        {dialogue = {
+          "(A single gust moves through the pass. The cairn's top stone shifts a fraction.)",
+          "[Strom]   ...yeah. I thought you'd say that.",
+        }, npc = {name = "Strom"}},
+        {wait = 12},
+        -- Strom stands; walks back to Miel. Camera tracks him.
+        {move = "strom", to = {x = sx, y = sy}, ticks = 60},
+        {focus = "miel", ticks = 50},
+        {face = "strom", facing = "down"},
+        {wait = 6},
+        {despawn = "strom"}, {despawn = "miel"},
+        {teleport_player = {x = sx, y = sy, facing = player.facing}},
+        {show_player = true},
+        {letterbox_out = true},
+        {set = function()
+          CONTENT.reya_visited = true
+          unlock_achievement("reya_cairn", "The Cairn Remembers")
+        end},
+      }
+      return script
+    end,
+    dialogue = function()
+      -- Fallback (no Strom in party) — original quiet observation.
+      local n = 0; for _, v in pairs(shards) do if v then n = n + 1 end end
+      if n >= 6 then
+        return with_shard_react("ReyaGrave", {
+          "(the cairn's top stone is freshly set. Whoever's tending it knew you were nearby.)",
+        })
+      end
+      return with_shard_react("ReyaGrave", {
+        "(a small cairn at the edge of the pass road. Someone keeps the lichen off it.)",
+        "(no inscription. Just a fresh stone on top -- recently set, by hands that knew exactly where.)",
+      })
+    end,
+  },
+  { x = 22, y = 2, name = "Olen",
+    dialogue = function()
+      local lead = party[active] and party[active].class
+      local n = 0; for _, v in pairs(shards) do if v then n = n + 1 end end
+      if n >= 7 then
+        return with_shard_react("Olen", {
+          "[Olen]   The wind comes back warm a little earlier each day now.",
+          "[Olen]   I'll keep the paths clear. Always have. Always will.",
+          "[Olen]   You opened them up, friends. Travel them gently.",
+        })
+      end
+      if lead == "warrior" then
+        return with_shard_react("Olen", {
+          "[Olen]   (he glances at Strom; the axe in his hand stills) Soldier.",
+          "[Olen]   I served too. Different war. Same coat in winter.",
+          "[Olen]   The Snowgaunt's three-count caught me in '17. I lost my brother to it.",
+          "[Olen]   Bring his waltz down. I'll cut you firewood for life.",
+        })
+      end
+      return with_shard_react("Olen", {
+        "[Olen]   (an old wood-cutter, axe across his shoulder, beard frosted)",
+        "[Olen]   Pass is open. Cold is honest at least. Lying weather is what I hate.",
+        "[Olen]   The Snowgaunt sleeps in a vault north of here. He waltzes when he's hungry.",
+        "[Olen]   Don't follow the three-count. Find your own beat.",
+      })
+    end,
+  },
+
   -- Pass 23: mountain guide tending the small north-pass town. Bracken
   -- handles directions, weather warnings, and Snowgaunt rumors.
   { x = 7, y = 12, name = "Bracken",
@@ -3414,33 +9394,120 @@ local NORTHERN_NPCS = {
   -- Hidden: silent figure near the cave who only speaks once you hold Aeolian
   { x = 16, y = 6, name = "Snow",
     dialogue = function()
-      if shards.aeolian then
-        return {
-          "(turns slowly, snow falling from her shoulders)",
-          "You bring back what we never asked you to.",
-          "We thought silence was peace.",
-          "Thank you. Truly. We were wrong.",
-        }
+      local lead = party[active] and party[active].class
+      -- Snow is a silent figure who unbinds slightly when approached by
+      -- a cleric (her grandmother taught her the same hum), and softens
+      -- to a bard's playing.
+      if lead == "cleric" then
+        return with_shard_react("Snow", {
+          "[Snow]    (she turns. Her eyes are bright with cold.) ...you sound like her.",
+          "[Snow]    Your grandmother sang here once, in the worst winter. The cave gave back warmth.",
+          "[Snow]    I have been waiting to hear that hum again. (...) thank you.",
+        })
       end
-      return {
-        "(she does not turn. The snow falls.)",
-        "...",
-      }
+      if lead == "bard" then
+        return with_shard_react("Snow", {
+          "[Snow]    (the snow at her feet stops falling for a beat. She does not turn.)",
+          "[Snow]    Play. Just one phrase. (...) ...thank you. The cave held that.",
+        })
+      end
+      local n = 0; for _, v in pairs(shards) do if v then n = n + 1 end end
+      if n >= 7 then
+        return with_shard_react("Snow", {
+          "[Snow]    (she has begun to hum, very quietly. The snow lays itself down around her in time)",
+          "[Snow]    My grandmother taught me this one. I had stopped singing it when the silence was promised.",
+          "[Snow]    Today I taught it back to my daughter. She is six. She will sing it longer than I will.",
+        })
+      end
+      if shards.aeolian then
+        return with_shard_react("Snow", {
+          "[Snow]    (turns slowly, snow falling from her shoulders)",
+          "[Snow]    You bring back what we never asked you to.",
+          "[Snow]    We thought silence was peace. We had grown to like the quiet.",
+          "[Snow]    (...) thank you. Truly. We were wrong.",
+        })
+      end
+      return with_shard_react("Snow", {
+        "[Snow]    (she does not turn. The snow falls between you, gathering on her shoulders.)",
+        "[Snow]    (...the silence is long enough that you wonder if she is breathing.)",
+        "[Snow]    ... (a single word, almost inaudible) ... go.",
+      })
     end,
   },
   { x = 8, y = 8, name = "Iolen",
-    dialogue = function()
-      if shards.aeolian then
-        return {
-          "The Aeolian air sings again. I'd long forgotten its color.",
-          "The Snowgaunt waltzes no more. Bless your strange travelers' luck.",
-        }
+    visible = function() return not (SCENE and SCENE.active) end,
+    -- Choreographed first meeting: candle-flicker SFX, Iolen approaches
+    -- through the snow with a single warm lantern.
+    scene = function()
+      if QUESTS and QUESTS.tova and QUESTS.tova.spoke and QUESTS.tova.spoke.Iolen then
+        return nil
       end
-      return {
-        "Iolen, last of the highland watch. Cave above holds the Aeolian Shard.",
-        "Snowgaunt sleeps within -- tall, slow, and very tired of being awake.",
-        "Step lightly. The cold listens.",
+      local px, py = player.x, player.y
+      local script = {
+        {hide_player = true},
+        {letterbox_in = true},
+        {focus = {x = px, y = py}, ticks = 18},
+        {wait = 18},
+        -- A small wood-pop / candle-flicker (warrior at high pitch).
+        {sfx = {class = "warrior", note = 72, vel = 0.30, attack = 0.005, release = 0.40, wet = 0.30}},
+        {wait = 14},
+        {dialogue = {
+          "(A pinprick of warm light moves through the snow.)",
+          "(A man with a candle. He has been out here longer than the candle should have lasted.)",
+        }, npc = nil},
+        {spawn = "miel", class = "cleric", name = "Miel", x = px, y = py, facing = "down", bob = false},
+        {spawn = "iolen", class = "warrior", name = "Iolen",
+         x = px, y = math.min(py + 4, 13), facing = "up", bob = false},
+        {wait = 12},
+        {move = "iolen", to = {x = px, y = py + 1}, ticks = 60},
+        {focus = "iolen", ticks = 36},
+        {look = "iolen", toward = "miel"},
+        {wait = 8},
+        {dialogue = {
+          "[Iolen]   Iolen, last of the highland watch.",
+          "[Iolen]   (he raises a small candle to your faces, examining each)",
+        }, npc = {name = "Iolen"}},
+        {wait = 10},
+        {dialogue = {
+          "[Iolen]   Cave above holds the Aeolian Shard.",
+          "[Iolen]   Snowgaunt sleeps within -- tall, slow, and very tired of being awake.",
+        }, npc = {name = "Iolen"}},
+        {wait = 8},
+        {dialogue = {
+          "[Iolen]   Step lightly. The cold listens.",
+          "[Iolen]   Three-time meter is his weapon as much as the air itself.",
+        }, npc = {name = "Iolen"}},
+        {wait = 18},
+        {despawn = "iolen"}, {despawn = "miel"},
+        {teleport_player = {x = px, y = py, facing = player.facing}},
+        {show_player = true},
+        {letterbox_out = true},
+        {set = function()
+          QUESTS.tova.spoke = QUESTS.tova.spoke or {}
+          QUESTS.tova.spoke.Iolen = true
+        end},
       }
+      return script
+    end,
+    dialogue = function()
+      local n = 0; for _, v in pairs(shards) do if v then n = n + 1 end end
+      if n >= 7 then
+        return with_shard_react("Iolen", {
+          "[Iolen]   The chord rings clear over the pass tonight. I've waited for this since I was a girl.",
+          "[Iolen]   My grandmother said the watch was a long road. She was right and she was wrong both.",
+          "[Iolen]   The road was long. The wait was longer. Thank you for ending it.",
+        })
+      end
+      if shards.aeolian then
+        return with_shard_react("Iolen", {
+          "[Iolen]   The Aeolian air sings again. I'd long forgotten its color.",
+          "[Iolen]   The Snowgaunt waltzes no more. Bless your strange travelers' luck.",
+        })
+      end
+      return with_shard_react("Iolen", {
+        "[Iolen]   Cave above holds the Aeolian Shard.",
+        "[Iolen]   Step lightly. The cold listens.",
+      })
     end,
   },
 }
@@ -3449,58 +9516,91 @@ local NORTHERN_NPCS = {
 local SUNOS_NPCS = {
   { x = 4, y = 4, name = "Lyssa",
     dialogue = function()
-      if shards.ionian then
-        return {
-          "He sings no more, the Tuning King.",
-          "I hear my own voice for the first",
-          "time in years. It is small. It is mine.",
-        }
+      local lead = party[active] and party[active].class
+      -- Lyssa is a chamber attendant whose voice was taken; a cleric
+      -- presence loosens it slightly.
+      if lead == "cleric" then
+        return with_shard_react("Lyssa", {
+          "[Lyssa]   (looks up. The first time, in years, that she has looked up at someone)",
+          "[Lyssa]   ...you. He spoke of you. With fear in his voice.",
+          "[Lyssa]   That alone -- (touches her throat) -- is reason enough to believe in you.",
+        })
       end
-      return {
-        "I tended his lanterns. I knew nothing.",
-        "He told us silence was a kind of song.",
-        "I no longer believe him.",
-      }
+      if shards.ionian then
+        return with_shard_react("Lyssa", {
+          "[Lyssa]   He sings no more, the Tuning King.",
+          "[Lyssa]   (touches her own throat) I hear my own voice for the first time in years. It is small. It is mine.",
+          "[Lyssa]   I will go home. I do not remember where home is, exactly. But I will find it.",
+        })
+      end
+      return with_shard_react("Lyssa", {
+        "[Lyssa]   (a hollow-eyed attendant in white robes; her voice is barely a whisper)",
+        "[Lyssa]   I tended his lanterns. I knew nothing.",
+        "[Lyssa]   He told us silence was a kind of song. I believed him for so long.",
+        "[Lyssa]   I no longer believe him. (...) but I do not yet know what to believe instead.",
+      })
     end,
   },
   { x = 21, y = 4, name = "Calder",
     dialogue = function()
-      if shards.locrian then
-        return {
-          "Locrius held the door for centuries.",
-          "Strange to mourn a thing that hated us.",
-          "He believed in his master to the end.",
-        }
+      local lead = party[active] and party[active].class
+      -- Calder served in the same northern campaigns as Strom; would
+      -- recognise him.
+      if lead == "warrior" then
+        return with_shard_react("Calder", {
+          "[Calder]  Strom. Of all the gods' jokes -- you, here.",
+          "[Calder]  We held the same line at Frostridge. (...) Reya was our captain.",
+          "[Calder]  I owe you an evening of bad wine. After we finish this. (sets his sword down a moment)",
+        })
       end
-      return {
-        "Past me lies Locrius. The Half-step.",
-        "Do not strike him in time -- strike him out of it.",
-        "He cannot follow swing.",
-      }
+      if shards.ionian then
+        return with_shard_react("Calder", {
+          "[Calder]  (the soldier sets down his sword for the first time in years)",
+          "[Calder]  I will go home. I have one. I had forgotten.",
+          "[Calder]  My sister will not recognize me. (...) but she will let me in.",
+        })
+      end
+      if shards.locrian then
+        return with_shard_react("Calder", {
+          "[Calder]  Locrius held the door for centuries.",
+          "[Calder]  Strange to mourn a thing that hated us.",
+          "[Calder]  He believed in his master to the end. I think -- in his way -- he was loyal.",
+          "[Calder]  Loyalty is not the same as right. I am only just learning that.",
+        })
+      end
+      return with_shard_react("Calder", {
+        "[Calder]  (a tall soldier in a dark cape, sword across his back)",
+        "[Calder]  Past me lies Locrius. The Half-step.",
+        "[Calder]  Do not strike him in time -- strike him out of it. He cannot follow swing.",
+        "[Calder]  (his voice drops) ...if you can spare him a quick end, do. He has been awake too long.",
+      })
     end,
   },
   { x = 12, y = 11, name = "Maren",
     dialogue = function()
       local lead = party[active] and party[active].class
       if lead == "bard" then
-        return {
-          "Bard. He took my voice. He took the lute",
-          "from my mother's hands. We owe him no",
-          "elegy. Strike clean. Sing a true note.",
-        }
+        return with_shard_react("Maren", {
+          "[Maren]   (her eyes find the lute on Alder's back; she touches her own throat)",
+          "[Maren]   Bard. He took my voice. He took the lute from my mother's hands.",
+          "[Maren]   We owe him no elegy.",
+          "[Maren]   Strike clean. Sing a true note. Mama sang in C. So can you.",
+        })
       end
       if shards.ionian then
-        return {
-          "It is over. I will not say I forgive him.",
-          "But I will sing again. The first song",
-          "shall be quiet. The second, less so.",
-        }
+        return with_shard_react("Maren", {
+          "[Maren]   It is over. I will not say I forgive him.",
+          "[Maren]   But I will sing again. The first song shall be quiet.",
+          "[Maren]   The second, less so. (...)",
+          "[Maren]   By the seventh I will be loud. Loud and free and out of his shadow.",
+        })
       end
-      return {
-        "Beyond that gate lies the Quiet King.",
-        "He fears the seventh more than any sword.",
-        "Sing the chord whole and watch him fall.",
-      }
+      return with_shard_react("Maren", {
+        "[Maren]   (a kneeling bard-mourner, robe stained with old ash, holding a small lute)",
+        "[Maren]   Beyond that gate lies the Quiet King.",
+        "[Maren]   He fears the seventh more than any sword.",
+        "[Maren]   Sing the chord whole and watch him fall.",
+      })
     end,
   },
 }
@@ -3519,31 +9619,74 @@ CONTENT.inn_npcs = {
         local pitch = (sc[idx] or 60) + (JAM.root or 0)
         clock.run(function()
           clock.sleep((k - 1) * 0.15)
-          engine.trig_cleric(midi_to_freq(pitch), 0.45, 0.05, 1.5, 0.85)
+          sq_trig("cleric", midi_to_freq(pitch), 0.45, 0.05, 1.5, math.min(1, 0.85 * (CONTENT.combat_reverb_mix or 1.0)))
         end)
       end
       local lead = party[active] and party[active].class
+      local n = 0
+      for _, v in pairs(shards) do if v then n = n + 1 end end
+      -- Shard-tier opener layered with class-aware flavor.
+      local opener
+      if n >= 6 then
+        opener = "[Mara]   The whole village heard the chord shift this morning. People are sleeping with their windows open."
+      elseif n >= 3 then
+        opener = "[Mara]   You bring the music back, three notes at a time. The bread rises better when you're in town."
+      else
+        opener = "[Mara]   Rest a while. The road outside has been louder than usual lately."
+      end
       if lead == "warrior" then
         return {
-          "Sit a moment. You look like you've been swinging that thing all day.",
-          "...Better. The room's yours till dawn.",
+          opener,
+          "[Mara]   Sit a moment, friend. You look like you've been swinging that thing all day.",
+          "[Mara]   ...Better. The room's yours till dawn.",
           "(party fully restored)",
         }
       elseif lead == "cleric" then
         return {
-          "My grandmother served Miel's order.",
-          "Three hot meals and a quiet bed -- tradition, not charity.",
+          opener,
+          "[Mara]   My grandmother served Miel's order at Lirael. She kept the candles lit through the worst nights.",
+          "[Mara]   Three hot meals and a quiet bed -- tradition, not charity.",
+          "[Mara]   It is good to have a queen on the road again.",
+          "(party fully restored)",
+        }
+      elseif lead == "bard" then
+        return {
+          opener,
+          "[Mara]   You're the bard, then. Sing for us at supper sometime. The fire likes a tune.",
+          "(party fully restored)",
+        }
+      elseif lead == "mage" then
+        return {
+          opener,
+          "[Mara]   A scholar. Quiet ones eat the most pie. I've made an extra one.",
           "(party fully restored)",
         }
       end
       return {
-        "Rest a while. The road outside has been louder than usual lately.",
+        opener,
         "(party fully restored)",
       }
     end,
   },
   { x = 9, y = 6, name = "Pell",
+    barks = {"(sighs)", "the old roads...", "(strokes beard)", "ah, the hum.", "long ago."},
     dialogue = function()
+      local lead = party[active] and party[active].class
+      -- Pell is the village tale-spinner; he knew Miel as a small girl
+      -- and sang a hymn at Strom's enlistment.
+      if lead == "cleric" then
+        return {
+          "[Pell]   You sat on this very stool when you were six. Refused to leave until I sang the hymn.",
+          "[Pell]   I sang it. Twice. You napped through the second.",
+          "[Pell]   (his voice softens) I'd sing it again. Just say the word.",
+        }
+      end
+      if lead == "warrior" then
+        return {
+          "[Pell]   I sang at your enlistment, you know. The lay of the broken bell.",
+          "[Pell]   Your sergeant cried. He swore it was an onion. There were no onions.",
+        }
+      end
       -- Tale-spinner: rotates through old-world lore tidbits.
       local lore = {
         {
@@ -3567,14 +9710,297 @@ CONTENT.inn_npcs = {
       return lore[CONTENT.pell_idx]
     end,
   },
-  { x = 7, y = 5, name = "Mews",
+  -- Tovia the Cartographer — wandering NPC. She appears in one inn at a
+  -- time, rotating as the player gathers more shards: mainland inn at
+  -- 0-2 shards, eastern inn at 3-4, northern inn at 5-6, then she
+  -- vanishes (back on the road, sketching). Each meeting gives her a
+  -- small lore drop + a coordinate hint about the next region's secret.
+  { x = 6, y = 4, name = "Tovia",
+    visible = function()
+      local n = 0; for _, v in pairs(shards) do if v then n = n + 1 end end
+      return n <= 2
+    end,
     dialogue = function()
+      CONTENT.tovia_met = (CONTENT.tovia_met or 0) + 1
+      local lead = party[active] and party[active].class
+      -- Tovia recognises Diegues from the academy (her former colleague)
+      -- and is fascinated by Strom because she's mapped the very routes
+      -- his garrison patrolled.
+      if lead == "mage" then
+        return {
+          "[Tovia]  (looks up, ink on her cheek) -- Diegues. You owe me a chapter.",
+          "[Tovia]  The dean told me you'd quit-- and here you are, in field clothes, with a party.",
+          "[Tovia]  I forgive you the chapter. (smiles) Almost.",
+        }
+      end
+      if lead == "warrior" then
+        return {
+          "[Tovia]  (taps her map) I drew this from the rest stops your lot used in '49.",
+          "[Tovia]  Your captain corrected my northern road in red ink. I never asked her name.",
+          "[Tovia]  I should have. (looks at Strom) ...if you'd tell me.",
+        }
+      end
+      local n = 0; for _, v in pairs(shards) do if v then n = n + 1 end end
+      return {
+        "[Tovia]  (a small woman with ink on her cheekbone)",
+        "[Tovia]  Sit a moment. I'm copying the village onto vellum and the chimneys keep moving.",
+        "[Tovia]  I am Tovia. I draw the world. I am late to almost every assignment.",
+        "[Tovia]  You look like the kind of traveler whose footprints I should mark.",
+        "[Tovia]  (taps the page) Hidden door, west of the academy. Old arch. Vines. You'll know when you see it.",
+        "[Tovia]  Don't tell me you found it -- it ruins my map for me to know in advance.",
+      }
+    end,
+  },
+  { x = 7, y = 5, name = "Mews", kind = "pet",
+    dialogue = function()
+      local n = 0; for _, v in pairs(shards) do if v then n = n + 1 end end
+      if n >= 7 then
+        local lines = {
+          {"Mews has uncurled. She is sitting up.", "She watches the door. The chord under everything is louder for her, perhaps."},
+          {"Mews chirps -- a sound she has not made", "in the four years the innkeeper has had her."},
+        }
+        return lines[math.random(#lines)]
+      elseif n >= 4 then
+        local lines = {
+          {"Mews's tail has begun ticking", "in 4/4 time. The innkeeper has noticed."},
+          {"Mews opens both eyes when Alder", "tunes the lute. She has never done that before."},
+        }
+        return lines[math.random(#lines)]
+      end
       local lines = {
         {"Mews curls tighter on the rug.", "(...purrs...)"},
         {"Mews opens one eye, sees you, closes it.", "(...purrs...)"},
         {"Mews stretches, considers you,", "decides you are not worth standing for."},
+        {"Mews rolls onto her back, exposing", "the kingdom of her belly. (do not be deceived.)"},
       }
       return lines[math.random(#lines)]
+    end,
+  },
+}
+
+-- Eastern Reaches inn NPCs (map id 17). Tarn runs the lodge; Lin mends
+-- nets at the long table; Skipper the harbor cat sleeps on a rug.
+CONTENT.eastern_inn_npcs = {
+  { x = 4, y = 2, name = "Tarn",
+    dialogue = function()
+      for _, p in ipairs(party) do
+        p.hp = p.hp_max; p.mp = p.mp_max; p.alive = true
+      end
+      inn_rest_ticks = 36
+      local sc = JAM.scales[JAM.mode] or JAM.scales.pentatonic
+      for k, idx in ipairs({1, 5, 8}) do
+        local pitch = (sc[idx] or 60) + (JAM.root or 0)
+        clock.run(function()
+          clock.sleep((k - 1) * 0.18)
+          sq_trig("cleric", midi_to_freq(pitch), 0.45, 0.05, 1.5, math.min(1, 0.85 * (CONTENT.combat_reverb_mix or 1.0)))
+        end)
+      end
+      local lead = party[active] and party[active].class
+      -- Tarn is an Eastern Reaches innkeeper; he hosts the road and
+      -- recognises a Lirael line, an old soldier, and a working bard.
+      if lead == "cleric" then
+        return {
+          "[Tarn]   ...my queen. (sets a stool out for you, the good one)",
+          "[Tarn]   Your grandmother slept in this very inn three nights, years back.",
+          "[Tarn]   She left without paying. (smiles) I never asked for it. I never will.",
+          "(party fully restored)",
+        }
+      end
+      if lead == "warrior" then
+        return {
+          "[Tarn]   Soldier's coat. East-cut, by the buttons.",
+          "[Tarn]   Bunk's the one against the wall -- the warmest. Sleep deep, captain.",
+          "(party fully restored)",
+        }
+      end
+      if lead == "bard" then
+        return {
+          "[Tarn]   A bard! Sing for stew, friend. Tradition.",
+          "[Tarn]   (the chowder is hot tonight; the lute can wait until after.)",
+          "(party fully restored)",
+        }
+      end
+      return {
+        "Off the boats, are you. Half the world ends up here off the boats.",
+        "Bunk's the one against the wall. Chowder's on the table.",
+        "(party fully restored)",
+      }
+    end,
+  },
+  { x = 5, y = 4, name = "Lin",
+    dialogue = function()
+      local lead = party[active] and party[active].class
+      if lead == "cleric" then
+        return {
+          "[Lin]    My net needs a hum to set right. Yours will do.",
+          "[Lin]    (you hum a low D; the knot tightens) ...thank you, my queen.",
+        }
+      end
+      local lore = {
+        {
+          "Three nights running the gulls have flown inland.",
+          "They know something the tide hasn't said yet.",
+        },
+        {
+          "There's a note that holds beneath the harbor at low tide.",
+          "Stand on the long pier. Hum down to it. The water answers.",
+        },
+        {
+          "Old captains say a voice in fog is not always a voice.",
+          "Sometimes it's the fog remembering one.",
+        },
+        {
+          "I knit songs into these nets. Doesn't help the catch.",
+          "Helps me. That's enough.",
+        },
+      }
+      CONTENT.lin_idx = ((CONTENT.lin_idx or 0) % #lore) + 1
+      return lore[CONTENT.lin_idx]
+    end,
+  },
+  { x = 7, y = 6, name = "Skipper", kind = "pet",
+    dialogue = function()
+      local lines = {
+        {"Skipper opens his one good eye.", "(...salt-cured purr...)"},
+        {"Skipper kneads the rug like it owes him money.", "(...purrs...)"},
+        {"Skipper smells the sea on you and approves.", "(...slow blink...)"},
+      }
+      return lines[math.random(#lines)]
+    end,
+  },
+  -- Tovia (Eastern Reaches inn) — visible at 3-4 shards.
+  { x = 7, y = 3, name = "Tovia",
+    visible = function()
+      local n = 0; for _, v in pairs(shards) do if v then n = n + 1 end end
+      return n >= 3 and n <= 4
+    end,
+    dialogue = function()
+      CONTENT.tovia_met = (CONTENT.tovia_met or 0) + 1
+      local lead = party[active] and party[active].class
+      if lead == "mage" then
+        return {
+          "[Tovia]  Diegues. Crossing the pass with you would have improved my map by half.",
+          "[Tovia]  (slides a folded chart across) Take this. Velthe's observatory has a hidden ledger.",
+          "[Tovia]  You'll want to read what she wrote to the dean about you.",
+        }
+      end
+      return {
+        "[Tovia]  (looks up from her vellum) Oh -- the chimney-mover from the village inn.",
+        "[Tovia]  I crossed the pass yesterday. The map I had was wrong about the road.",
+        "[Tovia]  My new map is correct. (taps ink-stained fingertip on the page)",
+        "[Tovia]  There is a tower in the snowfield east of the high pass. The door has a brass lantern over it.",
+        "[Tovia]  Velthe's old observatory. They say her apprentice still keeps the orrery turning.",
+        "[Tovia]  (you'll need three shards or you won't get past the door, but I imagine you have those.)",
+      }
+    end,
+  },
+}
+
+-- Northern Wilds inn NPCs (map id 18). Halla runs the lodge; Eyvi the
+-- frost-burned ranger sits by the lantern; Tofi the wolfhound sleeps
+-- by the central hearth.
+CONTENT.northern_inn_npcs = {
+  { x = 9, y = 6, name = "Halla",
+    dialogue = function()
+      for _, p in ipairs(party) do
+        p.hp = p.hp_max; p.mp = p.mp_max; p.alive = true
+      end
+      inn_rest_ticks = 36
+      local sc = JAM.scales[JAM.mode] or JAM.scales.pentatonic
+      for k, idx in ipairs({1, 3, 6}) do
+        local pitch = (sc[idx] or 60) + (JAM.root or 0) - 2
+        clock.run(function()
+          clock.sleep((k - 1) * 0.20)
+          sq_trig("cleric", midi_to_freq(pitch), 0.55, 0.05, 1.7, math.min(1, 0.85 * (CONTENT.combat_reverb_mix or 1.0)))
+        end)
+      end
+      local lead = party[active] and party[active].class
+      if lead == "warrior" then
+        return {
+          "[Halla]  Old soldier. The lodge has a hot bath you'll appreciate.",
+          "[Halla]  My brother fought at Frostridge. He didn't come back. (...) you might have known him.",
+          "(party fully restored)",
+        }
+      end
+      if lead == "cleric" then
+        return {
+          "[Halla]  My queen. We were told you would never come this far north.",
+          "[Halla]  Boots off. Furs on the bed. Kettle's hot. (bows, then hides the bow)",
+          "(party fully restored)",
+        }
+      end
+      return {
+        "Boots off. Furs on the bed. Kettle's hot.",
+        "My brother's the one who sells. I'm the one who keeps people alive.",
+        "(party fully restored)",
+      }
+    end,
+  },
+  { x = 2, y = 7, name = "Eyvi",
+    dialogue = function()
+      local lead = party[active] and party[active].class
+      if lead == "warrior" then
+        return {
+          "[Eyvi]   Frostridge cuff. (taps her own arm where two fingers are missing) I served the same year.",
+          "[Eyvi]   We split rations once. You gave me yours. I never said thank you.",
+          "[Eyvi]   ...thank you.",
+        }
+      end
+      local lore = {
+        {
+          "There's a pass north of here the maps don't draw.",
+          "Drawing it tells the snow you mean to use it.",
+        },
+        {
+          "Wolves in the wilds don't howl at the moon. They howl at",
+          "what the moon is hiding behind it.",
+        },
+        {
+          "I lost two fingers to the pass and one friend.",
+          "She says she's still up there. I believe her.",
+        },
+        {
+          "The cold has a key for every lock. Patience is the lock",
+          "it never finds.",
+        },
+      }
+      CONTENT.eyvi_idx = ((CONTENT.eyvi_idx or 0) % #lore) + 1
+      return lore[CONTENT.eyvi_idx]
+    end,
+  },
+  { x = 5, y = 4, name = "Tofi", kind = "pet",
+    dialogue = function()
+      local lines = {
+        {"Tofi thumps his tail against the hearthstone.", "(...soft woof...)"},
+        {"Tofi rolls onto his back, paws skyward.", "(...belly demanded...)"},
+        {"Tofi lifts his great head, sniffs you,", "and lays back down satisfied."},
+      }
+      return lines[math.random(#lines)]
+    end,
+  },
+  -- Tovia (Northern Wilds inn) — visible at 5+ shards. Her last appearance
+  -- before she vanishes back onto the road.
+  { x = 6, y = 4, name = "Tovia",
+    visible = function()
+      local n = 0; for _, v in pairs(shards) do if v then n = n + 1 end end
+      return n >= 5 and n <= 6
+    end,
+    dialogue = function()
+      CONTENT.tovia_met = (CONTENT.tovia_met or 0) + 1
+      local lead = party[active] and party[active].class
+      if lead == "mage" then
+        return {
+          "[Tovia]  Diegues. Velthe's name is in your hand-writing now. I noticed.",
+          "[Tovia]  (does not look up) When this ends, write to me. Long letters. The mail will move again.",
+        }
+      end
+      return {
+        "[Tovia]  Five. (does not look up. Marks a small star at the corner of her vellum.)",
+        "[Tovia]  When the chord is whole I will not need to draw any of this from memory anymore.",
+        "[Tovia]  Maps will draw themselves. Roads will draw themselves. The sea, finally, will hold still.",
+        "[Tovia]  When I see you next it will be at the end of a road none of us have seen the end of.",
+        "[Tovia]  ...rest. Eat the stew. Halla puts marrow in it. (smiles, briefly. Returns to her work.)",
+      }
     end,
   },
 }
@@ -3583,42 +10009,61 @@ CONTENT.inn_npcs = {
 -- opens the SHOP UI on dialogue exit (advance_dialogue checks for "Hens").
 CONTENT.shop_npcs = {
   { x = 6, y = 3, name = "Hens",
+    barks = {"welcome!", "(dusts a shelf)", "shipment's late.", "tonics in?", "fresh stock today."},
     dialogue = function()
+      local lead = party[active] and party[active].class
+      -- Hens runs the village shop; she's known Miel since she was a
+      -- girl picking out rosin, and Alder buys lute strings here.
+      if lead == "cleric" then
+        local q = QUESTS.hens
+        if not q.discount then q.discount = true end
+        return with_shard_react("Hens", {
+          "[Hens]   ...my queen. (curtsies, then catches herself, then curtsies again)",
+          "[Hens]   Your grandmother sold rosin in this very stall, you know. Before she had the throne.",
+          "[Hens]   Everything in here is yours at twenty-five percent. Permanent. No arguments.",
+        })
+      end
+      if lead == "bard" then
+        return with_shard_react("Hens", {
+          "[Hens]   Alder! Your strings came in. Two sets, the warm-amber gut.",
+          "[Hens]   I'll throw in rosin. (dusts a shelf) Just play here once before you leave.",
+        })
+      end
       -- Same SIDEQUEST + tier copy as the original plaza Hens, slightly
       -- reworded for the indoor setting.
       local q = QUESTS.hens
       if q.wins >= q.target and not q.discount then
         q.discount = true
-        return {
+        return with_shard_react("Hens", {
           "Five clean wins on the road, eh? Word travels. Coin follows word.",
           "I'll knock 25% off everything. Permanent. Don't tell the elder.",
-        }
+        })
       elseif q.discount then
-        return {
+        return with_shard_react("Hens", {
           "Step right up -- 25% off, as promised.",
           "Buy more, the chest empties faster, and faster I restock the goods.",
-        }
+        })
       elseif q.wins > 0 then
-        return {
+        return with_shard_react("Hens", {
           "Heard you've won " .. q.wins .. "/" .. q.target .. " road fights.",
           "Survive 5 random scuffles total and I'll cut a discount for life.",
-        }
+        })
       end
       if shards.dorian then
-        return {
+        return with_shard_react("Hens", {
           "Two shards already? Brisk work.",
           "My stock won't keep up at this rate. Pull up -- I'll see what I've got.",
           "(Quest: 5 random-encounter wins -> 25% off.)",
-        }
+        })
       end
-      return {
+      return with_shard_react("Hens", {
         "Welcome to my shop, traveler. Strings, reeds, rosin, lantern oil.",
         "Survive five road fights for me and I'll cut you a discount for life.",
         "(Quest: 5 random-encounter wins.)",
-      }
+      })
     end,
   },
-  { x = 3, y = 5, name = "Rook",
+  { x = 3, y = 5, name = "Rook", kind = "pet",
     dialogue = function()
       local lines = {
         {"Rook wags. He sniffs your boots", "and decides you are acceptable."},
@@ -3626,6 +10071,415 @@ CONTENT.shop_npcs = {
         {"Rook rolls onto his back, paws up.", "(...he wants belly scritches...)"},
       }
       return lines[math.random(#lines)]
+    end,
+  },
+}
+
+-- Eastern Reaches shop interior NPCs (map id 15). Marek runs the
+-- caravan-stop; Tessen is his perched falcon. The advance_dialogue
+-- handler opens the SHOP UI for Marek the same way it does for Hens.
+CONTENT.eastern_shop_npcs = {
+  { x = 6, y = 3, name = "Marek",
+    dialogue = function()
+      local lead = party[active] and party[active].class
+      if lead == "cleric" then
+        local q = QUESTS.hens
+        if not q.discount then q.discount = true end
+        return with_shard_react("Marek", {
+          "[Marek] (sees you, sets down the saffron knife) -- the line of Lirael, in my caravan.",
+          "[Marek] Your grandmother bought a saddle from my father. Paid in songs, half of it.",
+          "[Marek] Whatever you need is at her rate. Which was: free.",
+        })
+      end
+      if lead == "warrior" then
+        return with_shard_react("Marek", {
+          "[Marek] Soldier's coat. Eastern-cut, by the pleat.",
+          "[Marek] Tessen there hates strangers. (Tessen looks at you, decides you are not strange) -- well.",
+        })
+      end
+      local q = QUESTS.hens   -- shared discount progression across both shops
+      if q.discount then
+        return with_shard_react("Marek", {
+          "[Marek] Welcome back. Same prices as Hens cuts you -- word travels by hawk.",
+          "[Marek] Tessen carries the receipts. Ask her, she'll lie.",
+        })
+      end
+      if q.wins >= q.target then
+        q.discount = true
+        return with_shard_react("Marek", {
+          "[Marek] Five wins on the road, eh? Hens sent word. Caravans gossip.",
+          "[Marek] I'll honor the same cut. Twenty-five off, every time you come east.",
+        })
+      end
+      if q.wins > 0 then
+        return with_shard_react("Marek", {
+          "[Marek] You've fought " .. q.wins .. "/" .. q.target .. " on the road. Keep at it.",
+          "[Marek] Hens cuts you a discount at five. I'll match her.",
+        })
+      end
+      return with_shard_react("Marek", {
+        "[Marek] Welcome to my caravan-stop, traveler. Wares from three roads.",
+        "[Marek] Tessen there hunts dawn rabbits -- don't startle her.",
+        "[Marek] Suno's collectors came through last winter. Took half my saffron.",
+      })
+    end,
+  },
+  { x = 2, y = 4, name = "Tessen", kind = "pet",
+    dialogue = function()
+      local n = 0; for _, v in pairs(shards) do if v then n = n + 1 end end
+      if n >= 7 then
+        local lines = {
+          {"Tessen sits perfectly still for once.", "Her tether hangs slack at her foot."},
+          {"Tessen makes a sound you have never heard a falcon make.", "It is almost a hum."},
+        }
+        return lines[math.random(#lines)]
+      elseif n >= 4 then
+        local lines = {
+          {"Tessen tilts her head when you speak,", "as if she's begun to recognize the chord under your voice."},
+          {"Tessen has stopped flinching at your", "instruments. Marek says that took six months for the last bard."},
+        }
+        return lines[math.random(#lines)]
+      end
+      local lines = {
+        {"Tessen tilts her head, watching you", "with one yellow eye. Unblinking."},
+        {"Tessen ruffles her feathers and looks", "past you, ignoring the world."},
+        {"Tessen nips at her tether.", "A piercing kek-kek-kek."},
+        {"Tessen's gaze tracks a moth that", "isn't there. Or maybe is."},
+        {"Tessen rotates her head 180 degrees,", "looks back over her own back, then forward again."},
+      }
+      return lines[math.random(#lines)]
+    end,
+  },
+}
+
+-- Northern Wilds shop interior NPCs (map id 16). Skari runs the
+-- cold-trade outpost; Vix is his pet snow fox.
+CONTENT.northern_shop_npcs = {
+  { x = 6, y = 3, name = "Skari",
+    dialogue = function()
+      local lead = party[active] and party[active].class
+      if lead == "warrior" then
+        return with_shard_react("Skari", {
+          "[Skari] Old soldier. The lantern oil's on me -- you'll want the cold-rated kind.",
+          "[Skari] Vix doesn't come close to most. (she pads over and sits at your boots) ...you, evidently.",
+        })
+      end
+      if lead == "cleric" then
+        local q = QUESTS.hens
+        if not q.discount then q.discount = true end
+        return with_shard_react("Skari", {
+          "[Skari] My queen. The pass remembers your grandmother. So does Vix's mother, somewhere.",
+          "[Skari] The shop is yours at her rate -- which was two coppers under cost, and a song.",
+        })
+      end
+      local q = QUESTS.hens   -- shared discount across all three shops
+      if q.discount then
+        return with_shard_react("Skari", {
+          "[Skari] Word came north. Discount holds here too.",
+          "[Skari] Vix took a liking to you. That doesn't happen.",
+        })
+      end
+      if q.wins >= q.target then
+        q.discount = true
+        return with_shard_react("Skari", {
+          "[Skari] Five clean wins. Bracken's runner brought the count.",
+          "[Skari] Twenty-five off the lot. Don't make me regret it.",
+        })
+      end
+      if q.wins > 0 then
+        return with_shard_react("Skari", {
+          "[Skari] " .. q.wins .. " of five road-fights so far. Hens posts the tally.",
+          "[Skari] Five and I match her cut. North or south, same coin.",
+        })
+      end
+      return with_shard_react("Skari", {
+        "[Skari] Welcome. I trade what the south won't carry up the pass.",
+        "[Skari] Pelts, dried fish, lantern oil rated for cold. Vix sleeps through it all.",
+        "[Skari] Suno's snow-officers came north once. Once was enough.",
+      })
+    end,
+  },
+  { x = 2, y = 4, name = "Vix", kind = "pet",
+    dialogue = function()
+      local n = 0; for _, v in pairs(shards) do if v then n = n + 1 end end
+      if n >= 7 then
+        local lines = {
+          {"Vix is sitting upright, ears forward.", "She is listening to something only she hears."},
+          {"Vix walks a single perfect circle around your boots.", "Sits. Looks up at you. Verdict: revised."},
+        }
+        return lines[math.random(#lines)]
+      elseif n >= 5 then
+        local lines = {
+          {"Vix's nose twitches when you say `Aeolian`.", "She does not move otherwise. But the twitch is new."},
+          {"Vix tracks Strom across the room with her eyes,", "ears canted toward his footsteps."},
+        }
+        return lines[math.random(#lines)]
+      end
+      local lines = {
+        {"Vix opens one eye, weighs you,", "closes it again. Verdict: harmless."},
+        {"Vix's tail flicks once, lazily.", "She does not get up."},
+        {"Vix yawns wide, pink tongue curling.", "A small puff of breath fogs the air."},
+        {"Vix bats at a wood-shaving with", "absolute, total focus."},
+        {"Vix stretches each leg in turn,", "performing the most efficient cat-stretch you have ever seen."},
+      }
+      return lines[math.random(#lines)]
+    end,
+  },
+}
+
+-- ── Western Region NPCs (map 22) ──────────────────────────────────────
+-- The region between mainland and the Academy. Two NPCs add texture:
+-- a fled scholar and a roadside child.
+CONTENT.western_region_npcs = {
+  { x = 5, y = 8, name = "Quill",
+    dialogue = function()
+      local lead = party[active] and party[active].class
+      if CONTENT.academy_state == "complete" then
+        return with_shard_react("Quill", {
+          "[Quill]   You went in. You came out. Both of you came out.",
+          "[Quill]   The fire's been raining ash since dawn -- but it's settling now.",
+          "[Quill]   I'll go back when I can hold a pen without shaking. Tell Diegues I have his fountain pen.",
+        })
+      end
+      if lead == "mage" then
+        return with_shard_react("Quill", {
+          "[Quill]   You're a scholar too -- I know the squint. Are you from the Academy?",
+          "[Quill]   Diegues is still inside. He won't leave the Hall of Resonance. Says it's still tuned.",
+          "[Quill]   The hammer-soldier wouldn't let me close the door behind me.",
+        })
+      end
+      return with_shard_react("Quill", {
+        "[Quill]   (a scholar, sleeves grey with ash, sitting against a tree)",
+        "[Quill]   The Academy is being silenced. I ran. I ran very fast. I am not proud.",
+        "[Quill]   Diegues stayed. Of course Diegues stayed. He never could hear danger.",
+        "[Quill]   If you go in -- the door's south of the building. Just walk at it.",
+      })
+    end,
+  },
+  -- Lirael Fragment. A small carved stone half-buried in the western
+  -- earth. Recognizable to Miel by an emblem -- the laurel that her
+  -- nation marked its boundaries with. Plays differently if she's lead.
+  { x = 4, y = 8, name = "LiraelStone", kind = "object",
+    dialogue = function()
+      local lead = party[active] and party[active].class
+      if lead == "cleric" then
+        return with_shard_react("LiraelStone", {
+          "(Miel kneels. Brushes the moss aside. The carving is barely visible -- a laurel, the old Lirael boundary mark.)",
+          "[Miel]    (her voice catches) ...this is ours. This was a Lirael waystop. Three hundred years ago.",
+          "[Miel]    My people were here. They were everywhere, once. Even this far east of the shore.",
+          "[Miel]    (sets her hand on the stone for a moment longer than she needs to)",
+          "[Miel]    ...I'll come back when this is done. Bring better hands than mine to clean it.",
+        })
+      end
+      return with_shard_react("LiraelStone", {
+        "(a small carved stone, half-buried, almost lost in the western moss)",
+        "(the carving is faint -- a laurel of some kind. Old. Older than this region's villages.)",
+        "(...someone's people came through here, once. Long ago.)",
+      })
+    end,
+  },
+  -- Velthe Memorial Stone. A weathered standing-stone in a clearing,
+  -- inscribed with the first chronicler's name. Interactable lore that
+  -- ties multiple character-arcs together.
+  { x = 11, y = 9, name = "VeltheStone", kind = "object",
+    dialogue = function()
+      local n = 0; for _, v in pairs(shards) do if v then n = n + 1 end end
+      if n >= 6 then
+        return with_shard_react("VeltheStone", {
+          "(a weathered standing-stone, low to the ground, lichen on its north face)",
+          "(the inscription is barely legible, but the carved name still reads:)",
+          "(VELTHE  -- chronicler of the seven  -- held the chord at Lirael's first feast)",
+          "[Miel]    (a long pause) She wrote the song my grandmother sang.",
+          "[Miel]    (kneels; brushes lichen from her name with the back of her hand)",
+        })
+      end
+      return with_shard_react("VeltheStone", {
+        "(a weathered standing-stone, low to the ground, lichen on its north face)",
+        "(the inscription is barely legible:)",
+        "(VELTHE  -- chronicler of the seven  -- ... (the rest worn smooth))",
+        "[Diegues] Velthe. The Academy's first chronicler. She rode the round of Modalia twice.",
+        "[Diegues] Lost her voice in the third year. Wrote the chord down for everyone else to sing.",
+      })
+    end,
+  },
+  { x = 18, y = 9, name = "Tilde",
+    dialogue = function()
+      local lead = party[active] and party[active].class
+      -- Tilde is a small girl. She's wide-eyed about Strom (the big-
+      -- hammer man), and watches Diegues' pen for the magic she's sure
+      -- it has.
+      if lead == "warrior" then
+        return with_shard_react("Tilde", {
+          "[Tilde]   YOU. You're the big-hammer man. Mama said you were going to fix things.",
+          "[Tilde]   (the sparrow on her shoulder eyes the hammer suspiciously) She's never seen one.",
+        })
+      end
+      if lead == "mage" then
+        return with_shard_react("Tilde", {
+          "[Tilde]   Is your pen the magic kind? Mama said scholar pens are.",
+          "[Tilde]   Could you write me a song? A short one? (...) please?",
+        })
+      end
+      if CONTENT.academy_state == "complete" then
+        return with_shard_react("Tilde", {
+          "[Tilde]   (a small girl with a sparrow on her shoulder)",
+          "[Tilde]   The big-hammer man came out without his hammer.",
+          "[Tilde]   He said sorry to a tree on the way past. The tree did not say anything.",
+        })
+      end
+      return with_shard_react("Tilde", {
+        "[Tilde]   (a small girl, holding a sparrow with both hands)",
+        "[Tilde]   Mama's at the Academy. She forgot her keys.",
+        "[Tilde]   I'm not allowed to go in. There's loud men in there now.",
+        "[Tilde]   Are you going? Tell mama her keys are in the bread tin.",
+      })
+    end,
+  },
+}
+
+-- ── Castle prologue NPCs (map 20) ─────────────────────────────────────
+-- Suno: at the dais. Initial dialogue triggers the coup (sets state to
+-- "coup", spawns silencers, removes himself). Silencers: visible NPCs
+-- in the corridor; talking to them launches a battle.
+CONTENT.castle_npcs = {
+  -- Castle prologue NPCs (16x12 multi-room castle, throne north / chamber south).
+  --
+  -- Senna — Miel's chambermaid. Stands in the antechamber north of the
+  -- chamber doors. Visible BEFORE the throne scene fires, gives a
+  -- panicked one-shot line, then vanishes (assumed she ran to the
+  -- kitchens). Has her own sprite (not the generic NPC triangle).
+  { x = 8, y = 9, name = "Senna",
+    barks = {"(trembles)", "my lady...", "we must hide.", "(glances back)", "they're close."},
+    visible = function()
+      return not CONTENT.prologue_scene_done
+         and not (CONTENT.senna_seen)
+    end,
+    dialogue = function()
+      CONTENT.senna_seen = true
+      return {
+        "[Senna]    (the chambermaid, hands shaking; she dropped a candle)",
+        "[Senna]    My queen -- the south door is broken. They are in the keep.",
+        "[Senna]    Their captain calls himself Suno. He is asking after you by name.",
+        "[Senna]    I will run for the kitchens. The cellar passage --",
+        "[Senna]    (she goes before you can answer)",
+      }
+    end,
+  },
+  -- A second servant — Pell, the old steward. Pinned in the corridor
+  -- by a fallen beam. Won't make it. He gives Miel the cellar key
+  -- (lore item, not a real key) and tells her to use the tapestry.
+  { x = 11, y = 8, name = "Pell",
+    visible = function()
+      return not CONTENT.prologue_scene_done
+         and not (CONTENT.pell_seen)
+    end,
+    dialogue = function()
+      CONTENT.pell_seen = true
+      return {
+        "[Pell]     (an old man, half-pinned by a beam; he waves you off)",
+        "[Pell]     My queen -- do not stop. The throne room.",
+        "[Pell]     The tapestry your grandmother put in. She told me once.",
+        "[Pell]     'The seam in the NORTH wall, behind the throne. The passage opens for the line.'",
+        "[Pell]     (he closes his eyes) ...go.",
+      }
+    end,
+  },
+  -- Fallen guard slumped against the throne-hall bookshelf — visible
+  -- after the scene as evidence of the raid. Decorative-ish (one line).
+  { x = 2, y = 4, name = "FallenGuard",
+    visible = function()
+      return CONTENT.prologue_scene_done
+         and not (SCENE and SCENE.active)
+    end,
+    dialogue = function()
+      -- Plain table (not a function-returned table). Removed the
+      -- narrator-only opening lines + the literal "..." prefix that
+      -- looked like sentence punctuation to the cascade-splitter and
+      -- could land the body in an awkward state. Simple greeting line
+      -- that always packs cleanly into a single page.
+      return {
+        "[Guard] Go, my queen. The tapestry. They will come back through.",
+      }
+    end,
+  },
+  -- Two silencer NPCs in the THRONE HALL. Positioned at (7, 4) and
+  -- (9, 4) — the EXACT positions where the scene-actor silencers
+  -- ended up at the end of the throne cutscene. So when scene actors
+  -- despawn and static NPCs appear, the player perceives them as the
+  -- SAME silencers (visual continuity — no "they appeared out of fire"
+  -- effect from sudden spawns at random coords). Player at (8, 5)
+  -- after the scene; silencers flank her at the throne dais (row 4).
+  -- Player can still walk south to the tapestry escape (col 8 row 6),
+  -- and can engage either silencer by approaching from south (face
+  -- north, press A).
+  { x = 7, y = 4, name = "Silencer1",
+    visible = function()
+      return CONTENT.prologue_state == "coup"
+         and CONTENT.prologue_scene_done
+         and not (SCENE and SCENE.active)
+         and not (CONTENT.silencer_defeated and CONTENT.silencer_defeated[1])
+    end,
+    dialogue = function()
+      CONTENT.post_dialogue = function() start_prologue_silencer(1) end
+      return {
+        "(The silencer raises a hammer. His helmet has no eye-slit.)",
+        "[Silencer] (a hollow voice, scraped of pitch) Stand still, queen.",
+      }
+    end,
+  },
+  { x = 9, y = 4, name = "Silencer2",
+    visible = function()
+      return CONTENT.prologue_state == "coup"
+         and CONTENT.prologue_scene_done
+         and not (SCENE and SCENE.active)
+         and not (CONTENT.silencer_defeated and CONTENT.silencer_defeated[2])
+    end,
+    dialogue = function()
+      CONTENT.post_dialogue = function() start_prologue_silencer(2) end
+      return {
+        "(The second silencer drags his hammer along the marble.)",
+        "[Silencer] You will not pass. (sparks scatter as it scrapes the stone.)",
+      }
+    end,
+  },
+}
+
+-- ── Escape cave NPCs (map 21) ──────────────────────────────────────────
+-- Three Cave Wisps spaced along the path. Same trigger pattern as the
+-- silencers — visible until defeated.
+CONTENT.escape_cave_npcs = {
+  { x = 5, y = 3, name = "Wisp1",
+    visible = function()
+      return not (CONTENT.cave_monster_defeated and CONTENT.cave_monster_defeated[1])
+    end,
+    dialogue = function()
+      CONTENT.post_dialogue = function() start_prologue_cave_monster(1) end
+      return {
+        "(A pale orphan-note hovers in the dark. It has been here a long time.)",
+        "(It drifts toward you, ringing.)",
+      }
+    end,
+  },
+  { x = 7, y = 5, name = "Wisp2",
+    visible = function()
+      return not (CONTENT.cave_monster_defeated and CONTENT.cave_monster_defeated[2])
+    end,
+    dialogue = function()
+      CONTENT.post_dialogue = function() start_prologue_cave_monster(2) end
+      return {
+        "(Another wisp. Smaller. Brighter. It learned from the first.)",
+      }
+    end,
+  },
+  { x = 10, y = 8, name = "Wisp3",
+    visible = function()
+      return not (CONTENT.cave_monster_defeated and CONTENT.cave_monster_defeated[3])
+    end,
+    dialogue = function()
+      CONTENT.post_dialogue = function() start_prologue_cave_monster(3) end
+      return {
+        "(One last wisp guards the cave-mouth. It looks almost reluctant.)",
+      }
     end,
   },
 }
@@ -3728,23 +10582,23 @@ CONTENT.cave4_npcs = {
   { x = 2, y = 8, name = "Iska",
     dialogue = function()
       if cave_state[4].cleared then
-        return {
+        return with_shard_react("Iska", {
           "The Rider's hooves don't echo here anymore.",
           "I'd been counting them in my sleep. Tonight I might finally rest.",
-        }
+        })
       end
       local lead = party[active] and party[active].class
       if lead == "engineer" then
-        return {
+        return with_shard_react("Iska", {
           "An engineer? Good.",
           "The Dune Rider moves with a pattern -- six beats out, two back.",
           "Cut him on the rest. Promise me.",
-        }
+        })
       end
-      return {
+      return with_shard_react("Iska", {
         "Sand carries every footstep miles. He hears you coming.",
         "He always does. Strike on the pattern, not the silence.",
-      }
+      })
     end,
   },
 }
@@ -3754,30 +10608,30 @@ CONTENT.cave5_npcs = {
   { x = 2, y = 8, name = "Wenna",
     dialogue = function()
       if cave_state[5].cleared then
-        return {
+        return with_shard_react("Wenna", {
           "Oh -- the cold's gone. Just regular cold. Plain, kind cold.",
           "I'll walk out before the moon rises.",
-        }
+        })
       end
       local lead = party[active] and party[active].class
       if lead == "bard" then
-        return {
+        return with_shard_react("Wenna", {
           "A bard! Sing in three. Always three.",
           "The Snowgaunt's waltz can't tolerate other meters.",
           "Drown his time with yours.",
-        }
+        })
       end
       if cave_state[5].victories >= 3 then
-        return {
+        return with_shard_react("Wenna", {
           "He's slowing. The waltz skips a beat now.",
           "North chamber. Don't let him finish a phrase.",
-        }
+        })
       end
-      return {
+      return with_shard_react("Wenna", {
         "I came in to bury a friend.",
         "The Snowgaunt sings him back every midnight.",
         "I can't stop hearing it.",
-      }
+      })
     end,
   },
 }
@@ -3816,33 +10670,122 @@ CONTENT.hollow_npcs = {
   -- Niko (drummer): joins the party after collecting 4+ shards. Deep in
   -- the back of The Hollow — easy to miss without exploring.
   { x = 10, y = 2, name = "Niko",
+    -- Hide during scenes so the scene-spawned Niko actor doesn't render
+    -- on top of the static NPC (double Niko).
+    visible = function() return not (SCENE and SCENE.active) end,
+    -- Choreographed recruit: only fires once at the moment of joining
+    -- (when the player has 4+ shards and Niko hasn't joined yet). Pre-
+    -- and post-recruit conversations remain plain dialogue.
+    scene = function()
+      local n = 0; for _, v in pairs(shards) do if v then n = n + 1 end end
+      local r = CONTENT.recruits[3]
+      -- Only choreograph the actual join moment.
+      if r.joined or n < 4 then return nil end
+      r.joined = true
+      local px, py = player.x, player.y
+      local script = {
+        {hide_player = true},
+        {letterbox_in = true},
+        {spawn = "miel", class = "cleric", name = "Miel", x = px, y = py, facing = "up", bob = false},
+        {spawn = "niko", class = "drummer", name = "Niko", x = 10, y = 2, facing = "down", bob = false},
+        -- Camera focuses on the back of The Hollow where Niko is.
+        {focus = {x = 10, y = 3}, ticks = 30},
+        {wait = 18},
+        -- A soft brushed-cymbal sting (drummer voice = warrior at high pitch).
+        {sfx = {class = "warrior", note = 60, vel = 0.40, attack = 0.005, release = 0.50, wet = 0.85}},
+        {wait = 14},
+        {dialogue = {
+          "[Niko]    Four shards.",
+          "[Niko]    That's enough chord for me to lock onto.",
+        }, npc = {name = "Niko"}},
+        -- Niko looks at his sticks: face down, then back up.
+        {face = "niko", facing = "down"},
+        {wait = 12},
+        {face = "niko", facing = "left"},
+        {wait = 6},
+        {dialogue = {
+          "[Niko]    (sets down the drumsticks)",
+          "[Niko]    (picks them back up, more carefully)",
+        }, npc = {name = "Niko"}},
+        -- Niko stands and walks one step toward Miel.
+        {move = "niko", to = {x = 10, y = 3}, ticks = 24},
+        {look = "niko", toward = "miel"},
+        {wait = 6},
+        {dialogue = {
+          "[Niko]    I played Suno's house band three years.",
+          "[Niko]    Same beat every night. No cymbals.",
+        }, npc = {name = "Niko"}},
+        {wait = 6},
+        {dialogue = {
+          "[Niko]    I quit when they took the snare apart for kindling.",
+        }, npc = {name = "Niko"}},
+        {wait = 8},
+        {dialogue = {
+          "[Niko]    I've been waiting for a band worth keeping time for.",
+          "[Niko]    You'll do.",
+        }, npc = {name = "Niko"}},
+        -- A 4-on-the-floor pulse (kick drum analog) — four warrior hits.
+        {sfx = {class = "warrior", note = 36, vel = 0.85, attack = 0.001, release = 0.20, wet = 0.10}},
+        {wait = 6},
+        {sfx = {class = "warrior", note = 36, vel = 0.85, attack = 0.001, release = 0.20, wet = 0.10}},
+        {wait = 6},
+        {sfx = {class = "warrior", note = 36, vel = 0.85, attack = 0.001, release = 0.20, wet = 0.10}},
+        {wait = 6},
+        {sfx = {class = "warrior", note = 36, vel = 0.85, attack = 0.001, release = 0.20, wet = 0.10}},
+        {flash = "* NIKO JOINS RESERVE *", ticks = 36},
+        {wait = 24},
+        {despawn = "niko"}, {despawn = "miel"},
+        {teleport_player = {x = px, y = py, facing = player.facing}},
+        {show_player = true},
+        {letterbox_out = true},
+      }
+      return script
+    end,
     dialogue = function()
       local n = 0; for _, v in pairs(shards) do if v then n = n + 1 end end
       local r = CONTENT.recruits[3]
       if r.joined then
-        return {
-          "Aye -- keep swinging out there.",
-          "I'll keep the count solid back home.",
+        return with_shard_react("Niko", {
+          "[Niko]   Aye -- keep swinging out there.",
+          "[Niko]   I'll keep the count solid back home.",
+          "[Niko]   (drum-tap pattern on the wall, very quiet) Four-on-the-floor. I'm here.",
           "(ready in the Party menu.)",
-        }
+        })
       end
       if n < 4 then
-        return {
-          "(a soft brushed cymbal in the dark.)",
-          "Four shards and we'll talk. I don't drum for amateurs. No offense.",
-          "Bring the chord most of the way home, then come find me here. I'll join.",
-        }
+        return with_shard_react("Niko", {
+          "[Niko]   (a soft brushed cymbal in the dark)",
+          "[Niko]   Hey. Don't talk loud. The Hollow listens.",
+          "[Niko]   Four shards and we'll talk for real. I don't drum for amateurs. No offense.",
+          "[Niko]   Bring the chord most of the way home, then come find me here. I'll join.",
+        })
       end
+      -- Fallback (should not reach: scene fires first)
       r.joined = true
-      return {
-        "Four shards. That's enough chord for me to lock onto.",
-        "I've been waiting for a band worth keeping time for.",
+      return with_shard_react("Niko", {
+        "[Niko]   Four shards. (...he's already on his feet)",
         "(Niko joins your reserve -- swap from the Party menu.)",
-      }
+      })
     end,
   },
   { x = 2, y = 7, name = "Sett",
     dialogue = function()
+      local lead = party[active] and party[active].class
+      -- Sett is a hollow-treasure-hunter. He recognizes a soldier's
+      -- gear from his fence days, and is suspicious of academic types.
+      if lead == "warrior" then
+        return {
+          "[Sett]   Garrison cuff -- the heavy kind. I used to fence those buckles in '48.",
+          "[Sett]   Don't worry, I'm retired from that. Mostly. (winks)",
+          "[Sett]   Same deal: Key in the chest, we split it. Or take it all. Old soldiers get good rates.",
+        }
+      end
+      if lead == "mage" then
+        return {
+          "[Sett]   (sees the inkwell) Oh -- a pen-pusher. Are you cataloging my chest?",
+          "[Sett]   Just take what you want. Write down nothing. Please.",
+        }
+      end
       if CONTENT.opened["ch_hollow_end"] then
         return {
           "You popped the back stash! Knew you were the type.",
@@ -3869,8 +10812,52 @@ local npcs = MAINLAND_NPCS  -- active NPC list (mutable; swaps on travel_to)
 
 -- ============================================================ HELPERS
 
-local function midi_to_freq(n)
+-- Global (was local) so NPC dialogue functions defined EARLIER in the
+-- file can call midi_to_freq without falling through to a nil global
+-- lookup. e.g. Bren's anvil-ring SFX at line ~7890 fires
+-- sq_trig(..., midi_to_freq(72), ...) and the local midi_to_freq
+-- isn't yet in lexical scope at the NPC's definition point.
+function midi_to_freq(n)
   return 440 * 2 ^ ((n - 69) / 12)
+end
+
+-- Per-voice octave-shifted trig. SQ_VOICE_OCT is a global table populated
+-- by the per-voice octave params (see init's PARAMS section). All voice
+-- triggers route through here so combat, music tables, MIDI, inn-rest
+-- chords, and tile sounds all pick up the shift.
+-- Convert a frequency to nearest MIDI note (A4=440Hz=69). Used by
+-- the MIDI-out hook below; freq comes in as the actual playback freq.
+local function sq_freq_to_midi(freq)
+  if not freq or freq <= 0 then return 60 end
+  return math.max(0, math.min(127, math.floor(69 + 12 * math.log(freq / 440) / math.log(2) + 0.5)))
+end
+
+-- Per-class MIDI channel mapping. 1-based; user can override via PARAMS.
+-- Default: each voice gets its own channel so external gear can route
+-- e.g. cleric-only to a pad synth, warrior-only to a bass.
+SQ_MIDI_CHANNEL = {warrior = 1, cleric = 2, mage = 3, bard = 4}
+
+function sq_trig(class, freq, vel, attack, release, ...)
+  local oct = (SQ_VOICE_OCT and SQ_VOICE_OCT[class]) or 0
+  local out_freq = freq * (2 ^ oct)
+  -- MIDI-out hook: when CONTENT.midi_out_enabled is true and the
+  -- midi_out connection has been opened, emit a note_on with a short
+  -- scheduled note_off. Velocity scaled from 0..1 to 1..127. Channel
+  -- comes from SQ_MIDI_CHANNEL[class] (defaults to 1 for unknown).
+  if midi_out and CONTENT.midi_out_enabled then
+    local note = sq_freq_to_midi(out_freq)
+    local mvel = math.max(1, math.min(127, math.floor((vel or 0.5) * 127)))
+    local ch = SQ_MIDI_CHANNEL[class] or 1
+    -- pcall so a closed/disconnected port doesn't crash the clock thread
+    pcall(function() midi_out:note_on(note, mvel, ch) end)
+    -- Schedule a note_off after the release tail so external gear
+    -- doesn't stick. clock.run yields cleanly inside the engine tick.
+    clock.run(function()
+      clock.sleep(math.max(0.05, (release or 0.2) + (attack or 0.01) + 0.1))
+      pcall(function() if midi_out then midi_out:note_off(note, 0, ch) end end)
+    end)
+  end
+  return engine["trig_" .. class](out_freq, vel, attack, release, ...)
 end
 
 local function tile_at(tx, ty)
@@ -3880,8 +10867,15 @@ end
 
 local function is_walkable(tx, ty)
   local t = tile_at(tx, ty)
-  -- 0 grass/floor, 2 path, 5 door, 23 rug (interior), 45 pier (over water)
+  -- 0 grass/floor, 2 path, 5 door, 23 rug (interior), 45 pier (over water),
+  -- 47 region-transition door, 48 tapestry door (castle escape),
+  -- 49 cave mouth (escape cave exit), 50 academy entry (Western Region).
   return t == 0 or t == 2 or t == 5 or t == 23 or t == 45
+      or t == 47 or t == 48 or t == 49 or t == 50
+      or t == 51   -- Lirael Ruins arch (Western Region → map 23)
+      or t == 52   -- Velthe's Observatory door (Northern Wilds → map 24)
+      or t == 56   -- Far Hills cave-mouth (mainland → map 26)
+      or t == 58   -- Castle interior door (throne hall ↔ hallway ↔ rooms)
 end
 
 -- True when an NPC is currently rendered + interactable. NPCs may have
@@ -3917,22 +10911,61 @@ local function obtain_shard(name)
   if shards[name] then return end
   shards[name] = true
   last_obtained_shard = name
-  -- auto-save on every shard collection (story milestone)
+  -- Auto-save on every shard collection (story milestone).
   if save_game then save_game() end
-  -- Mode-specific 4-note "shard sting": play a quick chord/arpeggio in the
-  -- mode's scale to musically announce which shard you just earned.
+  -- Mode-specific 4-note "shard sting": play a quick chord/arpeggio in
+  -- the mode's scale to musically announce which shard you just earned.
   local sc = JAM.scales[name] or JAM.scales.pentatonic
-  -- pick chord tones (1 / 3 / 5 / 8) from the scale array
   local idxs = {1, 3, 5, 8}
   for k, idx in ipairs(idxs) do
     local pitch = (sc[idx] or 60) + (JAM.root or 0)
     local f = midi_to_freq(pitch)
-    -- stagger notes by a small clock.run so they arpeggiate quickly
     clock.run(function()
       clock.sleep((k - 1) * 0.08)
-      engine.trig_mage(f, 0.65, 0.005, 0.8, 0.7)
-      engine.trig_bard(f * 2, 0.5, 0.003, 0.5, 0.6)
+      local _crm = CONTENT.combat_reverb_mix or 1.0
+      sq_trig("mage", f, 0.65, 0.005, 0.8, math.min(1, 0.7 * _crm))
+      sq_trig("bard", f * 2, 0.5, 0.003, 0.5, math.min(1, 0.6 * _crm))
     end)
+  end
+  -- Visual punch: a particle burst at center-screen + screen shake +
+  -- bright wash. Reads as "the chord just gained a note." Scales the
+  -- count by total shards owned (more shards → bigger ring).
+  local n = 0; for _, v in pairs(shards) do if v then n = n + 1 end end
+  ANIM.burst(64, 32, 8 + n, 15)
+  ANIM.burst(64, 32, 6 + n, 13)
+  ANIM.shake(2, 12)
+  -- Late-game: starting at shard 5, an additional rising arpeggio
+  -- across cleric (so the moment escalates as the chord nears whole).
+  if n >= 5 then
+    for k, idx in ipairs({1, 5, 8, 12}) do
+      local pitch = (sc[idx] or 60) + (JAM.root or 0) + 12
+      clock.run(function()
+        clock.sleep(0.40 + (k - 1) * 0.10)
+        sq_trig("cleric", midi_to_freq(pitch), 0.55, 0.005, 1.5,
+                math.min(1, 0.85 * (CONTENT.combat_reverb_mix or 1.0)))
+      end)
+    end
+  end
+  if n >= 7 then
+    -- All seven: the chord is whole. A held cleric tone rings under
+    -- the existing arpeggio, plus a flash banner.
+    sq_trig("cleric", midi_to_freq(60 + (JAM.root or 0)), 0.85, 0.001, 8.0,
+            math.min(1, 1.0 * (CONTENT.combat_reverb_mix or 1.0)))
+    CONTENT.banner_text  = "* THE CHORD IS WHOLE *"
+    CONTENT.banner_ticks = 90
+    if unlock_achievement then unlock_achievement("all_shards", "Whole Chord") end
+    -- Endgame trigger: queue the finale + credits for the next
+    -- overworld return. Only the FIRST time (subsequent re-collects
+    -- in NG+ should not retrigger the credits).
+    if not (CONTENT.scene_seen and CONTENT.scene_seen.endgame) then
+      CONTENT.queued_scene = "endgame"
+    end
+  end
+  -- Stash a "fire on next overworld entry" flag so the choreographed
+  -- six-shards convergence scene plays right after BATTLE_END dismiss.
+  -- exit_battle reads CONTENT.queued_scene and clears it.
+  if n == 6 and not (CONTENT.scene_seen and CONTENT.scene_seen.six_shards) then
+    CONTENT.queued_scene = "six_shards"
   end
 end
 
@@ -3953,7 +10986,9 @@ end
 local function SAVE_PATH()
   return _path.data .. "synth-quest/save.data"
 end
-local update_camera   -- forward decl (defined later in OVERWORLD section)
+-- (update_camera forward decl pulled to the top of file scope; see
+-- the local declaration right after `player`/`cam` so all earlier-
+-- defined scene functions can capture it as an upvalue.)
 local travel_to       -- forward decl (defined later)
 
 save_game = function()
@@ -3965,6 +11000,9 @@ save_game = function()
     cave_state = cave_state,
     current_map_id = current_map_id,
   }
+  -- Legacy data.party still saved for any older code paths, but the
+  -- canonical truth is data.characters (per-class) + data.party_classes
+  -- (which class is in each slot) + data.active.
   for i, p in ipairs(party) do
     data.party[i] = {
       hp = p.hp, mp = p.mp, alive = p.alive, queued = p.queued,
@@ -3973,6 +11011,18 @@ save_game = function()
       atk = p.atk, def = p.def, mag = p.mag, spd = p.spd,
     }
   end
+  data.characters = {}
+  for cls, ch in pairs(CHARACTERS or {}) do
+    data.characters[cls] = {
+      hp = ch.hp, mp = ch.mp, alive = ch.alive, queued = ch.queued,
+      level = ch.level, xp = ch.xp, xp_total = ch.xp_total,
+      hp_max = ch.hp_max, mp_max = ch.mp_max,
+      atk = ch.atk, def = ch.def, mag = ch.mag, spd = ch.spd,
+    }
+  end
+  data.party_classes = {}
+  for i, p in ipairs(party) do data.party_classes[i] = p.class end
+  data.active = active
   data.battle_bpm = BATTLE_BPM
   data.journey_bpm = OVERWORLD_BPM
   -- equipment: list of owned ids + map of class→equipped id
@@ -4012,6 +11062,14 @@ save_game = function()
   data.achievements = {}
   for k, v in pairs(CONTENT.achievements or {}) do data.achievements[k] = v end
   data.sergei_intervened = CONTENT.sergei_intervened
+  data.academy_state = CONTENT.academy_state
+  data.prologue_state = CONTENT.prologue_state
+  data.prologue_scene_done = CONTENT.prologue_scene_done
+  data.prologue_intro_done = CONTENT.prologue_intro_done
+  data.scene_seen = {}
+  for k, v in pairs(CONTENT.scene_seen or {}) do data.scene_seen[k] = v end
+  data.silencer_defeated = CONTENT.silencer_defeated
+  data.cave_monster_defeated = CONTENT.cave_monster_defeated
   tab.save(data, SAVE_PATH())
   save_flash_ticks = 24
   save_flash_text = "Game Saved"
@@ -4024,24 +11082,86 @@ local function load_game()
     save_flash_text = "No save found"
     return false
   end
+  -- Wipe any in-progress scene state so a load mid-cutscene doesn't leave
+  -- stale actors/fades on screen. PARTICLES pool is similarly cleared.
+  if SCENE then
+    SCENE.active = false; SCENE.script = nil; SCENE.step = 1
+    SCENE.wait = 0; SCENE.actors = {}
+    SCENE.fade = 0; SCENE.fade_target = 0; SCENE.fade_speed = 0
+    SCENE.hide_player = false; SCENE.cam_tween = nil
+    SCENE.letterbox = 0; SCENE.letterbox_target = 0
+  end
+  if PARTICLES then PARTICLES.pool = {} end
+  -- Reset dialogue typewriter state so a load mid-dialogue doesn't show
+  -- a partially-revealed line.
+  if dlg then
+    dlg.lines = nil; dlg.line = 1; dlg.npc = nil
+    dlg.line_start_tick = nil; dlg.complete = false; dlg.snap_to_complete = false
+  end
   player.x = data.player.x
   player.y = data.player.y
   player.facing = data.player.facing
-  for i, sp in ipairs(data.party) do
-    if party[i] then
-      party[i].hp = sp.hp
-      party[i].mp = sp.mp
-      party[i].alive = sp.alive
-      party[i].queued = sp.queued
-      if sp.level then party[i].level = sp.level end
-      if sp.xp then party[i].xp = sp.xp end
-      if sp.xp_total then party[i].xp_total = sp.xp_total end
-      if sp.hp_max then party[i].hp_max = sp.hp_max end
-      if sp.mp_max then party[i].mp_max = sp.mp_max end
-      if sp.atk then party[i].atk = sp.atk end
-      if sp.def then party[i].def = sp.def end
-      if sp.mag then party[i].mag = sp.mag end
-      if sp.spd then party[i].spd = sp.spd end
+  -- New saves: restore CHARACTERS by class, then rebuild party from
+  -- saved class-per-slot order. Old saves (no data.characters) fall back
+  -- to slot-indexed loading — slightly lossy if a recruit was swapped in,
+  -- but at least preserves what we have.
+  if data.characters then
+    -- Make sure recruit-class records exist (they're built lazily on swap;
+    -- a save with a leveled recruit may reference a class CHARACTERS doesn't yet have).
+    for cls, _ in pairs(data.characters) do
+      if not CHARACTERS[cls] then
+        for _, r in ipairs(CONTENT.recruits) do
+          if r.class == cls then
+            CHARACTERS[cls] = build_recruit_record(r)
+            break
+          end
+        end
+      end
+    end
+    -- Apply saved values onto each character record.
+    for cls, sp in pairs(data.characters) do
+      local ch = CHARACTERS[cls]
+      if ch then
+        ch.hp      = sp.hp or ch.hp
+        ch.mp      = sp.mp or ch.mp
+        ch.alive   = (sp.alive ~= nil) and sp.alive or ch.alive
+        ch.queued  = sp.queued or ch.queued
+        ch.level   = sp.level or 1
+        ch.xp      = sp.xp or 0
+        ch.xp_total= sp.xp_total or 0
+        ch.hp_max  = sp.hp_max or ch.hp_max
+        ch.mp_max  = sp.mp_max or ch.mp_max
+        ch.atk     = sp.atk or ch.atk
+        ch.def     = sp.def or ch.def
+        ch.mag     = sp.mag or ch.mag
+        ch.spd     = sp.spd or ch.spd
+      end
+    end
+    -- Rebuild party slots from the saved class order.
+    if data.party_classes then
+      for i, cls in ipairs(data.party_classes) do
+        if CHARACTERS[cls] then party[i] = CHARACTERS[cls] end
+      end
+    end
+    if data.active then active = math.max(1, math.min(#party, data.active)) end
+  else
+    -- Legacy slot-indexed load (best-effort migration).
+    for i, sp in ipairs(data.party) do
+      if party[i] then
+        party[i].hp = sp.hp
+        party[i].mp = sp.mp
+        party[i].alive = sp.alive
+        party[i].queued = sp.queued
+        if sp.level then party[i].level = sp.level end
+        if sp.xp then party[i].xp = sp.xp end
+        if sp.xp_total then party[i].xp_total = sp.xp_total end
+        if sp.hp_max then party[i].hp_max = sp.hp_max end
+        if sp.mp_max then party[i].mp_max = sp.mp_max end
+        if sp.atk then party[i].atk = sp.atk end
+        if sp.def then party[i].def = sp.def end
+        if sp.mag then party[i].mag = sp.mag end
+        if sp.spd then party[i].spd = sp.spd end
+      end
     end
   end
   for k, v in pairs(data.shards or {}) do shards[k] = v end
@@ -4059,8 +11179,18 @@ local function load_game()
   if data.battle_bpm then BATTLE_BPM = data.battle_bpm end
   if data.journey_bpm then OVERWORLD_BPM = data.journey_bpm end
   -- equipment (gracefully no-op for older saves; migrate cleric instrument names)
-  local INST_MIGRATE = {prayer_bell = "pilgrim_lyre", silver_censer = "silver_lyre", hymnal = "sacred_lyre",
-                        hollow_drum = "aeolian_lute"}
+  local INST_MIGRATE = {
+    -- Mage staves -> samplers
+    ash_staff = "cassette_sampler", ember_rod = "sp404", astral_wand = "norns_sampler",
+    -- Warrior swords -> tuning forks
+    iron_edge = "iron_fork", hymnsword = "bell_fork", stormbrand = "storm_fork",
+    -- Cleric: violin (start), singing_bowl (Cave 2), lyre (Cave 6), moog
+    -- (rare). Map every retired ID forward.
+    prayer_bell = "violin",     pilgrim_lyre = "violin",
+    silver_censer = "singing_bowl", silver_lyre = "singing_bowl", harp = "singing_bowl",
+    hymnal = "lyre",            sacred_lyre = "lyre",
+    hollow_drum = "aeolian_lute",
+  }
   if data.instruments_owned then
     instruments_owned = {}
     for _, id in ipairs(data.instruments_owned) do
@@ -4111,12 +11241,42 @@ local function load_game()
     if CONTENT.recruits[1] then CONTENT.recruits[1].joined = data.recruits_joined[1] or false end
     if CONTENT.recruits[2] then CONTENT.recruits[2].joined = data.recruits_joined[2] or false end
     if CONTENT.recruits[3] then CONTENT.recruits[3].joined = data.recruits_joined[3] or false end
+    -- Ensure each joined recruit has a CHARACTERS record (so they can be
+    -- swapped in even if the save predates the per-class persistence layer).
+    for _, r in ipairs(CONTENT.recruits) do
+      if r.joined and not (CHARACTERS and CHARACTERS[r.class]) then
+        CHARACTERS = CHARACTERS or {}
+        CHARACTERS[r.class] = build_recruit_record(r)
+      end
+    end
   end
   if data.achievements then
     CONTENT.achievements = {}
     for k, v in pairs(data.achievements) do CONTENT.achievements[k] = v end
   end
   if data.sergei_intervened ~= nil then CONTENT.sergei_intervened = data.sergei_intervened end
+  if data.academy_state then CONTENT.academy_state = data.academy_state end
+  if data.prologue_state then CONTENT.prologue_state = data.prologue_state end
+  if data.prologue_scene_done ~= nil then
+    CONTENT.prologue_scene_done = data.prologue_scene_done
+  end
+  if data.prologue_intro_done ~= nil then
+    CONTENT.prologue_intro_done = data.prologue_intro_done
+  end
+  -- (No more "assume scene played" migration — saves that predate
+  -- prologue_scene_done are treated as never-seen so the choreographed
+  -- throne scene gets a chance to play even on continued saves where
+  -- the previous version of the prologue was just static dialogue.)
+  if data.scene_seen then
+    CONTENT.scene_seen = {}
+    for k, v in pairs(data.scene_seen) do CONTENT.scene_seen[k] = v end
+  end
+  if data.silencer_defeated then
+    CONTENT.silencer_defeated = data.silencer_defeated
+  end
+  if data.cave_monster_defeated then
+    CONTENT.cave_monster_defeated = data.cave_monster_defeated
+  end
   if data.inv then
     SHOP.inv.salve = data.inv.salve or 0
     SHOP.inv.vial  = data.inv.vial or 0
@@ -4139,33 +11299,61 @@ end
 
 -- ============================================================ PARTY
 
+-- Stable character store, keyed by class. The party array holds
+-- REFERENCES into this table — never copies — so swapping a recruit
+-- in/out preserves every character's stats. Save dumps this whole table
+-- by class; load rebuilds it. Globals (no `local`) to dodge the
+-- 200-main-chunk-locals cap.
+CHARACTERS = nil
+
+function build_starter_record(t, queued_default)
+  return {
+    class=t.class, spd=t.spd, atb=0, queued=queued_default or "ATK",
+    note_idx=t.note_idx, note_lo=t.note_lo, note_hi=t.note_hi,
+    cutoff=t.cutoff, resonance=t.resonance,
+    hp=t.hp_max, hp_max=t.hp_max, mp=t.mp_max, mp_max=t.mp_max,
+    atk=t.atk, def=t.def, mag=t.mag,
+    level=1, xp=0, xp_total=0,
+    alive=true, shield=false, buffed=false, blocking=false,
+    last_fire=-99, last_hit=-99,
+    stick={lx=0,ly=0,rx=0,ry=0}, xwet=0, dly=0,
+  }
+end
+
+function build_recruit_record(r)
+  return {
+    class=r.class, spd=r.spd, atb=0, queued="ATK",
+    note_idx=11, note_lo=8, note_hi=20,
+    cutoff=2000, resonance=0.30,
+    hp=r.hp_max, hp_max=r.hp_max, mp=r.mp_max, mp_max=r.mp_max,
+    atk=r.atk, def=r.def, mag=r.mag,
+    level=1, xp=0, xp_total=0,
+    alive=true, shield=false, buffed=false, blocking=false,
+    last_fire=-99, last_hit=-99,
+    stick={lx=0,ly=0,rx=0,ry=0}, xwet=0, dly=0,
+  }
+end
+
 local function init_party()
-  party = {}
+  -- All four starter records still live in CHARACTERS so their stats
+  -- track from level 1 even before they join. Active party starts with
+  -- Miel ALONE — Alder/Diegues/Strom enter via prologue/story scenes.
+  CHARACTERS = {}
   for i, t in ipairs(PARTY_TEMPLATE) do
-    party[i] = {
-      class=t.class, spd=t.spd, atb=0, queued=DEFAULT_QUEUED[i],
-      note_idx=t.note_idx, note_lo=t.note_lo, note_hi=t.note_hi,
-      cutoff=t.cutoff, resonance=t.resonance,
-      hp=t.hp_max, hp_max=t.hp_max, mp=t.mp_max, mp_max=t.mp_max,
-      atk=t.atk, def=t.def, mag=t.mag,
-      level=1, xp=0, xp_total=0,
-      alive=true, shield=false, buffed=false, blocking=false,
-      last_fire=-99, last_hit=-99,
-      -- per-voice latched stick state: each character remembers their own
-      -- effect-stick positions so switching voices doesn't reset their effects.
-      stick={lx=0, ly=0, rx=0, ry=0},
-      xwet=0, dly=0,
-    }
+    CHARACTERS[t.class] = build_starter_record(t, DEFAULT_QUEUED[i])
   end
+  party = { CHARACTERS.cleric }   -- Miel only at New Game start
   active = 1
-  -- starter instruments
+  -- Equip Miel's starter instrument; queue Alder/Diegues/Strom's starter
+  -- instruments to the owned pool so they're ready when those characters
+  -- join later (no awkward "you have no instrument equipped" moment).
   instruments_owned = {}
   equipped = {}
-  for _, p in ipairs(party) do
-    local id = STARTER_INSTRUMENT[p.class]
+  for _, t in ipairs(PARTY_TEMPLATE) do
+    local id = STARTER_INSTRUMENT[t.class]
     if id then
       instruments_owned[id] = true
-      equipped[p.class] = id
+      equipped[t.class] = id
     end
   end
 end
@@ -4173,7 +11361,11 @@ end
 -- shared XP gain on enemy defeat. Each party member accumulates XP toward
 -- their own next-level threshold and levels up via the CLASS_GROWTH table.
 -- p.xp is *progress toward next level*; p.xp_total is lifetime XP earned.
-local function gain_xp(amount)
+-- Global (was local) so prologue helpers (start_prologue_silencer,
+-- start_prologue_cave_monster) defined earlier in the file can grant
+-- XP. Their `if gain_xp then` guards used to silently no-op because
+-- the local wasn't yet in lexical scope at their definition point.
+function gain_xp(amount)
   for _, p in ipairs(party) do
     if not p.alive then goto continue end
     p.xp = (p.xp or 0) + amount
@@ -4201,7 +11393,7 @@ local function gain_xp(amount)
         local pitch = (sc[idx + 12] or sc[idx]) + (JAM.root or 0)
         clock.run(function()
           clock.sleep((k - 1) * 0.06)
-          engine.trig_bard(midi_to_freq(pitch), 0.7, 0.003, 0.5, 0.6)
+          sq_trig("bard", midi_to_freq(pitch), 0.7, 0.003, 0.5, math.min(1, 0.6 * (CONTENT.combat_reverb_mix or 1.0)))
         end)
       end
     end
@@ -4216,6 +11408,9 @@ local function reset_party_for_battle()
     p.shield = false
     p.buffed = false
     p.blocking = false
+    p.reflect = false
+    p.reflect_ticks = 0
+    p.limit_used = false   -- limit-break refreshed each battle
     p.last_fire = -99
     p.last_hit = -99
     if not p.alive then
@@ -4235,8 +11430,20 @@ local function active_theme_id()
   if current_map_id == 3 then return "northern" end
   if current_map_id == 4 then return "tower" end
   -- Pass 25: interior themes (inn, shop, each cave, side dungeon).
-  if current_map_id == 5 then return "inn" end
-  if current_map_id == 6 then return "shop" end
+  if current_map_id == 5 or current_map_id == 17 or current_map_id == 18 then return "inn" end
+  if current_map_id == 6 or current_map_id == 15 or current_map_id == 16 then return "shop" end
+  if current_map_id == 19 then return "academy" end  -- academy interior gets its own scholarly theme
+  if current_map_id == 20 then return "castle" end -- castle interior: coup-in-progress urgency
+  if current_map_id == 27 or current_map_id == 28 or current_map_id == 29
+     or current_map_id == 30 or current_map_id == 31
+     or current_map_id == 32 or current_map_id == 33
+     or current_map_id == 34 then return "castle" end
+  if current_map_id == 21 then return "echoes" end -- escape cave: cave-1 echoes theme
+  if current_map_id == 22 then return "woods" end  -- western region: hollow-woods theme
+  if current_map_id == 23 then return "lirael" end -- Lirael Ruins: mournful Aeolian descent
+  if current_map_id == 24 then return "observatory" end -- Velthe Observatory: mathematical Lydian
+  if current_map_id == 25 then return "cairn" end  -- Reya's Cairn: single bell tone
+  if current_map_id == 26 then return "woods" end  -- Far Hills: woods theme (rolling hills, scattered trees)
   if current_map_id == 7 then return "echoes" end
   if current_map_id == 8 then return "grove" end
   if current_map_id == 9 then return "grotto" end
@@ -4254,8 +11461,12 @@ end
 
 local function fire_ow_voice(class, scale_idx, artic_override)
   if not scale_idx or scale_idx == 0 then return end
-  local note = active_scale()[scale_idx] + JAM.root
-  if not note then return end
+  -- Defensive: a malformed theme could ship a scale idx outside the
+  -- 1..#scale range. active_scale()[-1] etc. is nil — guard rather
+  -- than crash the clock thread with "arithmetic on a nil value".
+  local sc_val = active_scale()[scale_idx]
+  if not sc_val then return end
+  local note = sc_val + JAM.root
   local freq = midi_to_freq(note)
   local base = OW_ARTIC[class]
   local ovr = artic_override and artic_override[class]
@@ -4263,7 +11474,11 @@ local function fire_ow_voice(class, scale_idx, artic_override)
   local atk    = (ovr and ovr.attack)  or base.attack
   local rel    = (ovr and ovr.release) or base.release
   local wet    = (ovr and ovr.wet)     or base.wet
-  engine["trig_" .. class](freq, vel, atk, rel, wet)
+  -- Scale the music's per-trig reverb send by the user-configurable mix
+  -- param (default 1.0 = unscaled). 0 = bone-dry music, 2 = lush. Combat
+  -- SFX (attack_sound) is scaled separately via combat_reverb_mix.
+  wet = math.max(0, math.min(1, wet * (CONTENT.music_reverb_mix or 1.0)))
+  sq_trig(class, freq, vel, atk, rel, wet)
 end
 
 local function tick_overworld_music()
@@ -4278,6 +11493,23 @@ local function tick_overworld_music()
   for class, pat in pairs(theme.pattern) do
     fire_ow_voice(class, pat[overworld_step], theme.artic)
   end
+  -- Castle bashing ambient (Pass 62). After the courtyard gate has been
+  -- breached and Miel has run back inside, silencers pound on the
+  -- now-barred south hallway doors. We fire a low thud + a faint shake
+  -- every ~6 seconds while the player is in any castle map and the
+  -- prologue still isn't over (escape via tapestry resolves it).
+  if CONTENT.courtyard_breached
+     and not CONTENT.prologue_scene_done
+     and (current_map_id == 20 or current_map_id == 27 or current_map_id == 28
+          or current_map_id == 29 or current_map_id == 30 or current_map_id == 31) then
+    if (tick % 24) == 0 then
+      sq_trig("warrior", midi_to_freq(22), 0.85, 0.001, 0.45, 0.20)
+      ANIM.shake(1, 4)
+    elseif (tick % 24) == 6 then
+      -- a second softer hit on the off-beat for procession
+      sq_trig("warrior", midi_to_freq(24), 0.55, 0.001, 0.30, 0.15)
+    end
+  end
 end
 
 local function fire_title_voice(class, scale_idx)
@@ -4286,7 +11518,8 @@ local function fire_title_voice(class, scale_idx)
   if not note then return end
   local freq = midi_to_freq(note)
   local a = TITLE_ARTIC[class]
-  engine["trig_" .. class](freq, a.vel, a.attack, a.release, a.wet)
+  local w = math.max(0, math.min(1, a.wet * (CONTENT.music_reverb_mix or 1.0)))
+  sq_trig(class, freq, a.vel, a.attack, a.release, w)
 end
 
 local function tick_title_music()
@@ -4302,7 +11535,8 @@ local function fire_intro_voice(class, scale_idx)
   if not note then return end
   local freq = midi_to_freq(note)
   local a = INTRO_ARTIC[class]
-  engine["trig_" .. class](freq, a.vel, a.attack, a.release, a.wet)
+  local w = math.max(0, math.min(1, a.wet * (CONTENT.music_reverb_mix or 1.0)))
+  sq_trig(class, freq, a.vel, a.attack, a.release, w)
 end
 
 local function tick_intro_music()
@@ -4318,7 +11552,8 @@ local function fire_victory_voice(class, scale_idx)
   if not note then return end
   local freq = midi_to_freq(note)
   local a = VICTORY_ARTIC[class]
-  engine["trig_" .. class](freq, a.vel, a.attack, a.release, a.wet)
+  local w = math.max(0, math.min(1, a.wet * (CONTENT.music_reverb_mix or 1.0)))
+  sq_trig(class, freq, a.vel, a.attack, a.release, w)
 end
 
 local function tick_victory_music()
@@ -4326,6 +11561,34 @@ local function tick_victory_music()
   if victory_step > VICTORY_PATTERN_LEN then return end
   for class, pat in pairs(VICTORY_PATTERN) do
     fire_victory_voice(class, pat[victory_step])
+  end
+end
+
+-- ── GAME OVER music tick ────────────────────────────────────────────────
+-- Globals (not locals) to dodge the 200-locals-per-main-chunk Lua cap.
+game_over_step = 0
+function fire_game_over_voice(class, scale_idx)
+  if not scale_idx or scale_idx == 0 then return end
+  local sc = active_scale()
+  local note
+  if scale_idx > 0 then
+    note = sc[scale_idx]
+  else
+    -- Negative index: count from end of scale, drop an octave.
+    local idx = #sc + scale_idx + 1
+    note = (sc[idx] or sc[1]) - 12
+  end
+  if not note then return end
+  note = note + JAM.root
+  local a = GAME_OVER_ARTIC[class]
+  local w = math.max(0, math.min(1, a.wet * (CONTENT.music_reverb_mix or 1.0)))
+  sq_trig(class, midi_to_freq(note), a.vel, a.attack, a.release, w)
+end
+
+function tick_game_over_music()
+  game_over_step = (game_over_step % GAME_OVER_PATTERN_LEN) + 1
+  for class, pat in pairs(GAME_OVER_PATTERN) do
+    fire_game_over_voice(class, pat[game_over_step])
   end
 end
 
@@ -4382,7 +11645,8 @@ local function tick_shop_music()
       local note = active_scale()[idx] + JAM.root
       if note then
         local a = SHOP.artic[class]
-        engine["trig_" .. class](midi_to_freq(note), a.vel, a.attack, a.release, a.wet)
+        local w = math.max(0, math.min(1, a.wet * (CONTENT.music_reverb_mix or 1.0)))
+        sq_trig(class, midi_to_freq(note), a.vel, a.attack, a.release, w)
       end
     end
   end
@@ -4435,12 +11699,274 @@ local enter_battle
 -- enter_jam_pad is intentionally global (saves a `local` slot near the 200-cap
 -- and is only called from menu handlers via the same name)
 
+-- Ambient overworld event. Rolls on each player step BEFORE the random
+-- encounter check (so a peaceful surprise can replace a fight that
+-- would have rolled in the same step). Same map-safety gating as
+-- encounters. ~0.5% per step. Global to dodge the 200-local cap.
+function try_ambient_event()
+  if current_map_id == 5 or current_map_id == 6 or current_map_id == 15 or current_map_id == 16
+     or current_map_id == 17 or current_map_id == 18 or current_map_id == 19
+     or current_map_id == 20 or current_map_id == 21
+     or current_map_id == 23 or current_map_id == 24 or current_map_id == 25 then return false end
+  if current_map_id == 1 and player.x <= 32 then return false end
+  if math.random() >= 0.012 then return false end
+  -- Each event has a `where` predicate that decides if the current
+  -- map+region is appropriate. We filter the pool to events that fit
+  -- the location, then pick one at random. If nothing fits this spot
+  -- (e.g. you're standing in a desert with no caravan-courier set up
+  -- yet), no event fires — better than a bard appearing in the snow.
+  --
+  -- Region helpers (defined inline to avoid threading params):
+  local m = current_map_id
+  local in_woods   = (m == 1 and player.x > 32 and player.x <= 48) or m == 22
+  local in_coast   = (m == 1 and player.x > 48)
+  local in_eastern = (m == 2)
+  local in_north   = (m == 3)
+  local in_hills   = (m == 26)
+
+  -- One-shot tracker: each event fires at most once per save. After
+  -- it plays, its id goes into CONTENT.events_seen and the event is
+  -- removed from future picks. Persists through saves like other
+  -- CONTENT state. Resets on NEW GAME + so repeat playthroughs get
+  -- the events again.
+  CONTENT.events_seen = CONTENT.events_seen or {}
+  local events = {
+    -- Wanderer fits trade roads + warm regions; never in the snow.
+    {id = "wanderer", fn = start_event_wanderer,
+     where = function() return in_woods or in_coast or in_eastern or in_hills end},
+    -- Lutist also dislikes cold; fits the village outskirts + hills.
+    {id = "lutist", fn = start_event_lutist,
+     where = function() return in_woods or in_coast or in_hills end},
+    -- Coin glints fit established roads — mainland + eastern + western
+    -- (where carts have passed for years).
+    {id = "coin", fn = start_event_coin,
+     where = function() return in_woods or in_coast or in_eastern end},
+    -- Stillness is for remote contemplative places: the snow, the
+    -- hills, the deep woods at dusk.
+    {id = "stillness", fn = start_event_stillness,
+     where = function() return in_north or in_hills or in_woods end},
+    -- Ghost note carries best across thin/cold air or rolling hills.
+    {id = "ghost_note", fn = start_event_ghost_note,
+     where = function() return in_north or in_hills end},
+    -- Courier pack fits trade-route shoulders: coast + eastern dunes.
+    {id = "courier", fn = start_event_courier,
+     where = function() return in_coast or in_eastern end},
+  }
+  local picks = {}
+  for _, e in ipairs(events) do
+    if type(e.fn) == "function" and e.where()
+       and not CONTENT.events_seen[e.id] then
+      picks[#picks + 1] = e
+    end
+  end
+  if #picks == 0 then return false end
+  local chosen = picks[math.random(#picks)]
+  CONTENT.events_seen[chosen.id] = true
+  chosen.fn()
+  return true
+end
+
+-- ── Ambient overworld event scenes ──────────────────────────────────────
+-- Each is a brief letterboxed beat. Player position is captured at
+-- entry so the scene can spawn local actors and return the player to
+-- exactly where they were standing. All globals (no `local`) to dodge
+-- the 200-main-chunk-locals cap.
+
+function start_event_wanderer()
+  local px, py = player.x, player.y
+  local enter_x = math.min(px + 5, MAP_W - 1)
+  local exit_x  = math.max(px - 5, 2)
+  local script = {
+    {hide_player = true},
+    {letterbox_in = true},
+    {focus = {x = px, y = py}, ticks = 12},
+    {spawn = "miel", class = "cleric", name = "Miel", x = px, y = py, facing = "right", bob = false},
+    {spawn = "wanderer", class = "bard", name = "Wanderer",
+     x = enter_x, y = py, facing = "left", bob = false},
+    {wait = 8},
+    {move = "wanderer", to = {x = px + 1, y = py}, ticks = 60},
+    {face = "miel", facing = "right"},
+    {wait = 6},
+    {dialogue = {
+      "(a wanderer steps off the road, head dipped in greeting)",
+      "[Wanderer] Music's been thin on the road of late.",
+      "[Wanderer] You sound like fuller weather coming. (offers a Tonic)",
+    }, npc = {name = "Wanderer"}},
+    {set = function() SHOP.inv.tonic = (SHOP.inv.tonic or 0) + 1 end},
+    {flash = "* +1 Tonic *", ticks = 36},
+    {wait = 18},
+    {move = "wanderer", to = {x = exit_x, y = py}, ticks = 80},
+    {despawn = "wanderer"},
+    {despawn = "miel"},
+    {teleport_player = {x = px, y = py, facing = player.facing}},
+    {show_player = true},
+    {letterbox_out = true},
+  }
+  SCENE.start(script)
+end
+
+function start_event_lutist()
+  local px, py = player.x, player.y
+  local lx = math.min(px + 3, MAP_W - 1)
+  local script = {
+    {hide_player = true},
+    {letterbox_in = true},
+    {focus = {x = px, y = py}, ticks = 12},
+    {spawn = "miel", class = "cleric", name = "Miel", x = px, y = py, facing = "right", bob = false},
+    {spawn = "lutist", class = "bard", name = "Lutist",
+     x = lx, y = py, facing = "left", bob = false},
+    {wait = 12},
+    {dialogue = {
+      "(a wandering musician has set their lute across their knees by the road)",
+    }, npc = nil},
+    {sfx = {class = "bard", note = 67, vel = 0.55, attack = 0.005, release = 2.0, wet = 0.95}},
+    {wait = 10},
+    {sfx = {class = "bard", note = 71, vel = 0.50, attack = 0.005, release = 2.0, wet = 0.95}},
+    {wait = 10},
+    {sfx = {class = "bard", note = 74, vel = 0.50, attack = 0.005, release = 3.0, wet = 1.0}},
+    {wait = 24},
+    {dialogue = {
+      "[Lutist]  (does not look up)",
+      "[Lutist]  Carry it east. The chord is missing two notes you know.",
+      "[Lutist]  ...one of them is yours.",
+    }, npc = {name = "Lutist"}},
+    {wait = 14},
+    {despawn = "lutist"},
+    {despawn = "miel"},
+    {teleport_player = {x = px, y = py, facing = player.facing}},
+    {show_player = true},
+    {letterbox_out = true},
+  }
+  SCENE.start(script)
+end
+
+function start_event_coin()
+  local px, py = player.x, player.y
+  local g = 8 + math.random(0, 14)
+  local script = {
+    {hide_player = true},
+    {letterbox_in = true},
+    {focus = {x = px, y = py}, ticks = 12},
+    {spawn = "miel", class = "cleric", name = "Miel", x = px, y = py, facing = "down", bob = false},
+    {wait = 8},
+    {dialogue = {
+      "(something glints in the grass at your feet)",
+    }, npc = nil},
+    {face = "miel", facing = "down"},
+    {wait = 8},
+    {dialogue = {
+      "[Miel]    A coin. Old denomination.",
+      "[Miel]    From before the silence -- when the mints still stamped the seven notes on the rim.",
+      "[Miel]    (slips it into the purse) Worth more than its weight, anyway.",
+    }, npc = {name = "Miel"}},
+    {set = function() SHOP.gold = SHOP.gold + g end},
+    {flash = "* +" .. g .. "g *", ticks = 36},
+    {wait = 18},
+    {despawn = "miel"},
+    {teleport_player = {x = px, y = py, facing = player.facing}},
+    {show_player = true},
+    {letterbox_out = true},
+  }
+  SCENE.start(script)
+end
+
+function start_event_stillness()
+  local px, py = player.x, player.y
+  local script = {
+    {hide_player = true},
+    {set = function() SCENE.fade = 0 end},
+    {letterbox_in = true},
+    {fade_out = 18},
+    {wait = 12},
+    {dialogue = {
+      "(the road holds still for a long moment.)",
+      "(the wind has stopped without you noticing it stopping.)",
+    }, npc = nil},
+    {sfx = {class = "cleric", note = 60, vel = 0.45, attack = 0.40, release = 6.0, wet = 1.0}},
+    {wait = 28},
+    {sfx = {class = "cleric", note = 67, vel = 0.40, attack = 0.40, release = 6.0, wet = 1.0}},
+    {wait = 32},
+    {set = function()
+      for _, p in ipairs(party) do
+        if p.alive then
+          p.hp = math.min(p.hp_max, p.hp + math.floor(p.hp_max * 0.20))
+          p.mp = math.min(p.mp_max, p.mp + math.floor(p.mp_max * 0.10))
+        end
+      end
+    end},
+    {flash = "* the chord steadies you *", ticks = 48},
+    {wait = 18},
+    {dialogue = {
+      "(the wind comes back. It was not the wind that paused.)",
+    }, npc = nil},
+    {fade_in = 18},
+    {teleport_player = {x = px, y = py, facing = player.facing}},
+    {show_player = true},
+    {letterbox_out = true},
+  }
+  SCENE.start(script)
+end
+
+function start_event_ghost_note()
+  local px, py = player.x, player.y
+  local script = {
+    {hide_player = true},
+    {letterbox_in = true},
+    {focus = {x = px, y = py}, ticks = 8},
+    {wait = 12},
+    {dialogue = {
+      "(somewhere east, a voice you cannot place sings a single note.)",
+    }, npc = nil},
+    {sfx = {class = "cleric", note = 79, vel = 0.40, attack = 0.40, release = 5.0, wet = 1.0}},
+    {wait = 36},
+    {dialogue = {
+      "(it does not repeat. It does not need to.)",
+      "(you walk on with the note still inside you.)",
+    }, npc = nil},
+    {teleport_player = {x = px, y = py, facing = player.facing}},
+    {show_player = true},
+    {letterbox_out = true},
+  }
+  SCENE.start(script)
+end
+
+function start_event_courier()
+  local px, py = player.x, player.y
+  local script = {
+    {hide_player = true},
+    {letterbox_in = true},
+    {focus = {x = px, y = py}, ticks = 10},
+    {spawn = "miel", class = "cleric", name = "Miel", x = px, y = py, facing = "down", bob = false},
+    {wait = 10},
+    {dialogue = {
+      "(a courier's pack lies open by the road. Whoever carried it left in a hurry.)",
+      "(a Salve is still wrapped in its cloth. Untouched.)",
+    }, npc = nil},
+    {set = function() SHOP.inv.salve = (SHOP.inv.salve or 0) + 1 end},
+    {flash = "* +1 Salve *", ticks = 36},
+    {wait = 16},
+    {dialogue = {
+      "[Miel]    (folds the wrapping back, pockets the salve carefully)",
+      "[Miel]    Whoever you were -- I hope you got where you were going.",
+    }, npc = {name = "Miel"}},
+    {wait = 14},
+    {despawn = "miel"},
+    {teleport_player = {x = px, y = py, facing = player.facing}},
+    {show_player = true},
+    {letterbox_out = true},
+  }
+  SCENE.start(script)
+end
+
 -- Random encounter: small chance per overworld step. Skips the village (mainland
 -- cols 1-32) and any caves the player hasn't unlocked yet — picks the encounter
 -- pool matching the current map/region.
 local function try_random_encounter()
   -- village + interiors (inn/shop) are safe zones; never roll encounters there.
-  if current_map_id == 5 or current_map_id == 6 then return false end
+  -- Interiors + scripted prologue maps never roll random encounters.
+  if current_map_id == 5 or current_map_id == 6 or current_map_id == 15 or current_map_id == 16
+     or current_map_id == 17 or current_map_id == 18 or current_map_id == 19
+     or current_map_id == 20 or current_map_id == 21 then return false end
   if current_map_id == 1 and player.x <= 32 then return false end
   -- Cave interiors use their own per-step encounter rate, not the overworld one.
   -- Side dungeon (The Hollow, map 12) reuses Cave 1's encounter pool.
@@ -4453,16 +11979,37 @@ local function try_random_encounter()
     enter_battle(cv, true)
     return true
   end
+  -- Story / interior areas: no random encounters.
+  --   23 = Lirael Ruins (memory/exploration)
+  --   24 = Velthe's Observatory (interior)
+  --   25 = Reya's Cairn (memorial)
+  if current_map_id == 23 or current_map_id == 24 or current_map_id == 25 then
+    return false
+  end
   if math.random() >= ENCOUNTER_CHANCE then return false end
   local cave_id
   if current_map_id == 1 then
-    cave_id = (player.x <= 48) and 2 or 3   -- woods or coast
+    cave_id = (player.x <= 48) and 2 or 3   -- mainland: woods or coast
   elseif current_map_id == 2 then
-    cave_id = 4                              -- eastern reaches
+    cave_id = 4                              -- eastern reaches: dune-tier
   elseif current_map_id == 3 then
-    cave_id = 5                              -- northern wilds
+    cave_id = 5                              -- northern wilds: snowgaunt-tier
+  elseif current_map_id == 22 then
+    -- Western region (Academy). Early-game area — Miel + Alder may
+    -- only have Diegues. Use cave-2 (woods/Sentinel grove) pool, which
+    -- is balanced for low-level parties. Was falling through to
+    -- cave-6 (Locrius/Suno tier) which one-shot anyone here.
+    cave_id = 2
+  elseif current_map_id == 26 then
+    -- Far Hills: rolling-hills overworld north of the village. Mid-
+    -- early game area. Use cave-1 pool (Echoes — easiest enemies).
+    cave_id = 1
+  elseif current_map_id == 4 then
+    cave_id = 6                              -- Suno's domain (endgame)
   else
-    cave_id = 6                              -- suno's domain
+    -- Unknown map — bail rather than dropping the player into cave-6
+    -- by accident.
+    return false
   end
   enter_battle(cave_id, true)
   return true
@@ -4481,7 +12028,7 @@ local function try_move(dx, dy)
     -- Random encounters trigger per-step inside; tile 27 is the boss arena.
     CONTENT.return_map = current_map_id
     CONTENT.return_x = nx; CONTENT.return_y = ny + 1
-    travel_to(7, 6, 9)   -- spawn just inside the cave's south door
+    travel_to(7, 7, 13)  -- spawn just inside the cave's south door
     CONTENT.cave_entered = CONTENT.cave_entered or {}
     if not CONTENT.cave_entered[1] then
       CONTENT.cave_entered[1] = true
@@ -4492,16 +12039,48 @@ local function try_move(dx, dy)
   end
   if t == 27 then
     -- Boss arena marker: cave id derives from the current interior map.
+    -- First-time approach plays a short FF4-style atmospheric scene
+    -- before the fight; subsequent attempts (after defeat / retry) skip
+    -- straight to combat.
     local cave_for_map = { [7] = 1, [8] = 2, [9] = 3, [10] = 4, [11] = 5,
                            [13] = 6, [14] = 7 }
-    enter_battle(cave_for_map[current_map_id] or 1)
+    local cv = cave_for_map[current_map_id] or 1
+    local scene_id = "boss_approach_" .. cv
+    local lines = BOSS_APPROACH and BOSS_APPROACH[cv]
+    CONTENT.scene_seen = CONTENT.scene_seen or {}
+    -- All caves now get full choreographed approach scenes. cave 7
+    -- routes to start_finale_scene; caves 1-6 use the generic
+    -- start_boss_approach_scene helper. First-time only — subsequent
+    -- attempts skip straight to combat.
+    if not CONTENT.scene_seen[scene_id] then
+      CONTENT.scene_seen[scene_id] = true
+      if cv == 7 and start_finale_scene then
+        start_finale_scene()
+        return
+      end
+      if start_boss_approach_scene then
+        start_boss_approach_scene(cv)
+        return
+      end
+      -- Fallback: legacy dialogue-only path if helper is missing.
+      if lines then
+        dlg.lines = pack_dialogue_lines(lines, nil)
+        dlg.line = 1
+        dlg.npc = nil
+        game_state = "DIALOGUE"
+        CONTENT.post_dialogue = function() enter_battle(cv) end
+        redraw()
+        return
+      end
+    end
+    enter_battle(cv)
     return
   end
   if t == 7 then
     -- Cave 2 entry: enter the explorable interior.
     CONTENT.return_map = current_map_id
     CONTENT.return_x = nx; CONTENT.return_y = ny + 1
-    travel_to(8, 7, 9)
+    travel_to(8, 9, 12)
     CONTENT.cave_entered = CONTENT.cave_entered or {}
     if not CONTENT.cave_entered[2] then
       CONTENT.cave_entered[2] = true; if STORY.play_id("enter_cave2") then return end
@@ -4513,7 +12092,7 @@ local function try_move(dx, dy)
     -- Cave 3 entry: enter the explorable interior.
     CONTENT.return_map = current_map_id
     CONTENT.return_x = nx; CONTENT.return_y = ny + 1
-    travel_to(9, 6, 9)
+    travel_to(9, 7, 12)
     CONTENT.cave_entered = CONTENT.cave_entered or {}
     if not CONTENT.cave_entered[3] then
       CONTENT.cave_entered[3] = true; if STORY.play_id("enter_cave3") then return end
@@ -4525,7 +12104,7 @@ local function try_move(dx, dy)
     -- Cave 4 entry: enter the explorable interior.
     CONTENT.return_map = current_map_id
     CONTENT.return_x = nx; CONTENT.return_y = ny + 1
-    travel_to(10, 6, 9)
+    travel_to(10, 7, 12)
     CONTENT.cave_entered = CONTENT.cave_entered or {}
     if not CONTENT.cave_entered[4] then
       CONTENT.cave_entered[4] = true; if STORY.play_id("enter_cave4") then return end
@@ -4537,7 +12116,7 @@ local function try_move(dx, dy)
     -- Cave 5 entry: enter the explorable interior.
     CONTENT.return_map = current_map_id
     CONTENT.return_x = nx; CONTENT.return_y = ny + 1
-    travel_to(11, 7, 9)
+    travel_to(11, 9, 13)
     CONTENT.cave_entered = CONTENT.cave_entered or {}
     if not CONTENT.cave_entered[5] then
       CONTENT.cave_entered[5] = true; if STORY.play_id("enter_cave5") then return end
@@ -4550,7 +12129,7 @@ local function try_move(dx, dy)
     -- as Cave 1 (CAVE1 pool), no boss tile inside.
     CONTENT.return_map = current_map_id
     CONTENT.return_x = nx; CONTENT.return_y = ny + 1
-    travel_to(12, 6, 9)
+    travel_to(12, 7, 13)
     redraw()
     return
   end
@@ -4558,7 +12137,11 @@ local function try_move(dx, dy)
     -- Cave 6 (Locrian Crypt) entry — explorable interior on Suno's Domain
     CONTENT.return_map = current_map_id
     CONTENT.return_x = nx; CONTENT.return_y = ny + 1
-    travel_to(13, 7, 9)
+    travel_to(13, 9, 15)
+    CONTENT.cave_entered = CONTENT.cave_entered or {}
+    if not CONTENT.cave_entered[6] then
+      CONTENT.cave_entered[6] = true; if STORY.play_id("enter_cave6") then return end
+    end
     redraw()
     return
   end
@@ -4567,12 +12150,26 @@ local function try_move(dx, dy)
     CONTENT.return_map = current_map_id
     CONTENT.return_x = nx; CONTENT.return_y = ny + 1
     travel_to(14, 6, 5)
+    CONTENT.cave_entered = CONTENT.cave_entered or {}
+    if not CONTENT.cave_entered[7] then
+      CONTENT.cave_entered[7] = true; if STORY.play_id("enter_cave7") then return end
+    end
     redraw()
     return
   end
   if t == 18 then
     -- Tower: gated by 5+ shards. Travels bidirectionally to Suno's Domain.
     if count_shards() >= 5 then
+      -- First-time tower-entry: choreographed pre-warp beat. Party
+      -- gathers at the threshold; tower hum SFX; brief held silence;
+      -- THEN the warp fires. Subsequent uses skip straight to warp.
+      if current_map_id == 1 and start_tower_entry_scene
+         and not (CONTENT.scene_seen and CONTENT.scene_seen.tower_entry) then
+        CONTENT.scene_seen = CONTENT.scene_seen or {}
+        CONTENT.scene_seen.tower_entry = true
+        start_tower_entry_scene()
+        return
+      end
       if current_map_id == 4 then
         travel_to(1, 18, 7)         -- back to mainland plaza
       else
@@ -4611,20 +12208,195 @@ local function try_move(dx, dy)
     return
   end
   if t == 13 then
-    -- Inn entry: teleport into the inn interior. Mara (innkeeper) handles
-    -- the actual rest action when the player talks to her.
+    -- Inn entry: teleport into the inn interior. Each region has its own
+    -- inn — Mainland → Mara (map 5), Eastern Reaches → Tarn (map 17),
+    -- Northern Wilds → Halla (map 18). The innkeeper handles the rest
+    -- action when the player talks to them.
     CONTENT.return_map = current_map_id
     CONTENT.return_x = nx; CONTENT.return_y = ny + 1   -- step out below door
-    travel_to(5, 6, 7)
+    local inn_map_id = 5
+    if     current_map_id == 2 then inn_map_id = 17
+    elseif current_map_id == 3 then inn_map_id = 18
+    end
+    travel_to(inn_map_id, 6, 7)
     redraw()
     return
   end
   if t == 12 then
-    -- Item shop entry: teleport into the shop interior. Brio (shopkeeper)
-    -- opens the SHOP UI when talked to.
+    -- Item shop entry: teleport into the shop interior. Each region has
+    -- its own shopkeeper — Mainland goes to Hens (map 6), Eastern Reaches
+    -- goes to Marek (map 15). Northern Wilds defaults to Hens for now.
     CONTENT.return_map = current_map_id
     CONTENT.return_x = nx; CONTENT.return_y = ny + 1
-    travel_to(6, 6, 7)
+    local shop_map_id = 6
+    if     current_map_id == 2 then shop_map_id = 15
+    elseif current_map_id == 3 then shop_map_id = 16
+    end
+    travel_to(shop_map_id, 6, 7)
+    redraw()
+    return
+  end
+  if t == 47 then
+    -- Region-transition door. Bidirectional:
+    --   mainland (1) → Western Region (22), spawn at east edge.
+    --   Western Region (22) → mainland (1), spawn just inside SW corner.
+    -- Tile 47 is placed at both endpoints so a single tile id covers
+    -- both directions; dispatch is map-aware.
+    if current_map_id == 1 then
+      travel_to(22, 22, 11)   -- arrive next to the east-edge return tile
+    elseif current_map_id == 22 then
+      travel_to(1, 3, 13)     -- arrive just inside the mainland SW spit
+    elseif current_map_id == 23 then
+      -- Lirael Ruins south exit → return to Western Region just east of
+      -- the entry arch.
+      travel_to(22, 2, 7)
+    elseif current_map_id == 24 then
+      -- Velthe Observatory south exit → return to the Northern Wilds
+      -- just south of the door.
+      travel_to(3, 25, 5)
+    end
+    redraw()
+    return
+  end
+  if t == 50 then
+    -- Academy front door (Western Region 13,7). Warps into academy
+    -- interior; on-entry hook in travel_to fires the Diegues+Strom
+    -- story scene when academy_state is still "untriggered".
+    CONTENT.return_map = current_map_id
+    CONTENT.return_x = nx; CONTENT.return_y = ny + 1
+    travel_to(19, 5, 7)
+    redraw()
+    return
+  end
+  if t == 51 then
+    -- Lirael Ruins entry (Western Region — far west). Warps into the
+    -- ruins map. travel_to's on-entry hook fires the first-arrival
+    -- memory scene the first time Miel walks in.
+    CONTENT.return_map = current_map_id
+    CONTENT.return_x = nx; CONTENT.return_y = ny + 1
+    travel_to(23, 8, 9)   -- spawn just inside the south exit
+    redraw()
+    return
+  end
+  if t == 52 then
+    -- Velthe's Observatory entry (Northern Wilds, far east).
+    -- Gate: the player must hold at least 3 shards. Otherwise a soft
+    -- "tower locked" banner fires and the warp is suppressed (mirrors
+    -- the existing tower-of-suno gate).
+    local owned = 0
+    for _, v in pairs(shards) do if v then owned = owned + 1 end end
+    if owned < 3 then
+      CONTENT.banner_text  = "* the door is sealed -- 3 shards needed *"
+      CONTENT.banner_ticks = 36
+      redraw()
+      return
+    end
+    CONTENT.return_map = current_map_id
+    CONTENT.return_x = nx; CONTENT.return_y = ny + 1
+    travel_to(24, 8, 9)
+    redraw()
+    return
+  end
+  if t == 56 then
+    -- Far Hills cave-mouth (mainland village, north of Alder's fire).
+    -- Bidirectional: from mainland → Far Hills, and from Far Hills back.
+    if current_map_id == 1 then
+      travel_to(26, 12, 13)   -- spawn at south edge of Far Hills
+    else
+      travel_to(1, 17, 2)     -- back to village, just south of the mountain
+    end
+    redraw()
+    return
+  end
+  if t == 48 then
+    -- Tapestry door (castle interior, prologue). One-way: enters the
+    -- escape cave at its starting tile. Sets prologue_state to "escape".
+    CONTENT.prologue_state = "escape"
+    travel_to(21, 2, 5)
+    redraw()
+    return
+  end
+  if t == 58 then
+    -- Castle interior door. Routes by current_map_id + (nx, ny) of
+    -- the door tile the player just stepped onto. All bidirectional —
+    -- walking back through the same tile returns to the previous map.
+    if current_map_id == 20 then
+      -- Throne room south wall (cols 7-8, row 9) → hallway north end.
+      travel_to(27, 5, 2)
+    elseif current_map_id == 27 then
+      -- Hallway: route by door position.
+      if ny == 1 then                       -- north doors → throne hall
+        travel_to(20, 7, 8)                 -- spawn just north of map 20's south wall
+      elseif ny == 14 then                  -- south doors → courtyard
+        if CONTENT.courtyard_breached then
+          -- The door is barred from the inside. Audible bashing
+          -- continues on the other side via tick_overworld_music's
+          -- castle-ambient hook. Show a banner and stay in place.
+          CONTENT.banner_text  = "* the door is barred *"
+          CONTENT.banner_ticks = 48
+          redraw()
+          return
+        end
+        travel_to(32, 5, 2)                 -- spawn just inside courtyard north
+      -- Hallway → side-room. Spawn 1 tile INSIDE the room (away from
+      -- the door) so the player doesn't land on a wall (Library's door
+      -- is on the EAST side, not the west) or re-trigger their door.
+      elseif nx == 1 and ny == 4 then       -- west door A → Quarters (door on Q's east wall)
+        travel_to(28, 11, 5)
+      elseif nx == 10 and ny == 4 then      -- east door A → Study   (door on S's west wall)
+        travel_to(29, 2, 5)
+      elseif nx == 1 and ny == 10 then      -- west door B → Library (door on L's east wall)
+        travel_to(30, 11, 5)
+      elseif nx == 10 and ny == 10 then     -- east door B → Overlook (door on O's west wall)
+        travel_to(31, 2, 5)
+      end
+    elseif current_map_id == 28 then
+      travel_to(27, 2, 4)                   -- back to hallway, 1 east of west door A
+    elseif current_map_id == 29 then
+      travel_to(27, 9, 4)                   -- back to hallway, 1 west of east door A
+    elseif current_map_id == 30 then
+      travel_to(27, 2, 10)                  -- back to hallway, 1 east of west door B
+    elseif current_map_id == 31 then
+      travel_to(27, 9, 10)                  -- back to hallway, 1 west of east door B
+    elseif current_map_id == 32 then
+      -- Courtyard: route by door position.
+      if ny == 1 then                       -- north doors → hallway south
+        travel_to(27, 5, 13)                -- spawn just north of hallway's south wall
+      elseif nx == 3 and ny == 5 then       -- barracks door (west building; door on B's east wall)
+        travel_to(33, 11, 5)                -- 1 west of barracks east-door
+      elseif nx == 12 and ny == 6 then      -- infirmary door (east building; door on I's west wall)
+        travel_to(34, 2, 5)                 -- 1 east of infirmary west-door
+      end
+    elseif current_map_id == 33 then
+      travel_to(32, 4, 5)                   -- back to courtyard, 1 east of barracks door
+    elseif current_map_id == 34 then
+      travel_to(32, 11, 6)                  -- back to courtyard, 1 west of infirmary door
+    end
+    redraw()
+    return
+  end
+  if t == 49 then
+    -- Cave mouth (escape cave exit). Teleports to mainland village.
+    -- Choreographed first-arrival "queen of nothing" beat plays once.
+    CONTENT.prologue_state = "complete"
+    -- Spawn Miel just south of the small mountain (tile 56, col 17 row 1)
+    -- so she literally emerges from it. The escape cave conceptually
+    -- exits at THAT mountain — north of Alder's fire, in the village.
+    travel_to(1, 17, 2)
+    if not (CONTENT.scene_seen and CONTENT.scene_seen.village_arrival)
+       and start_village_arrival_scene then
+      CONTENT.scene_seen = CONTENT.scene_seen or {}
+      CONTENT.scene_seen.village_arrival = true
+      start_village_arrival_scene()
+    else
+      queue_first_arrival("village_arrival", {
+        "(Light. Real light, not torch-light. The cave mouth opens onto a village she has never seen.)",
+        "(Smoke rises from breakfast fires. Somewhere a child laughs at something a chicken did.)",
+        "[Miel]   (sets the hood back; the sun is on her face for the first time in a year)",
+        "[Miel]   (...quietly...) Queen of nothing, then.",
+        "(She walks down the path. Her hum is small but it carries. A bard at a fire looks up.)",
+      })
+    end
     redraw()
     return
   end
@@ -4632,7 +12404,7 @@ local function try_move(dx, dy)
     -- Interior exit door: pop back to the saved overworld position.
     -- Inn-rest (leaving map 5) is the canonical "campfire moment" that
     -- surfaces an unseen party-banter scene; shop / cave exits should not.
-    local was_inn = (current_map_id == 5)
+    local was_inn = (current_map_id == 5 or current_map_id == 17 or current_map_id == 18)
     local rm = CONTENT.return_map or 1
     local rx = CONTENT.return_x or 4
     local ry = CONTENT.return_y or 8
@@ -4640,6 +12412,26 @@ local function try_move(dx, dy)
     CONTENT.return_x = nil; CONTENT.return_y = nil
     travel_to(rm, rx, ry)
     if was_inn and STORY.play() then return end
+    -- One-shot Strom dream: first inn rest with Strom in the active
+    -- party. A black-screen flashback (just SFX + dialogue, no actors)
+    -- of his last morning with Reya before the campaign that lost her.
+    if was_inn and class_in_party and class_in_party("warrior")
+       and not (CONTENT.scene_seen and CONTENT.scene_seen.strom_dream)
+       and start_strom_dream_scene then
+      CONTENT.scene_seen = CONTENT.scene_seen or {}
+      CONTENT.scene_seen.strom_dream = true
+      start_strom_dream_scene()
+      return
+    end
+    -- After inn rest with no story scene queued, occasionally fire a
+    -- choreographed "dawn departure" beat: party members spawn briefly
+    -- around the player and exchange a single-line greeting before the
+    -- day starts. Fires ~25% of the time to keep it fresh.
+    if was_inn and #party >= 2 and math.random() < 0.25
+       and start_inn_dawn_scene then
+      start_inn_dawn_scene()
+      return
+    end
     redraw()
     return
   end
@@ -4653,10 +12445,54 @@ local function try_move(dx, dy)
     player.x = nx
     player.y = ny
     update_camera()
-    -- campfire pickup: heal party 25% HP if standing on a campfire.
-    -- First time at each campfire also triggers a quiet party-memory scene.
-    -- If a scene fires, we redraw + return early so a stray random encounter
-    -- can't yank the player into BATTLE mid-dialogue.
+    -- NPC bark check: any visible NPC within 3 tiles (Manhattan) of the
+    -- player rolls for a bark if its cooldown has elapsed. One bark
+    -- visible at a time per NPC; barks themselves auto-expire after ~90
+    -- ticks via the prune in draw_overworld.
+    for _, n in ipairs(npcs) do
+      if n.barks and #n.barks > 0 and npc_visible(n) then
+        local md = math.abs(n.x - player.x) + math.abs(n.y - player.y)
+        if md <= 3 and (tick - (n._bark_t or -9999)) > 240 and math.random() < 0.25 then
+          n._bark_t = tick
+          local line = n.barks[math.random(#n.barks)]
+          CONTENT.barks[#CONTENT.barks + 1] = {name = n.name, line = line, t = tick}
+        end
+      end
+    end
+    -- Castle prologue: fires the throne-room confrontation the first
+    -- time Miel crosses into the throne hall (row <=5 — she's walked
+    -- north past the tapestry row + interior corridor and is now on
+    -- the throne hall floor). Only fires after the intro beat played
+    -- and before the scene has already played.
+    if current_map_id == 20
+       and CONTENT.prologue_intro_done
+       and not CONTENT.prologue_scene_done
+       and player.y <= 5
+       and not (SCENE and SCENE.active)
+       and start_prologue_throne_scene then
+      start_prologue_throne_scene()
+      return
+    end
+    -- Ambient Alder-plays scene: very rare (~0.5%), only when walking
+    -- the village clearing with Alder in party AND no other scene/
+    -- battle pending. He stops to play one short phrase, then walking
+    -- resumes. CONTENT.alder_ambient_t throttles to once per minute or so.
+    if current_map_id == 1
+       and class_in_party("bard")
+       and get_region(player.x) == "village"
+       and not (SCENE and SCENE.active)
+       and (tick - (CONTENT.alder_ambient_t or -9999)) > 1200
+       and math.random() < 0.005
+       and start_alder_ambient_scene then
+      CONTENT.alder_ambient_t = tick
+      start_alder_ambient_scene()
+      return
+    end
+    -- Campfire pickup: heal party 25% HP if standing on a campfire.
+    -- First-time visits trigger a small party-memory scene. Each fire's
+    -- scene list is ordered by specificity; we run the first scene whose
+    -- required classes are ALL currently in active party. This way scenes
+    -- featuring Diegues/Strom/Alder don't fire before they've joined.
     local fire_scene_started = false
     for fi, f in ipairs(CONTENT.campfires) do
       if f.map == current_map_id and f.x == nx and f.y == ny then
@@ -4667,37 +12503,23 @@ local function try_move(dx, dy)
         CONTENT.flash_ticks = 24
         CONTENT.fire_seen = CONTENT.fire_seen or {}
         if not CONTENT.fire_seen[fi] then
-          CONTENT.fire_seen[fi] = true
-          local lines
-          if fi == 1 then       -- Hollow Woods fire
-            lines = {
-              "(Strom feeds the fire a fistful of dry needles.)",
-              "[Strom]  My captain liked woods like these.",
-              "[Strom]  Said trees keep their secrets longer than men.",
-              "[Miel]   Then we are in good company tonight.",
-            }
-          elseif fi == 2 then   -- Sunward Coast fire
-            lines = {
-              "(Alder tunes the lute by the fire's pop and crackle.)",
-              "[Alder]  Salt makes the gut strings sing wider.",
-              "[Diegues] An overtone, mostly. The third partial.",
-              "[Alder]  Diegues. Just listen for once.",
-              "[Diegues] (he listens.)",
-            }
-          else                  -- Northern Wilds fire
-            lines = {
-              "(Snow falls onto the fire and hisses out.)",
-              "[Miel]   My grandmother walked these passes.",
-              "[Miel]   She sang to keep the cold off her hands.",
-              "[Strom]  Sing it now, Miel. We'll keep watch.",
-              "[Miel]   (...softly, in a key the snow forgets...)",
-            }
+          local lines = pick_campfire_scene(f.map, f.x, f.y)
+          if lines then
+            CONTENT.fire_seen[fi] = true
+            -- Choreographed seating: party gathers around the flame, then
+            -- the memory beat plays as dialogue.
+            if start_campfire_scene then
+              fire_scene_started = start_campfire_scene(f, lines)
+            end
+            -- Fallback to plain dialogue if the scene helper bailed.
+            if not fire_scene_started then
+              dlg.lines = pack_dialogue_lines(lines, nil)
+              dlg.line = 1
+              dlg.npc = nil
+              game_state = "DIALOGUE"
+              fire_scene_started = true
+            end
           end
-          dlg.lines = lines
-          dlg.line = 1
-          dlg.npc = nil
-          game_state = "DIALOGUE"
-          fire_scene_started = true
         end
         break
       end
@@ -4719,6 +12541,10 @@ local function try_move(dx, dy)
               SHOP.inv[c.loot.item] = (SHOP.inv[c.loot.item] or 0) + 1
               msg = msg .. "  +1 " .. c.loot.item
             end
+            if c.loot.instrument and INSTRUMENTS[c.loot.instrument] then
+              instruments_owned[c.loot.instrument] = true
+              msg = msg .. "  + " .. INSTRUMENTS[c.loot.instrument].name
+            end
             CONTENT.flash_text = msg
             CONTENT.flash_ticks = 42
           else
@@ -4736,12 +12562,18 @@ local function try_move(dx, dy)
             SHOP.inv[c.loot.item] = (SHOP.inv[c.loot.item] or 0) + 1
             msg = msg .. "  +1 " .. c.loot.item
           end
+          if c.loot.instrument and INSTRUMENTS[c.loot.instrument] then
+            instruments_owned[c.loot.instrument] = true
+            msg = msg .. "  + " .. INSTRUMENTS[c.loot.instrument].name
+          end
           CONTENT.flash_text = msg
           CONTENT.flash_ticks = 36
         end
         break
       end
     end
+    -- Ambient event roll FIRST (peaceful surprise can pre-empt a fight).
+    if try_ambient_event() then redraw(); return end
     -- random encounter check: only outside the village safe zone
     if try_random_encounter() then return end
   end
@@ -4761,6 +12593,138 @@ local _dlg_start_tick  = -1
 -- Global to dodge the 200-local main-chunk cap.
 function pack_dialogue_lines(raw, npc_name)
   if not raw or #raw == 0 then return raw end
+  -- Pre-pass: any single raw line longer than MAX_CHARS gets split into
+  -- pages so the renderer (3-wrapped-line cap) doesn't truncate. We
+  -- cascade through delimiters of decreasing semantic weight:
+  --   1. sentence punctuation .  !  ?
+  --   2. clause break          --
+  --   3. clause separators     ;
+  --   4. comma                 ,
+  --   5. word boundary         (last resort)
+  -- A chunk is "too big" if it exceeds MAX_CHARS_PRE; we re-split it
+  -- using the next-finer delimiter until it fits or there are no more
+  -- delimiters (then we hard-split on words).
+  local MAX_CHARS_PRE = 75
+  local function trim(s) return (s:gsub("^%s+", ""):gsub("%s+$", "")) end
+  -- Split s into pieces using a Lua pattern that captures each piece +
+  -- whatever trailing delimiter lives on it, so we can reassemble without
+  -- losing punctuation.
+  local function pieces_by(s, pat)
+    local out, i, n = {}, 1, #s
+    while i <= n do
+      local a, b = s:find(pat, i)
+      if not a then
+        out[#out + 1] = s:sub(i)
+        break
+      end
+      out[#out + 1] = s:sub(i, b)
+      i = b + 1
+    end
+    return out
+  end
+  -- Word-boundary split (last-resort) into balanced <=MAX chunks. Picks
+  -- the smallest N (>=2) that fits, then targets equal-sized pages so we
+  -- don't end up with an awkward 5-char orphan after a 70-char chunk.
+  local function hard_word_split(s)
+    local words = {}
+    for word in s:gmatch("%S+") do words[#words + 1] = word end
+    if #words == 0 then return {s} end
+    local total = #s
+    local n_pages = math.max(2, math.ceil(total / MAX_CHARS_PRE))
+    local target = math.ceil(total / n_pages)
+    local out, buf = {}, ""
+    for _, word in ipairs(words) do
+      if #buf == 0 then
+        buf = word
+      elseif #buf + 1 + #word <= MAX_CHARS_PRE
+         and (#buf < target or #buf + 1 + #word <= MAX_CHARS_PRE and #out >= n_pages - 1) then
+        buf = buf .. " " .. word
+      else
+        out[#out + 1] = buf
+        buf = word
+      end
+    end
+    if #buf > 0 then out[#out + 1] = buf end
+    return out
+  end
+  -- Split a single oversize chunk by trying delimiter levels in order.
+  local function split_oversize(chunk)
+    if #chunk <= MAX_CHARS_PRE then return {chunk} end
+    local strategies = {
+      "[^.!?]+[.!?]?",     -- sentences
+      "[^%-]+%-?%-?",       -- "--" clause break (ascii double-hyphen)
+      "[^;]+;?",            -- semicolons
+      "[^,]+,?",            -- commas
+    }
+    for _, pat in ipairs(strategies) do
+      local subs = pieces_by(chunk, pat)
+      -- only useful if the split produced more than one non-trivial piece
+      local non_empty = 0
+      for _, p in ipairs(subs) do if #trim(p) > 0 then non_empty = non_empty + 1 end end
+      if non_empty > 1 then
+        -- Recurse: each sub-chunk may itself still be oversize.
+        local out = {}
+        for _, p in ipairs(subs) do
+          local t = trim(p)
+          if #t > 0 then
+            for _, q in ipairs(split_oversize(t)) do out[#out + 1] = q end
+          end
+        end
+        return out
+      end
+    end
+    return hard_word_split(chunk)
+  end
+  -- Top-level: split into sentence-ish pieces then greedily merge into
+  -- pages of <= MAX_CHARS_PRE. Each piece is itself pre-split if it's
+  -- too long on its own.
+  local function split_long(s)
+    if #s <= MAX_CHARS_PRE then return {s} end
+    local out, buf = {}, ""
+    local pieces = pieces_by(s, "[^.!?]+[.!?]?")
+    -- Re-split any piece that's too big using the finer-grained cascade.
+    local refined = {}
+    for _, p in ipairs(pieces) do
+      local t = trim(p)
+      if #t == 0 then goto cont1 end
+      if #t > MAX_CHARS_PRE then
+        for _, q in ipairs(split_oversize(t)) do refined[#refined + 1] = q end
+      else
+        refined[#refined + 1] = t
+      end
+      ::cont1::
+    end
+    for _, sentence in ipairs(refined) do
+      if #buf == 0 then
+        buf = sentence
+      elseif (#buf + 1 + #sentence) <= MAX_CHARS_PRE then
+        buf = buf .. " " .. sentence
+      else
+        out[#out + 1] = buf
+        buf = sentence
+      end
+    end
+    if #buf > 0 then out[#out + 1] = buf end
+    return out
+  end
+  -- Preserve speaker prefix across splits: if the source line is tagged
+  -- `[Name] body...`, every produced chunk keeps the same `[Name] ` prefix
+  -- so the main packer (which only merges same-speaker chunks) sees
+  -- consistent tags.
+  local expanded = {}
+  for _, line in ipairs(raw) do
+    local sp_pre, body_pre = line:match("^(%[%S+%]%s*)(.*)$")
+    if sp_pre and #body_pre > 0 and #line > MAX_CHARS_PRE then
+      for _, piece in ipairs(split_long(body_pre)) do
+        expanded[#expanded + 1] = sp_pre .. piece
+      end
+    else
+      for _, piece in ipairs(split_long(line)) do
+        expanded[#expanded + 1] = piece
+      end
+    end
+  end
+  raw = expanded
   -- Scrub characters the Tom Thumb font can't render — em-dash (—) and
   -- en-dash (–) both come out as blank space on the norns. Replace them
   -- with "..." which reads as a pause in dialogue, then collapse any
@@ -4778,7 +12742,17 @@ function pack_dialogue_lines(raw, npc_name)
     return s
   end
   local out = {}
-  local MAX_CHARS = 75     -- ~3 lines of compact-font text (matches dialogue box capacity)
+  -- Two budgets:
+  --   MAX_CHARS — hard cap on a packed body (~3 lines of compact font).
+  --   DEFAULT_FONT_CAP — soft cap below which the renderer keeps the
+  --     larger default font. Above it, the renderer hops to compact
+  --     (small) font, which the player perceives as inconsistent.
+  -- We try not to merge ABOVE the soft cap so most pages stay default.
+  -- Tagged speech lines may still cross into compact when very long —
+  -- that's fine, but narrator lines (no speaker prefix) are kept
+  -- below the soft cap so they always render in the same big font.
+  local MAX_CHARS = 75
+  local DEFAULT_FONT_CAP = 55   -- ~3 lines of default font in 122px wrap
   local i = 1
   while i <= #raw do
     local first = clean(raw[i])
@@ -4786,13 +12760,15 @@ function pack_dialogue_lines(raw, npc_name)
     local prefix = sp1 and ("[" .. sp1 .. "] ") or ""
     local body_acc = body1 or first
     local consumed = 1
+    -- Narrator (no speaker) gets the smaller cap so we don't force the
+    -- font into compact via over-merge.
+    local cap = (sp1 == nil) and DEFAULT_FONT_CAP or MAX_CHARS
     while i + consumed <= #raw do
       local nxt = clean(raw[i + consumed])
       local sp2, body2 = nxt:match("^%[(%S+)%]%s*(.*)$")
-      -- only merge if speaker tag matches (both nil = both untagged = OK)
       if (sp1 or "") ~= (sp2 or "") then break end
       local trial = body_acc .. " " .. (body2 or nxt)
-      if #trial > MAX_CHARS then break end
+      if #trial > cap then break end
       body_acc = trial
       consumed = consumed + 1
     end
@@ -4809,12 +12785,59 @@ start_dialogue = function(npc)
   if npc and (npc.name == "Veris" or npc.name == "Aurin" or npc.name == "Mira" or npc.name == "Iolen") then
     QUESTS.tova.spoke[npc.name] = true
   end
+  -- An NPC may declare a `scene` (function returning a SCENE script). If
+  -- present, run it as a choreographed cutscene instead of the standard
+  -- text-only dialogue. The scene engine will route any dialogue steps
+  -- through DIALOGUE state internally.
+  if npc.scene and type(npc.scene) == "function" then
+    -- Defensive: if a scene function errors, fall through to standard
+    -- dialogue rather than freezing the game.
+    local ok, script = pcall(npc.scene)
+    if ok and script then
+      SCENE.start(script)
+      return
+    end
+    if not ok then
+      CONTENT.banner_text  = "* scene err: " .. tostring(script):sub(1, 30) .. " *"
+      CONTENT.banner_ticks = 60
+      print("synth-quest: scene err for " .. tostring(npc.name) .. ": " .. tostring(script))
+    end
+  end
   dlg.npc = npc
   dlg.line = 1
-  -- snapshot dialogue lines (NPCs now use function-based dialogue for progress-aware text)
+  -- Reset typewriter state so the new dialogue starts a fresh reveal.
+  dlg.line_start_tick = tick
+  dlg.complete = false
+  dlg.snap_to_complete = false
+  -- Defensive: any error from npc.dialogue() (or pack_dialogue_lines)
+  -- gets caught and surfaced as a banner instead of silently freezing
+  -- the game in DIALOGUE state with no lines to advance through.
   local raw = npc.dialogue
-  local raw_lines = (type(raw) == "function") and raw() or raw
-  dlg.lines = pack_dialogue_lines(raw_lines, npc and npc.name)
+  local raw_lines
+  if type(raw) == "function" then
+    local ok, result = pcall(raw)
+    if ok then
+      raw_lines = result
+    else
+      print("synth-quest: dialogue err for " .. tostring(npc.name) .. ": " .. tostring(result))
+      raw_lines = {"(error in dialogue: " .. tostring(result):sub(1, 40) .. ")"}
+    end
+  else
+    raw_lines = raw
+  end
+  -- pack might also throw (Lua-pattern edge cases). Same defensive guard.
+  local ok, packed = pcall(pack_dialogue_lines, raw_lines, npc and npc.name)
+  if ok then
+    dlg.lines = packed
+  else
+    print("synth-quest: pack err for " .. tostring(npc.name) .. ": " .. tostring(packed))
+    dlg.lines = {"(error packing dialogue)"}
+  end
+  -- Final guard: if dlg.lines is nil or empty, drop straight back to
+  -- overworld instead of getting stuck in DIALOGUE with nothing to render.
+  if not dlg.lines or #dlg.lines == 0 then
+    dlg.lines = {"(empty dialogue)"}
+  end
   game_state = "DIALOGUE"
   redraw()
 end
@@ -4822,14 +12845,45 @@ end
 local function advance_dialogue()
   if _dlg_advance_tick == tick then return end
   _dlg_advance_tick = tick
+  -- FF-style two-press behavior: if the typewriter hasn't finished
+  -- revealing the current line, the first A snaps it to complete; the
+  -- second A actually advances. dlg.complete is set in draw_dialogue
+  -- once `revealed` reaches the body length.
+  if not dlg.complete and not dlg.snap_to_complete then
+    dlg.snap_to_complete = true
+    redraw()
+    return
+  end
+  dlg.snap_to_complete = false
+  dlg.complete = false
+  dlg.line_start_tick = tick
   dlg.line = dlg.line + 1
   if dlg.line > #(dlg.lines or {}) then
     local npc = dlg.npc
     dlg.npc = nil
     dlg.lines = nil
-    -- Hens (now in the item-shop interior) opens the SHOP UI when her
-    -- dialogue ends; other NPCs return to overworld.
-    if npc and npc.name == "Hens" then
+    -- Story-arc post-dialogue hook: a previous frame can stash a function
+    -- in CONTENT.post_dialogue and it runs once at close. Used by the
+    -- academy arc to chain entry-cutscene → battle → epilogue → join.
+    local hook = CONTENT.post_dialogue
+    CONTENT.post_dialogue = nil
+    if hook then
+      -- Defensive: a buggy post-dialogue hook would otherwise leave the
+      -- player stuck in DIALOGUE state with a half-cleared dlg table.
+      -- Catch the error, surface a banner, and drop back to overworld.
+      local ok, err = pcall(hook)
+      if not ok then
+        print("synth-quest: post_dialogue err: " .. tostring(err))
+        CONTENT.banner_text  = "* hook err: " .. tostring(err):sub(1, 30) .. " *"
+        CONTENT.banner_ticks = 60
+        game_state = "OVERWORLD"
+      end
+      redraw()
+      return
+    end
+    -- Hens (mainland shop) and Marek (eastern shop) both open the
+    -- SHOP UI when their dialogue ends; other NPCs return to overworld.
+    if npc and (npc.name == "Hens" or npc.name == "Marek" or npc.name == "Skari") then
       SHOP.idx = 1
       SHOP.step = 0
       game_state = "SHOP"
@@ -4848,15 +12902,70 @@ ANIM.spawn_dmg = function(x, y, amt, lev)
   table.insert(ANIM.popups, {x = x, y = y, amt = amt, lev = lev or 15, t = tick})
 end
 
+-- ELEMENTAL AFFINITIES (Pass 58). Each enemy visual maps to a weak
+-- and resist mode. When the active JAM.mode matches `weak`, damage is
+-- multiplied by 1.5x and a "WEAK!" banner fires; when it matches
+-- `resist`, damage is halved and a "RESIST" banner fires. Mode
+-- defaults to nil for both = neutral. Bestiary will show these in a
+-- future pass; for now they only affect combat numbers.
+ELEMENTAL_AFFINITY = {
+  slime      = {weak = "phrygian",   resist = "aeolian"},
+  bat        = {weak = "lydian",     resist = "locrian"},
+  mushroom   = {weak = "phrygian",   resist = "aeolian"},
+  wisp       = {weak = "aeolian",    resist = "lydian"},
+  wolf       = {weak = "mixolydian", resist = "phrygian"},
+  echo       = {weak = "lydian",     resist = "aeolian"},
+  sprite     = {weak = "aeolian",    resist = "lydian"},
+  treant     = {weak = "phrygian",   resist = "dorian"},
+  sentinel   = {weak = "phrygian",   resist = "aeolian"},
+  crab       = {weak = "phrygian",   resist = "mixolydian"},
+  manta      = {weak = "lydian",     resist = "mixolydian"},
+  tide       = {weak = "aeolian",    resist = "mixolydian"},
+  scorpion   = {weak = "aeolian",    resist = "phrygian"},
+  spectre    = {weak = "ionian",     resist = "locrian"},
+  dunerider  = {weak = "aeolian",    resist = "phrygian"},
+  yeti       = {weak = "phrygian",   resist = "aeolian"},
+  frostwisp  = {weak = "phrygian",   resist = "aeolian"},
+  granite    = {weak = "dorian",     resist = "aeolian"},
+  crow       = {weak = "lydian",     resist = "locrian"},
+  snowgaunt  = {weak = "phrygian",   resist = "aeolian"},
+  lich       = {weak = "ionian",     resist = "locrian"},
+  voidcrawler= {weak = "lydian",     resist = "locrian"},
+  echosuno   = {weak = "lydian",     resist = "locrian"},
+  mutewarden = {weak = "ionian",     resist = "locrian"},
+  locrius    = {weak = "ionian",     resist = "locrian"},
+  suno       = {weak = "ionian",     resist = "locrian"},
+  -- Strom (story battle) and dummy: no affinity, neutral damage.
+}
+
 local function damage_enemy(amount, is_crit)
+  -- Damage popup x is moved to 60 (was 96) so the rising number doesn't
+  -- pass through the enemy HP bar (x=76..126) or HP X/Y text on its way
+  -- up. Lands in the free gap between the action popup (x=1..44) and
+  -- the HP bar. The crit particle burst stays at x=96 — it's a distinct
+  -- on-enemy effect, not a number.
   if enemy.invincible then
     -- Practice dummy: show damage numbers but never lose HP or die
-    ANIM.spawn_dmg(96, 22, amount, is_crit and 13 or 15)
+    ANIM.spawn_dmg(60, 22, amount, is_crit and 13 or 15)
     if is_crit then ANIM.crit_flash = tick; ANIM.burst(96, 32, 6, 15) end
     return
   end
+  -- Apply elemental affinity multiplier based on the active JAM.mode
+  -- and the enemy's visual key. Banner is one-shot per hit (60 ticks).
+  local aff = ELEMENTAL_AFFINITY[enemy.visual or ""]
+  if aff and JAM and JAM.mode then
+    if aff.weak == JAM.mode then
+      amount = math.floor(amount * 1.5)
+      CONTENT.banner_text  = "* WEAK! *"
+      CONTENT.banner_ticks = 30
+    elseif aff.resist == JAM.mode then
+      amount = math.max(1, math.floor(amount * 0.5))
+      CONTENT.banner_text  = "* RESIST *"
+      CONTENT.banner_ticks = 30
+    end
+  end
   enemy.hp = math.max(0, enemy.hp - amount)
-  ANIM.spawn_dmg(96, 22, amount, is_crit and 13 or 15)
+  ANIM.spawn_dmg(60, 22, amount, is_crit and 13 or 15)
   if is_crit then
     -- Crit FX: brief crit_flash (handled by ANIM.draw_action_fx) + a small
     -- particle burst. No screen-wide hit-flash stipple — it was washing
@@ -4869,7 +12978,57 @@ local function damage_enemy(amount, is_crit)
   end
   if enemy.hp == 0 then
     enemy.alive = false
-    gain_xp(enemy_xp(enemy.name))
+    -- Strom-arc battle (Diegues academy story): bypass the standard
+    -- victory window + XP/loot path entirely. The defeat triggers a
+    -- bespoke epilogue dialogue that adds Strom to the party.
+    -- IMPORTANT: switch game_state out of "BATTLE" BEFORE calling
+    -- finish_academy_arc(). The SCENE engine only ticks while in
+    -- OVERWORLD/DIALOGUE; if we leave game_state on "BATTLE" the scene
+    -- never advances and the on_complete callback never fires, leaving
+    -- the player softlocked in a battle with no enemy.
+    if enemy.is_strom_arc then
+      enemy = nil
+      battle_outcome = nil
+      game_state = "OVERWORLD"
+      params:set("clock_tempo", OVERWORLD_BPM)
+      finish_academy_arc()
+      return
+    end
+    -- Prologue silencers / cave monsters: scripted tutorial enemies.
+    -- Skip the victory window, just drop back to overworld with a flag.
+    if enemy.is_prologue_silencer then
+      finish_prologue_silencer(enemy.silencer_idx or 1)
+      return
+    end
+    if enemy.is_prologue_cave then
+      finish_prologue_cave_monster(enemy.cave_idx or 1)
+      return
+    end
+    -- Snapshot per-class levels BEFORE awarding XP so the victory summary
+    -- slide can display "Lv.3 → Lv.4" for any party member that levelled.
+    local pre_levels = {}
+    for _, p in ipairs(party) do pre_levels[p.class] = p.level end
+    local xp_amount = enemy_xp(enemy.name)
+    gain_xp(xp_amount)
+    -- Build the summary table consumed by draw_battle_end_xp(). xp_cur =
+    -- progress toward next level (resets to 0 on level-up); xp_next = the
+    -- threshold to advance from p.level. At LEVEL_CAP we surface "MAX".
+    CONTENT.xp_summary = {amount = xp_amount, gains = {}}
+    for _, p in ipairs(party) do
+      if p.alive then
+        local pre = pre_levels[p.class] or p.level
+        local at_cap = (p.level >= LEVEL_CAP)
+        table.insert(CONTENT.xp_summary.gains, {
+          class    = p.class,
+          pre      = pre,
+          post     = p.level,
+          leveled  = p.level > pre,
+          xp_cur   = p.xp or 0,
+          xp_next  = at_cap and 0 or xp_for_level(p.level),
+          at_cap   = at_cap,
+        })
+      end
+    end
     SHOP.last_gold = enemy_gold(enemy.name)
     SHOP.gold = SHOP.gold + SHOP.last_gold
     -- bestiary: record this enemy as seen (visual key + name + max stats)
@@ -4894,6 +13053,19 @@ local function damage_party(p, amount)
   -- Party is invincible while in JAM mode (so jamming live during a battle
   -- can't accidentally KO anyone).
   if game_state == "JAM" then return end
+  -- Party-size damage scaling. Enemy ATK is balanced for a full 4-member
+  -- party that can spread incoming hits and outheal them. Solo Miel
+  -- (just out of the chamber) gets one-shot by the same numbers — so
+  -- we scale incoming damage down based on how many characters are
+  -- alive in the active party. Full party = full damage.
+  --   1 alive: 50%   |   2 alive: 65%   |   3 alive: 80%   |   4+: 100%
+  do
+    local alive = 0
+    for _, q in ipairs(party) do if q.alive then alive = alive + 1 end end
+    local PARTY_SCALE = {0.50, 0.65, 0.80}
+    local scale = PARTY_SCALE[alive] or 1.0
+    amount = math.max(1, math.floor(amount * scale))
+  end
   -- Strom's BLK: redirect to blocking warrior at 10% damage
   local blocker = nil
   for _, q in ipairs(party) do
@@ -4903,6 +13075,25 @@ local function damage_party(p, amount)
     amount = math.max(1, math.floor(amount * 0.10))
     blocker.blocking = false
     p = blocker
+  end
+  -- Miel's REFLECT (cleric B-action). Bounces the full incoming amount
+  -- back at the enemy as magical damage and consumes the reflect. Miel
+  -- takes NO HP damage and gets NO hit-wobble — the reflect plays only
+  -- a silver chime so the read is "she repelled it cleanly" rather than
+  -- "she got hit and counter-attacked." No banner: the bounced damage
+  -- number on the enemy is the visible feedback.
+  if p.reflect then
+    p.reflect = false
+    p.reflect_ticks = 0
+    -- bell-bright reflect chime (uses cleric SynthDef at high pitch)
+    local a = ARTIC.REF
+    local note = (active_scale()[p.note_idx] or 0) + a.pitch + JAM.root
+    local wet = math.max(0, math.min(1, a.wet * (CONTENT.combat_reverb_mix or 1.0)))
+    sq_trig("cleric", midi_to_freq(note), a.vel, a.attack, a.release, wet)
+    if enemy and enemy.alive then
+      damage_enemy(amount, false)
+    end
+    return
   end
   if p.shield then
     amount = math.floor(amount / 2)
@@ -4948,8 +13139,50 @@ local function damage_party(p, amount)
         q.atb = 0
         q.last_hit = tick
       end
-      CONTENT.banner_text  = "SERGEI INTERVENES!"
-      CONTENT.banner_ticks = 36
+      CONTENT.banner_text  = "* SERGEI INTERVENES *"
+      CONTENT.banner_ticks = 42
+      -- A wrench-against-bell SFX punctuates the moment. Three quick
+      -- triggers: the wrench skip, the bell-clang, the chord souring.
+      sq_trig("warrior", midi_to_freq(48), 0.95, 0.001, 0.20, 0.10)
+      clock.run(function()
+        clock.sleep(0.10)
+        sq_trig("cleric", midi_to_freq(72), 0.95, 0.001, 1.20, 0.95)
+        clock.sleep(0.30)
+        sq_trig("bard", midi_to_freq(58), 0.55, 0.005, 2.00, 0.85)
+      end)
+      ANIM.shake(3, 12)
+      ANIM.burst(96, 32, 8, 15)
+      -- Pause the battle and play a proper FF4-style intervention scene.
+      -- The dialogue closes back into BATTLE so the player can finish
+      -- Tidewatch with a freshly-revived party.
+      enemy._paused_for_sergei = true
+      dlg.lines = pack_dialogue_lines({
+        "(A wrench skips across the wet stone of the tidepool. It strikes Tidewatch's chord-bell. The bell sours.)",
+        "(Tidewatch staggers, its choir thrown a half-step.)",
+        "(A man steps from the rubble of the seawall. Cable spooled across one shoulder, lantern in the other hand.)",
+        "(He is older than Strom. He moves like he is younger.)",
+        "[Sergei]  (does not look at you) Don't thank me. I owe him a tower.",
+        "[Sergei]  (kneels by Miel; lays the wrench down) Up, queen.",
+        "[Sergei]  The chord's open for forty seconds. Give or take.",
+        "(He passes a hand across the party. The lantern's light is somehow steadier than it should be.)",
+        "(They breathe. The water in the tidepool runs back, then forward, on the right beat.)",
+        "(Around them: the sound of broken machinery suddenly remembering how to work.)",
+        "[Sergei]  Right. Now finish it. I'll watch the door.",
+        "(Sergei joins your reserve. You can swap him in from the Party menu.)",
+      }, nil)
+      dlg.line = 1
+      dlg.npc = nil
+      game_state = "DIALOGUE"
+      CONTENT.post_dialogue = function()
+        game_state = "BATTLE"
+        params:set("clock_tempo", BATTLE_BPM)
+        if enemy then enemy._paused_for_sergei = nil end
+        -- Bonus: a healing chord rings once as combat resumes — Sergei's
+        -- parting "stay alive" gift.
+        sq_trig("cleric", midi_to_freq(67), 0.65, 0.20, 3.0, 0.95)
+        ANIM.burst(96, 32, 6, 11)
+        redraw()
+      end
     end
   end
 end
@@ -4974,16 +13207,78 @@ local function trigger_party_jam(except) end
 local function apply_player_action(p)
   -- Treat legacy "MAG" save data as the class's instrument.
   if p.queued == "MAG" then p.queued = CLASS_INSTRUMENT[p.class] or "ATK" end
+  -- LIMIT BREAK: when a character is at <=25% HP and hasn't used theirs
+  -- yet this battle, the next ATK fires as a class-specific limit
+  -- instead. Single-use per battle. Cleric variant heals and revives
+  -- the whole party (no damage); others deal massive damage with a
+  -- broken-chord SFX flourish.
+  if p.queued == "ATK" and p.alive and not p.limit_used
+     and p.hp > 0 and p.hp <= p.hp_max * 0.25 and enemy and enemy.alive then
+    p.limit_used = true
+    if unlock_achievement then unlock_achievement("first_limit", "Broken Chord") end
+    local cls = p.class
+    if cls == "cleric" then
+      -- Full party revive + heal-to-full. No damage.
+      for _, q in ipairs(party) do
+        q.alive = true
+        q.hp = q.hp_max
+        q.mp = q.mp_max
+        q.poison_ticks = 0
+        q.sleep_ticks = 0
+        q.regen_hp_ticks = math.max(q.regen_hp_ticks or 0, 256)
+        q.last_hit = tick
+      end
+      CONTENT.banner_text  = "* MIEL: WHOLE-NOTE REST *"
+      CONTENT.banner_ticks = 60
+      sq_trig("cleric", midi_to_freq(72), 0.85, 0.001, 6.0,
+              math.min(1, 1.0 * (CONTENT.combat_reverb_mix or 1.0)))
+    else
+      -- Damage variant: 4-5x base atk, guaranteed crit, splash burst.
+      local mult = (cls == "warrior") and 5 or (cls == "bard") and 4 or 4
+      local dmg = math.floor(INST.atk(p) * mult)
+      damage_enemy(dmg, true)
+      ANIM.burst(96, 32, 14, 15)
+      ANIM.shake(3, 18)
+      local label = (cls == "warrior") and "STROM: ANTHEM"
+                 or (cls == "bard")    and "ALDER: BREAKING CHORD"
+                 or (cls == "mage")    and "DIEGUES: LOOP CRASH"
+                 or (cls .. ": LIMIT")
+      CONTENT.banner_text  = "* " .. label:upper() .. " *"
+      CONTENT.banner_ticks = 60
+      -- Broken-chord SFX: ring class voice + a fifth above.
+      local note = active_scale()[p.note_idx] + JAM.root
+      sq_trig(cls, midi_to_freq(note),     0.85, 0.001, 2.0, 1.0)
+      sq_trig(cls, midi_to_freq(note + 7), 0.65, 0.005, 2.5, 1.0)
+    end
+    p.last_fire = tick
+    p.last_action = "ATK"
+    p.note_idx = p.note_idx + 1
+    if p.note_idx > p.note_hi then p.note_idx = p.note_lo end
+    return
+  end
   if p.queued == "ATK" then
-    if enemy.alive then
+    -- Guard with `enemy and` — a previous party member's hit may have
+    -- already killed the enemy this tick (e.g. Strom-arc clears the
+    -- global `enemy` synchronously on kill).
+    if enemy and enemy.alive then
       local dmg = INST.atk(p)
-      local crit = math.random() < ANIM.crit
+      -- Rhythm-crit: guaranteed crit if charged via on-beat A press.
+      local rhythm_was_set = p.rhythm_charged
+      local crit = p.rhythm_charged or (math.random() < ANIM.crit)
+      p.rhythm_charged = false   -- consumed regardless of outcome
+      if rhythm_was_set and unlock_achievement then
+        unlock_achievement("first_rhythm_crit", "On the Beat")
+      end
       if crit then dmg = dmg * 2 end
       if p.buffed then dmg = math.floor(dmg * 1.5); p.buffed = false end
       damage_enemy(dmg, crit)
     end
-  elseif p.queued == "LYRE" then
-    -- Miel's lyre: revive + heal + apply HP/MP regen.
+  elseif p.queued == "HEAL" then
+    -- Miel's lyre: revive + heal + apply LONG HP/MP regen.
+    -- Regen now lasts 256 ticks ≈ 16 ATB turns at base speed (atb fills
+    -- in 16 ticks). HP pulses +1 every 8 ticks → ~32 HP healed across
+    -- the duration. MP pulses +1 every 12 ticks → ~21 MP. Sustained
+    -- party support that lasts most of a fight.
     for _, q in ipairs(party) do
       if not q.alive then
         q.alive = true
@@ -4996,8 +13291,8 @@ local function apply_player_action(p)
     heal_party(0.25, 0)
     for _, q in ipairs(party) do
       if q.alive then
-        q.regen_hp_ticks = math.max(q.regen_hp_ticks or 0, 32)
-        q.regen_mp_ticks = math.max(q.regen_mp_ticks or 0, 32)
+        q.regen_hp_ticks = math.max(q.regen_hp_ticks or 0, 256)
+        q.regen_mp_ticks = math.max(q.regen_mp_ticks or 0, 256)
         -- Pass 50: Miel's lyre also dispels poison + sleep on the party.
         q.poison_ticks = 0
         q.sleep_ticks = 0
@@ -5015,20 +13310,24 @@ local function apply_player_action(p)
   elseif p.queued == "MIX" then
     -- Sergei's MIX: remix the enemy's pattern (deal MAG damage, scramble its
     -- attack pattern order, debuff atk).
+    -- IMPORTANT: damage_enemy can clear the global `enemy` (e.g. Strom-arc
+    -- branch on a kill) so re-check before touching it again.
     if enemy and enemy.alive then
       local dmg = math.floor(INST.mag(p) * 1.4)
       local crit = math.random() < ANIM.crit
       if crit then dmg = dmg * 2 end
       damage_enemy(dmg, crit)
-      enemy.atk_debuff_ticks = math.max(enemy.atk_debuff_ticks or 0, 24)
-      -- shuffle the enemy's attack_pattern in-place (Fisher-Yates)
-      local ap = enemy.attack_pattern
-      if ap and #ap > 1 then
-        for i = #ap, 2, -1 do
-          local j = math.random(i)
-          ap[i], ap[j] = ap[j], ap[i]
+      if enemy then
+        enemy.atk_debuff_ticks = math.max(enemy.atk_debuff_ticks or 0, 24)
+        -- shuffle the enemy's attack_pattern in-place (Fisher-Yates)
+        local ap = enemy.attack_pattern
+        if ap and #ap > 1 then
+          for i = #ap, 2, -1 do
+            local j = math.random(i)
+            ap[i], ap[j] = ap[j], ap[i]
+          end
+          enemy.pattern_idx = 1
         end
-        enemy.pattern_idx = 1
       end
     end
   elseif p.queued == "CODE" then
@@ -5043,7 +13342,7 @@ local function apply_player_action(p)
     end
     p.hp = math.min(p.hp_max, p.hp + math.floor(p.hp_max * 0.15))
     p.last_hit = tick
-  elseif p.queued == "HORN" then
+  elseif p.queued == "TUNE" then
     -- Strom's war horn: party gains attack buff + damage reduction; enemy ATK halved.
     for _, q in ipairs(party) do
       if q.alive then
@@ -5058,12 +13357,15 @@ local function apply_player_action(p)
   elseif p.queued == "SMPL" then
     -- Diegues' samplers: deal big damage to enemy, debuff its ATK, inspire
     -- party — and now heal everyone slightly (revives KO'd at low HP).
+    -- IMPORTANT: damage_enemy may clear `enemy` (Strom-arc kill); re-check.
     if enemy and enemy.alive then
       local dmg = math.floor(INST.mag(p) * 2.0)
       local crit = math.random() < ANIM.crit
       if crit then dmg = dmg * 2 end
       damage_enemy(dmg, crit)
-      enemy.atk_debuff_ticks = math.max(enemy.atk_debuff_ticks or 0, 20)
+      if enemy then
+        enemy.atk_debuff_ticks = math.max(enemy.atk_debuff_ticks or 0, 20)
+      end
     end
     for _, q in ipairs(party) do
       if not q.alive then
@@ -5093,7 +13395,55 @@ local function apply_player_action(p)
     p.blocking = true
     p.mp = math.min(p.mp_max, p.mp + 1)
   elseif p.queued == "ITM" then
-    -- Item priority: revive a KO'd member with Star → Salve heal-all → Vial MP-all → tiny self-heal
+    -- Item resolution. If the player picked a specific item via repeated
+    -- Y presses (p.item_pick ~= "auto"), use that one when in stock and
+    -- fall through to auto-priority otherwise. Auto = revive star →
+    -- heal-all salve → MP vial/ether → ATK-buff tonic → tiny self-heal.
+    local pick = p.item_pick or "auto"
+    if pick ~= "auto" and (SHOP.inv[pick] or 0) > 0 then
+      SHOP.inv[pick] = SHOP.inv[pick] - 1
+      if pick == "salve" then
+        for _, q in ipairs(party) do
+          if q.alive then q.hp = math.min(q.hp_max, q.hp + 35) end
+        end
+        SHOP.last_item = "Salve"
+      elseif pick == "vial" then
+        for _, q in ipairs(party) do
+          if q.alive then q.mp = math.min(q.mp_max, q.mp + 10) end
+        end
+        SHOP.last_item = "Vial"
+      elseif pick == "ether" then
+        for _, q in ipairs(party) do
+          if q.alive then q.mp = math.min(q.mp_max, q.mp + 25) end
+        end
+        SHOP.last_item = "Ether"
+      elseif pick == "tonic" then
+        for _, q in ipairs(party) do
+          if q.alive then q.tonic_ticks = 999 end
+        end
+        SHOP.last_item = "Tonic"
+      elseif pick == "star" then
+        local revive_target
+        for _, q in ipairs(party) do
+          if not q.alive then revive_target = q; break end
+        end
+        if revive_target then
+          revive_target.alive = true
+          revive_target.hp = revive_target.hp_max
+          revive_target.atb = 0
+          revive_target.last_hit = tick
+          SHOP.last_item = "Star"
+        else
+          -- nobody KO'd — full party heal as fallback
+          for _, q in ipairs(party) do
+            if q.alive then q.hp = q.hp_max end
+          end
+          SHOP.last_item = "Star (heal-all)"
+        end
+      end
+      goto item_done
+    end
+    -- Auto-priority fallback (original logic).
     local revive_target = nil
     for _, q in ipairs(party) do
       if not q.alive then revive_target = q; break end
@@ -5136,10 +13486,102 @@ local function apply_player_action(p)
       p.mp = math.min(p.mp_max, p.mp + 2)
       SHOP.last_item = "(empty)"
     end
+    ::item_done::
   elseif p.queued == "DEF" then
     p.shield = true
     p.mp = math.min(p.mp_max, p.mp + 1)
+  elseif p.queued == "REF" then
+    -- Miel's REFLECT: any incoming hit while reflect is up bounces the full
+    -- damage back at the enemy and is consumed. damage_party() reads
+    -- p.reflect; reflect_ticks lets us flash a brief HUD marker that fades
+    -- on the next enemy attack regardless of whether it hit Miel or not.
+    p.reflect = true
+    p.reflect_ticks = 24
+    p.mp = math.min(p.mp_max, p.mp + 1)
   end
+end
+
+-- COMBO / CHORD attacks. When 2+ characters fire ATK within COMBO_WINDOW
+-- ticks of each other, their notes are read as a chord and award bonus
+-- damage scaled by chord size and consonance. Window matches roughly
+-- one beat at BATTLE_BPM (16th = ~1.5 ticks @ 85 BPM, beat = ~6 ticks).
+local COMBO_WINDOW = 6
+-- Each entry: {t = tick fired, p = party member ref, note = midi pitch}
+-- Mutated by fire() and trigger_combo_check(); cleared in enter_battle/exit_battle.
+combo_window = {}
+
+-- Score a single interval (semitones, mod 12) for consonance:
+--   3 = perfect (unison/4th/5th/octave)
+--   2 = consonant (3rds/6ths)
+--   1 = mild dissonance (2nds/7ths)
+--   0 = harsh (semitone/tritone/maj7)
+-- Global to dodge the 200-local main-chunk cap.
+function interval_consonance(semis)
+  local s = semis % 12
+  if s == 0 or s == 5 or s == 7 then return 3
+  elseif s == 3 or s == 4 or s == 8 or s == 9 then return 2
+  elseif s == 2 or s == 10 then return 1
+  else return 0   -- 1, 6, 11
+  end
+end
+
+-- Compute average pairwise consonance for the current combo window.
+function combo_consonance(entries)
+  if #entries < 2 then return 0 end
+  local total, n = 0, 0
+  for i = 1, #entries - 1 do
+    for j = i + 1, #entries do
+      total = total + interval_consonance(math.abs(entries[i].note - entries[j].note))
+      n = n + 1
+    end
+  end
+  return total / n
+end
+
+-- Trigger the combo bonus if 2+ unique party members fired ATK in window.
+-- Bonus damage = floor(N * avg_atk * 0.5 * (1 + consonance / 3)).
+-- Plus a re-ring of the chord (all notes simultaneously, longer release).
+function trigger_combo_check()
+  -- prune stale entries
+  for i = #combo_window, 1, -1 do
+    if tick - combo_window[i].t > COMBO_WINDOW then
+      table.remove(combo_window, i)
+    end
+  end
+  -- de-dup by party member (a single char can't combo with itself)
+  local seen, uniq = {}, {}
+  for _, e in ipairs(combo_window) do
+    if not seen[e.p] then
+      seen[e.p] = true
+      uniq[#uniq + 1] = e
+    end
+  end
+  if #uniq < 2 then return end
+  if not (enemy and enemy.alive) then return end
+  local cons = combo_consonance(uniq)
+  -- average atk across the chord members
+  local sum_atk = 0
+  for _, e in ipairs(uniq) do sum_atk = sum_atk + INST.atk(e.p) end
+  local avg_atk = sum_atk / #uniq
+  local bonus = math.floor(#uniq * avg_atk * 0.5 * (1 + cons / 3))
+  if bonus < 1 then bonus = 1 end
+  damage_enemy(bonus, cons >= 2.5)   -- treat very-consonant combos as crit
+  -- Banner + audio: ring all chord notes simultaneously with sustain.
+  local label = "* CHORD x" .. #uniq .. ": +" .. bonus .. " *"
+  CONTENT.banner_text  = label
+  CONTENT.banner_ticks = 30
+  for _, e in ipairs(uniq) do
+    local cls = ((e.p.class == "engineer" and "mage")
+              or (e.p.class == "mathwiz"  and "bard")
+              or (e.p.class == "drummer"  and "warrior")
+              or e.p.class)
+    sq_trig(cls, midi_to_freq(e.note), 0.5, 0.005, 1.6,
+            math.min(1, 0.7 * (CONTENT.combat_reverb_mix or 1.0)))
+  end
+  -- Achievement: first 2+ chord combo.
+  if unlock_achievement then unlock_achievement("first_chord", "First Chord") end
+  -- Clear so the next fire doesn't double-count this chord.
+  combo_window = {}
 end
 
 local function fire(p)
@@ -5153,15 +13595,22 @@ local function fire(p)
   local inst = INST.of(p)
   local atk_t = a.attack  * (inst and inst.atk_mul or 1)
   local rel_t = a.release * (inst and inst.rel_mul or 1)
-  local wet_t = math.max(0, math.min(1, a.wet + (inst and inst.wet_add or 0)))
-  engine["trig_" .. (((p.class == "engineer" and "mage") or (p.class == "mathwiz" and "bard") or (p.class == "drummer" and "warrior") or p.class))](freq, a.vel, atk_t, rel_t, wet_t)
+  local wet_t = math.max(0, math.min(1, (a.wet + (inst and inst.wet_add or 0)) * (CONTENT.combat_reverb_mix or 1.0)))
+  sq_trig((((p.class == "engineer" and "mage") or (p.class == "mathwiz" and "bard") or (p.class == "drummer" and "warrior") or p.class)), freq, a.vel, atk_t, rel_t, wet_t)
   p.last_fire = tick
   p.last_action = action  -- so the HUD can render an action-specific animation
   p.note_idx = p.note_idx + 1
   if p.note_idx > p.note_hi then p.note_idx = p.note_lo end
+  -- Combo registration: only ATK fires count toward the chord. Other
+  -- actions (HEAL/LUTE/MIX/CODE) have their own narrative weight.
+  if action == "ATK" then
+    combo_window[#combo_window + 1] = {t = tick, p = p, note = note}
+    trigger_combo_check()
+  end
 end
 
 local function enemy_tick()
+  if not enemy then return end          -- defensive nil guard
   if not enemy.alive then return end
   if enemy.invincible then return end  -- practice dummy never attacks
   -- Pass 51: boss phase 2. When a boss drops below 30% HP, it ENRAGES:
@@ -5176,8 +13625,19 @@ local function enemy_tick()
     for i = 1, #enemy.attack_pattern do
       enemy.attack_pattern[i] = math.max(2, math.floor(enemy.attack_pattern[i] / 2))
     end
-    CONTENT.banner_text  = "* " .. enemy.name .. " ENRAGES! *"
-    CONTENT.banner_ticks = 36
+    -- Boss-specific enrage banners replace the generic "X ENRAGES!" line
+    -- so each phase-2 transition has its own character + atmosphere.
+    local ENRAGE_BANNERS = {
+      echo      = "* the chamber inhales *",
+      sentinel  = "* the moss falls away *",
+      tide      = "* the water rises wrong *",
+      dunerider = "* the rhythm changes *",
+      snowgaunt = "* his three-count compresses *",
+      locrius   = "* he steps out of time *",
+      suno      = "* SUNO TURNS TO YOU *",
+    }
+    CONTENT.banner_text  = ENRAGE_BANNERS[enemy.visual] or ("* " .. enemy.name .. " ENRAGES! *")
+    CONTENT.banner_ticks = 42
     ANIM.shake(2, 5); ANIM.burst(96, 32, 8, 15)
   end
   local next_gap = enemy.attack_pattern[enemy.pattern_idx] or 8
@@ -5187,7 +13647,9 @@ local function enemy_tick()
   -- attack-sound voice (each enemy has a unique sonic signature)
   if enemy.attack_sound then
     local s = enemy.attack_sound
-    engine["trig_" .. s.class](midi_to_freq(s.note), s.vel, s.attack, s.release, s.wet)
+    local mix = CONTENT.combat_reverb_mix or 1.0
+    local sw = math.max(0, math.min(1, s.wet * mix))
+    sq_trig(s.class, midi_to_freq(s.note), s.vel, s.attack, s.release, sw)
   end
   local alive_idx = alive_party()
   if #alive_idx == 0 then return end
@@ -5213,6 +13675,29 @@ local exit_battle  -- forward decl
 -- one-shots a flash banner the first time a milestone is hit; stores the
 -- flag in CONTENT.achievements (saved/loaded with the rest of CONTENT
 -- via the existing snapshot logic).
+--
+-- ACHIEVEMENT_DEFS lists the visible achievements rendered in the
+-- menu's Achievements page. Hidden ones (id not listed here) still
+-- unlock via banner but won't appear in the index — used for spoilery
+-- story moments. Order = display order.
+ACHIEVEMENT_DEFS = {
+  {id = "first_jam",          name = "First Jam",         hint = "Open the Jam Pad."},
+  {id = "first_chord",        name = "First Chord",       hint = "Land a 2+ char combo in battle."},
+  {id = "first_limit",        name = "Broken Chord",      hint = "Use a Limit Break."},
+  {id = "first_rhythm_crit",  name = "On the Beat",       hint = "Crit by pressing A on the beat."},
+  {id = "all_shards",         name = "Whole Chord",       hint = "Collect all 7 shards."},
+  {id = "ng_plus",            name = "Encore",            hint = "Begin New Game +."},
+  {id = "hundred_wins",       name = "Centurion",         hint = "Win 100 random battles."},
+  {id = "all_caves",          name = "All Sealed",        hint = "Clear all 7 caves."},
+  {id = "first_chord_silenced", name = "First Chord Silenced", hint = "Defeat the post-endgame superboss."},
+  {id = "first_shard",        name = "First Shard",       hint = "Clear your first cave."},
+  {id = "diegues_study",      name = "Diegues' Study",    hint = "Witness Diegues' research scene."},
+  {id = "choir_hour",         name = "Choir Hour",        hint = "Witness the Hollow choir."},
+  {id = "strom_dream",        name = "Strom Dreams",      hint = "Witness Strom's flashback."},
+  {id = "velthe_sightings",   name = "Velthe's Sightings",hint = "Find the observatory log."},
+  {id = "reya_cairn",         name = "The Cairn Remembers", hint = "Visit Reya's cairn."},
+}
+
 function unlock_achievement(id, name)
   CONTENT.achievements = CONTENT.achievements or {}
   if CONTENT.achievements[id] then return end
@@ -5222,10 +13707,18 @@ function unlock_achievement(id, name)
 end
 
 local function check_battle_end()
+  -- Defensive: enemy can be nil if a SCENE or some other state mutation
+  -- cleared it between battle ticks (e.g. start_finale_scene completing
+  -- mid-tick, or exit_battle racing against a clock.run callback). Bail
+  -- out cleanly rather than crashing the clock thread.
+  if not enemy then return end
   if not enemy.alive then
     battle_outcome = "VICTORY"
     battle_end_ticks = BATTLE_END_DURATION
     game_state = "BATTLE_END"
+    -- Phase 1 = main reward window (shard / instrument / quip).
+    -- Phase 2 = XP gain summary slide (advanced via A press).
+    CONTENT.battle_end_phase = 1
     engine.drone_amp(0)         -- silent — victory fanfare plays instead
     victory_step = 0            -- start fanfare from step 1 next tick
     params:set("clock_tempo", OVERWORLD_BPM)  -- victory theme at journey rate
@@ -5248,6 +13741,27 @@ local function check_battle_end()
       local total_cleared = 0
       for i = 1, 7 do if cave_state[i].cleared then total_cleared = total_cleared + 1 end end
       if total_cleared >= 7 then unlock_achievement("all_caves", "All Seven Cleared") end
+      -- Boss-specific victory quip. Stashed here, applied by exit_battle
+      -- (which otherwise overwrites CONTENT.victory_quip with a random
+      -- class-pool one-liner). Small character moments tied to the
+      -- specific boss just felled.
+      local BOSS_QUIPS = {
+        echo      = {speaker="Diegues", body="The chamber is quiet now. Only ours.", class="mage"},
+        sentinel  = {speaker="Strom",   body="It sleeps now. As it always should have.", class="warrior"},
+        tide      = {speaker="Miel",    body="Tidewatch's chord ends. The shore can rest.", class="cleric"},
+        dunerider = {speaker="Alder",   body="Six beats out, two back. Iska was right.", class="bard"},
+        snowgaunt = {speaker="Strom",   body="His three-count broke before ours did.", class="warrior"},
+        locrius   = {speaker="Diegues", body="Half a step. He was wrong by exactly half a step.", class="mage"},
+        suno      = {speaker="Miel",    body="...the seventh note. The chord is whole.", class="cleric"},
+      }
+      if enemy and BOSS_QUIPS[enemy.visual] then
+        CONTENT.boss_quip_pending = BOSS_QUIPS[enemy.visual]
+      end
+      -- Stash a boss-aftermath scene to fire on exit_battle. Skip cave 7
+      -- (Suno) — that goes straight to ENDING via ending_pending.
+      if cave_id < 7 then
+        CONTENT.queued_scene = "boss_aftermath_" .. cave_id
+      end
     end
     -- (battle-end no longer calls flash_hit — same wash-out concern)
     if enemy.visual == "echo"      then clear_boss(1, "lydian")
@@ -5260,11 +13774,26 @@ local function check_battle_end()
       clear_boss(7, "ionian")
       -- final victory triggers the ENDING sequence in exit_battle
       ending_pending = true
+    elseif enemy.visual == "firstchord" then
+      -- Post-endgame superboss. No shard, no instrument; only the
+      -- achievement and a one-shot banner. Mark cave 8 cleared so the
+      -- player can re-fight via VoidEcho (the NPC stays visible) or
+      -- track it in the journal.
+      cave_state[8].cleared = true
+      unlock_achievement("first_chord_silenced", "First Chord Silenced")
+      CONTENT.banner_text  = "* THE FIRST CHORD IS SILENCED *"
+      CONTENT.banner_ticks = 90
     elseif random_battle then
       -- random encounters give XP/loot but don't count toward boss progress
       -- — they DO count toward Hens & Brann sidequests though.
       QUESTS.hens.wins  = QUESTS.hens.wins + 1
       QUESTS.brann.wins = QUESTS.brann.wins + 1
+      -- Lifetime random-battle wins (separate from per-quest counters
+      -- that get reset on quest claim or NG+).
+      CONTENT.total_wins = (CONTENT.total_wins or 0) + 1
+      if CONTENT.total_wins >= 100 then
+        unlock_achievement("hundred_wins", "Centurion")
+      end
       -- Pass 32: random-battle item drops. ~35% chance per win to drop a
       -- consumable. Weighted: salve > vial > ether > tonic > star > key.
       if math.random() < 0.35 then
@@ -5305,6 +13834,23 @@ local function check_battle_end()
     battle_end_ticks = BATTLE_END_DURATION
     game_state = "BATTLE_END"
     engine.drone_amp(DRONE_AMP_BATTLE_END)   -- somber drone for defeat
+    -- Story-arc retry hooks: if the defeated battle was a one-shot
+    -- scripted encounter (Strom academy fight, prologue silencers,
+    -- prologue cave wisps), roll the relevant story flag back so the
+    -- player can re-enter the area and try again. Without this the
+    -- player is soft-locked out of the join scene on a single loss.
+    if enemy and enemy.is_strom_arc then
+      CONTENT.academy_state = "untriggered"
+      -- Don't undo Diegues' join — he's already a party member, so the
+      -- replay will skip his join logic (class_in_party guard) and go
+      -- straight to dialogue + battle. Player keeps progress.
+    elseif enemy and enemy.is_prologue_silencer then
+      -- Player retreats to the throne room — they re-engage the same
+      -- silencer next time they walk up to it (state stays "coup").
+      -- Nothing to roll back.
+    elseif enemy and enemy.is_prologue_cave then
+      -- Same idea — wisp stays alive on the map, retry by walking up.
+    end
   end
 end
 
@@ -5317,17 +13863,36 @@ function tick_battle_music()
   if not enemy then return end
   -- Practice dummy uses no battle music — let the player jam unobstructed.
   if enemy.invincible then return end
-  TITLE.battle_step = (TITLE.battle_step % OW_PATTERN_LEN) + 1
-  -- choose theme: boss enemies are the cave bosses. Detect by name match.
+  -- choose theme:
+  -- - boss enemies (cave bosses by visual) → BATTLE_THEMES.boss (heavy doom)
+  -- - rare encounters → BATTLE_THEMES.boss too, since they're mini-bosses
+  --   and the encounter theme felt too casual for the moment. Tempo bump
+  --   in enter_battle separates them sonically from real bosses.
+  -- - everything else → BATTLE_THEMES.encounter (the standard random fight).
   local boss_visuals = {echo=true, sentinel=true, tide=true, dunerider=true,
                         snowgaunt=true, locrius=true, suno=true}
-  local theme = (boss_visuals[enemy.visual] and BATTLE_THEMES.boss) or BATTLE_THEMES.encounter
+  local theme
+  if boss_visuals[enemy.visual] then
+    theme = BATTLE_THEMES.boss
+  elseif enemy.is_rare then
+    theme = BATTLE_THEMES.boss
+  else
+    theme = BATTLE_THEMES.encounter
+  end
+  -- Each theme can declare its own pattern length (e.g. encounter is 16
+  -- bars / 256 steps). Falls back to OW_PATTERN_LEN.
+  local plen = theme.pattern_len or OW_PATTERN_LEN
+  TITLE.battle_step = (TITLE.battle_step % plen) + 1
   for class, pat in pairs(theme.pattern) do
     fire_ow_voice(class, pat[TITLE.battle_step], theme.artic)
   end
 end
 
 local function tick_battle()
+  -- Defensive: enemy may be nil if exit_battle fired but the BATTLE
+  -- game_state hasn't yet flipped (clock-thread vs main-thread race).
+  -- Bail out cleanly so the clock callback doesn't crash the whole loop.
+  if not enemy then return end
   -- music underlay (Pass 34)
   tick_battle_music()
   -- per-beat status effect ticking
@@ -5390,6 +13955,44 @@ travel_to = function(map_id, x, y)
     map = CONTENT.inn_map; npcs = CONTENT.inn_npcs
   elseif map_id == 6 then
     map = CONTENT.shop_map; npcs = CONTENT.shop_npcs
+  elseif map_id == 15 then
+    map = CONTENT.eastern_shop_map; npcs = CONTENT.eastern_shop_npcs
+  elseif map_id == 16 then
+    map = CONTENT.northern_shop_map; npcs = CONTENT.northern_shop_npcs
+  elseif map_id == 17 then
+    map = CONTENT.eastern_inn_map; npcs = CONTENT.eastern_inn_npcs
+  elseif map_id == 18 then
+    map = CONTENT.northern_inn_map; npcs = CONTENT.northern_inn_npcs
+  elseif map_id == 19 then
+    map = CONTENT.academy_map; npcs = CONTENT.academy_npcs
+  elseif map_id == 20 then
+    map = CONTENT.castle_map; npcs = CONTENT.castle_npcs
+  elseif map_id == 21 then
+    map = CONTENT.escape_cave_map; npcs = CONTENT.escape_cave_npcs
+  elseif map_id == 22 then
+    map = CONTENT.western_region_map; npcs = CONTENT.western_region_npcs
+  elseif map_id == 23 then
+    map = CONTENT.lirael_ruins_map; npcs = CONTENT.lirael_ruins_npcs
+  elseif map_id == 24 then
+    map = CONTENT.observatory_map; npcs = CONTENT.observatory_npcs
+  elseif map_id == 26 then
+    map = CONTENT.far_hills_map; npcs = CONTENT.far_hills_npcs
+  elseif map_id == 27 then
+    map = CONTENT.castle_hallway_map; npcs = CONTENT.castle_hallway_npcs
+  elseif map_id == 28 then
+    map = CONTENT.quarters_map; npcs = CONTENT.quarters_npcs
+  elseif map_id == 29 then
+    map = CONTENT.study_map; npcs = CONTENT.study_npcs
+  elseif map_id == 30 then
+    map = CONTENT.library_map; npcs = CONTENT.library_npcs
+  elseif map_id == 31 then
+    map = CONTENT.overlook_map; npcs = CONTENT.overlook_npcs
+  elseif map_id == 32 then
+    map = CONTENT.courtyard_map; npcs = CONTENT.courtyard_npcs
+  elseif map_id == 33 then
+    map = CONTENT.barracks_map; npcs = CONTENT.barracks_npcs
+  elseif map_id == 34 then
+    map = CONTENT.infirmary_map; npcs = CONTENT.infirmary_npcs
   elseif map_id == 7 then
     map = CONTENT.cave1_map; npcs = CONTENT.cave1_npcs
   elseif map_id == 8 then
@@ -5415,6 +14018,137 @@ travel_to = function(map_id, x, y)
   player.y = y
   last_region = nil   -- force banner refresh
   update_camera()
+  -- Academy story trigger: first time the player enters map 19 with
+  -- academy_state still "untriggered", launch the entry cutscene which
+  -- chains into the Strom battle when its dialogue closes.
+  if map_id == 19 and CONTENT and CONTENT.academy_state == "untriggered" then
+    if start_academy_intro then start_academy_intro() end
+  end
+  -- Castle prologue: on first map entry, play a brief INTRO beat
+  -- (raid sounds + opening line) then hand control to Miel in her
+  -- private chamber. Suno's confrontation scene now fires when Miel
+  -- walks INTO the throne hall (handled in the per-tile try_move
+  -- check via CONTENT.prologue_throne_room_pending).
+  if map_id == 28 and CONTENT and not CONTENT.prologue_intro_done then
+    if start_prologue_castle_intro then start_prologue_castle_intro() end
+  end
+  -- First time stepping into the hallway from Quarters during prologue:
+  -- the royal Page sprints up to Miel with the warning. Once-only.
+  if map_id == 27 and CONTENT and CONTENT.prologue_intro_done
+     and not CONTENT.prologue_scene_done
+     and not (CONTENT.scene_seen and CONTENT.scene_seen.page_warning) then
+    CONTENT.scene_seen = CONTENT.scene_seen or {}
+    CONTENT.scene_seen.page_warning = true
+    if start_page_warning_scene then start_page_warning_scene() end
+  end
+  -- Post-clear academy revisit: a one-time quiet beat when player walks
+  -- back into the cleared library.
+  if map_id == 19 and CONTENT and CONTENT.academy_state == "complete" then
+    queue_first_arrival("academy_revisit", {
+      "(The Hall of Resonance is quiet. Plaster dust still drifts. Diegues stops at the lectern.)",
+      "[Diegues] (touches the wood; his hand comes away white) ...still warm. Where the silencer's hammer fell.",
+      "[Strom]   (looks at his own hands) ...I'm sorry.",
+      "[Diegues] (does not look up) Don't be sorry. Be different.",
+      "[Strom]   (a single nod) Yes.",
+      "(They stand in the dust a moment. Then they walk back out together.)",
+    })
+    -- Choir Hour: choreographed scene that fires the FIRST revisit after
+    -- the player has at least 3 shards (so the academy has had time to
+    -- recover its choir). Diegues conducts a small four-voice choir of
+    -- restored students; one held chord at the end.
+    local n = 0; for _, v in pairs(shards) do if v then n = n + 1 end end
+    if n >= 3 and not (CONTENT.scene_seen and CONTENT.scene_seen.academy_choir)
+       and start_academy_choir_scene then
+      CONTENT.scene_seen = CONTENT.scene_seen or {}
+      CONTENT.scene_seen.academy_choir = true
+      start_academy_choir_scene()
+    end
+    -- Diegues' Study revisit: separate one-shot. Fires the first time
+    -- Miel revisits the academy with Diegues in active party AND at
+    -- least 5 shards. A quiet character beat: he reads his own old
+    -- notes and admits something he wouldn't say at the lectern.
+    if n >= 5 and class_in_party and class_in_party("mage")
+       and not (CONTENT.scene_seen and CONTENT.scene_seen.diegues_study)
+       and start_diegues_study_scene then
+      CONTENT.scene_seen = CONTENT.scene_seen or {}
+      CONTENT.scene_seen.diegues_study = true
+      start_diegues_study_scene()
+    end
+  end
+  -- Cinematic first-arrivals for the three remote regions. Each is a
+  -- choreographed SCENE with camera pan, atmospheric SFX, and a brief
+  -- party-reaction beat — replaces the older text-only banner.
+  if map_id == 2 and start_eastern_arrival_scene
+     and not (CONTENT.scene_seen and CONTENT.scene_seen.eastern_arrival) then
+    CONTENT.scene_seen = CONTENT.scene_seen or {}
+    CONTENT.scene_seen.eastern_arrival = true
+    start_eastern_arrival_scene()
+  elseif map_id == 3 and start_northern_arrival_scene
+     and not (CONTENT.scene_seen and CONTENT.scene_seen.northern_arrival) then
+    CONTENT.scene_seen = CONTENT.scene_seen or {}
+    CONTENT.scene_seen.northern_arrival = true
+    start_northern_arrival_scene()
+  elseif map_id == 4 and start_sunos_arrival_scene
+     and not (CONTENT.scene_seen and CONTENT.scene_seen.sunos_arrival) then
+    CONTENT.scene_seen = CONTENT.scene_seen or {}
+    CONTENT.scene_seen.sunos_arrival = true
+    start_sunos_arrival_scene()
+  end
+  -- First-arrival story beats. Each fires exactly once per save.
+  if map_id == 21 then
+    -- First step into the escape cave — choreographed if we have the
+    -- helper, otherwise fall back to plain text.
+    if not (CONTENT.scene_seen and CONTENT.scene_seen.escape_cave_first)
+       and start_escape_cave_scene then
+      CONTENT.scene_seen = CONTENT.scene_seen or {}
+      CONTENT.scene_seen.escape_cave_first = true
+      start_escape_cave_scene()
+    else
+      queue_first_arrival("escape_cave_first", {
+        "(The tapestry falls back into place behind her.)",
+        "(The cave smells of wet stone and a cold older than the keep.)",
+        "[Miel]   (her voice is very small) ...grandmother walked this once.",
+        "[Miel]   She came back. She was dressed as a baker. No one knew where she had been.",
+        "(The dark stretches forward. There is something in it that is not dark.)",
+        "(She hums her grandmother's song, so the dark stays small. She walks east.)",
+      })
+    end
+  elseif map_id == 22 then
+    -- First step into the Western Region overworld.
+    queue_first_arrival("western_region_first", {
+      "(The land west of the village is older than maps. Trees grew here when the Crystal still sang as one.)",
+      "(Through the trees, a building. Tall windows. A spiral on the door, faintly carved.)",
+      "(This was the Academy. Once. It is being attacked now. You can hear the breaking.)",
+    })
+  elseif map_id == 23 then
+    -- First step into the Lirael Ruins. A long, slow memory scene that
+    -- only fires once per save — heavy on stage direction, light on
+    -- combat. Choreographed: the camera rests on the empty throne; Miel
+    -- walks slowly toward it; small pause at the foot; she kneels.
+    if not (CONTENT.scene_seen and CONTENT.scene_seen.lirael_first)
+       and start_lirael_first_visit then
+      CONTENT.scene_seen = CONTENT.scene_seen or {}
+      CONTENT.scene_seen.lirael_first = true
+      start_lirael_first_visit()
+    end
+  elseif map_id == 24 then
+    -- First step into Velthe's Observatory. Iola greets Miel; awards the
+    -- Sightings Lens instrument.
+    if not (CONTENT.scene_seen and CONTENT.scene_seen.observatory_first)
+       and start_observatory_first_visit then
+      CONTENT.scene_seen = CONTENT.scene_seen or {}
+      CONTENT.scene_seen.observatory_first = true
+      start_observatory_first_visit()
+    end
+  elseif map_id == 26 then
+    -- First step into the Far Hills. A small text panel and a held
+    -- bard tone — the chord ran here once.
+    queue_first_arrival("far_hills_first", {
+      "(The hills roll out beyond the cave-mouth. Older than the village. Quieter.)",
+      "(A creek runs west. A small ruin at the center. A man with sheep.)",
+      "[Miel]    ...grandmother walked these.",
+    })
+  end
 end
 
 -- Pass 45: rare encounters. Each cave-pool has a uniquely-named, boosted
@@ -5425,18 +14159,29 @@ CAVE_RARES = {
   [1] = {name="Elder Slime",     visual="slime",     hp=350, atk=8,
          drop="ether", attack_pattern={6,6,8,6}, attack_sound={class="warrior", note=24, vel=0.65, attack=0.003, release=0.20, wet=0.10}},
   [2] = {name="Sage Sentinel",   visual="sentinel",  hp=420, atk=10,
-         drop="tonic", attack_pattern={5,7,5,7,9}, attack_sound={class="cleric", note=42, vel=0.50, attack=0.05, release=0.80, wet=0.50}},
+         drop="tonic", attack_pattern={5,7,5,7,9}, attack_sound={class="cleric", note=41, vel=0.50, attack=0.05, release=0.80, wet=0.50}},
   [3] = {name="Tideturner",      visual="tide",      hp=480, atk=12,
          drop="key",   attack_pattern={4,4,8,4,4}, attack_sound={class="bard", note=48, vel=0.55, attack=0.005, release=0.40, wet=0.55}},
   [4] = {name="Dune Sovereign",  visual="scorpion",  hp=520, atk=13,
          drop="ether", attack_pattern={4,6,4,8}, attack_sound={class="mage", note=72, vel=0.60, attack=0.002, release=0.30, wet=0.40}},
   [5] = {name="Frostfather",     visual="yeti",      hp=600, atk=14,
-         drop="tonic", attack_pattern={9,7,5,9}, attack_sound={class="warrior", note=20, vel=0.70, attack=0.005, release=0.50, wet=0.20}},
+         drop="tonic", attack_pattern={9,7,5,9}, attack_sound={class="warrior", note=21, vel=0.70, attack=0.005, release=0.50, wet=0.20}},
   [6] = {name="Voidpriest",      visual="lich",      hp=700, atk=15,
-         drop="star",  attack_pattern={5,5,5,5,11}, attack_sound={class="cleric", note=30, vel=0.60, attack=0.40, release=2.50, wet=0.85}},
+         drop="star",  attack_pattern={5,5,5,5,11}, attack_sound={class="cleric", note=31, vel=0.60, attack=0.40, release=2.50, wet=0.85}},
 }
 
 enter_battle = function(cave_id, force_random)
+  -- Pre-battle visual: brief screen shake + flash + small SFX so the
+  -- transition into combat lands. FF-style "encounter ! " sting.
+  -- Skip when SCENE.active (the boss-approach/finale scenes already
+  -- handled their own entry animation).
+  if not (SCENE and SCENE.active) then
+    if ANIM and ANIM.shake then ANIM.shake(2, 6) end
+    if ANIM and ANIM.burst then ANIM.burst(64, 32, 8, 15) end
+    if sq_trig and midi_to_freq then
+      sq_trig("warrior", midi_to_freq(48), 0.85, 0.001, 0.30, 0.30)
+    end
+  end
   current_cave = cave_id or 1
   random_battle = force_random or false
   local st = cave_state[current_cave]
@@ -5447,10 +14192,26 @@ enter_battle = function(cave_id, force_random)
   local e
   local is_boss = false
   local is_rare = false
+  -- Average level of alive party members; used to gate rares and scale
+  -- enemy stats so the encounter difficulty tracks the player rather
+  -- than being purely tied to which cave they walked into.
+  local lvl_sum, lvl_n = 0, 0
+  for _, p in ipairs(party) do
+    if p.alive then lvl_sum = lvl_sum + (p.level or 1); lvl_n = lvl_n + 1 end
+  end
+  local avg_level = (lvl_n > 0) and (lvl_sum / lvl_n) or 1
+  -- Expected party level per cave tier — used both for rare gating and
+  -- for enemy stat scaling. Players who are at or above expected get
+  -- the standard fight; underleveled gets toned down, overleveled
+  -- gets a buffed enemy so grinding doesn't trivialize old caves.
+  local CAVE_EXPECTED = {[1]=2, [2]=4, [3]=6, [4]=8, [5]=10, [6]=12, [7]=14, [8]=18}
+  local expected = CAVE_EXPECTED[current_cave] or 2
   if force_random then
-    -- Rare encounter: 4% chance, only on random encounters in caves 1-6.
+    -- Rare encounter: 4% chance, only on random encounters in caves 1-6,
+    -- AND only when the party has reached the cave's expected level so
+    -- newcomers don't get one-shot by Elder Slime in their first fight.
     local rare = CAVE_RARES[current_cave]
-    if rare and math.random() < 0.04 then
+    if rare and avg_level >= expected and math.random() < 0.04 then
       e = rare
       is_rare = true
     else
@@ -5470,15 +14231,35 @@ enter_battle = function(cave_id, force_random)
     CONTENT.banner_text  = "* RARE: " .. e.name .. " *"
     CONTENT.banner_ticks = 36
   end
+  -- Cave-tier difficulty curve. Caves 1-2 use modest multipliers so
+  -- early-game Miel + Alder can actually win; later caves ramp up.
+  --   tier 1-2: 1.5× HP, 1.0× ATK   (early game, often solo or duo)
+  --   tier 3-4: 2.5× HP, 1.1× ATK   (mid-game)
+  --   tier 5-6: 3.5× HP, 1.2× ATK   (late game, fuller party)
+  --   tier 7:   4.0× HP, 1.25× ATK  (final region)
+  -- Was: flat 4.0× HP / 1.2× ATK across all tiers — turned cave 1 into
+  -- a brick wall for Miel-only / Miel+Alder party comps.
+  local tier = current_cave or 1
+  local hp_mul = (tier <= 2) and 1.5
+              or (tier <= 4) and 2.5
+              or (tier <= 6) and 3.5
+              or                 4.0
+  local atk_mul = (tier <= 2) and 1.0
+               or (tier <= 4) and 1.1
+               or (tier <= 6) and 1.2
+               or                 1.25
+  -- Party-level scaling on top of the cave tier. Ratio of avg party
+  -- level to expected level, clamped [0.6, 1.4] so the cave tier still
+  -- dominates but underleveled fights aren't brick walls and grinding
+  -- doesn't make returns to old caves trivially boring.
+  local lvl_ratio = avg_level / expected
+  local lvl_mul = math.max(0.6, math.min(1.4, lvl_ratio))
   enemy = {
     name = e.name,
-    -- Difficulty multipliers (Pass 35 → 36): ~4x HP on every enemy
-    -- (random + boss) for substantially longer, more weighty fights.
-    -- ATK still buffed +20%. Multipliers applied at battle-start so the
-    -- underlying pool tables stay pristine.
-    hp     = math.floor(e.hp  * 4.0),
-    hp_max = math.floor(e.hp  * 4.0),
-    atk    = math.ceil (e.atk * 1.20),
+    hp     = math.floor(e.hp  * hp_mul * lvl_mul),
+    hp_max = math.floor(e.hp  * hp_mul * lvl_mul),
+    atk    = math.max(1, math.ceil(e.atk * atk_mul * lvl_mul)),
+    level  = math.max(1, math.floor(avg_level + 0.5)),  -- displayed/audit only
     is_rare = is_rare,
     rare_drop = e.drop,
     attack_pattern = e.attack_pattern,
@@ -5488,9 +14269,25 @@ enter_battle = function(cave_id, force_random)
     alive = true, visual = e.visual,
   }
   reset_party_for_battle()
+  combo_window = {}     -- clear chord-attack window on battle entry
+  -- Wipe any in-flight overworld banner (ambient events leave a 48-60
+  -- tick countdown; without this the "lute far off" banner can bleed
+  -- into the first frame of combat and look like a battle line).
+  CONTENT.banner_text = ""
+  CONTENT.banner_ticks = 0
+  CONTENT.flash_text = ""
+  CONTENT.flash_ticks = 0
   battle_outcome = nil
   game_state = "BATTLE"
-  params:set("clock_tempo", BATTLE_BPM)
+  -- Tempo per encounter type: bosses get the slow doom feel from the
+  -- boss theme at standard BATTLE_BPM. Rares share the boss theme but
+  -- run +18 BPM hotter so they read as urgent surprise rather than
+  -- looming inevitability. Random encounters use BATTLE_BPM as-is.
+  -- Final tempo is also scaled by CONTENT.battle_speed (PARAMS slider).
+  local battle_tempo = BATTLE_BPM
+  if is_rare then battle_tempo = BATTLE_BPM + 18 end
+  battle_tempo = math.floor(battle_tempo * (CONTENT.battle_speed or 1.0))
+  params:set("clock_tempo", battle_tempo)
   engine.drone_amp(0)
   TITLE.battle_step = 0  -- restart battle music ostinato cleanly
   redraw()
@@ -5559,21 +14356,26 @@ exit_battle = function()
                  "Niko: Snare-side, forever.",
                  "Niko: Kick-snare-kick-snare. Easy."},
     }
-    local ap = party[active]
-    local pool = ap and QUIPS[ap.class] or nil
-    if pool and #pool > 0 then
-      -- Pass 56: parse "Speaker: body" into a structured quip rendered
-      -- as a proper dialogue strip on the BATTLE_END screen (sprite +
-      -- name + text), not just a flash banner.
-      local q = pool[math.random(#pool)]
-      local sp, body = q:match("^(.-): (.+)$")
-      CONTENT.victory_quip = {
-        speaker = sp or "",
-        body = body or q,
-        class = ap.class,
-      }
+    -- Boss-specific quip wins over the random class pool. clear_boss
+    -- stashes it in CONTENT.boss_quip_pending so the bespoke line lands
+    -- on the victory screen instead of a generic one.
+    if CONTENT.boss_quip_pending then
+      CONTENT.victory_quip = CONTENT.boss_quip_pending
+      CONTENT.boss_quip_pending = nil
     else
-      CONTENT.victory_quip = nil
+      local ap = party[active]
+      local pool = ap and QUIPS[ap.class] or nil
+      if pool and #pool > 0 then
+        local q = pool[math.random(#pool)]
+        local sp, body = q:match("^(.-): (.+)$")
+        CONTENT.victory_quip = {
+          speaker = sp or "",
+          body = body or q,
+          class = ap.class,
+        }
+      else
+        CONTENT.victory_quip = nil
+      end
     end
   end
   -- Tonic buff lasts only the current battle. Statuses also clear on exit.
@@ -5581,6 +14383,46 @@ exit_battle = function()
     p.tonic_ticks = 0
     p.poison_ticks = 0
     p.sleep_ticks = 0
+    p.reflect = false
+    p.reflect_ticks = 0
+  end
+  -- DEFEAT branch: tutorial/scripted fights (prologue silencers, escape-cave
+  -- wisps, the academy Strom duel) get a soft reset — full-HP revive +
+  -- return to overworld so the player can retry the scripted scene. Every
+  -- other defeat is GAME OVER.
+  if battle_outcome == "DEFEAT" then
+    local tutorial_retry =
+      (enemy and (enemy.is_prologue_silencer or enemy.is_prologue_cave or enemy.is_strom_arc))
+    CONTENT.victory_quip = nil
+    battle_outcome = nil
+    enemy = nil
+    last_obtained_shard = nil
+    if tutorial_retry then
+      for _, p in ipairs(party) do
+        p.alive = true
+        p.hp = math.max(1, math.floor(p.hp_max * 0.75))
+        p.mp = math.max(p.mp, math.floor(p.mp_max * 0.50))
+        p.atb = 0
+      end
+      CONTENT.banner_text  = "* you fall back. try again. *"
+      CONTENT.banner_ticks = 48
+      game_state = "OVERWORLD"
+      params:set("clock_tempo", OVERWORLD_BPM)
+      engine.drone_amp(0)
+      redraw()
+      return
+    end
+    -- True game over.
+    game_state = "GAME_OVER"
+    GAME_OVER_TICK = tick
+    engine.drone_amp(0)
+    -- Slow funereal tempo for the JRPG-style dirge.
+    params:set("clock_tempo", INTRO_BPM)
+    -- Reset the music loop to step 1 so the player hears the full
+    -- "i → bVI → V" descent from the top each time game over fires.
+    if game_over_step then game_over_step = 0 end
+    redraw()
+    return
   end
   CONTENT.victory_quip = nil
   battle_outcome = nil
@@ -5598,6 +14440,27 @@ exit_battle = function()
   game_state = "OVERWORLD"
   params:set("clock_tempo", OVERWORLD_BPM)
   engine.drone_amp(0)
+  -- Fire any post-battle queued scene now that we're back on the
+  -- overworld. Six-shards beat is one type; per-cave boss-aftermath
+  -- scenes are another.
+  if CONTENT.queued_scene then
+    local q = CONTENT.queued_scene
+    CONTENT.queued_scene = nil
+    if q == "six_shards" and start_six_shards_scene then
+      CONTENT.scene_seen = CONTENT.scene_seen or {}
+      CONTENT.scene_seen.six_shards = true
+      start_six_shards_scene()
+    elseif q == "endgame" and start_endgame_scene then
+      CONTENT.scene_seen = CONTENT.scene_seen or {}
+      CONTENT.scene_seen.endgame = true
+      start_endgame_scene()
+    else
+      local cv = tonumber(q:match("^boss_aftermath_(%d+)$"))
+      if cv and start_boss_aftermath_scene then
+        start_boss_aftermath_scene(cv)
+      end
+    end
+  end
   redraw()
 end
 
@@ -5610,12 +14473,38 @@ local function set_active(i)
   end
 end
 
+-- Cycle order for the Y (ITM) button. "auto" = current priority pick;
+-- the remaining entries pin a specific consumable. Repeated Y presses
+-- walk this list, skipping items the player has 0 of so the cycle
+-- doesn't get stuck on an empty slot.
+local ITEM_CYCLE = {"auto", "salve", "vial", "tonic", "ether", "star"}
+
 local function queue_action(button)
   if not party[active].alive then return end
   local p = party[active]
   local action = CLASS_ACTIONS[p.class] and CLASS_ACTIONS[p.class][button]
   if action then
-    p.queued = action
+    -- Y button on ITM is special: repeated presses cycle the specific
+    -- item to use (not the action). First press queues ITM auto-mode;
+    -- each subsequent press advances to the next stocked item.
+    if action == "ITM" and p.queued == "ITM" then
+      local cur = p.item_pick or "auto"
+      local n = #ITEM_CYCLE
+      local idx = 1
+      for i, s in ipairs(ITEM_CYCLE) do if s == cur then idx = i end end
+      -- step forward; skip items the player has none of (auto always allowed)
+      for step = 1, n do
+        idx = (idx % n) + 1
+        local cand = ITEM_CYCLE[idx]
+        if cand == "auto" or (SHOP.inv[cand] or 0) > 0 then
+          p.item_pick = cand
+          break
+        end
+      end
+    else
+      p.queued = action
+      if action == "ITM" then p.item_pick = p.item_pick or "auto" end
+    end
     -- Player explicitly changed this character's action — cancel any pending
     -- "party jam" revert so their choice sticks instead of snapping back.
     p.prev_queued = nil
@@ -5641,6 +14530,9 @@ function gamepad.dpad(axis, sign)
     return
   end
   if game_state == "OVERWORLD" then
+    -- Suppress player movement during a scripted scene (sprite tweens
+    -- handle blocking + camera).
+    if SCENE and SCENE.active then return end
     if l2_held then
       -- L2 + dpad UD = overworld BPM, L2 + dpad LR = battle BPM
       if axis == "Y" then
@@ -5691,8 +14583,12 @@ function gamepad.dpad(axis, sign)
     if axis == "Y" then
       -- 0 (no focus) → 1 (Sergei) → 2 (Paj) → 0 (cycle)
       -- 0 (no focus) → 1 (Sergei) → 2 (Paj) → 3 (Niko) → 0 (cycle)
-      CONTENT.partysel_focus = (CONTENT.partysel_focus + sign) % 4
-      if CONTENT.partysel_focus < 0 then CONTENT.partysel_focus = CONTENT.partysel_focus + 4 end
+      -- Cycle focus 0..#cells (0 = no focus / nav hint shown).
+      local n = #partysel_cells()
+      CONTENT.partysel_focus = ((CONTENT.partysel_focus or 0) + sign) % (n + 1)
+      if CONTENT.partysel_focus < 0 then
+        CONTENT.partysel_focus = CONTENT.partysel_focus + (n + 1)
+      end
       redraw()
     elseif axis == "X" then
       set_active(active + sign); redraw()
@@ -5705,6 +14601,12 @@ function gamepad.dpad(axis, sign)
       if CONTENT.bestiary_idx < 1 then CONTENT.bestiary_idx = CONTENT.bestiary_idx + total end
       redraw()
     end
+  elseif game_state == "ITEMS" and axis == "Y" then
+    -- Scroll the cursor through the items list.
+    local n = #ITEMS_ORDER
+    CONTENT.items_idx = ((CONTENT.items_idx or 1) - 1 + sign) % n + 1
+    if CONTENT.items_idx < 1 then CONTENT.items_idx = CONTENT.items_idx + n end
+    redraw()
   elseif game_state == "EQUIP" then
     if axis == "Y" then
       local p = party[equip_idx]
@@ -5719,7 +14621,8 @@ function gamepad.dpad(axis, sign)
     end
   elseif game_state == "SHOP" then
     if axis == "Y" then
-      SHOP.idx = ((SHOP.idx - 1 + sign) % #SHOP.order) + 1
+      do local _vis = shop_visible_order(); local _n = math.max(1, #_vis)
+         SHOP.idx = ((SHOP.idx - 1 + sign) % _n) + 1 end
       redraw()
     end
   elseif game_state == "JAM" then
@@ -5810,10 +14713,13 @@ function gamepad.button(button, state)
     end
     redraw(); return
   end
-  -- SELECT toggles JAM mode from any non-modal state (overworld/battle/menu/etc).
-  -- Skipped in TITLE/CUTSCENE/ENDING/VOYAGE to avoid breaking those scripted flows.
+  -- SELECT toggles JAM mode from any non-modal state — including TITLE
+  -- so the player can jam before starting / continuing a game. The
+  -- jam_prev_state remembers where we came from; SELECT a second time
+  -- returns to that state. CUTSCENE/ENDING/VOYAGE remain off-limits to
+  -- avoid breaking those scripted flows mid-script.
   if button == "SELECT"
-     and game_state ~= "TITLE" and game_state ~= "CUTSCENE"
+     and game_state ~= "CUTSCENE"
      and game_state ~= "ENDING" and game_state ~= "VOYAGE" then
     if game_state == "JAM" then
       game_state = jam_prev_state or "OVERWORLD"
@@ -5853,19 +14759,24 @@ function gamepad.button(button, state)
     end
   elseif game_state == "CUTSCENE" then
     if button == "START" then
-      -- skip the whole intro
+      -- skip the whole intro — still drop into the playable prologue
+      -- so the new-game starting state is consistent.
       game_state = "OVERWORLD"
       params:set("clock_tempo", OVERWORLD_BPM)
       engine.drone_amp(0)
+      travel_to(28, 3, 2)   -- spawn in Miel's Royal Quarters (map 28), beside the bed
       update_camera()
       redraw()
     elseif button == "A" or button == "B" then
       cutscene_idx = cutscene_idx + 1
       CONTENT.cutscene_panel_start = tick
       if cutscene_idx > #CUTSCENE_LINES then
+        -- New game: drop the player into the castle throne room (map 20)
+        -- to play through the prologue. Loaded games never reach here.
         game_state = "OVERWORLD"
         params:set("clock_tempo", OVERWORLD_BPM)
         engine.drone_amp(0)
+        travel_to(28, 3, 2)   -- spawn in Miel's Royal Quarters (map 28), beside the bed
         update_camera()
       end
       redraw()
@@ -5882,6 +14793,8 @@ function gamepad.button(button, state)
       redraw()
     end
   elseif game_state == "OVERWORLD" then
+    -- Suppress overworld input during a scripted scene.
+    if SCENE and SCENE.active then return end
     if button == "A" then
       local npc = find_facing_npc()
       if npc then start_dialogue(npc) end
@@ -5917,6 +14830,11 @@ function gamepad.button(button, state)
         game_state = "PARTYSEL"
       elseif opt == "Quests" then
         game_state = "QUESTS"
+      elseif opt == "Map" then
+        game_state = "MAP"
+      elseif opt == "Achievements" then
+        game_state = "ACHIEVEMENTS"
+        UI.ach_idx = 1
       elseif opt == "Bestiary" then
         game_state = "BESTIARY"
       elseif opt == "Shards" then
@@ -5953,11 +14871,6 @@ function gamepad.button(button, state)
       local list = INST.owned_for(p.class)
       if list[equip_choice] then
         equipped[p.class] = list[equip_choice]
-        local inst = INSTRUMENTS[list[equip_choice]]
-        if inst then
-          CONTENT.flash_text = "Equipped: " .. inst.name
-          CONTENT.flash_ticks = 24
-        end
       end
       redraw()
     elseif button == "B" or button == "START" then
@@ -5966,13 +14879,22 @@ function gamepad.button(button, state)
     end
   elseif game_state == "SHOP" then
     if button == "A" then
-      local id = SHOP.order[SHOP.idx]
+      local id = (shop_visible_order())[SHOP.idx]
       local it = SHOP.items[id]
       local price = it and (QUESTS.hens.discount and math.floor(it.cost * 0.75) or it.cost) or 0
-      if it and SHOP.gold >= price then
+      -- Block re-purchase of an already-owned instrument.
+      if it and it.is_instrument and instruments_owned[id] then
+        SHOP.flash_text = "Already owned"
+        SHOP.flash_ticks = 24
+      elseif it and SHOP.gold >= price then
         SHOP.gold = SHOP.gold - price
-        SHOP.inv[id] = SHOP.inv[id] + 1
-        SHOP.flash_text = "+1 " .. it.name
+        if it.is_instrument then
+          instruments_owned[id] = true
+          SHOP.flash_text = "+ " .. it.name
+        else
+          SHOP.inv[id] = SHOP.inv[id] + 1
+          SHOP.flash_text = "+1 " .. it.name
+        end
         SHOP.flash_ticks = 24
       else
         SHOP.flash_text = "Not enough gold"
@@ -5983,42 +14905,71 @@ function gamepad.button(button, state)
       game_state = "OVERWORLD"
       redraw()
     end
-  elseif game_state == "ITEMS" or game_state == "QUESTS" or game_state == "BESTIARY" or game_state == "SHARDS" then
+  elseif game_state == "BESTIARY" then
+    -- A enters detail view (sprite + full lore); B exits detail or returns
+    -- to MENU if already in list view; START always returns to MENU.
+    if button == "A" then
+      CONTENT.bestiary_detail = not CONTENT.bestiary_detail
+      redraw()
+    elseif button == "B" then
+      if CONTENT.bestiary_detail then
+        CONTENT.bestiary_detail = false
+      else
+        game_state = "MENU"
+      end
+      redraw()
+    elseif button == "START" then
+      CONTENT.bestiary_detail = false
+      game_state = "MENU"; redraw()
+    end
+  elseif game_state == "ITEMS" then
+    if button == "A" then
+      items_use_selected(); redraw()
+    elseif button == "B" or button == "START" then
+      game_state = "MENU"; redraw()
+    end
+  elseif game_state == "CREDITS" then
+    if button == "A" or button == "START" then
+      local age = tick - (CONTENT.credits_t or tick)
+      if age > 600 then
+        -- Begin NEW GAME + : preserve levels/instruments/gold, reset
+        -- shards/cave clears/quest progress, return to overworld at the
+        -- escape-cave exit (canonical game start spot post-prologue).
+        if start_new_game_plus then start_new_game_plus() end
+      end
+    end
+  elseif game_state == "ACHIEVEMENTS" then
     if button == "A" or button == "B" or button == "START" then
+      game_state = "MENU"; redraw()
+    end
+  elseif game_state == "QUESTS" or game_state == "SHARDS" or game_state == "MAP" then
+    if button == "L1" and game_state == "QUESTS" then
+      UI.quests_page = (UI.quests_page == 2) and 1 or 2; redraw()
+    elseif button == "R1" and game_state == "QUESTS" then
+      UI.quests_page = (UI.quests_page == 1) and 2 or 1; redraw()
+    elseif button == "A" or button == "B" or button == "START" then
       game_state = "MENU"; redraw()
     end
   elseif game_state == "PARTYSEL" then
     if button == "L1" then set_active(active - 1); redraw()
     elseif button == "R1" then set_active(active + 1); redraw()
     elseif button == "A" then
-      -- Swap focused recruit with party[active] (if recruit has joined)
-      local idx = CONTENT.partysel_focus
-      local r = CONTENT.recruits[idx]
-      if r and r.joined then
-        local active_p = party[active]
-        local recruit_p = r.party_data
-        if not recruit_p then
-          -- first time joining: build party entry from template
-          recruit_p = {
-            class=r.class, spd=r.spd, atb=0, queued="ATK",
-            note_idx=11, note_lo=8, note_hi=20,
-            cutoff=2000, resonance=0.30,
-            hp=r.hp_max, hp_max=r.hp_max, mp=r.mp_max, mp_max=r.mp_max,
-            atk=r.atk, def=r.def, mag=r.mag,
-            level=1, xp=0, xp_total=0,
-            alive=true, shield=false, buffed=false, blocking=false,
-            last_fire=-99, last_hit=-99,
-            stick={lx=0,ly=0,rx=0,ry=0}, xwet=0, dly=0,
-          }
+      -- Swap the focused STANDBY character into the currently-active
+      -- party slot. The displaced character moves to standby on the next
+      -- redraw (computed dynamically, so we don't need to do anything
+      -- explicit here — just point party[active] at the new reference).
+      local cells = partysel_cells()
+      local cell = cells[CONTENT.partysel_focus or 0]
+      if cell and cell.kind == "reserve" then
+        party[active] = cell.char
+        -- Focus index stays the same; the new cell at that index will be
+        -- whoever was just displaced, which makes the press-A toggle feel
+        -- natural (press again to swap back). Clamp if displacement
+        -- shrank the list.
+        local n = #partysel_cells()
+        if (CONTENT.partysel_focus or 0) > n then
+          CONTENT.partysel_focus = math.max(0, n)
         end
-        party[active] = recruit_p
-        -- Stash displaced member back into the recruits roster (preserves stats)
-        CONTENT.recruits[idx] = {
-          class=active_p.class, spd=active_p.spd,
-          hp_max=active_p.hp_max, mp_max=active_p.mp_max,
-          atk=active_p.atk, def=active_p.def, mag=active_p.mag,
-          blurb=r.blurb, joined=true, party_data=active_p,
-        }
         redraw()
       end
     elseif button == "B" or button == "START" then
@@ -6089,9 +15040,45 @@ function gamepad.button(button, state)
     elseif button == "R1" then set_active(active + 1)
     elseif button == "A" or button == "B" or button == "X" or button == "Y" then
       queue_action(button)
+      -- RHYTHM CRIT: pressing A on the beat (tick % 4 == 0; ticks come
+      -- every 1/4 beat via clock.sync) charges the active char for a
+      -- guaranteed crit on their next ATK. Tight 1-tick window so the
+      -- player has to actually feel the music. Visual feedback in HUD.
+      if button == "A" then
+        local p = party[active]
+        if p and p.alive and p.queued == "ATK" and (tick % 4) == 0 then
+          p.rhythm_charged = true
+          p.rhythm_charged_t = tick
+        end
+      end
     end
   elseif game_state == "BATTLE_END" then
-    if button == "A" then exit_battle() end
+    if button == "A" then
+      -- VICTORY: A advances phase 1 → 2 → exit. DEFEAT: A always exits.
+      if battle_outcome == "VICTORY"
+         and (CONTENT.battle_end_phase or 1) == 1
+         and CONTENT.xp_summary and #CONTENT.xp_summary.gains > 0 then
+        CONTENT.battle_end_phase = 2
+        redraw()
+      else
+        exit_battle()
+      end
+    end
+  elseif game_state == "GAME_OVER" then
+    -- Wait for the blinking prompt to actually be visible before accepting
+    -- input (prevents an accidental dismissal during the fade-in).
+    if button == "A" and (tick - (GAME_OVER_TICK or 0)) > 80 then
+      -- Clear any leftover scene state on the way out.
+      if SCENE then
+        SCENE.active = false; SCENE.script = nil; SCENE.actors = {}
+        SCENE.fade = 0; SCENE.hide_player = false
+      end
+      game_state = "TITLE"
+      TITLE.idx = 1   -- park the cursor on Continue (load save)
+      params:set("clock_tempo", INTRO_BPM)
+      engine.drone_amp(0)
+      redraw()
+    end
   end
 end
 
@@ -6186,22 +15173,148 @@ function init()
   -- params browser AND map any of them to your MPK's knobs (long-press
   -- the knob in the params menu → CC LEARN → twist the MPK knob).
   -- Setter sends the engine command live, so changes take effect instantly.
+  -- Pass 57: battle speed slider. Multiplies BATTLE_BPM when in combat
+  -- so the whole ATB + enemy-attack timing scales together. 1.0 = stock,
+  -- 1.5 = brisker, 2.0 = blistering. Lives in PARAMS so it persists.
+  params:add_option("sq_battle_speed", "battle speed",
+                    {"1.0x", "1.5x", "2.0x"}, 1)
+  params:set_action("sq_battle_speed", function(val)
+    CONTENT.battle_speed = ({1.0, 1.5, 2.0})[val] or 1.0
+    if game_state == "BATTLE" then
+      params:set("clock_tempo", math.floor(BATTLE_BPM * CONTENT.battle_speed))
+    end
+  end)
+
+  -- Pass 58: MIDI OUT. Optional emit of every sq_trig note as a real
+  -- MIDI note_on/note_off so external gear can score the session.
+  -- Per-class channel mapping (warrior=1, cleric=2, mage=3, bard=4) —
+  -- letting users route each voice to a different external synth.
+  params:add_option("sq_midi_out", "MIDI out", {"off", "on"}, 1)
+  params:set_action("sq_midi_out", function(v)
+    CONTENT.midi_out_enabled = (v == 2)
+    if CONTENT.midi_out_enabled and not midi_out then
+      pcall(function() midi_out = midi.connect(2) end)
+    end
+  end)
+  params:add_number("sq_midi_out_dev", "MIDI out device", 1, 16, 2)
+  params:set_action("sq_midi_out_dev", function(d)
+    pcall(function() midi_out = midi.connect(d) end)
+  end)
+
+  -- Pass 58: CUSTOM SCALE picker. The player can swap a slot in
+  -- JAM.scales.custom between several preset scales beyond the
+  -- diatonic modes the game ships with. After picking one, cycle into
+  -- it in the JAM pad (X button cycles mode) — it's appended to
+  -- mode_order so it becomes a 9th mode. The whole party plays in it.
+  local SCALE_PRESETS = {
+    ["Whole Tone"]        = {0, 2, 4, 6, 8, 10},
+    ["Blues"]             = {0, 3, 5, 6, 7, 10},
+    ["Hirajoshi"]         = {0, 2, 3, 7, 8},
+    ["Phrygian Dom"]      = {0, 1, 4, 5, 7, 8, 10},
+    ["Hungarian Minor"]   = {0, 2, 3, 6, 7, 8, 11},
+    ["Pentatonic Major"]  = {0, 2, 4, 7, 9},
+    ["Japanese Insen"]    = {0, 1, 5, 7, 10},
+    ["Chromatic"]         = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11},
+  }
+  local SCALE_PRESET_ORDER = {"Whole Tone", "Blues", "Hirajoshi", "Phrygian Dom",
+                              "Hungarian Minor", "Pentatonic Major",
+                              "Japanese Insen", "Chromatic"}
+  params:add_option("sq_custom_scale", "custom scale", SCALE_PRESET_ORDER, 1)
+  params:set_action("sq_custom_scale", function(v)
+    local name = SCALE_PRESET_ORDER[v]
+    local semis = SCALE_PRESETS[name]
+    if semis then
+      JAM.scales.custom = build_scale(semis)
+      -- Make sure "custom" is in mode_order exactly once.
+      local seen = false
+      for _, m in ipairs(JAM.mode_order) do if m == "custom" then seen = true; break end end
+      if not seen then JAM.mode_order[#JAM.mode_order + 1] = "custom" end
+    end
+  end)
   params:add_separator("synth_quest_voices", "SYNTH QUEST — voices")
-  for _, v in ipairs({"mage", "cleric", "warrior", "bard"}) do
-    params:add_group("sq_" .. v, v:upper(), 4)
+  -- room/damp defaults match the SynthDef defaults so the params menu
+  -- shows what's actually running (mage 0.88/0.35, cleric 0.92/0.40,
+  -- warrior 0.85/0.50, bard 0.90/0.40).
+  local ROOM_DEFAULT = {mage=0.88, cleric=0.92, warrior=0.85, bard=0.90}
+  local DAMP_DEFAULT = {mage=0.35, cleric=0.40, warrior=0.50, bard=0.40}
+  -- Beat divisor table for tempo-synced delays. "off" means use the raw
+  -- seconds value from the "delay time" control. Beat values are in
+  -- multiples of one quarter-note at the current clock_tempo.
+  local DLY_DIVS = {"off","1/2","1/4","1/4.","1/4t","1/8","1/8.","1/8t","1/16"}
+  local DLY_DIV_BEATS = {
+    ["1/2"]=2.0, ["1/4"]=1.0, ["1/4."]=1.5, ["1/4t"]=2/3,
+    ["1/8"]=0.5, ["1/8."]=0.75, ["1/8t"]=1/3, ["1/16"]=0.25,
+  }
+  -- Default raw-time fallbacks (only used when div = off).
+  local DLY_FREE_DEFAULT = {mage=0.375, cleric=0.5, warrior=0.25, bard=0.375}
+  -- VOICE_LIST + refresh fn made global so the tempo heartbeat (declared
+  -- below) can resync delay times when clock_tempo changes.
+  SQ_VOICE_LIST = {"mage", "cleric", "warrior", "bard"}
+  -- Per-voice octave shift, applied as a frequency multiplier in front of
+  -- engine.trig_*. Default 0 = unshifted. Wrapping the trig fns means every
+  -- pitch from every call-site (combat, music tables, MIDI, inn rest chords)
+  -- picks up the shift without touching individual sites.
+  SQ_VOICE_OCT = SQ_VOICE_OCT or {mage=0, cleric=0, warrior=0, bard=0}
+  function sq_refresh_delay_time(v)
+    if not engine[v .. "_dly_time"] then return end
+    local div_idx = params:get(v .. "_dly_div_p") or 1
+    local div = DLY_DIVS[div_idx] or "off"
+    local t
+    if div == "off" then
+      t = params:get(v .. "_dly_time_p") or DLY_FREE_DEFAULT[v]
+    else
+      local bpm = params:get("clock_tempo") or 120
+      t = (60 / bpm) * (DLY_DIV_BEATS[div] or 1.0)
+    end
+    t = math.max(0.001, math.min(2.0, t))
+    engine[v .. "_dly_time"](t)
+  end
+  for _, v in ipairs(SQ_VOICE_LIST) do
+    params:add_group("sq_" .. v, v:upper(), 9)
+    params:add{type = "number", id = v .. "_oct_p", name = v .. " octave",
+      min = -3, max = 3, default = 0,
+      action = function(x) SQ_VOICE_OCT[v] = x end}
     params:add_control(v .. "_cutoff_p", v .. " cutoff",
       controlspec.new(200, 10000, 'exp', 1, 2000, 'Hz'))
     params:set_action(v .. "_cutoff_p", function(x) engine[v .. "_cutoff"](x) end)
     params:add_control(v .. "_res_p", v .. " resonance",
       controlspec.new(0.05, 0.50, 'lin', 0.01, 0.20, ''))
     params:set_action(v .. "_res_p", function(x) engine[v .. "_res"](x) end)
-    params:add_control(v .. "_wet_p", v .. " reverb",
+    params:add_control(v .. "_wet_p", v .. " reverb send",
       controlspec.new(0, 1, 'lin', 0.01, 0.0, ''))
     params:set_action(v .. "_wet_p", function(x) engine[v .. "_xwet"](x) end)
-    params:add_control(v .. "_dly_p", v .. " delay",
+    params:add_control(v .. "_dly_p", v .. " delay mix",
       controlspec.new(0, 1, 'lin', 0.01, 0.0, ''))
     params:set_action(v .. "_dly_p", function(x) engine[v .. "_dly"](x) end)
+    -- Tempo-synced delay: choose a beat division (or "off" for raw secs).
+    params:add_option(v .. "_dly_div_p", v .. " delay div", DLY_DIVS, 1)
+    params:set_action(v .. "_dly_div_p", function(_) sq_refresh_delay_time(v) end)
+    params:add_control(v .. "_dly_time_p", v .. " delay time (free)",
+      controlspec.new(0.01, 2.0, 'lin', 0.005, DLY_FREE_DEFAULT[v], 's'))
+    params:set_action(v .. "_dly_time_p", function(_) sq_refresh_delay_time(v) end)
+    -- FreeVerb size + damping for this voice.
+    params:add_control(v .. "_room_p", v .. " reverb size",
+      controlspec.new(0, 0.99, 'lin', 0.01, ROOM_DEFAULT[v], ''))
+    params:set_action(v .. "_room_p", function(x) engine[v .. "_room"](x) end)
+    params:add_control(v .. "_damp_p", v .. " reverb damp",
+      controlspec.new(0, 1, 'lin', 0.01, DAMP_DEFAULT[v], ''))
+    params:set_action(v .. "_damp_p", function(x) engine[v .. "_damp"](x) end)
   end
+  -- Music + combat reverb mix knobs. These scale the per-trig wet that the
+  -- music tables and combat actions send to each voice. Range 0..2 — clamps
+  -- to 1 inside the trig sites so 1.0 = current sound, 2.0 = full wet.
+  params:add_separator("synth_quest_mix", "SYNTH QUEST — fx mix")
+  params:add_control("music_reverb_mix_p", "music reverb",
+    controlspec.new(0, 2, 'lin', 0.05, 0.25, ''))
+  params:set_action("music_reverb_mix_p", function(x)
+    CONTENT.music_reverb_mix = x
+  end)
+  params:add_control("combat_reverb_mix_p", "combat reverb",
+    controlspec.new(0, 2, 'lin', 0.05, 0.25, ''))
+  params:set_action("combat_reverb_mix_p", function(x)
+    CONTENT.combat_reverb_mix = x
+  end)
+
   params:add_separator("synth_quest_midi", "SYNTH QUEST — midi")
   params:add_option("midi_voice_p", "MIDI note voice",
     {"bard", "mage", "cleric", "warrior"}, 1)
@@ -6209,18 +15322,31 @@ function init()
     local names = {"bard", "mage", "cleric", "warrior"}
     CONTENT.midi_voice = names[idx]
   end)
-  -- ── HDMI mirror toggle ──
-  -- When ON, ships the OLED contents to a viewer process listening on
-  -- 127.0.0.1:5556 so an attached HDMI monitor shows the game scaled
-  -- up. See viewer/synth-quest-viewer.py for the receiver. Off by
-  -- default — costs zero CPU when not in use.
+  -- ── Video stream toggle ──
+  -- When ON, ships the OLED contents over TCP to a viewer process so
+  -- an external display (LAN-connected Mac, Pi-on-TV, etc.) shows the
+  -- game scaled up. Target host:port is read from
+  -- ~/.config/synth-quest/viewer.conf — defaults to 127.0.0.1:7777.
+  -- See viewer/synth-quest-viewer.py for the receiver. Off by default.
   params:add_separator("synth_quest_video", "SYNTH QUEST — video")
   do
     local ok, mod = pcall(include, "synth-quest/lib/HDMIMirror")
-    HDMIMirror = ok and mod or nil
+    if ok then
+      HDMIMirror = mod
+    else
+      HDMIMirror = nil
+      print("synth-quest: HDMIMirror include failed: " .. tostring(mod))
+    end
   end
-  params:add_option("hdmi_mirror_p", "HDMI mirror", {"off", "on"}, 1)
-  params:set_action("hdmi_mirror_p", function(idx)
+  -- Separator label includes the live target string so you can confirm
+  -- what got read from ~/.config/synth-quest/viewer.conf without leaving
+  -- the menu. Updates next time the script is loaded.
+  do
+    local target = HDMIMirror and HDMIMirror.target_string() or "no module"
+    params:add_separator("synth_quest_video_target", "viewer: " .. target)
+  end
+  params:add_option("video_stream_p", "video stream", {"off", "on"}, 1)
+  params:set_action("video_stream_p", function(idx)
     if not HDMIMirror then return end
     if idx == 2 then HDMIMirror.start() else HDMIMirror.stop() end
   end)
@@ -6273,7 +15399,7 @@ function init()
         CONTENT.midi_rr = ((CONTENT.midi_rr or 0) % 4) + 1
         v = POLY[CONTENT.midi_rr]
       end
-      engine["trig_" .. v](freq, vel * 0.85, 0.005, 0.45, 0.35)
+      sq_trig(v, freq, vel * 0.85, 0.005, 0.45, 0.35)
       CONTENT.midi_active_t = tick
     elseif d.type == "cc" then
       local val = d.val / 127
@@ -6307,6 +15433,7 @@ function init()
       if save_flash_ticks > 0 then save_flash_ticks = save_flash_ticks - 1 end
       if SHOP.flash_ticks > 0 then SHOP.flash_ticks = SHOP.flash_ticks - 1 end
       if levelup_flash_ticks > 0 then levelup_flash_ticks = levelup_flash_ticks - 1 end
+      if (CONTENT.items_flash_ticks or 0) > 0 then CONTENT.items_flash_ticks = CONTENT.items_flash_ticks - 1 end
       if region_label_ticks > 0 then region_label_ticks = region_label_ticks - 1 end
       -- universal flash-text countdown (chest pickup / equip toast / etc.)
       if CONTENT.flash_ticks > 0 then CONTENT.flash_ticks = CONTENT.flash_ticks - 1 end
@@ -6319,6 +15446,11 @@ function init()
         tick_overworld_music()
         if inn_rest_ticks > 0 then inn_rest_ticks = inn_rest_ticks - 1 end
         if tower_locked_ticks > 0 then tower_locked_ticks = tower_locked_ticks - 1 end
+        -- Drive any active scripted scene (sprite tweens, camera pan,
+        -- step advance). No-op when SCENE.active is false.
+        if SCENE and SCENE.active then SCENE.tick() end
+        -- Tick particle pool (ambient region effects).
+        if PARTICLES and PARTICLES.tick then PARTICLES.tick() end
       elseif game_state == "JAM" then
         -- Pass 38: JAM mode is silent — no looping music underneath, so
         -- the player can play freely on the MPK / sticks without the
@@ -6329,6 +15461,10 @@ function init()
         tick_title_music()
       elseif game_state == "CUTSCENE" then
         tick_intro_music()
+      elseif game_state == "GAME_OVER" then
+        -- Slow JRPG dirge — held organ pad + descending bell motif +
+        -- funereal heartbeat bass. Loops forever until A press.
+        tick_game_over_music()
       elseif game_state == "VOYAGE" then
         tick_overworld_music()  -- gentle music continues during sea travel
         voyage_ticks = voyage_ticks - 1
@@ -6340,11 +15476,32 @@ function init()
       redraw()
     end
   end)
+  -- Tempo heartbeat for tempo-synced delays. Polls clock_tempo every
+  -- 0.5s and re-pushes delay_time to each voice when bpm changes (or
+  -- div mode resolves to a beat-relative time). Cheap; keeps delays
+  -- aligned across INTRO/OVERWORLD/BATTLE tempo transitions.
+  clock.run(function()
+    local last_bpm = -1
+    while true do
+      local bpm = params:get("clock_tempo") or 120
+      if bpm ~= last_bpm then
+        last_bpm = bpm
+        if SQ_VOICE_LIST then
+          for _, v in ipairs(SQ_VOICE_LIST) do
+            if sq_refresh_delay_time then sq_refresh_delay_time(v) end
+          end
+        end
+      end
+      clock.sleep(0.5)
+    end
+  end)
   redraw()
 end
 
 function key(n, z)
   if z == 0 then return end
+  -- Block hardware input from triggering overworld actions during a scene.
+  if SCENE and SCENE.active and game_state == "OVERWORLD" then return end
   if game_state == "TITLE" then
     if n == 2 then
       TITLE.idx = 1 - TITLE.idx
@@ -6444,29 +15601,41 @@ function key(n, z)
       local list = INST.owned_for(p.class)
       if list[equip_choice] then
         equipped[p.class] = list[equip_choice]
-        local inst = INSTRUMENTS[list[equip_choice]]
-        if inst then
-          CONTENT.flash_text = "Equipped: " .. inst.name
-          CONTENT.flash_ticks = 24
-        end
       end
       redraw()
     elseif n == 1 then
       game_state = "MENU"
       redraw()
     end
+  elseif game_state == "ITEMS" then
+    -- K2 = use selected item, K3 = back to MENU. (Cursor scroll lives on
+    -- the encoder — see enc().) K1 unused here.
+    if n == 2 then
+      items_use_selected(); redraw()
+    elseif n == 3 then
+      game_state = "MENU"; redraw()
+    end
   elseif game_state == "SHOP" then
     if n == 2 then
-      SHOP.idx = ((SHOP.idx - 2) % #SHOP.order) + 1
+      do local _vis = shop_visible_order(); local _n = math.max(1, #_vis)
+         SHOP.idx = ((SHOP.idx - 2) % _n) + 1 end
       redraw()
     elseif n == 3 then
-      local id = SHOP.order[SHOP.idx]
+      local id = (shop_visible_order())[SHOP.idx]
       local it = SHOP.items[id]
       local price = it and (QUESTS.hens.discount and math.floor(it.cost * 0.75) or it.cost) or 0
-      if it and SHOP.gold >= price then
+      if it and it.is_instrument and instruments_owned[id] then
+        SHOP.flash_text = "Already owned"
+        SHOP.flash_ticks = 24
+      elseif it and SHOP.gold >= price then
         SHOP.gold = SHOP.gold - price
-        SHOP.inv[id] = SHOP.inv[id] + 1
-        SHOP.flash_text = "+1 " .. it.name
+        if it.is_instrument then
+          instruments_owned[id] = true
+          SHOP.flash_text = "+ " .. it.name
+        else
+          SHOP.inv[id] = SHOP.inv[id] + 1
+          SHOP.flash_text = "+1 " .. it.name
+        end
         SHOP.flash_ticks = 24
       else
         SHOP.flash_text = "Not enough gold"
@@ -6493,7 +15662,22 @@ function key(n, z)
     elseif n == 3 then set_active(active + 1)
     end
   elseif game_state == "BATTLE_END" and n == 3 then
-    exit_battle()
+    if battle_outcome == "VICTORY"
+       and (CONTENT.battle_end_phase or 1) == 1
+       and CONTENT.xp_summary and #CONTENT.xp_summary.gains > 0 then
+      CONTENT.battle_end_phase = 2
+      redraw()
+    else
+      exit_battle()
+    end
+  elseif game_state == "GAME_OVER" and n == 3 then
+    if (tick - (GAME_OVER_TICK or 0)) > 80 then
+      game_state = "TITLE"
+      TITLE.idx = 1
+      params:set("clock_tempo", INTRO_BPM)
+      engine.drone_amp(0)
+      redraw()
+    end
   end
 end
 
@@ -6509,6 +15693,12 @@ function enc(n, d)
     local list = INST.owned_for(p.class)
     local cnt = math.max(1, #list)
     equip_choice = ((equip_choice - 1 + d) % cnt) + 1
+    redraw()
+    return
+  end
+  if game_state == "ITEMS" and n == 2 then
+    local n_items = #ITEMS_ORDER
+    CONTENT.items_idx = ((CONTENT.items_idx or 1) - 1 + d) % n_items + 1
     redraw()
     return
   end
@@ -7483,6 +16673,79 @@ TILE_DRAW[41] = function(px, py, t)
 end
 
 -- Tile 45 — Wood-plank pier (walkable; extends out over water tiles).
+-- Tile 50 — Academy front door (Western Region). Two-panel scholar
+-- door with brass knockers and a small carved emblem above.
+TILE_DRAW[50] = function(px, py)
+  -- threshold stone
+  screen.level(5); screen.rect(px, py + 7, 8, 1); screen.fill()
+  -- door frame outline
+  screen.level(7); screen.rect(px, py, 8, 7); screen.stroke()
+  -- two door panels (slight gap)
+  screen.level(8); screen.rect(px + 1, py + 1, 3, 6); screen.fill()
+  screen.level(8); screen.rect(px + 4, py + 1, 3, 6); screen.fill()
+  -- panel grain (vertical stripe each)
+  screen.level(5); screen.rect(px + 2, py + 2, 1, 4); screen.fill()
+  screen.level(5); screen.rect(px + 5, py + 2, 1, 4); screen.fill()
+  -- brass knockers
+  screen.level(13); screen.pixel(px + 3, py + 4); screen.pixel(px + 5, py + 4); screen.fill()
+  -- carved emblem above (musical-note-ish)
+  screen.level(11); screen.pixel(px + 3, py); screen.pixel(px + 4, py); screen.fill()
+end
+
+-- Tile 48 — Tapestry door (castle prologue). A hanging cloth that
+-- conceals the secret cave passage. Faintly billows.
+TILE_DRAW[48] = function(px, py)
+  -- stone backing
+  screen.level(2); screen.rect(px, py, 8, 8); screen.fill()
+  -- tapestry rod at top
+  screen.level(7); screen.rect(px, py, 8, 1); screen.fill()
+  -- cloth body — vertical stripes
+  for i = 1, 6 do
+    local lev = (i % 2 == 0) and 5 or 8
+    screen.level(lev)
+    local sway = ((tick // 8) + i) % 2
+    screen.rect(px + i, py + 1 + sway, 1, 6); screen.fill()
+  end
+  -- gold border
+  screen.level(11); screen.rect(px, py + 7, 8, 1); screen.fill()
+end
+
+-- Tile 49 — Cave mouth (escape cave exit). Bright light pouring through
+-- a rough arch. Pulses gently to draw the eye.
+TILE_DRAW[49] = function(px, py)
+  -- dark cave wall surround
+  screen.level(1); screen.rect(px, py, 8, 8); screen.fill()
+  -- arch silhouette
+  screen.level(3); screen.rect(px + 1, py + 1, 6, 7); screen.fill()
+  -- bright morning light pouring through
+  local glow = 11 + ((tick // 6) % 4)
+  screen.level(glow); screen.rect(px + 2, py + 2, 4, 6); screen.fill()
+  screen.level(15); screen.rect(px + 3, py + 3, 2, 4); screen.fill()
+end
+
+-- Tile 47 — Academy door. Column-flanked archway with a glowing inner
+-- light. Used at the SW corner of mainland to mark the entrance to the
+-- Academy interior (map 17).
+TILE_DRAW[47] = function(px, py)
+  -- ground / cobblestones below
+  screen.level(2); screen.rect(px, py + 6, 8, 2); screen.fill()
+  -- columns L + R
+  screen.level(7); screen.rect(px,     py + 1, 2, 6); screen.fill()
+  screen.level(7); screen.rect(px + 6, py + 1, 2, 6); screen.fill()
+  -- column caps
+  screen.level(11); screen.rect(px,     py,     2, 1); screen.fill()
+  screen.level(11); screen.rect(px + 6, py,     2, 1); screen.fill()
+  -- archway top (lintel)
+  screen.level(11); screen.rect(px + 1, py + 1, 6, 1); screen.fill()
+  -- inner door — dim glow that pulses
+  local glow = ((tick // 6) % 4) + 8
+  screen.level(glow)
+  screen.rect(px + 2, py + 2, 4, 5); screen.fill()
+  -- door frame outline
+  screen.level(13)
+  screen.rect(px + 2, py + 2, 4, 5); screen.stroke()
+end
+
 TILE_DRAW[45] = function(px, py)
   -- water glint underneath shows through at the edges
   screen.level(3); screen.rect(px, py, 8, 8); screen.fill()
@@ -7531,6 +16794,235 @@ TILE_DRAW[42] = function(px, py)
   -- bristle bunch at the base
   screen.level(8); screen.rect(px + 1, py + 6, 3, 2); screen.fill()
   screen.level(11); screen.move(px + 1, py + 6); screen.line(px + 4, py + 8); screen.stroke()
+end
+
+-- Tile 32 — Lirael bell-tower base. A pale stone column with a thin
+-- arched window slit; the tower rises out of the ruin and is the only
+-- thing still pointing at the sky. Drawn at low brightness so the ash
+-- overlay reads on top.
+TILE_DRAW[32] = function(px, py, t)
+  -- column body (stone) — uneven, pitted
+  screen.level(7); screen.rect(px, py, 8, 8); screen.fill()
+  screen.level(5); screen.rect(px + 1, py, 6, 8); screen.fill()
+  -- mortar lines (horizontal)
+  screen.level(3); screen.rect(px, py + 2, 8, 1); screen.fill()
+  screen.level(3); screen.rect(px, py + 5, 8, 1); screen.fill()
+  -- arched window slit (top center)
+  screen.level(0); screen.rect(px + 3, py + 1, 2, 2); screen.fill()
+  screen.level(2); screen.pixel(px + 3, py + 1); screen.fill()
+  -- subtle bell glint inside (pulses very slowly)
+  if ((t or 0) % 60) < 8 then
+    screen.level(11); screen.pixel(px + 3, py + 2); screen.fill()
+  end
+  -- pitted edge (black notch on left)
+  screen.level(0); screen.pixel(px, py + 4); screen.fill()
+end
+
+-- Tile 53 — empty throne (Lirael ruins). Miel's grandmother's seat.
+-- Tall back panel with two crown finials at the top, armrest posts on
+-- either side, a cushioned seat, and a chipped/broken right corner of
+-- the back where the throne reads as damaged. A single dim metal-stud
+-- glint pulses at the seat.
+TILE_DRAW[53] = function(px, py, t)
+  -- shadow under throne
+  screen.level(1); screen.rect(px, py + 7, 8, 1); screen.fill()
+  -- base / pedestal
+  screen.level(4); screen.rect(px + 1, py + 6, 6, 1); screen.fill()
+  -- seat skirt (darker side)
+  screen.level(5); screen.rect(px + 1, py + 5, 6, 1); screen.fill()
+  -- seat cushion top (warm light strip)
+  screen.level(13); screen.rect(px + 1, py + 4, 6, 1); screen.fill()
+  -- armrest posts (left + right verticals)
+  screen.level(7); screen.rect(px,     py + 3, 1, 3); screen.fill()
+  screen.level(7); screen.rect(px + 7, py + 3, 1, 3); screen.fill()
+  -- back panel (tall rectangle behind the seat)
+  screen.level(7); screen.rect(px + 1, py + 1, 6, 3); screen.fill()
+  -- subtle vertical seam down the middle of the back
+  screen.level(5); screen.rect(px + 3, py + 1, 1, 3); screen.fill()
+  -- chipped/broken upper-right corner (the "broken-backed" lore)
+  screen.level(0); screen.pixel(px + 6, py + 1); screen.fill()
+  screen.level(0); screen.pixel(px + 5, py + 2); screen.fill()
+  -- two crown finials atop the back
+  screen.level(11); screen.pixel(px + 2, py); screen.fill()
+  screen.level(11); screen.pixel(px + 5, py); screen.fill()
+  -- a single dim metal-stud glint at the seat (heat-bleached)
+  if ((t or 0) % 24) < 6 then
+    screen.level(15); screen.pixel(px + 4, py + 4); screen.fill()
+  end
+end
+
+-- Tile 56 — Small mountain (cave-mouth into Far Hills). Triangular
+-- silhouette with a dark cave opening at its base. Visible from the
+-- village clearing — Miel emerges from this when she finishes the
+-- escape-cave sequence, and walking into it later warps to the Far
+-- Hills overworld map. Animated: a tiny pulsing spark deep inside the
+-- cave mouth (her grandmother's lantern, far in the dark).
+TILE_DRAW[56] = function(px, py, t)
+  -- grass under
+  screen.level(2); screen.rect(px, py, 8, 8); screen.fill()
+  -- mountain silhouette (triangular peak)
+  screen.level(5)
+  for i = 0, 6 do
+    local left = math.max(0, 3 - math.floor(i / 2))
+    local right = math.min(7, 4 + math.floor(i / 2))
+    screen.rect(px + left, py + 1 + i, right - left + 1, 1); screen.fill()
+  end
+  -- snowcap (a bright pixel at the very top)
+  screen.level(13); screen.pixel(px + 3, py); screen.pixel(px + 4, py); screen.fill()
+  -- cave-mouth opening at the base (dark arch, 2 wide)
+  screen.level(0); screen.rect(px + 3, py + 5, 2, 3); screen.fill()
+  screen.level(0); screen.pixel(px + 3, py + 4); screen.pixel(px + 4, py + 4); screen.fill()
+  -- pulsing spark inside the cave (lantern, very faint)
+  if ((t or 0) % 24) < 12 then
+    screen.level(11); screen.pixel(px + 3, py + 6); screen.fill()
+  else
+    screen.level(7); screen.pixel(px + 4, py + 6); screen.fill()
+  end
+end
+
+-- Tile 58 — Interior castle door. A two-leaf brass-banded door used
+-- throughout the castle's hallway and side rooms. Renders as a tall
+-- dark panel with a brass band across the middle and a faint warm
+-- glow from the seam (lantern-light from the next room). Walkable;
+-- step_player routes the destination based on (current_map_id, x, y).
+TILE_DRAW[58] = function(px, py, t)
+  -- stone surround
+  screen.level(2); screen.rect(px, py, 8, 8); screen.fill()
+  -- door panel
+  screen.level(7); screen.rect(px + 1, py + 1, 6, 6); screen.fill()
+  -- brass band (mid horizontal)
+  screen.level(11); screen.rect(px + 1, py + 3, 6, 1); screen.fill()
+  -- vertical seam (warm glow from inside)
+  local glow = ((t or 0) % 24) < 12 and 13 or 11
+  screen.level(glow); screen.rect(px + 3, py + 1, 1, 6); screen.fill()
+  screen.level(glow); screen.rect(px + 4, py + 1, 1, 6); screen.fill()
+  -- two small handle dots
+  screen.level(13); screen.pixel(px + 2, py + 4); screen.pixel(px + 5, py + 4); screen.fill()
+  -- floor strip below
+  screen.level(3); screen.rect(px, py + 7, 8, 1); screen.fill()
+end
+
+-- Tile 57 — Smith's anvil (placed next to Brann in the village).
+-- Iron silhouette: thick top face with a left-pointing horn, narrow
+-- waist, broad foot. An occasional spark off the face hints at the
+-- forge being alive even when no one's hammering.
+TILE_DRAW[57] = function(px, py, t)
+  -- grass under
+  screen.level(2); screen.rect(px, py, 8, 8); screen.fill()
+  -- top face (the polished slab the smith hits)
+  screen.level(8); screen.rect(px + 1, py + 2, 6, 1); screen.fill()
+  -- horn point on the left edge
+  screen.level(6); screen.pixel(px,     py + 2); screen.fill()
+  -- under-face shadow strip
+  screen.level(4); screen.rect(px + 2, py + 3, 4, 1); screen.fill()
+  -- waist (narrow neck below face)
+  screen.level(5); screen.rect(px + 3, py + 4, 2, 1); screen.fill()
+  -- base spread
+  screen.level(5); screen.rect(px + 2, py + 5, 4, 1); screen.fill()
+  -- base bottom (sits on the ground)
+  screen.level(6); screen.rect(px + 1, py + 6, 6, 1); screen.fill()
+  -- highlight along the very top edge of the face
+  screen.level(11); screen.pixel(px + 5, py + 1); screen.pixel(px + 6, py + 1); screen.fill()
+  -- ground-shadow corners
+  screen.level(1); screen.pixel(px,     py + 7); screen.pixel(px + 7, py + 7); screen.fill()
+  -- intermittent spark off the face (every ~32 ticks, 4-tick flash)
+  if ((t or 0) % 32) < 3 then
+    screen.level(15); screen.pixel(px + 4, py + 1); screen.fill()
+    screen.level(13); screen.pixel(px + 5, py    ); screen.fill()
+  end
+end
+
+-- Tile 55 — Castle throne-room double-door tile. Placed in the south
+-- wall of map 20 (4 tiles wide). Decorative — non-walkable. Visible
+-- so the player understands where Suno enters from. Each tile draws
+-- a vertical brass-banded panel; together they read as a wide door.
+TILE_DRAW[55] = function(px, py, t)
+  -- dark stone surround (matches wall color)
+  screen.level(2); screen.rect(px, py, 8, 8); screen.fill()
+  -- door panel (warm brown)
+  screen.level(7); screen.rect(px + 1, py + 1, 6, 6); screen.fill()
+  screen.level(5); screen.rect(px + 1, py + 6, 6, 1); screen.fill()
+  -- brass band horizontal at the panel's middle
+  screen.level(11); screen.rect(px, py + 3, 8, 1); screen.fill()
+  -- vertical seam (every other tile shows it on the LEFT side; this
+  -- alternation makes the 4-tile-wide door read as a real seam between
+  -- two leaves of a double door)
+  if (px // 8) % 2 == 0 then
+    screen.level(0); screen.rect(px + 7, py + 1, 1, 6); screen.fill()
+  end
+  -- tiny iron rivets
+  screen.level(13); screen.pixel(px + 2, py + 2); screen.pixel(px + 5, py + 5); screen.fill()
+end
+
+-- Tile 54 — Village plaza flag. A tall pole with a small banner that
+-- flutters in the wind. Color of the banner shifts with shard progress
+-- (dim grey at 0, brass at 4+, bright cream at 7).
+TILE_DRAW[54] = function(px, py, t)
+  -- grass under
+  screen.level(2); screen.rect(px, py, 8, 8); screen.fill()
+  -- pole
+  screen.level(5); screen.rect(px + 3, py + 1, 1, 7); screen.fill()
+  screen.level(7); screen.pixel(px + 3, py); screen.fill()  -- finial
+  -- banner color by shard count
+  local n = 0; for _, v in pairs(shards) do if v then n = n + 1 end end
+  local banner_lev = (n >= 7) and 15 or (n >= 4 and 11 or 7)
+  -- Banner sway: 3-frame cycle. Frame 0 = full extension, 1 = mid, 2 = furled.
+  local f = math.floor((t or 0) / 4) % 3
+  if f == 0 then
+    screen.level(banner_lev); screen.rect(px + 4, py + 2, 3, 2); screen.fill()
+    screen.level(math.max(2, banner_lev - 4))
+    screen.pixel(px + 6, py + 4)
+    screen.fill()
+  elseif f == 1 then
+    screen.level(banner_lev); screen.rect(px + 4, py + 2, 2, 2); screen.fill()
+    screen.level(math.max(2, banner_lev - 4))
+    screen.pixel(px + 5, py + 4)
+    screen.fill()
+  else
+    screen.level(banner_lev); screen.rect(px + 4, py + 2, 1, 3); screen.fill()
+  end
+end
+
+-- Tile 52 — Velthe's Observatory door (placed in the Northern Wilds).
+-- A wooden door under a small dome; bright lantern over it. The dome
+-- pulses a single brass pixel (faint star observation lamp).
+TILE_DRAW[52] = function(px, py, t)
+  -- snowy ground around it
+  screen.level(11); screen.rect(px, py, 8, 8); screen.fill()
+  screen.level(13); screen.rect(px, py, 8, 1); screen.fill()
+  -- tower base (dark stone column)
+  screen.level(3); screen.rect(px + 1, py + 1, 6, 6); screen.fill()
+  screen.level(5); screen.rect(px + 1, py + 1, 6, 1); screen.fill()
+  -- door (warm brown)
+  screen.level(7); screen.rect(px + 3, py + 4, 2, 3); screen.fill()
+  -- door handle pixel
+  screen.level(11); screen.pixel(px + 4, py + 5); screen.fill()
+  -- lantern over the door (yellow blink)
+  if ((t or 0) % 6) < 3 then
+    screen.level(15); screen.pixel(px + 4, py + 2); screen.fill()
+  else
+    screen.level(11); screen.pixel(px + 4, py + 2); screen.fill()
+  end
+  -- dome top (a single dim arc pixel)
+  screen.level(7); screen.pixel(px + 3, py); screen.pixel(px + 4, py); screen.fill()
+end
+
+-- Tile 51 — Lirael Ruins entry door (placed in the western region).
+-- A narrow stone arch overgrown with vine; visually distinct from the
+-- academy entry tile (50). Walkable; travel_to handles the warp.
+TILE_DRAW[51] = function(px, py)
+  screen.level(2); screen.rect(px, py, 8, 8); screen.fill()
+  -- arch outline (stone)
+  screen.level(7)
+  screen.rect(px + 1, py + 1, 6, 1); screen.fill()
+  screen.rect(px + 1, py + 1, 1, 6); screen.fill()
+  screen.rect(px + 6, py + 1, 1, 6); screen.fill()
+  -- inner darkness (the way through)
+  screen.level(0); screen.rect(px + 2, py + 2, 4, 6); screen.fill()
+  -- vine (a few green pixels along the top arch)
+  screen.level(9); screen.pixel(px + 2, py + 1); screen.pixel(px + 5, py + 1); screen.fill()
+  -- a single dim warm glow far in the dark
+  screen.level(5); screen.pixel(px + 4, py + 4); screen.fill()
 end
 
 -- Tile 35 — Barrel of goods.
@@ -7861,6 +17353,79 @@ local DIEGUES = {
   },
 }
 
+-- ── NIKO (Drummer) ──────────────────────────────────────────────────────
+-- Bandana, vest, drumsticks crossed on chest, snare drum on right hip.
+-- Matches NPC_SPRITES.Niko design so dialogue + party-portrait + overworld
+-- all show the same character.
+local NIKO = {
+  down = {
+    [0] = {
+       0,13,13,13,13,13,13, 0,  -- bandana band
+       0, 0,11,11,11,11, 0, 0,  -- face top
+       0, 0,11,11,11,11, 0, 0,  -- face bottom
+       0, 0, 7, 7, 7, 7, 0, 0,  -- collar / vest top
+       0,15, 7, 7, 7, 7,15, 0,  -- drumstick tips entering
+       0, 7,15, 7, 7,15, 7,13,  -- drumsticks crossing + snare rim
+       0, 7, 7,15,15, 7, 8, 8,  -- drumsticks meeting + snare body
+       0, 7,15, 7, 7,15, 7, 0,  -- vest hem + drumstick ends
+    },
+    [1] = {
+       0,13,13,13,13,13,13, 0,
+       0, 0,11,11,11,11, 0, 0,
+       0, 0,11,11,11,11, 0, 0,
+       0, 0, 7, 7, 7, 7, 0, 0,
+       0, 7,15, 7, 7,15, 7, 0,  -- drumsticks shifted (walk frame)
+       0,15, 7,15,15, 7,15,13,
+       0, 7, 7, 7, 7, 7, 8, 8,
+       0, 7, 7,15, 7, 7, 0, 0,
+    },
+  },
+  up = {
+    [0] = {
+       0,13,13,13,13,13,13, 0,  -- bandana from behind
+       0, 0, 7, 7, 7, 7, 0, 0,  -- back of head (hair under bandana)
+       0, 0, 7, 7, 7, 7, 0, 0,
+       0, 0, 7, 7, 7, 7, 0, 0,  -- neck
+       0, 7, 7, 7, 7, 7, 7, 0,  -- vest back
+       0, 7, 7, 7, 7, 7, 7,13,  -- snare rim peeks
+       0, 7, 7, 7, 7, 7, 8, 8,  -- snare drum
+       0, 7, 7, 7, 7, 7, 0, 0,
+    },
+    [1] = {
+       0,13,13,13,13,13,13, 0,
+       0, 0, 7, 7, 7, 7, 0, 0,
+       0, 0, 7, 7, 7, 7, 0, 0,
+       0, 0, 7, 7, 7, 7, 0, 0,
+       0, 7, 7, 7, 7, 7, 7, 0,
+       0, 7, 7, 7, 7, 7, 7,13,
+       0, 7, 7, 7, 7, 7, 8, 8,
+       0, 7, 0, 7, 7, 0, 7, 0,
+    },
+  },
+  right = {
+    [0] = {
+       0, 0,13,13,13,13,13, 0,
+       0, 0,11,11,11, 0, 0, 0,  -- profile face
+       0, 0,11,11,11, 0, 0, 0,
+       0, 0, 0, 7, 7, 0, 0, 0,
+       0, 0, 7, 7, 7, 7, 0, 0,
+       0,15, 7, 7, 7, 7,13, 0,  -- drumstick + snare rim
+       0, 0, 7, 7, 7, 7, 8, 0,
+       0, 0,15, 7, 7, 0, 0, 0,
+    },
+    [1] = {
+       0, 0,13,13,13,13,13, 0,
+       0, 0,11,11,11, 0, 0, 0,
+       0, 0,11,11,11, 0, 0, 0,
+       0, 0, 0, 7, 7, 0, 0, 0,
+       0,15, 7, 7, 7, 7, 0, 0,
+       0, 0, 7, 7, 7, 7,13, 0,
+       0, 0, 7, 7, 7, 7, 8, 0,
+       0, 0, 7,15, 7, 0, 0, 0,
+    },
+  },
+}
+
 -- Pick the right facing variant (mirror "right" for "left")
 local function dirframe(set)
   local f = walk_frame()
@@ -7882,6 +17447,15 @@ local function draw_warrior_sprite(sx, sy)
 end
 local function draw_bard_sprite(sx, sy)
   local data, flip = dirframe(ALDER); draw_sprite(sx, sy, data, flip)
+end
+local function draw_drummer_sprite(sx, sy)
+  local data, flip = dirframe(NIKO); draw_sprite(sx, sy, data, flip)
+end
+-- For NPCs (always faces down) — NPC_SPRITES.Niko uses this so the sprite
+-- doesn't pivot with the player's facing while Niko is standing in the
+-- Hollow waiting to be recruited.
+local function draw_drummer_npc(sx, sy)
+  draw_sprite(sx, sy, NIKO.down[0], false)
 end
 
 -- ── SERGEI (Engineer) ───────────────────────────────────────────────────
@@ -8036,7 +17610,7 @@ end
 -- Scaled sprite (used by the status screen as a "portrait" of the actual
 -- in-game sprite). Always faces down; bobs gently per tick.
 local SETS_BY_CLASS = {mage=DIEGUES, cleric=MIEL, warrior=STROM, bard=ALDER,
-                        engineer=SERGEI, mathwiz=PAJ, drummer=STROM}  -- Niko reuses Strom's bitmap (same voice family)
+                        engineer=SERGEI, mathwiz=PAJ, drummer=NIKO}
 local function draw_sprite_scaled(class, sx, sy, scale)
   local SET = SETS_BY_CLASS[class]
   if not SET then return end
@@ -8063,10 +17637,597 @@ SPRITE_BY_CLASS = {
   bard     = draw_bard_sprite,
   engineer = draw_engineer_sprite,
   mathwiz  = draw_mathwiz_sprite,
-  drummer  = draw_warrior_sprite,   -- Niko reuses Strom's overworld sprite
+  drummer  = draw_drummer_sprite,
+  drummer_npc = draw_drummer_npc,
   scaled   = draw_sprite_scaled,
 }
 end  -- class sprites
+
+-- ── SCENE engine — methods that read/write the SCENE data table ──────────
+-- Defined here (not at SCENE table declaration) so all dependencies (cam,
+-- player, dlg, SPRITE_BY_CLASS, draw_npc_at, etc.) are in lexical scope.
+-- All assigned to SCENE.* (not declared `local`) so we don't trip the
+-- 200-locals-per-main-chunk Lua cap. draw_npc_at hasn't been declared yet
+-- at this exact line; resolve it lazily inside SCENE.draw via a forward
+-- lookup at call time.
+
+SCENE.get = function(id)
+  for _, a in ipairs(SCENE.actors) do
+    if a.id == id then return a end
+  end
+  return nil
+end
+
+SCENE.spawn = function(opts)
+  local a = {
+    id      = opts.id or ("a" .. tostring(#SCENE.actors + 1)),
+    class   = opts.class,
+    name    = opts.name,
+    x       = opts.x or 1,
+    y       = opts.y or 1,
+    fx      = opts.x or 1,
+    fy      = opts.y or 1,
+    facing  = opts.facing or "down",
+    move_t  = 0,
+    move_dur = 0,
+    tx      = opts.x or 1,
+    ty      = opts.y or 1,
+    fx_from = opts.x or 1,
+    fy_from = opts.y or 1,
+    bob     = opts.bob ~= false,
+    alpha   = opts.alpha or 15,
+    sprite  = opts.sprite,
+  }
+  SCENE.actors[#SCENE.actors + 1] = a
+  return a
+end
+
+SCENE.despawn = function(id)
+  for i, a in ipairs(SCENE.actors) do
+    if a.id == id then table.remove(SCENE.actors, i); return end
+  end
+end
+
+SCENE.despawn_all = function() SCENE.actors = {} end
+
+SCENE.move_actor = function(id, tx, ty, ticks)
+  local a = SCENE.get(id); if not a then return end
+  a.fx_from = a.fx; a.fy_from = a.fy
+  a.tx = tx; a.ty = ty
+  a.move_t = 0; a.move_dur = math.max(1, ticks or 12)
+  -- Mark actor as walking so the renderer can show step animation.
+  a.walking = true
+  local dx, dy = tx - a.fx, ty - a.fy
+  if math.abs(dx) > math.abs(dy) then
+    a.facing = (dx >= 0) and "right" or "left"
+  elseif math.abs(dy) > 0 then
+    a.facing = (dy >= 0) and "down" or "up"
+  end
+end
+
+-- Auto-pan the camera to keep a tile visible. We pick the cam (x, y)
+-- that centers the target tile, clamped to the map bounds. Used by
+-- `{focus = id, ticks = N}` scene step + by start_camera_at_tile().
+SCENE.focus_tile = function(tx, ty, ticks)
+  local target_x = math.floor(tx - VIEW_W / 2)
+  local target_y = math.floor(ty - VIEW_H / 2)
+  target_x = math.max(1, math.min(MAP_W - VIEW_W + 1, target_x))
+  target_y = math.max(1, math.min(MAP_H - VIEW_H + 1, target_y))
+  if ticks and ticks > 0 then
+    SCENE.cam_tween = {
+      fx = cam.x, fy = cam.y, tx = target_x, ty = target_y,
+      t = 0, dur = ticks,
+    }
+  else
+    cam.x, cam.y = target_x, target_y
+  end
+end
+
+-- "Bump" — a tiny back-and-forth tween used for surprise reactions.
+-- Pushes the actor 1 tile in `dir` for 4 ticks, then back. Pure visual.
+SCENE.bump_actor = function(id, dir, ticks)
+  local a = SCENE.get(id); if not a then return end
+  local dx, dy = 0, 0
+  if dir == "up" then dy = -0.4
+  elseif dir == "down" then dy = 0.4
+  elseif dir == "left" then dx = -0.4
+  elseif dir == "right" then dx = 0.4
+  end
+  a.fx_from = a.fx; a.fy_from = a.fy
+  a.tx = a.fx + dx; a.ty = a.fy + dy
+  a.move_t = 0; a.move_dur = math.max(2, ticks or 4)
+  a.bumping = true
+  -- After the half-tween reaches the offset, queue the snap-back. We
+  -- handle this in tick_tweens by detecting `bumping` on completion.
+end
+
+SCENE.tick_tweens = function()
+  for _, a in ipairs(SCENE.actors) do
+    if a.move_dur > 0 and a.move_t < a.move_dur then
+      a.move_t = a.move_t + 1
+      local u = a.move_t / a.move_dur
+      local s = u * u * (3 - 2 * u)   -- smoothstep
+      a.fx = a.fx_from + (a.tx - a.fx_from) * s
+      a.fy = a.fy_from + (a.ty - a.fy_from) * s
+      if a.move_t >= a.move_dur then
+        if a.bumping then
+          -- Snap-back: reverse the tween over the same duration.
+          a.fx_from = a.fx; a.fy_from = a.fy
+          local back_x = (a.x or a.tx)
+          local back_y = (a.y or a.ty)
+          a.tx = back_x; a.ty = back_y
+          a.move_t = 0
+          a.bumping = false   -- next completion just stops
+        else
+          a.x = a.tx; a.y = a.ty
+          a.fx = a.tx; a.fy = a.ty
+          a.move_dur = 0
+          a.walking = false
+        end
+      end
+    end
+  end
+  if SCENE.cam_tween then
+    local c = SCENE.cam_tween
+    c.t = c.t + 1
+    local u = math.min(1, c.t / c.dur)
+    local s = u * u * (3 - 2 * u)
+    cam.x = math.floor(c.fx + (c.tx - c.fx) * s + 0.5)
+    cam.y = math.floor(c.fy + (c.ty - c.fy) * s + 0.5)
+    cam.x = math.max(1, math.min(MAP_W - VIEW_W + 1, cam.x))
+    cam.y = math.max(1, math.min(MAP_H - VIEW_H + 1, cam.y))
+    if c.t >= c.dur then SCENE.cam_tween = nil end
+  end
+  if SCENE.fade_speed ~= 0 then
+    SCENE.fade = SCENE.fade + SCENE.fade_speed
+    if (SCENE.fade_speed > 0 and SCENE.fade >= SCENE.fade_target)
+       or (SCENE.fade_speed < 0 and SCENE.fade <= SCENE.fade_target) then
+      SCENE.fade = SCENE.fade_target
+      SCENE.fade_speed = 0
+    end
+  end
+  -- Letterbox bars ease toward target over a few ticks. Caps at 6 px
+  -- (top + bottom = 12 px); preserves the 40-px middle band for action.
+  if SCENE.letterbox ~= SCENE.letterbox_target then
+    local d = (SCENE.letterbox_target > SCENE.letterbox) and 1 or -1
+    SCENE.letterbox = SCENE.letterbox + d
+  end
+end
+
+SCENE.advance = function()
+  while SCENE.script and SCENE.step <= #SCENE.script do
+    local step = SCENE.script[SCENE.step]
+    SCENE.step = SCENE.step + 1
+    if step.spawn then
+      SCENE.spawn({
+        id = step.spawn, class = step.class, name = step.name,
+        x = (step.x or (step.at and step.at.x)),
+        y = (step.y or (step.at and step.at.y)),
+        facing = step.facing, bob = step.bob, alpha = step.alpha,
+        sprite = step.sprite,
+      })
+    end
+    if step.face then
+      local a = SCENE.get(step.face); if a then a.facing = step.facing end
+    end
+    -- look = id  +  toward = id   — turn `look` to face `toward` based on
+    -- their current relative position. Pure facing change, no movement.
+    if step.look and step.toward then
+      local a = SCENE.get(step.look)
+      local b = SCENE.get(step.toward)
+      if a and b then
+        local dx = (b.fx - a.fx)
+        local dy = (b.fy - a.fy)
+        if math.abs(dx) > math.abs(dy) then
+          a.facing = (dx >= 0) and "right" or "left"
+        else
+          a.facing = (dy >= 0) and "down" or "up"
+        end
+      end
+    end
+    if step.despawn then SCENE.despawn(step.despawn) end
+    if step.despawn_all then SCENE.despawn_all() end
+    if step.set then pcall(step.set) end
+    -- Letterbox bars in / out (FF-style cutscene framing). 6px top + 6px
+    -- bottom. Tween rate is roughly 1 px / tick — the tick_tweens loop
+    -- nudges letterbox toward letterbox_target.
+    if step.letterbox_in then SCENE.letterbox_target = 6 end
+    if step.letterbox_out then SCENE.letterbox_target = 0 end
+    if step.flash then
+      CONTENT.banner_text  = step.flash
+      CONTENT.banner_ticks = step.ticks or 36
+    end
+    if step.shake then
+      ANIM.shake(step.shake.mag or 2, step.shake.ticks or 6)
+    end
+    if step.sfx then
+      local s = step.sfx
+      sq_trig(s.class or "cleric", midi_to_freq(s.note or 60),
+              s.vel or 0.5, s.attack or 0.01, s.release or 1.0,
+              s.wet or 0.5)
+    end
+    if step.teleport_player then
+      local t = step.teleport_player
+      player.x, player.y = t.x or player.x, t.y or player.y
+      player.facing = t.facing or player.facing
+      update_camera()
+    end
+    if step.hide_player ~= nil then SCENE.hide_player = step.hide_player end
+    if step.show_player then SCENE.hide_player = false end
+    if step.move and step.to then
+      SCENE.move_actor(step.move, step.to.x, step.to.y, step.ticks or 12)
+      SCENE.wait = step.ticks or 12
+      return
+    end
+    -- bump = id, dir = "up"|"down"|"left"|"right" — small "shock" jump.
+    -- Total duration is 2 * (step.ticks or 4) so we wait both halves.
+    if step.bump and step.dir then
+      local t = step.ticks or 4
+      SCENE.bump_actor(step.bump, step.dir, t)
+      SCENE.wait = t * 2
+      return
+    end
+    if step.camera_to then
+      SCENE.cam_tween = {
+        fx = cam.x, fy = cam.y,
+        tx = step.camera_to.x, ty = step.camera_to.y,
+        t = 0, dur = step.ticks or 24,
+      }
+      SCENE.wait = step.ticks or 24
+      return
+    end
+    -- focus = {x, y} — auto-pan camera to center on tile (clamped to map).
+    -- focus = id — pan to keep that actor centered.
+    if step.focus then
+      local tx, ty
+      if type(step.focus) == "table" then
+        tx, ty = step.focus.x, step.focus.y
+      else
+        local a = SCENE.get(step.focus)
+        if a then tx, ty = a.fx, a.fy end
+      end
+      if tx and ty then
+        SCENE.focus_tile(tx, ty, step.ticks or 24)
+        SCENE.wait = step.ticks or 24
+        return
+      end
+    end
+    if step.fade_in then
+      SCENE.fade_target = 0
+      SCENE.fade_speed = -math.max(1, math.ceil(15 / step.fade_in))
+      SCENE.wait = step.fade_in
+      return
+    end
+    if step.fade_out then
+      SCENE.fade_target = 15
+      SCENE.fade_speed = math.max(1, math.ceil(15 / step.fade_out))
+      SCENE.wait = step.fade_out
+      return
+    end
+    if step.wait then
+      SCENE.wait = step.wait
+      return
+    end
+    if step.dialogue then
+      dlg.lines = pack_dialogue_lines(step.dialogue, step.npc and step.npc.name)
+      dlg.line = 1
+      dlg.line_start_tick = tick
+      dlg.complete = false
+      dlg.snap_to_complete = false
+      dlg.npc = step.npc
+      game_state = "DIALOGUE"
+      CONTENT.post_dialogue = function()
+        game_state = "OVERWORLD"
+        redraw()
+      end
+      SCENE.wait = 0
+      return
+    end
+  end
+  SCENE.active = false
+  SCENE.script = nil
+  SCENE.step = 1
+  SCENE.actors = {}
+  SCENE.hide_player = false
+  SCENE.fade = 0
+  SCENE.fade_target = 0
+  SCENE.fade_speed = 0
+  SCENE.cam_tween = nil
+  SCENE.letterbox = 0
+  SCENE.letterbox_target = 0
+  if SCENE.on_complete then
+    local cb = SCENE.on_complete; SCENE.on_complete = nil
+    pcall(cb)
+  end
+end
+
+SCENE.tick = function()
+  if not SCENE.active then return end
+  -- Run tweens TWICE per scene tick so movements + camera pans + fades
+  -- finish in half the apparent time. Combined with the 2-step wait
+  -- countdown below, scenes flow at "natural conversation" speed
+  -- instead of the previous slow-motion crawl.
+  SCENE.tick_tweens()
+  SCENE.tick_tweens()
+  if game_state == "DIALOGUE" then return end
+  if SCENE.wait > 0 then
+    SCENE.wait = SCENE.wait - 2   -- 2x speed
+    if SCENE.wait > 0 then return end
+    SCENE.wait = 0
+  end
+  SCENE.advance()
+end
+
+SCENE.draw = function()
+  if not SCENE.active then return end
+  local saved = player.facing
+  for _, a in ipairs(SCENE.actors) do
+    if a.fx >= cam.x - 1 and a.fx < cam.x + VIEW_W
+       and a.fy >= cam.y - 1 and a.fy < cam.y + VIEW_H then
+      player.facing = a.facing or "down"
+      local sx = math.floor((a.fx - cam.x) * TILE + 0.5)
+      local sy = math.floor((a.fy - cam.y) * TILE + 0.5)
+      -- Step-walk animation: while tweening (a.walking), the actor lifts
+      -- 1px on alternating beats of move_t. This reads as "footsteps"
+      -- and avoids the previous "ice-skating slide" feel.
+      if a.walking and a.move_dur > 0 then
+        local step_phase = math.floor(a.move_t * 4 / a.move_dur) % 2
+        if step_phase == 1 then sy = sy - 1 end
+      elseif a.bob then
+        local b = (((tick + a.x * 7 + a.y * 3) % 32) < 16) and 0 or 1
+        sy = sy - b
+      end
+      -- Sprite lookup priority: explicit override → NPC_SPRITES[name] →
+      -- SPRITE_BY_CLASS[class] → placeholder. The NPC_SPRITES branch
+      -- means scenes can spawn distinct boss sprites by name (Echo,
+      -- Sentinel, etc.) without needing to share class with a player.
+      local fn = a.sprite
+                 or (a.name and NPC_SPRITES and NPC_SPRITES[a.name])
+                 or (a.class and SPRITE_BY_CLASS[a.class])
+      if fn then
+        -- NPC sprites accept (sx, sy, t); class sprites accept (sx, sy).
+        -- Pass tick along for the ones that animate.
+        fn(sx, sy, tick)
+      else
+        screen.level(11); screen.rect(sx + 2, sy + 2, 4, 4); screen.fill()
+      end
+    end
+  end
+  player.facing = saved
+end
+
+-- Letterbox bars — DISABLED. The 64px screen is too short to lose 12px
+-- to bars and still display dialogue + body content cleanly. Scenes
+-- still set letterbox_target via the in/out steps so the rest of the
+-- engine works, but we don't actually draw anything.
+SCENE.draw_letterbox = function() end
+
+SCENE.draw_fade = function()
+  if SCENE.fade <= 0 then return end
+  if SCENE.fade >= 15 then
+    screen.level(0); screen.rect(0, 0, 128, 64); screen.fill()
+    return
+  end
+  local density = SCENE.fade
+  screen.level(0)
+  for y = 0, 63 do
+    for x = 0, 127 do
+      if (((x * 7 + y * 13) % 16) < density) then
+        screen.pixel(x, y)
+      end
+    end
+  end
+  screen.fill()
+end
+
+SCENE.start = function(script, on_done)
+  SCENE.script = script or {}
+  SCENE.step = 1
+  SCENE.wait = 0
+  SCENE.actors = {}
+  SCENE.fade = 0
+  SCENE.fade_target = 0
+  SCENE.fade_speed = 0
+  SCENE.hide_player = false
+  SCENE.cam_tween = nil
+  SCENE.on_complete = on_done
+  SCENE.active = true
+  SCENE.advance()
+end
+
+-- ── PARTICLES engine ─────────────────────────────────────────────────────
+-- Spawn density + drift behavior depends on the current map/region. Each
+-- particle has {x, y, vx, vy, life, max_life, lev, kind}. Kind drives the
+-- per-particle render (snow=pixel-soft, leaf=bright pixel + slight sway,
+-- ash=dim trailing pixel, mist=very dim flicker, sand=horizontal streak).
+-- Pool is hard-capped so a long session doesn't accumulate junk.
+PARTICLES.MAX = 60
+
+PARTICLES.spawn = function(kind, x, y, vx, vy, life, lev)
+  if #PARTICLES.pool >= PARTICLES.MAX then return end
+  PARTICLES.pool[#PARTICLES.pool + 1] = {
+    x = x, y = y, vx = vx, vy = vy,
+    life = life, max_life = life, lev = lev or 11, kind = kind,
+  }
+end
+
+-- Per-tick behavior: spawn new particles based on current map context, age
+-- + move existing ones, cull dead. Cheap — runs every overworld tick.
+PARTICLES.tick = function()
+  if not PARTICLES.enabled then return end
+  -- Map/region-driven spawn rates. Mainland regions are sub-keyed by
+  -- get_region(player.x); other maps use map id directly. The chance
+  -- numbers are calibrated to feel atmospheric without overwhelming
+  -- the OLED's limited grayscale range (a sky of pixels reads as snow).
+  --
+  -- Weather state is a slow cycle keyed off `tick // 1800` (~5 minute
+  -- cycles at 1/4-beat ticks @ 85 BPM). Some windows in each cycle
+  -- swap the default weather for rain (woods/coast) so the player
+  -- sometimes catches a downpour. Stable within the window so it
+  -- doesn't flicker mid-step.
+  local weather_phase = (math.floor(tick / 1800)) % 5
+  local is_raining = (weather_phase == 0)   -- rain 1 in 5 windows (~5 min/25 min)
+  local kind, rate
+  if current_map_id == 1 then
+    local r = get_region(player.x)
+    if r == "woods" then
+      if is_raining then kind, rate = "rain", 0.55
+      else kind, rate = "leaf", 0.45 end
+    elseif r == "coast" then
+      if is_raining then kind, rate = "rain", 0.45
+      else kind, rate = "mist", 0.30 end
+    end
+  elseif current_map_id == 3 then
+    kind, rate = "snow", 0.60          -- northern wilds: heavy snow (always)
+  elseif current_map_id == 22 then
+    if is_raining then kind, rate = "rain", 0.55
+    else kind, rate = "leaf", 0.35 end  -- western woods
+  elseif current_map_id == 23 then
+    kind, rate = "ash", 0.55            -- Lirael Ruins — falling ash
+  elseif current_map_id == 11 then
+    kind, rate = "snow", 0.50           -- frost vault
+  elseif current_map_id == 10 then
+    kind, rate = "sand", 0.30           -- dune hall
+  elseif current_map_id == 26 then
+    if is_raining then kind, rate = "rain", 0.50 end  -- Far Hills only when raining
+  end
+  if kind and math.random() < rate then
+    if kind == "snow" then
+      PARTICLES.spawn("snow", math.random(0, 127), -1,
+                      0, 0.6 + math.random() * 0.4, 80, 11)
+    elseif kind == "leaf" then
+      local dir = (math.random(0, 1) == 0) and 1 or -1
+      PARTICLES.spawn("leaf", math.random(0, 127), -1,
+                      0.3 * dir, 0.5 + math.random() * 0.3, 90, 9)
+    elseif kind == "ash" then
+      PARTICLES.spawn("ash", math.random(0, 127), -1,
+                      (math.random() - 0.5) * 0.4, 0.4, 100, 7)
+    elseif kind == "mist" then
+      PARTICLES.spawn("mist", math.random(0, 127), math.random(40, 60),
+                      0.3, 0, 60, 4)
+    elseif kind == "sand" then
+      PARTICLES.spawn("sand", -1, math.random(20, 50),
+                      1.2 + math.random() * 0.6, 0, 50, 9)
+    elseif kind == "rain" then
+      -- Slight diagonal drops; faster than snow, dimmer than leaves.
+      PARTICLES.spawn("rain", math.random(0, 132), -2,
+                      -0.3, 1.6 + math.random() * 0.6, 38, 8)
+    end
+  end
+  -- Birds: rare horizontal flight across the coast region. Spawn on the
+  -- left edge, glide right at a decent clip with a subtle vertical sine.
+  if current_map_id == 1 and get_region(player.x) == "coast"
+     and math.random() < 0.015 then
+    PARTICLES.spawn("bird", -2, math.random(8, 28), 1.4, 0, 120, 13)
+  end
+  -- Fish: very rare splash particles in the sea/pier region (coast).
+  -- These don't move much; they pop briefly then fade.
+  if current_map_id == 1 and get_region(player.x) == "coast"
+     and math.random() < 0.02 then
+    local px = math.random(80, 120)
+    local py = math.random(36, 56)
+    PARTICLES.spawn("splash", px, py, 0, -0.4, 18, 13)
+  end
+  for i = #PARTICLES.pool, 1, -1 do
+    local p = PARTICLES.pool[i]
+    p.life = p.life - 1
+    p.x = p.x + p.vx
+    p.y = p.y + p.vy
+    -- Subtle horizontal sway for leaves so they feel windborne.
+    if p.kind == "leaf" then
+      p.x = p.x + math.sin(p.life * 0.12) * 0.4
+    end
+    if p.life <= 0 or p.x < -2 or p.x > 130 or p.y < -2 or p.y > 66 then
+      table.remove(PARTICLES.pool, i)
+    end
+  end
+end
+
+PARTICLES.draw = function()
+  if #PARTICLES.pool == 0 then return end
+  for _, p in ipairs(PARTICLES.pool) do
+    local fade = math.max(2, math.floor(p.lev * (p.life / p.max_life)))
+    if p.kind == "snow" then
+      screen.level(fade)
+      screen.pixel(math.floor(p.x), math.floor(p.y))
+      screen.fill()
+    elseif p.kind == "leaf" then
+      screen.level(fade)
+      screen.pixel(math.floor(p.x), math.floor(p.y))
+      screen.fill()
+      -- tiny trailing pixel one row above
+      if (p.life % 4) < 2 then
+        screen.level(math.max(2, fade - 4))
+        screen.pixel(math.floor(p.x), math.floor(p.y) - 1)
+        screen.fill()
+      end
+    elseif p.kind == "ash" then
+      screen.level(fade)
+      screen.pixel(math.floor(p.x), math.floor(p.y))
+      screen.fill()
+      if (p.life % 3) == 0 then
+        screen.level(math.max(2, fade - 2))
+        screen.pixel(math.floor(p.x), math.floor(p.y) + 1)
+        screen.fill()
+      end
+    elseif p.kind == "mist" then
+      if (p.life % 5) < 3 then
+        screen.level(fade)
+        screen.pixel(math.floor(p.x), math.floor(p.y))
+        screen.pixel(math.floor(p.x) + 1, math.floor(p.y))
+        screen.fill()
+      end
+    elseif p.kind == "sand" then
+      screen.level(fade)
+      screen.pixel(math.floor(p.x), math.floor(p.y))
+      screen.pixel(math.floor(p.x) - 1, math.floor(p.y))
+      screen.fill()
+    elseif p.kind == "rain" then
+      -- Short vertical streak (2-3px tall) so the drop reads as falling
+      -- water rather than a single pixel snowflake.
+      local fx = math.floor(p.x)
+      local fy = math.floor(p.y)
+      screen.level(fade)
+      screen.pixel(fx, fy)
+      screen.pixel(fx, fy - 1)
+      screen.fill()
+      if (p.life % 3) < 2 then
+        screen.level(math.max(2, fade - 4))
+        screen.pixel(fx, fy - 2); screen.fill()
+      end
+    elseif p.kind == "bird" then
+      -- Three-pixel V-glyph; flap state alternates by particle life so
+      -- adjacent ticks show "wings up" then "wings down".
+      local fx = math.floor(p.x)
+      local fy = math.floor(p.y + math.sin(p.life * 0.05) * 1.5)
+      screen.level(fade)
+      if (p.life % 8) < 4 then
+        -- wings up
+        screen.pixel(fx, fy)
+        screen.pixel(fx - 1, fy - 1)
+        screen.pixel(fx + 1, fy - 1)
+      else
+        -- wings down
+        screen.pixel(fx, fy)
+        screen.pixel(fx - 1, fy + 1)
+        screen.pixel(fx + 1, fy + 1)
+      end
+      screen.fill()
+    elseif p.kind == "splash" then
+      -- A small expanding ring then collapse — uses inverse-life so the
+      -- splash starts small, peaks mid-life, fades.
+      local age = p.max_life - p.life
+      local r = (age < p.max_life / 2) and (age // 3) or ((p.life) // 3)
+      r = math.max(1, math.min(2, r))
+      screen.level(fade)
+      screen.pixel(math.floor(p.x) + r, math.floor(p.y))
+      screen.pixel(math.floor(p.x) - r, math.floor(p.y))
+      screen.pixel(math.floor(p.x), math.floor(p.y) + r)
+      screen.pixel(math.floor(p.x), math.floor(p.y) - r)
+      screen.fill()
+    end
+  end
+end
 
 local function draw_player_at(sx, sy)
   -- player sprite reflects whichever party member is currently active
@@ -8091,7 +18252,8 @@ local function draw_npc_at(sx, sy)
   end
 end
 
-local NPC_SPRITES
+-- (NPC_SPRITES forward decl pulled to file-top so SCENE.draw etc. can
+-- capture it as an upvalue.)
 do
 -- Elder: hooded sage with glowing staff
 local function draw_npc_elder(sx, sy)
@@ -8371,6 +18533,11 @@ local function draw_npc_brio(sx, sy)
   screen.level(15); screen.pixel(sx + 5, sy + 6); screen.fill()          -- coin
 end
 
+-- (Marek, Tessen, Skari, Vix sprites are registered as anonymous
+--  functions on NPC_SPRITES below the do-block end, to avoid adding
+--  to the npc-do-block's main-chunk local count — same pattern as
+--  Hollin/Beren/Anwell/Iska above.)
+
 -- Mews (cat asleep on rug): curled coil + ears + tail
 local function draw_npc_mews(sx, sy)
   screen.level(8); screen.rect(sx + 1, sy + 4, 6, 3); screen.fill()     -- body coil
@@ -8490,6 +18657,510 @@ NPC_SPRITES.Iska = function(sx, sy)
   screen.level(8); screen.rect(sx + 1, sy + 4, 6, 4); screen.fill()
   screen.level(11); screen.move(sx + 1, sy + 5); screen.line(sx + 6, sy + 5); screen.stroke()
 end
+
+NPC_SPRITES.Marek = function(sx, sy)
+  -- Marek (Eastern shop): wrapped headscarf, dark robe, coin pouch hint.
+  screen.level(7); screen.rect(sx + 1, sy, 6, 1); screen.fill()
+  screen.level(7); screen.pixel(sx + 1, sy + 1); screen.pixel(sx + 5, sy + 1); screen.fill()
+  screen.level(11); screen.rect(sx + 2, sy + 1, 3, 1); screen.fill()
+  screen.level(11); screen.rect(sx + 2, sy + 2, 3, 1); screen.fill()
+  screen.level(5); screen.rect(sx + 2, sy + 3, 4, 1); screen.fill()
+  screen.level(4); screen.rect(sx + 1, sy + 4, 6, 4); screen.fill()
+  screen.level(15); screen.pixel(sx + 3, sy + 5); screen.fill()
+  screen.level(15); screen.pixel(sx + 6, sy + 6); screen.fill()
+end
+
+NPC_SPRITES.Tessen = function(sx, sy)
+  -- Tessen (Eastern shop falcon): hooked beak, folded wings, talons on perch.
+  screen.level(11); screen.rect(sx + 3, sy, 2, 1); screen.fill()
+  screen.level(15); screen.pixel(sx + 5, sy); screen.fill()
+  screen.level(11); screen.rect(sx + 2, sy + 1, 3, 1); screen.fill()
+  screen.level(7);  screen.rect(sx + 2, sy + 2, 4, 1); screen.fill()
+  screen.level(8);  screen.pixel(sx + 1, sy + 3); screen.pixel(sx + 6, sy + 3); screen.fill()
+  screen.level(7);  screen.rect(sx + 2, sy + 3, 4, 1); screen.fill()
+  screen.level(8);  screen.rect(sx + 1, sy + 4, 6, 1); screen.fill()
+  screen.level(8);  screen.rect(sx + 2, sy + 5, 4, 1); screen.fill()
+  screen.level(11); screen.pixel(sx + 2, sy + 6); screen.pixel(sx + 5, sy + 6); screen.fill()
+  screen.level(5);  screen.rect(sx + 1, sy + 7, 6, 1); screen.fill()
+end
+
+NPC_SPRITES.Skari = function(sx, sy)
+  -- Skari (Northern shop): fur cap, white beard, heavy coat, mittens.
+  screen.level(8); screen.rect(sx + 1, sy, 6, 2); screen.fill()
+  screen.level(13); screen.rect(sx + 3, sy + 2, 2, 1); screen.fill()
+  screen.level(15); screen.rect(sx + 2, sy + 3, 4, 1); screen.fill()
+  screen.level(5); screen.rect(sx + 1, sy + 4, 6, 4); screen.fill()
+  screen.level(8); screen.pixel(sx + 1, sy + 5); screen.pixel(sx + 6, sy + 5); screen.fill()
+  screen.level(11); screen.pixel(sx + 1, sy + 6); screen.pixel(sx + 6, sy + 6); screen.fill()
+  screen.level(15); screen.pixel(sx + 4, sy + 6); screen.fill()
+end
+
+NPC_SPRITES.Vix = function(sx, sy)
+  -- Vix (snow fox, curled): white coil with ears, tail flick.
+  screen.level(15); screen.rect(sx + 1, sy + 4, 6, 3); screen.fill()
+  screen.level(15); screen.rect(sx + 1, sy + 3, 2, 1); screen.fill()
+  screen.level(15); screen.pixel(sx + 1, sy + 2); screen.pixel(sx + 2, sy + 2); screen.fill()
+  screen.level(0); screen.pixel(sx + 2, sy + 3); screen.fill()
+  screen.level(13); screen.move(sx + 6, sy + 6); screen.line(sx + 7, sy + 4); screen.stroke()
+  screen.level(15); screen.pixel(sx + 7, sy + 4); screen.fill()
+end
+
+-- Suno (prologue throne room): tall figure, dark robe, crown silhouette,
+-- one glowing eye. Distinct silhouette so the player IDs him from across
+-- the chamber.
+-- Boss-approach scene sprites. These are NPC-overworld silhouettes
+-- (8x8) used during the choreographed approach scene; the actual
+-- battle sprite lives in DRAW_ENEMY at full size. Each is named after
+-- the boss so the SCENE engine looks up the right glyph.
+
+NPC_SPRITES.Echo = function(sx, sy)
+  -- Echo: a flickering double — drips of self that don't quite line up.
+  local p = (tick // 4) % 4
+  screen.level(7);  screen.rect(sx + 2, sy + 1, 4, 2); screen.fill()    -- head
+  screen.level(11); screen.rect(sx + 2, sy + 3, 4, 4); screen.fill()    -- body
+  -- ghost-double offset 1px (the "echo")
+  if p < 2 then
+    screen.level(3); screen.rect(sx + 3, sy + 2, 4, 2); screen.fill()
+    screen.level(5); screen.rect(sx + 3, sy + 4, 4, 4); screen.fill()
+  end
+  -- mouth slit
+  screen.level(0); screen.pixel(sx + 4, sy + 2); screen.fill()
+end
+
+NPC_SPRITES.Sentinel = function(sx, sy, t)
+  -- Sentinel: massive wooden figure, mossed. No animation — it does not
+  -- move (until you fight it).
+  screen.level(2); screen.rect(sx, sy, 8, 8); screen.fill()        -- silhouette
+  screen.level(5); screen.rect(sx + 1, sy + 1, 6, 6); screen.fill()
+  -- moss patches
+  screen.level(7); screen.pixel(sx + 1, sy + 4); screen.pixel(sx + 6, sy + 2); screen.fill()
+  screen.level(9); screen.pixel(sx + 2, sy + 5); screen.pixel(sx + 5, sy + 6); screen.fill()
+  -- eyes (two dark hollows)
+  screen.level(0); screen.pixel(sx + 2, sy + 2); screen.pixel(sx + 5, sy + 2); screen.fill()
+end
+
+NPC_SPRITES.Tidewatch = function(sx, sy, t)
+  -- Tidewatch: rises out of the pool. Wavering body, faces in surface.
+  local off = math.floor(math.sin((t or 0) * 0.15) * 1)
+  screen.level(3); screen.rect(sx, sy + 4, 8, 4); screen.fill()      -- water base
+  screen.level(7); screen.rect(sx + 1, sy + 5, 6, 1); screen.fill()  -- crest
+  screen.level(11); screen.rect(sx + 2, sy + 1 + off, 4, 3); screen.fill()  -- head
+  -- two glints (faces in the surface)
+  screen.level(15); screen.pixel(sx + 2, sy + 6); screen.pixel(sx + 5, sy + 6); screen.fill()
+end
+
+NPC_SPRITES.Rider = function(sx, sy, t)
+  -- Dune Rider: tall figure on horseback silhouette.
+  screen.level(2); screen.rect(sx, sy + 4, 8, 4); screen.fill()        -- horse body
+  screen.level(0); screen.rect(sx + 1, sy + 7, 1, 1); screen.fill()    -- legs gap
+  screen.level(0); screen.rect(sx + 6, sy + 7, 1, 1); screen.fill()
+  screen.level(7); screen.rect(sx + 3, sy + 1, 2, 4); screen.fill()    -- rider
+  screen.level(5); screen.rect(sx + 2, sy + 2, 1, 1); screen.fill()    -- cloak L
+  screen.level(5); screen.rect(sx + 5, sy + 2, 1, 1); screen.fill()    -- cloak R
+  -- spear point (animates: small twinkle)
+  if (tick % 12) < 6 then
+    screen.level(15); screen.pixel(sx + 4, sy); screen.fill()
+  end
+end
+
+NPC_SPRITES.Snowgaunt = function(sx, sy, t)
+  -- Snowgaunt: tall white-robed figure. Faint conducting motion (one
+  -- pixel arm sway).
+  screen.level(13); screen.rect(sx + 2, sy + 1, 4, 7); screen.fill()   -- robe
+  screen.level(15); screen.rect(sx + 3, sy, 2, 1); screen.fill()       -- hood top
+  -- eyes (two dark dots)
+  screen.level(0); screen.pixel(sx + 3, sy + 2); screen.pixel(sx + 4, sy + 2); screen.fill()
+  -- conducting hand (animated)
+  local h = ((tick // 6) % 3)
+  screen.level(15); screen.pixel(sx + 6 - h, sy + 4); screen.fill()
+end
+
+NPC_SPRITES.Locrius = function(sx, sy, t)
+  -- Locrius: skeletal figure with perfectly even teeth.
+  screen.level(2); screen.rect(sx + 1, sy + 4, 6, 4); screen.fill()    -- robe
+  screen.level(11); screen.rect(sx + 2, sy + 1, 4, 3); screen.fill()   -- head
+  -- teeth row (three white pixels)
+  screen.level(15); screen.pixel(sx + 3, sy + 3); screen.pixel(sx + 4, sy + 3); screen.pixel(sx + 5, sy + 3); screen.fill()
+  -- eyes (animated single pixel)
+  if (tick % 8) < 4 then
+    screen.level(0); screen.pixel(sx + 3, sy + 2); screen.fill()
+  else
+    screen.level(0); screen.pixel(sx + 4, sy + 2); screen.fill()
+  end
+end
+
+NPC_SPRITES.Suno = function(sx, sy)
+  -- crown spikes
+  screen.level(13); screen.pixel(sx + 2, sy); screen.pixel(sx + 4, sy); screen.pixel(sx + 6, sy); screen.fill()
+  -- hooded head (oversized)
+  screen.level(2); screen.rect(sx + 1, sy + 1, 6, 3); screen.fill()
+  -- one glowing eye
+  if (tick % 16) < 12 then
+    screen.level(15); screen.pixel(sx + 5, sy + 2); screen.fill()
+  else
+    screen.level(11); screen.pixel(sx + 5, sy + 2); screen.fill()
+  end
+  -- long dark robe
+  screen.level(1); screen.rect(sx + 1, sy + 4, 6, 4); screen.fill()
+  -- collar / clasp highlight
+  screen.level(7); screen.pixel(sx + 3, sy + 4); screen.pixel(sx + 4, sy + 4); screen.fill()
+end
+
+-- Silencer (prologue castle): faceless helmet, plate mail, hammer.
+-- Inline anonymous on NPC_SPRITES for both slots (Silencer1, Silencer2)
+-- to dodge the 200-main-chunk-locals cap.
+NPC_SPRITES.Silencer1 = function(sx, sy)
+  screen.level(8); screen.rect(sx + 2, sy, 4, 3); screen.fill()
+  screen.level(0); screen.rect(sx + 2, sy + 1, 4, 1); screen.fill()
+  screen.level(7); screen.rect(sx + 1, sy + 3, 6, 4); screen.fill()
+  screen.level(2); screen.move(sx + 1, sy + 4); screen.line(sx + 6, sy + 6); screen.stroke()
+  screen.level(11); screen.rect(sx, sy + 4, 1, 2); screen.fill()
+  screen.level(5); screen.rect(sx, sy + 6, 1, 2); screen.fill()
+  screen.level(5); screen.rect(sx + 1, sy + 7, 2, 1); screen.fill()
+  screen.level(5); screen.rect(sx + 5, sy + 7, 2, 1); screen.fill()
+end
+NPC_SPRITES.Silencer2 = NPC_SPRITES.Silencer1
+
+-- Cave wisp NPC (prologue escape cave): pale floating orb, flickers.
+-- Reya's grave (Northern Wilds): small cairn, three stones stacked.
+NPC_SPRITES.ReyaGrave = function(sx, sy)
+  -- ground
+  screen.level(2); screen.rect(sx, sy + 7, 8, 1); screen.fill()
+  -- cairn stones (3 stacked)
+  screen.level(7); screen.rect(sx + 1, sy + 5, 6, 2); screen.fill()
+  screen.level(8); screen.rect(sx + 2, sy + 3, 4, 2); screen.fill()
+  screen.level(11); screen.rect(sx + 3, sy + 1, 2, 2); screen.fill()
+  -- a small fresh stone on top (Strom's contribution, late-game)
+  if (tick % 24) < 16 then
+    screen.level(15); screen.pixel(sx + 4, sy); screen.fill()
+  end
+  -- a single faded poppy at the base
+  screen.level(13); screen.pixel(sx + 6, sy + 6); screen.fill()
+end
+
+-- Olen (Northern wood-cutter): fur cap, beard frosted, axe across shoulder.
+NPC_SPRITES.Olen = function(sx, sy)
+  screen.level(8); screen.rect(sx + 1, sy, 6, 2); screen.fill()        -- fur cap
+  screen.level(13); screen.rect(sx + 3, sy + 2, 2, 1); screen.fill()   -- face
+  screen.level(15); screen.rect(sx + 2, sy + 3, 4, 1); screen.fill()   -- frosted beard
+  screen.level(5); screen.rect(sx + 1, sy + 4, 6, 4); screen.fill()    -- coat
+  -- axe over shoulder (handle + head)
+  screen.level(7); screen.move(sx + 7, sy); screen.line(sx + 7, sy + 5); screen.stroke()
+  screen.level(13); screen.rect(sx + 6, sy, 2, 1); screen.fill()       -- axe head
+end
+
+-- Hask (Eastern dock fisherman): wide hat, weathered coat, threading line.
+NPC_SPRITES.Hask = function(sx, sy)
+  screen.level(8); screen.rect(sx + 1, sy, 6, 1); screen.fill()        -- hat brim
+  screen.level(11); screen.rect(sx + 2, sy + 1, 4, 1); screen.fill()   -- hat crown
+  screen.level(13); screen.rect(sx + 3, sy + 2, 2, 2); screen.fill()   -- weathered face
+  screen.level(8); screen.rect(sx + 1, sy + 4, 6, 4); screen.fill()    -- coat
+  screen.level(15); screen.move(sx + 1, sy + 5); screen.line(sx + 6, sy + 7); screen.stroke()  -- fishing line
+  screen.level(11); screen.pixel(sx + 6, sy + 7); screen.fill()        -- hook glint
+end
+
+-- Village Fountain (mainland plaza): octagonal stone basin with water
+-- ripples that shimmer.
+NPC_SPRITES.Fountain = function(sx, sy)
+  -- basin outline
+  screen.level(7); screen.rect(sx + 1, sy + 1, 6, 6); screen.fill()
+  -- inner water
+  screen.level(8); screen.rect(sx + 2, sy + 2, 4, 4); screen.fill()
+  -- shimmer (animated)
+  local glow = ((tick // 6) % 4)
+  screen.level(11 + glow); screen.pixel(sx + 3 + (glow % 2), sy + 3); screen.fill()
+  screen.level(13 - glow); screen.pixel(sx + 4, sy + 4 - (glow % 2)); screen.fill()
+  -- rim highlight
+  screen.level(11); screen.rect(sx, sy + 7, 8, 1); screen.fill()
+  screen.level(11); screen.rect(sx, sy, 8, 1); screen.fill()
+end
+
+-- Lirael Fragment (Western Region western edge): tiny mossy stone,
+-- laurel emblem barely visible.
+NPC_SPRITES.LiraelStone = function(sx, sy)
+  -- ground patch
+  screen.level(2); screen.rect(sx, sy + 7, 8, 1); screen.fill()
+  -- low stone, mossy top
+  screen.level(7); screen.rect(sx + 2, sy + 5, 4, 2); screen.fill()
+  screen.level(11); screen.rect(sx + 2, sy + 4, 4, 1); screen.fill()  -- moss top
+  -- carved laurel hint (two leaves)
+  screen.level(13); screen.pixel(sx + 3, sy + 6); screen.pixel(sx + 4, sy + 6); screen.fill()
+end
+
+-- Velthe memorial stone (Western Region clearing): weathered standing-
+-- stone, lichen on the north face, inscription faintly visible.
+NPC_SPRITES.VeltheStone = function(sx, sy)
+  -- ground patch
+  screen.level(3); screen.rect(sx, sy + 7, 8, 1); screen.fill()
+  -- stone body (rough rectangle, slightly tilted)
+  screen.level(7); screen.rect(sx + 1, sy + 2, 6, 5); screen.fill()
+  screen.level(8); screen.rect(sx + 1, sy + 1, 6, 1); screen.fill()
+  screen.level(5); screen.pixel(sx, sy + 4); screen.pixel(sx, sy + 5); screen.fill()  -- chip on left
+  -- lichen (dim green-feeling pixels)
+  screen.level(11); screen.pixel(sx + 2, sy + 3); screen.pixel(sx + 5, sy + 4); screen.fill()
+  -- inscription line (faintly visible across the face)
+  screen.level(2); screen.move(sx + 2, sy + 5); screen.line(sx + 6, sy + 5); screen.stroke()
+end
+
+-- Quill (Western Region scholar): sleeves dusted grey with ash, holding
+-- a small notebook close to chest. Sparse upper hair.
+NPC_SPRITES.Quill = function(sx, sy)
+  screen.level(11); screen.rect(sx + 3, sy, 2, 1); screen.fill()        -- thinning hair
+  screen.level(13); screen.rect(sx + 2, sy + 1, 4, 2); screen.fill()    -- face
+  screen.level(7);  screen.rect(sx + 1, sy + 3, 6, 1); screen.fill()    -- collar
+  screen.level(5);  screen.rect(sx + 1, sy + 4, 6, 4); screen.fill()    -- robe
+  screen.level(8);  screen.pixel(sx + 1, sy + 5); screen.pixel(sx + 6, sy + 5); screen.fill()  -- ash on sleeves
+  screen.level(15); screen.rect(sx + 3, sy + 5, 2, 2); screen.fill()    -- notebook held to chest
+end
+
+-- Tilde (Western Region child): small frame, scarf, holding a sparrow.
+NPC_SPRITES.Tilde = function(sx, sy)
+  screen.level(13); screen.rect(sx + 2, sy + 2, 3, 2); screen.fill()    -- face
+  screen.level(8);  screen.rect(sx + 2, sy + 1, 3, 1); screen.fill()    -- braid stub
+  screen.level(11); screen.rect(sx + 1, sy + 4, 5, 1); screen.fill()    -- scarf
+  screen.level(5);  screen.rect(sx + 1, sy + 5, 5, 3); screen.fill()    -- coat
+  -- sparrow on her hands
+  screen.level(7);  screen.rect(sx + 5, sy + 5, 2, 2); screen.fill()
+  screen.level(15); screen.pixel(sx + 6, sy + 5); screen.fill()         -- bird eye highlight
+end
+
+-- Bren the smith — broad shoulders, leather apron, hammer-down posture.
+-- Tiny anvil glint at the base.
+NPC_SPRITES.Bren = function(sx, sy)
+  -- head (dark hair)
+  screen.level(3); screen.rect(sx + 2, sy + 1, 4, 2); screen.fill()
+  screen.level(7); screen.rect(sx + 2, sy + 2, 4, 1); screen.fill()
+  -- shoulders (broad)
+  screen.level(5); screen.rect(sx + 1, sy + 3, 6, 2); screen.fill()
+  -- apron (warm tan)
+  screen.level(9); screen.rect(sx + 2, sy + 5, 4, 3); screen.fill()
+  -- hammer head down at his side
+  screen.level(11); screen.pixel(sx + 6, sy + 6); screen.pixel(sx + 7, sy + 6); screen.fill()
+  -- anvil glint
+  if (tick % 24) < 4 then
+    screen.level(15); screen.pixel(sx + 4, sy + 7); screen.fill()
+  end
+end
+
+-- Tilo the dock-child — small, hood up, holding hands together as if
+-- counting boats.
+NPC_SPRITES.Tilo = function(sx, sy)
+  screen.level(11); screen.rect(sx + 2, sy + 2, 4, 2); screen.fill()    -- face (light)
+  screen.level(7);  screen.rect(sx + 2, sy + 1, 4, 1); screen.fill()    -- hood top
+  screen.level(7);  screen.rect(sx + 1, sy + 2, 1, 3); screen.fill()    -- hood side L
+  screen.level(7);  screen.rect(sx + 6, sy + 2, 1, 3); screen.fill()    -- hood side R
+  screen.level(5);  screen.rect(sx + 1, sy + 5, 6, 3); screen.fill()    -- coat
+  -- hands held together (fingers counting)
+  screen.level(11); screen.pixel(sx + 3, sy + 5); screen.pixel(sx + 4, sy + 5); screen.fill()
+end
+
+-- Aunt Vell — wide hat, small frame, garden-hum stillness.
+NPC_SPRITES.Vell = function(sx, sy)
+  -- wide-brimmed hat
+  screen.level(7); screen.rect(sx, sy + 1, 8, 1); screen.fill()
+  screen.level(5); screen.rect(sx + 2, sy, 4, 1); screen.fill()
+  -- face
+  screen.level(13); screen.rect(sx + 3, sy + 2, 2, 2); screen.fill()
+  -- dress (muted green)
+  screen.level(5); screen.rect(sx + 2, sy + 4, 4, 4); screen.fill()
+  -- small bee orbiting (animated yellow pixel)
+  local bx = sx + 4 + math.floor(math.sin(tick * 0.2) * 3 + 0.5)
+  local by = sy + 3 + math.floor(math.cos(tick * 0.15) * 2 + 0.5)
+  screen.level(15); screen.pixel(bx, by); screen.fill()
+end
+
+-- Iola — Velthe's apprentice, chalk-white hair, dark robe, lens on a thong.
+NPC_SPRITES.Iola = function(sx, sy)
+  -- chalk-white hair (pale top)
+  screen.level(15); screen.rect(sx + 2, sy + 1, 4, 1); screen.fill()
+  screen.level(13); screen.rect(sx + 2, sy + 2, 4, 1); screen.fill()
+  -- face
+  screen.level(11); screen.rect(sx + 3, sy + 2, 2, 2); screen.fill()
+  -- dark robe
+  screen.level(2); screen.rect(sx + 1, sy + 4, 6, 4); screen.fill()
+  -- lens on a thong (silver glint)
+  if (tick % 12) < 6 then
+    screen.level(15); screen.pixel(sx + 4, sy + 5); screen.fill()
+  end
+end
+
+-- Tovia — small woman in a russet cloak with vellum + ink. Drawn
+-- consistently across all three inn appearances.
+NPC_SPRITES.Tovia = function(sx, sy)
+  -- hood (russet brown)
+  screen.level(7); screen.rect(sx + 2, sy + 1, 4, 2); screen.fill()
+  screen.level(5); screen.rect(sx + 1, sy + 2, 6, 1); screen.fill()
+  -- face (a pale stripe; the rest of the face is shadow)
+  screen.level(11); screen.rect(sx + 3, sy + 2, 2, 1); screen.fill()
+  -- cloak body
+  screen.level(5); screen.rect(sx + 1, sy + 3, 6, 5); screen.fill()
+  -- vellum sheet held in front (white square)
+  screen.level(13); screen.rect(sx + 3, sy + 5, 2, 2); screen.fill()
+  -- ink quill (occasional bright pixel — she's writing)
+  if (tick % 8) < 3 then
+    screen.level(15); screen.pixel(sx + 5, sy + 4); screen.fill()
+  end
+end
+
+-- Orrery (observatory centerpiece). Brass concentric rings, slowly
+-- turning. Drawn in place of the underlying hearth tile so the player
+-- sees the orrery, not a fire.
+NPC_SPRITES.Orrery = function(sx, sy)
+  -- base disc (dark)
+  screen.level(2); screen.rect(sx, sy + 5, 8, 3); screen.fill()
+  -- outer brass ring
+  screen.level(11); screen.rect(sx, sy + 4, 8, 1); screen.fill()
+  screen.level(11); screen.rect(sx, sy + 7, 8, 1); screen.fill()
+  -- inner ring (rotates)
+  local phase = (tick // 4) % 4
+  local rx = sx + 1 + phase
+  screen.level(13); screen.pixel(rx, sy + 5); screen.pixel(rx + 4, sy + 5); screen.fill()
+  screen.level(7); screen.pixel(rx + 2, sy + 6); screen.fill()
+  -- central hub
+  screen.level(15); screen.pixel(sx + 3, sy + 5); screen.pixel(sx + 4, sy + 5); screen.fill()
+  -- pole standard
+  screen.level(7); screen.rect(sx + 3, sy + 1, 2, 4); screen.fill()
+  -- top star (twinkles)
+  if (tick % 12) < 6 then
+    screen.level(15); screen.pixel(sx + 3, sy); screen.fill()
+  else
+    screen.level(11); screen.pixel(sx + 4, sy); screen.fill()
+  end
+end
+
+-- Shepherd (Far Hills, near the small ruin). Long oilskin coat,
+-- shepherd's crook, weather-worn face.
+-- Senna — Miel's chambermaid. Pale apron over a long dress, hair
+-- tied back, hands held together (she dropped a candle). Trembles
+-- subtly via a 1px sway every 8 ticks.
+NPC_SPRITES.Senna = function(sx, sy, t)
+  local sway = ((t or 0) % 16) < 8 and 0 or 1
+  -- hair (dark, tied back at top)
+  screen.level(3); screen.rect(sx + 2 + sway, sy + 1, 4, 1); screen.fill()
+  -- face (pale)
+  screen.level(13); screen.rect(sx + 2 + sway, sy + 2, 4, 2); screen.fill()
+  -- collar / blouse (white)
+  screen.level(15); screen.rect(sx + 1 + sway, sy + 4, 6, 1); screen.fill()
+  -- dress (slate-blue equivalent at this palette, so darker grey)
+  screen.level(5); screen.rect(sx + 1 + sway, sy + 5, 6, 3); screen.fill()
+  -- apron (lighter stripe down the middle)
+  screen.level(11); screen.rect(sx + 3 + sway, sy + 5, 2, 3); screen.fill()
+  -- hands (small bright dot at apron-front)
+  screen.level(13); screen.pixel(sx + 4 + sway, sy + 6); screen.fill()
+end
+
+-- Pell — old palace steward, silver-haired, stooped. Shown half-pinned
+-- by a fallen beam (dark horizontal slab over his lower body).
+NPC_SPRITES.Pell = function(sx, sy)
+  -- silver hair (top)
+  screen.level(13); screen.rect(sx + 2, sy + 1, 4, 1); screen.fill()
+  screen.level(15); screen.pixel(sx + 3, sy); screen.pixel(sx + 4, sy); screen.fill()
+  -- face (lined, dim)
+  screen.level(11); screen.rect(sx + 2, sy + 2, 4, 2); screen.fill()
+  screen.level(0); screen.pixel(sx + 3, sy + 3); screen.pixel(sx + 4, sy + 3); screen.fill()  -- closed eyes
+  -- robe (steward dark)
+  screen.level(3); screen.rect(sx + 2, sy + 4, 4, 4); screen.fill()
+  screen.level(5); screen.rect(sx + 2, sy + 4, 4, 1); screen.fill()
+  -- fallen beam pinning lower body (dark horizontal slab)
+  screen.level(2); screen.rect(sx, sy + 6, 8, 1); screen.fill()
+  screen.level(0); screen.rect(sx, sy + 7, 8, 1); screen.fill()
+end
+
+-- FallenGuard — palace guardsman slumped against a bookshelf. Plate
+-- helmet tilted, breastplate scuffed, body angled to one side.
+NPC_SPRITES.FallenGuard = function(sx, sy)
+  -- helmet (tilted right)
+  screen.level(7); screen.rect(sx + 2, sy + 1, 4, 2); screen.fill()
+  screen.level(11); screen.pixel(sx + 5, sy + 1); screen.fill()  -- crest
+  -- face slit (dark)
+  screen.level(0); screen.rect(sx + 3, sy + 2, 2, 1); screen.fill()
+  -- breastplate (slumped, asymmetric)
+  screen.level(8); screen.rect(sx + 1, sy + 3, 6, 3); screen.fill()
+  screen.level(5); screen.rect(sx + 1, sy + 5, 6, 1); screen.fill()
+  -- one scuff / blood (small dark spot)
+  screen.level(0); screen.pixel(sx + 4, sy + 4); screen.fill()
+  -- legs splayed (different lengths to read as "slumped")
+  screen.level(3); screen.rect(sx + 1, sy + 6, 3, 2); screen.fill()
+  screen.level(3); screen.rect(sx + 5, sy + 6, 2, 1); screen.fill()
+end
+
+NPC_SPRITES.Shepherd = function(sx, sy, t)
+  -- coat (dim brown)
+  screen.level(5); screen.rect(sx + 1, sy + 3, 6, 5); screen.fill()
+  screen.level(7); screen.rect(sx + 1, sy + 3, 6, 1); screen.fill()  -- shoulder line
+  -- weathered face (pale)
+  screen.level(11); screen.rect(sx + 2, sy + 1, 4, 2); screen.fill()
+  -- hat brim
+  screen.level(3); screen.rect(sx + 1, sy, 6, 1); screen.fill()
+  -- crook (vertical staff with a little curl)
+  screen.level(7); screen.rect(sx + 7, sy + 1, 1, 6); screen.fill()
+  screen.level(7); screen.pixel(sx + 6, sy + 1); screen.fill()
+end
+
+-- CreekStone (Far Hills, west creek edge). A flat etched rock.
+NPC_SPRITES.CreekStone = function(sx, sy)
+  screen.level(7); screen.rect(sx + 1, sy + 5, 6, 3); screen.fill()
+  screen.level(11); screen.rect(sx + 1, sy + 5, 6, 1); screen.fill()  -- top rim
+  screen.level(0); screen.pixel(sx + 3, sy + 6); screen.pixel(sx + 5, sy + 6); screen.fill()  -- etch
+end
+
+-- White Bird (Lirael Ruins, in the bell-tower rafters). Tiny and quiet.
+NPC_SPRITES.WhiteBird = function(sx, sy)
+  -- two body pixels (white)
+  screen.level(15); screen.rect(sx + 3, sy + 3, 2, 2); screen.fill()
+  -- head (single bright pixel + dark eye)
+  screen.level(13); screen.pixel(sx + 4, sy + 2); screen.fill()
+  screen.level(0);  screen.pixel(sx + 4, sy + 2); screen.fill()
+  -- wings (occasional flicker downward when it shifts)
+  if (tick % 30) < 6 then
+    screen.level(11); screen.pixel(sx + 2, sy + 4); screen.pixel(sx + 5, sy + 4); screen.fill()
+  end
+end
+
+-- KeeperStone — a small inscribed stone, low to the ground.
+NPC_SPRITES.KeeperStone = function(sx, sy)
+  screen.level(5); screen.rect(sx + 2, sy + 5, 4, 3); screen.fill()
+  screen.level(7); screen.rect(sx + 2, sy + 5, 4, 1); screen.fill()
+  -- inscription (faint dim flecks)
+  screen.level(3); screen.pixel(sx + 3, sy + 6); screen.pixel(sx + 5, sy + 6); screen.fill()
+end
+
+-- Maro — Tovia's apprentice. Sketchpad in hand.
+NPC_SPRITES.Maro = function(sx, sy)
+  -- hood (dark blue-black)
+  screen.level(2); screen.rect(sx + 2, sy + 1, 4, 2); screen.fill()
+  -- face
+  screen.level(11); screen.rect(sx + 3, sy + 2, 2, 1); screen.fill()
+  -- coat
+  screen.level(5); screen.rect(sx + 1, sy + 4, 6, 4); screen.fill()
+  -- sketch board held in front (white square)
+  screen.level(13); screen.rect(sx + 2, sy + 5, 4, 2); screen.fill()
+  -- charcoal stick
+  if (tick % 8) < 3 then
+    screen.level(0); screen.pixel(sx + 4, sy + 5); screen.fill()
+  end
+end
+
+NPC_SPRITES.Wisp1 = function(sx, sy)
+  local pulse = (tick // 4) % 4
+  local lev = 9 + pulse
+  screen.level(15); screen.rect(sx + 3, sy + 3, 2, 2); screen.fill()
+  screen.level(lev); screen.pixel(sx + 2, sy + 3); screen.pixel(sx + 5, sy + 3); screen.fill()
+  screen.level(lev); screen.pixel(sx + 3, sy + 2); screen.pixel(sx + 4, sy + 5); screen.fill()
+  screen.level(math.max(2, lev - 4))
+  screen.pixel(sx + 1 + pulse, sy + 4); screen.fill()
+end
+NPC_SPRITES.Wisp2 = NPC_SPRITES.Wisp1
+NPC_SPRITES.Wisp3 = NPC_SPRITES.Wisp1
+
+-- Alder/Diegues/Strom NPC sprites — alias to their party-class sprites.
+-- These trigger when the player encounters them as NPCs before they
+-- have joined the active party. SPRITE_BY_CLASS draws using player.facing,
+-- and the NPC render loop sets player.facing = "down" beforehand, so
+-- they appear facing the player without extra plumbing.
+NPC_SPRITES.Alder   = SPRITE_BY_CLASS.bard
+NPC_SPRITES.Diegues = SPRITE_BY_CLASS.mage
+NPC_SPRITES.Strom   = SPRITE_BY_CLASS.warrior
 
 -- Karoo (Eastern dunes wanderer): tall, robed, half-remembering a tune
 NPC_SPRITES.Karoo = function(sx, sy)
@@ -8643,16 +19314,11 @@ NPC_SPRITES.Eos = function(sx, sy)
 end
 
 NPC_SPRITES.Niko = function(sx, sy)
-  -- Niko (drummer): bandana, vest, two drumsticks crossed at chest, snare on hip
-  screen.level(13); screen.rect(sx + 1, sy, 6, 1); screen.fill()        -- bandana band
-  screen.level(11); screen.rect(sx + 3, sy + 1, 2, 2); screen.fill()    -- face
-  screen.level(7);  screen.rect(sx + 2, sy + 4, 4, 4); screen.fill()    -- vest
-  -- crossed drumsticks
-  screen.level(15); screen.move(sx + 1, sy + 4); screen.line(sx + 6, sy + 7); screen.stroke()
-  screen.level(15); screen.move(sx + 6, sy + 4); screen.line(sx + 1, sy + 7); screen.stroke()
-  -- snare drum on hip (right)
-  screen.level(8); screen.rect(sx + 6, sy + 5, 2, 2); screen.fill()
-  screen.level(13); screen.pixel(sx + 6, sy + 5); screen.pixel(sx + 7, sy + 5); screen.fill()  -- rim
+  -- Niko's NPC sprite is the same bitmap as his party drummer sprite, so
+  -- the overworld NPC, dialogue portrait, and party panel all match.
+  -- Routed through SPRITE_BY_CLASS because NIKO is a local inside the
+  -- sprite do-block and isn't visible at this scope.
+  SPRITE_BY_CLASS.drummer_npc(sx, sy)
 end
 
 NPC_SPRITES.Vessel = function(sx, sy)
@@ -8725,24 +19391,444 @@ NPC_SPRITES.Wenna = function(sx, sy)
   end
 end
 
+-- Tarn (Eastern Reaches innkeeper, retired bosun): bald, big shoulders,
+-- striped sailor's shirt, anchor-tattoo blink
+NPC_SPRITES.Tarn = function(sx, sy)
+  screen.level(11); screen.rect(sx + 3, sy + 1, 2, 2); screen.fill()    -- bald head
+  screen.level(7);  screen.rect(sx + 2, sy + 3, 4, 1); screen.fill()    -- collar
+  screen.level(15); screen.rect(sx + 1, sy + 4, 6, 4); screen.fill()    -- white shirt
+  screen.level(7);  screen.rect(sx + 1, sy + 5, 6, 1); screen.fill()    -- horizontal stripe (sailor)
+  screen.level(7);  screen.rect(sx + 1, sy + 7, 6, 1); screen.fill()    -- second stripe
+  screen.level(5);  screen.pixel(sx + 1, sy + 6); screen.pixel(sx + 6, sy + 6); screen.fill()  -- arm tone
+  if (tick % 24) < 4 then
+    screen.level(13); screen.pixel(sx + 6, sy + 5); screen.fill()       -- anchor ink flicker
+  end
+end
+
+-- Lin (Eastern Reaches fisher mending nets): hooded oilskin, knot-work
+-- tendrils, needle in hand
+NPC_SPRITES.Lin = function(sx, sy)
+  screen.level(5);  screen.rect(sx + 1, sy, 6, 3); screen.fill()        -- oilskin hood
+  screen.level(11); screen.pixel(sx + 3, sy + 2); screen.pixel(sx + 4, sy + 2); screen.fill()
+  screen.level(7);  screen.rect(sx + 1, sy + 3, 6, 5); screen.fill()    -- coat
+  screen.level(13); screen.pixel(sx + 1, sy + 5); screen.pixel(sx + 6, sy + 5); screen.fill()  -- net knots
+  screen.level(13); screen.pixel(sx + 2, sy + 6); screen.pixel(sx + 5, sy + 6); screen.fill()
+  -- needle threading: tiny pixel that moves
+  if (tick % 12) < 6 then
+    screen.level(15); screen.pixel(sx + 4, sy + 5); screen.fill()
+  else
+    screen.level(15); screen.pixel(sx + 3, sy + 6); screen.fill()
+  end
+end
+
+-- Skipper (Eastern Reaches one-eyed harbor cat): like Mews but darker
+-- coat, eyepatch dot, slow tail flick
+NPC_SPRITES.Skipper = function(sx, sy)
+  screen.level(5);  screen.rect(sx + 1, sy + 4, 6, 3); screen.fill()    -- darker body coil
+  screen.level(7);  screen.rect(sx + 1, sy + 3, 2, 1); screen.fill()    -- head
+  screen.level(7);  screen.pixel(sx + 1, sy + 2); screen.pixel(sx + 2, sy + 2); screen.fill()  -- ears
+  screen.level(0);  screen.pixel(sx + 1, sy + 3); screen.fill()         -- eyepatch (missing eye)
+  screen.level(15); screen.pixel(sx + 2, sy + 3); screen.fill()         -- one good eye
+  -- slow tail flick (every 16 ticks vs Mews's 8)
+  local flick = (tick % 32) < 16 and 0 or 1
+  screen.level(8); screen.move(sx + 6, sy + 6); screen.line(sx + 7, sy + 4 + flick); screen.stroke()
+end
+
+-- Halla (Northern Wilds innkeeper, Skari's sister): heavy shawl,
+-- braided hair, kettle hint
+NPC_SPRITES.Halla = function(sx, sy)
+  screen.level(13); screen.rect(sx + 2, sy, 4, 2); screen.fill()        -- braid wrapped over crown
+  screen.level(11); screen.rect(sx + 3, sy + 2, 2, 2); screen.fill()    -- face
+  screen.level(7);  screen.rect(sx + 1, sy + 4, 6, 4); screen.fill()    -- heavy shawl
+  screen.level(13); screen.rect(sx + 3, sy + 4, 2, 4); screen.fill()    -- inner dress
+  screen.level(15); screen.pixel(sx + 1, sy + 5); screen.pixel(sx + 6, sy + 5); screen.fill()  -- shawl trim
+  -- kettle steam wisp from her direction (right hand)
+  if (tick % 18) < 9 then
+    screen.level(6); screen.pixel(sx + 7, sy + 4); screen.fill()
+  end
+end
+
+-- Eyvi (Northern Wilds frost-burned ranger): hood up, scar across face,
+-- short fur cloak, two-fingered glove
+NPC_SPRITES.Eyvi = function(sx, sy)
+  screen.level(3);  screen.rect(sx + 1, sy, 6, 3); screen.fill()        -- dark hood
+  screen.level(11); screen.pixel(sx + 3, sy + 2); screen.pixel(sx + 4, sy + 2); screen.fill()
+  screen.level(13); screen.move(sx + 2, sy + 3); screen.line(sx + 5, sy + 3); screen.stroke()  -- scar line
+  screen.level(8);  screen.rect(sx + 1, sy + 4, 6, 1); screen.fill()    -- fur cloak
+  screen.level(5);  screen.rect(sx + 1, sy + 5, 6, 3); screen.fill()    -- under-tunic
+  -- gloved hand visible (only 2 fingers)
+  screen.level(8);  screen.pixel(sx, sy + 6); screen.pixel(sx, sy + 7); screen.fill()
+end
+
+-- Tofi (Northern Wilds wolfhound): great shaggy dog asleep, slow breath
+NPC_SPRITES.Tofi = function(sx, sy)
+  screen.level(7);  screen.rect(sx + 1, sy + 4, 6, 4); screen.fill()    -- main body
+  screen.level(5);  screen.rect(sx + 1, sy + 3, 6, 1); screen.fill()    -- shaggy back ridge
+  screen.level(7);  screen.rect(sx, sy + 5, 1, 2); screen.fill()        -- head (resting low)
+  screen.level(11); screen.pixel(sx + 1, sy + 6); screen.fill()         -- eye closed → dot
+  screen.level(5);  screen.pixel(sx, sy + 4); screen.fill()             -- ear
+  screen.level(8);  screen.move(sx + 6, sy + 7); screen.line(sx + 7, sy + 6); screen.stroke()  -- tail tip
+  -- slow breath (a "Z" puff, slower than Mews)
+  if (tick % 48) < 12 then
+    screen.level(6); screen.pixel(sx + 4, sy + 2); screen.pixel(sx + 5, sy + 2); screen.fill()
+  end
+end
+
+-- ── Castle prologue NPC sprites (Pass 60 overhaul) ────────────────────
+-- Page: young runner in queen's livery (blue tabard + small cap). A
+-- breath-flicker every few ticks reads as "out of breath."
+NPC_SPRITES.Page = function(sx, sy, t)
+  -- cap (livery blue)
+  screen.level(8); screen.rect(sx + 2, sy, 4, 1); screen.fill()
+  screen.level(11); screen.pixel(sx + 4, sy); screen.fill()           -- pin
+  -- face
+  screen.level(13); screen.rect(sx + 2, sy + 1, 4, 2); screen.fill()
+  screen.level(0); screen.pixel(sx + 3, sy + 2); screen.pixel(sx + 4, sy + 2); screen.fill()
+  -- tabard with crest stripe
+  screen.level(7); screen.rect(sx + 1, sy + 3, 6, 4); screen.fill()
+  screen.level(15); screen.rect(sx + 3, sy + 3, 2, 4); screen.fill()  -- gold center band
+  -- legs (running pose: alternates)
+  local step = ((t or tick) % 6) < 3
+  if step then
+    screen.level(3); screen.rect(sx + 2, sy + 7, 1, 1); screen.fill()
+    screen.level(3); screen.rect(sx + 5, sy + 7, 1, 1); screen.fill()
+  else
+    screen.level(3); screen.rect(sx + 3, sy + 7, 1, 1); screen.fill()
+    screen.level(3); screen.rect(sx + 4, sy + 7, 1, 1); screen.fill()
+  end
+  -- breath puff (out of breath)
+  if ((tick // 4) % 4) == 0 then
+    screen.level(6); screen.pixel(sx + 7, sy + 1); screen.fill()
+  end
+end
+
+-- Tisa: small house cat curled on the bed, slow blink.
+NPC_SPRITES.Tisa = function(sx, sy)
+  screen.level(7); screen.rect(sx + 1, sy + 4, 6, 3); screen.fill()   -- body curled
+  screen.level(5); screen.rect(sx + 1, sy + 3, 6, 1); screen.fill()   -- back fur
+  -- head + ears
+  screen.level(7); screen.rect(sx + 1, sy + 2, 2, 2); screen.fill()
+  screen.level(11); screen.pixel(sx + 1, sy + 1); screen.pixel(sx + 2, sy + 1); screen.fill()  -- ears
+  -- closed eye (line)
+  screen.level(3); screen.move(sx + 1, sy + 3); screen.line(sx + 2, sy + 3); screen.stroke()
+  -- tail curling around
+  screen.level(7); screen.move(sx + 6, sy + 5); screen.line(sx + 7, sy + 6); screen.stroke()
+  -- slow purr (Z above)
+  if (tick % 36) < 12 then
+    screen.level(6); screen.pixel(sx + 3, sy); screen.fill()
+  end
+end
+
+-- Vey: music tutor, pen-in-hand, slight bend toward a desk.
+NPC_SPRITES.Vey = function(sx, sy)
+  -- robe (warm violet)
+  screen.level(7); screen.rect(sx + 2, sy + 3, 4, 5); screen.fill()
+  screen.level(5); screen.rect(sx + 1, sy + 5, 6, 3); screen.fill()   -- robe broadens
+  -- face (pale, glasses)
+  screen.level(13); screen.rect(sx + 2, sy + 1, 4, 2); screen.fill()
+  screen.level(0); screen.pixel(sx + 3, sy + 2); screen.pixel(sx + 4, sy + 2); screen.fill()
+  -- spectacles glint
+  screen.level(15); screen.pixel(sx + 3, sy + 1); screen.fill()
+  -- pen in hand (right side)
+  screen.level(11); screen.pixel(sx + 6, sy + 4); screen.fill()
+  screen.level(13); screen.pixel(sx + 7, sy + 3); screen.fill()       -- pen tip
+end
+
+-- Esa: librarian, simple grey robe, scroll across arms.
+NPC_SPRITES.Esa = function(sx, sy)
+  -- grey robe
+  screen.level(5); screen.rect(sx + 2, sy + 3, 4, 5); screen.fill()
+  screen.level(7); screen.rect(sx + 1, sy + 5, 6, 3); screen.fill()
+  -- bound hair (high bun)
+  screen.level(3); screen.rect(sx + 3, sy, 2, 1); screen.fill()
+  -- face
+  screen.level(13); screen.rect(sx + 2, sy + 1, 4, 2); screen.fill()
+  screen.level(0); screen.pixel(sx + 3, sy + 2); screen.pixel(sx + 4, sy + 2); screen.fill()
+  -- scroll across arms (horizontal beige cylinder)
+  screen.level(11); screen.rect(sx + 1, sy + 4, 6, 1); screen.fill()
+  screen.level(13); screen.pixel(sx, sy + 4); screen.pixel(sx + 7, sy + 4); screen.fill()  -- end caps
+end
+
+-- Dren: young watchman with a too-large helmet. Spear-tip glint above.
+NPC_SPRITES.Dren = function(sx, sy)
+  -- spear (vertical to the right)
+  screen.level(7); screen.rect(sx + 7, sy, 1, 6); screen.fill()
+  screen.level(13); screen.pixel(sx + 7, sy - 1); screen.fill()       -- tip
+  -- helmet (oversized — sits low on his head)
+  screen.level(9); screen.rect(sx + 1, sy, 6, 3); screen.fill()
+  screen.level(11); screen.rect(sx + 1, sy, 6, 1); screen.fill()      -- rim highlight
+  -- face beneath (mostly hidden)
+  screen.level(13); screen.pixel(sx + 3, sy + 2); screen.pixel(sx + 4, sy + 2); screen.fill()
+  -- tunic
+  screen.level(8); screen.rect(sx + 2, sy + 3, 4, 4); screen.fill()
+  screen.level(15); screen.pixel(sx + 4, sy + 4); screen.fill()       -- crest pin
+  -- boots
+  screen.level(3); screen.rect(sx + 2, sy + 7, 1, 1); screen.fill()
+  screen.level(3); screen.rect(sx + 5, sy + 7, 1, 1); screen.fill()
+end
+
+-- Capt.Ren: weathered captain. Helmet with side plumes, drawn sword.
+NPC_SPRITES["Capt.Ren"] = function(sx, sy)
+  -- sword (held vertical at left, blade goes up)
+  screen.level(13); screen.rect(sx, sy, 1, 5); screen.fill()
+  screen.level(11); screen.rect(sx, sy + 5, 1, 1); screen.fill()      -- crossguard
+  -- helmet with side plume
+  screen.level(7); screen.rect(sx + 2, sy, 4, 3); screen.fill()
+  screen.level(11); screen.pixel(sx + 1, sy + 1); screen.fill()       -- side plume
+  -- visor slit
+  screen.level(0); screen.rect(sx + 3, sy + 2, 2, 1); screen.fill()
+  -- breastplate (heavy)
+  screen.level(8); screen.rect(sx + 2, sy + 3, 4, 4); screen.fill()
+  screen.level(11); screen.rect(sx + 2, sy + 3, 4, 1); screen.fill()  -- top edge highlight
+  screen.level(15); screen.pixel(sx + 4, sy + 5); screen.fill()       -- captain's emblem
+  -- boots
+  screen.level(3); screen.rect(sx + 2, sy + 7, 1, 1); screen.fill()
+  screen.level(3); screen.rect(sx + 5, sy + 7, 1, 1); screen.fill()
+end
+
+-- Runner: a courier in light dress, mid-sprint pose.
+NPC_SPRITES.Runner = function(sx, sy, t)
+  -- short hair (dark)
+  screen.level(3); screen.rect(sx + 2, sy, 4, 1); screen.fill()
+  -- face
+  screen.level(13); screen.rect(sx + 2, sy + 1, 4, 2); screen.fill()
+  screen.level(0); screen.pixel(sx + 3, sy + 2); screen.pixel(sx + 4, sy + 2); screen.fill()
+  -- light tunic (sash diagonal)
+  screen.level(7); screen.rect(sx + 1, sy + 3, 6, 4); screen.fill()
+  screen.level(11); screen.move(sx + 1, sy + 3); screen.line(sx + 6, sy + 6); screen.stroke()  -- sash
+  -- sprint legs (asymmetric)
+  local step = ((t or tick) % 5) < 3
+  if step then
+    screen.level(3); screen.rect(sx + 1, sy + 7, 2, 1); screen.fill()
+  else
+    screen.level(3); screen.rect(sx + 5, sy + 7, 2, 1); screen.fill()
+  end
+  -- speed line behind (animated)
+  if (tick % 4) < 2 then
+    screen.level(5); screen.pixel(sx - 1, sy + 4); screen.fill()
+  end
+end
+
+-- Sgt.Hova: solid build, half-laced boots visible, off-duty cap.
+NPC_SPRITES["Sgt.Hova"] = function(sx, sy)
+  -- off-duty cap
+  screen.level(5); screen.rect(sx + 2, sy, 4, 1); screen.fill()
+  -- face (square jaw)
+  screen.level(13); screen.rect(sx + 2, sy + 1, 4, 2); screen.fill()
+  screen.level(0); screen.pixel(sx + 3, sy + 2); screen.pixel(sx + 4, sy + 2); screen.fill()
+  -- jaw shadow
+  screen.level(7); screen.pixel(sx + 2, sy + 3); screen.pixel(sx + 5, sy + 3); screen.fill()
+  -- tunic
+  screen.level(7); screen.rect(sx + 1, sy + 3, 6, 3); screen.fill()
+  screen.level(11); screen.rect(sx + 3, sy + 4, 2, 1); screen.fill()  -- belt buckle
+  -- half-laced boots (one done, one not)
+  screen.level(3); screen.rect(sx + 1, sy + 6, 2, 2); screen.fill()   -- laced
+  screen.level(5); screen.rect(sx + 5, sy + 7, 2, 1); screen.fill()   -- unlaced
+  screen.level(11); screen.pixel(sx + 5, sy + 6); screen.fill()
+end
+
+-- Borin: young recruit, oversized spear, anxious posture.
+NPC_SPRITES.Borin = function(sx, sy)
+  -- spear (tall, leaning slightly)
+  screen.level(7); screen.rect(sx + 6, sy - 1, 1, 7); screen.fill()
+  screen.level(13); screen.pixel(sx + 6, sy - 2); screen.fill()
+  -- thin shoulders
+  screen.level(8); screen.rect(sx + 2, sy + 3, 4, 4); screen.fill()
+  -- face (pale, wide eyes)
+  screen.level(13); screen.rect(sx + 2, sy + 1, 4, 2); screen.fill()
+  screen.level(15); screen.pixel(sx + 3, sy + 2); screen.pixel(sx + 4, sy + 2); screen.fill()  -- wide-eyed
+  -- shaky hand (animated)
+  if (tick % 8) < 4 then
+    screen.level(11); screen.pixel(sx + 5, sy + 5); screen.fill()
+  else
+    screen.level(11); screen.pixel(sx + 6, sy + 5); screen.fill()
+  end
+  -- boots
+  screen.level(3); screen.rect(sx + 2, sy + 7, 1, 1); screen.fill()
+  screen.level(3); screen.rect(sx + 5, sy + 7, 1, 1); screen.fill()
+end
+
+-- HealerYmra: long apron robe, hair tied back, basin of water in hand.
+NPC_SPRITES.HealerYmra = function(sx, sy)
+  -- tied-back hair (dark)
+  screen.level(3); screen.rect(sx + 2, sy, 4, 1); screen.fill()
+  screen.level(3); screen.pixel(sx + 1, sy + 1); screen.fill()        -- nape strand
+  -- face
+  screen.level(13); screen.rect(sx + 2, sy + 1, 4, 2); screen.fill()
+  screen.level(0); screen.pixel(sx + 3, sy + 2); screen.pixel(sx + 4, sy + 2); screen.fill()
+  -- white apron robe
+  screen.level(15); screen.rect(sx + 1, sy + 3, 6, 5); screen.fill()
+  screen.level(11); screen.move(sx + 4, sy + 3); screen.line(sx + 4, sy + 7); screen.stroke()  -- apron seam
+  -- red cross at chest
+  screen.level(0); screen.rect(sx + 3, sy + 4, 2, 1); screen.fill()
+  screen.level(0); screen.pixel(sx + 4, sy + 5); screen.fill()
+  -- basin in hand (right)
+  screen.level(7); screen.rect(sx + 6, sy + 4, 1, 1); screen.fill()
+end
+
+-- WoundedGuard: lying flat (most of the sprite is bedding + face).
+NPC_SPRITES.WoundedGuard = function(sx, sy)
+  -- bedsheet under
+  screen.level(11); screen.rect(sx, sy + 5, 8, 3); screen.fill()
+  screen.level(7); screen.rect(sx, sy + 7, 8, 1); screen.fill()
+  -- body (lying flat, lengthwise)
+  screen.level(5); screen.rect(sx + 1, sy + 5, 6, 1); screen.fill()
+  -- face (only the head pokes out — small at top)
+  screen.level(13); screen.rect(sx + 3, sy + 3, 2, 2); screen.fill()
+  screen.level(0); screen.pixel(sx + 3, sy + 4); screen.pixel(sx + 4, sy + 4); screen.fill()
+  -- bandage across head (animated faint pulse so it reads as "alive")
+  screen.level((tick % 32) < 16 and 15 or 13)
+  screen.rect(sx + 3, sy + 3, 2, 1); screen.fill()
+  -- bloody arm-bandage at midbody
+  screen.level(8); screen.pixel(sx + 6, sy + 5); screen.pixel(sx + 7, sy + 5); screen.fill()
+end
+
 -- ============================================================ DRAWING — STATES
 
+-- Pixel offsets that center an interior map within the 128x64 viewport.
+-- Returns (0,0) for maps that meet or exceed viewport dimensions
+-- (overworld, throne hall, etc.). When non-zero, the surrounding margin
+-- is painted with a static musical-staff backdrop and the room is
+-- inset by (ox, oy).
+-- Global (not local) to dodge the 200-locals-per-main-chunk Lua cap.
+function interior_view_offset()
+  local ox = math.max(0, math.floor((VIEW_W - MAP_W) / 2) * TILE)
+  local oy = math.max(0, math.floor((VIEW_H - MAP_H) / 2) * TILE)
+  return ox, oy
+end
+
+-- Static musical-staff wallpaper for the margin around a centered
+-- interior map. Five horizontal lines plus a small treble-clef glyph
+-- anchored in the left margin. Drawn before tiles so opaque room walls
+-- cover it where they overlap; only the off-room strips show.
+function draw_staff_backdrop(ox, oy)
+  screen.level(0); screen.rect(0, 0, 128, 64); screen.fill()
+  screen.level(3)
+  local STAFF_YS = {12, 22, 32, 42, 52}
+  for _, y in ipairs(STAFF_YS) do
+    screen.move(0, y); screen.line(128, y); screen.stroke()
+  end
+  if ox > 0 then
+    -- 9-wide pixel-grid treble clef centered horizontally in the left
+    -- margin. Curl at top, big loop in the middle, tail at the bottom.
+    local CLEF = {
+      "   ###   ",
+      "  #   #  ",
+      " #     # ",
+      " #     # ",
+      " #    #  ",
+      " #   #   ",
+      "  # #    ",
+      "   #     ",
+      "  ###    ",
+      " #  ##   ",
+      " #   ##  ",
+      "##    ## ",
+      "##  # ## ",
+      "##  # ## ",
+      " #  # #  ",
+      "  ##  #  ",
+      "    ##   ",
+      "    #    ",
+      "    #    ",
+      "   ##    ",
+      "  ## ##  ",
+      " ##    # ",
+      " #     # ",
+      "  ## ##  ",
+      "   ###   ",
+    }
+    local cw = #CLEF[1]
+    local cx = math.max(1, math.floor((ox - cw) / 2))
+    local cy = math.max(2, math.floor((64 - #CLEF) / 2))
+    screen.level(9)
+    for row = 1, #CLEF do
+      local line = CLEF[row]
+      for col = 1, #line do
+        if line:sub(col, col) == "#" then
+          screen.pixel(cx + col - 1, cy + row - 1)
+        end
+      end
+    end
+    screen.fill()
+  end
+end
+
 local function draw_overworld()
+  local view_ox, view_oy = interior_view_offset()
+  local centered = (view_ox > 0) or (view_oy > 0)
+  if centered then draw_staff_backdrop(view_ox, view_oy) end
   for vy = 0, VIEW_H - 1 do
     for vx = 0, VIEW_W - 1 do
       local tx = cam.x + vx
       local ty = cam.y + vy
+      if centered and (tx < 1 or tx > MAP_W or ty < 1 or ty > MAP_H) then
+        goto next_tile
+      end
       local t = tile_at(tx, ty)
-      local sx = vx * TILE
-      local sy = vy * TILE
+      local sx = vx * TILE + view_ox
+      local sy = vy * TILE + view_oy
       -- Inside-an-interior overrides:
       --   inn/shop (5/6) → wood planks for floor + themed walls
       --   cave1-5 (7-11) → cave floor for floor
-      if (current_map_id == 5 or current_map_id == 6) and t == 0 then
+      if (current_map_id == 5 or current_map_id == 6 or current_map_id == 15 or current_map_id == 16
+          or current_map_id == 17 or current_map_id == 18 or current_map_id == 19
+          or current_map_id == 20 or current_map_id == 21
+          or current_map_id == 27 or current_map_id == 28
+          or current_map_id == 29 or current_map_id == 30
+          or current_map_id == 31 or current_map_id == 33
+          or current_map_id == 34) and t == 0 then
         TILE_DRAW.floor(sx, sy)
-      elseif current_map_id == 5 and t == 4 then
+      elseif current_map_id == 23 and t == 0 then
+        -- Lirael Ruins: ash-covered scorched stone. Drawn as dim stone
+        -- with sparse light flecks (per-tile-stable so it doesn't shimmer).
+        screen.level(2); screen.rect(sx, sy, 8, 8); screen.fill()
+        local seed = (tx * 17 + ty * 31) % 32
+        if seed < 6 then
+          screen.level(4); screen.pixel(sx + (seed % 7), sy + ((seed * 3) % 7))
+          screen.fill()
+        end
+        if seed > 24 then
+          screen.level(3); screen.pixel(sx + 7 - (seed % 7), sy + 7 - ((seed * 5) % 7))
+          screen.fill()
+        end
+      elseif current_map_id == 23 and t == 4 then
+        -- Ruined wall block — broken stone with chipped edge.
+        screen.level(5); screen.rect(sx, sy, 8, 8); screen.fill()
+        screen.level(3); screen.rect(sx, sy + 4, 8, 1); screen.fill()
+        screen.level(2); screen.pixel(sx + 1, sy + 1); screen.pixel(sx + 6, sy + 6); screen.fill()
+        local seed = (tx * 13 + ty * 7) % 8
+        if seed < 3 then
+          screen.level(0); screen.rect(sx + (seed * 2), sy + 7, 2, 1); screen.fill()
+        end
+      elseif current_map_id == 24 and t == 0 then
+        -- Observatory floor — deep blue-black polished stone. Faint
+        -- starfield: a few stable bright pixels that don't shimmer.
+        screen.level(1); screen.rect(sx, sy, 8, 8); screen.fill()
+        local seed = (tx * 19 + ty * 11) % 64
+        if seed < 4 then
+          screen.level(11); screen.pixel(sx + (seed % 7), sy + ((seed * 5) % 7))
+          screen.fill()
+        elseif seed < 8 then
+          screen.level(7); screen.pixel(sx + ((seed + 3) % 7), sy + ((seed * 3) % 7))
+          screen.fill()
+        end
+      elseif current_map_id == 24 and t == 4 then
+        -- Observatory wall — dark with brass-fitting glints.
+        screen.level(3); screen.rect(sx, sy, 8, 8); screen.fill()
+        screen.level(5); screen.rect(sx, sy, 8, 1); screen.fill()
+        screen.level(5); screen.rect(sx, sy + 7, 8, 1); screen.fill()
+        local seed = (tx * 7 + ty * 13) % 16
+        if seed < 3 then
+          screen.level(11); screen.pixel(sx + 4, sy + 4); screen.fill()
+        end
+      elseif (current_map_id == 5 or current_map_id == 17 or current_map_id == 18 or current_map_id == 19 or current_map_id == 20
+              or current_map_id == 27 or current_map_id == 28
+              or current_map_id == 29 or current_map_id == 30
+              or current_map_id == 31 or current_map_id == 32
+              or current_map_id == 33 or current_map_id == 34) and t == 4 then
         TILE_DRAW.inn_wall(sx, sy, tx + ty * MAP_W)
-      elseif current_map_id == 6 and t == 4 then
+      elseif (current_map_id == 6 or current_map_id == 15 or current_map_id == 16) and t == 4 then
         TILE_DRAW.shop_wall(sx, sy, tx + ty * MAP_W)
       elseif (current_map_id == 7 or current_map_id == 8 or current_map_id == 9
               or current_map_id == 10 or current_map_id == 11
@@ -8751,11 +19837,12 @@ local function draw_overworld()
         TILE_DRAW.cavefloor(sx, sy, tx + ty * MAP_W)
       else
         local fn = TILE_DRAW[t] or TILE_DRAW[0]
-        if t == 3 or t == 6 or t == 7 or t == 9 or t == 11 or t == 14 or t == 16 or t == 18 or t == 19 or t == 20 or t == 24 or t == 27 or t == 30 or t == 36 or t == 38 or t == 39 or t == 41 or t == 43 then fn(sx, sy, tick)
+        if t == 3 or t == 6 or t == 7 or t == 9 or t == 11 or t == 14 or t == 16 or t == 18 or t == 19 or t == 20 or t == 24 or t == 27 or t == 30 or t == 32 or t == 36 or t == 38 or t == 39 or t == 41 or t == 43 or t == 52 or t == 53 or t == 54 or t == 55 or t == 56 or t == 57 or t == 58 then fn(sx, sy, tick)
         elseif t == 0 or t == 8 then fn(sx, sy, tx + ty * MAP_W)
         else fn(sx, sy)
         end
       end
+      ::next_tile::
     end
   end
 
@@ -8771,17 +19858,54 @@ local function draw_overworld()
       local fn = NPC_SPRITES[n.name] or draw_npc_at
       -- subtle idle bob: each NPC breathes 1px out of phase with the others
       local bob = (((tick + n.x * 7 + n.y * 3) % 32) < 16) and 0 or 1
-      fn((n.x - cam.x) * TILE, (n.y - cam.y) * TILE - bob)
+      fn((n.x - cam.x) * TILE + view_ox, (n.y - cam.y) * TILE - bob + view_oy)
     end
   end
   player.facing = saved_facing_npc
+
+  -- NPC barks: small text bubble above the NPC sprite, fades out over
+  -- 90 ticks. Match each bark to its source NPC by name; skip any
+  -- whose NPC is offscreen or no longer visible. Prune expired entries.
+  if CONTENT.barks and #CONTENT.barks > 0 then
+    screen.font_face(25); screen.font_size(6)
+    for i = #CONTENT.barks, 1, -1 do
+      local b = CONTENT.barks[i]
+      local age = tick - b.t
+      if age > 90 then
+        table.remove(CONTENT.barks, i)
+      else
+        -- find NPC by name to get current position
+        local src
+        for _, n in ipairs(npcs) do
+          if n.name == b.name then src = n; break end
+        end
+        if src and src.x >= cam.x and src.x < cam.x + VIEW_W
+           and src.y >= cam.y and src.y < cam.y + VIEW_H
+           and npc_visible(src) then
+          local sx = (src.x - cam.x) * TILE + 4 + view_ox
+          local sy = (src.y - cam.y) * TILE - 4 + view_oy
+          local w = math.min(110, #b.line * 4 + 4)
+          -- bubble background (dark)
+          screen.level(0); screen.rect(sx - w / 2, sy - 6, w, 7); screen.fill()
+          -- bubble border + tail (fades with age)
+          local lev = math.max(2, 11 - math.floor(age / 12))
+          screen.level(lev); screen.rect(sx - w / 2, sy - 6, w, 7); screen.stroke()
+          screen.pixel(sx, sy + 1); screen.pixel(sx, sy + 2); screen.fill()
+          -- text
+          screen.level(math.max(2, 15 - math.floor(age / 8)))
+          screen.move(sx, sy - 1); screen.text_center(b.line)
+        end
+      end
+    end
+    screen.font_face(1); screen.font_size(8)
+  end
 
   -- campfires (always visible — they don't get used up)
   for _, f in ipairs(CONTENT.campfires) do
     if f.map == current_map_id
        and f.x >= cam.x and f.x < cam.x + VIEW_W
        and f.y >= cam.y and f.y < cam.y + VIEW_H then
-      local sx, sy = (f.x - cam.x) * TILE, (f.y - cam.y) * TILE
+      local sx, sy = (f.x - cam.x) * TILE + view_ox, (f.y - cam.y) * TILE + view_oy
       -- log base
       screen.level(5)
       screen.rect(sx + 1, sy + 6, 6, 1); screen.fill()
@@ -8803,7 +19927,7 @@ local function draw_overworld()
     if c.map == current_map_id and not CONTENT.opened[c.id]
        and c.x >= cam.x and c.x < cam.x + VIEW_W
        and c.y >= cam.y and c.y < cam.y + VIEW_H then
-      local sx, sy = (c.x - cam.x) * TILE, (c.y - cam.y) * TILE
+      local sx, sy = (c.x - cam.x) * TILE + view_ox, (c.y - cam.y) * TILE + view_oy
       -- gold chest, lid + body, with a tiny shimmer
       screen.level(11); screen.rect(sx + 1, sy + 3, 6, 4); screen.fill()
       screen.level(15); screen.rect(sx + 1, sy + 2, 6, 1); screen.fill()  -- lid
@@ -8816,7 +19940,12 @@ local function draw_overworld()
     end
   end
 
-  draw_player_at((player.x - cam.x) * TILE, (player.y - cam.y) * TILE)
+  -- Scripted scene actors render between map sprites and the player.
+  if SCENE and SCENE.active and SCENE.draw then SCENE.draw() end
+
+  if not (SCENE and SCENE.active and SCENE.hide_player) then
+    draw_player_at((player.x - cam.x) * TILE + view_ox, (player.y - cam.y) * TILE + view_oy)
+  end
 
   -- prompt: talk OR enter cave OR enter inn
   local fnpc = find_facing_npc()
@@ -8825,7 +19954,14 @@ local function draw_overworld()
   if fnpc and (tick % 8) < 5 then
     screen.level(15)
     screen.move(64, 60)
-    screen.text_center("A: talk")
+    -- Prompt verb varies by NPC kind:
+    --   kind = "object" → "check"  (stones, plaques, orrery, graves)
+    --   kind = "pet"    → "pet"    (cats, falcons, birds)
+    --   default         → "talk"
+    local verb = "talk"
+    if fnpc.kind == "object" then verb = "check"
+    elseif fnpc.kind == "pet" then verb = "pet" end
+    screen.text_center("A: " .. verb)
   elseif ftile == 5 and (tick % 8) < 5 then
     screen.level(15)
     screen.move(64, 60)
@@ -8937,6 +20073,16 @@ local function draw_overworld()
       ["12:"]       = "The Hollow",
       ["13:"]       = "Cave 6 - Locrian Crypt",
       ["14:"]       = "Cave 7 - Suno's Chamber",
+      ["17:"]       = "The Saltway Inn",
+      ["18:"]       = "Pinehearth Lodge",
+      ["19:"]       = "Hall of Resonance",
+      ["20:"]       = "Lirael Throne Room",
+      ["21:"]       = "The Escape Cave",
+      ["22:"]       = "Western Region",
+      ["23:"]       = "Lirael Ruins",
+      ["24:"]       = "Velthe's Observatory",
+      ["25:"]       = "Reya's Cairn",
+      ["26:"]       = "The Far Hills",
     }
     local name = PLACE_NAMES[last_region or ""] or ""
     if name ~= "" then
@@ -9018,9 +20164,42 @@ local function draw_overworld()
   if CONTENT.flash_ticks > 0 then
     screen.level(0); screen.rect(20, 28, 88, 12); screen.fill()
     screen.level(15); screen.rect(20, 28, 88, 12); screen.stroke()
-    screen.move(64, 36); screen.text_center(CONTENT.flash_text)
+    screen.move(64, 36); screen.text_center(scrub_text(CONTENT.flash_text or ""))
   end
 
+  -- DAY/NIGHT overlay (Pass 58). Nighttime stipples a sparse dim-pixel
+  -- mask across the OVERWORLD only (interiors, ruins, observatory and
+  -- caves don't dim). The stipple is deterministic per tile so it
+  -- doesn't shimmer. Skipped during scripted scenes (their letterbox
+  -- + fade already handle framing). A small "night" indicator in the
+  -- top-right corner cues the player.
+  if sq_is_night and sq_is_night()
+     and (current_map_id == 1 or current_map_id == 2 or current_map_id == 3
+          or current_map_id == 22 or current_map_id == 26)
+     and not (SCENE and SCENE.active) then
+    -- per-pixel scattered dim pattern (every 3rd pixel along a hashed grid)
+    for y = 0, 47, 2 do
+      for x = (y % 4), 127, 4 do
+        screen.level(2); screen.pixel(x, y); screen.fill()
+      end
+    end
+    -- subtle vignette: dim the corners with a thicker edge
+    screen.level(3)
+    screen.rect(0, 0, 128, 1); screen.fill()
+    screen.rect(0, 47, 128, 1); screen.fill()
+    -- moon glyph top-right
+    screen.level(11); screen.pixel(120, 4); screen.pixel(121, 3)
+    screen.pixel(122, 3); screen.pixel(122, 4); screen.pixel(122, 5); screen.fill()
+  end
+
+end
+
+-- DAY / NIGHT cycle. ~11 minutes per half-phase at 85 BPM with the
+-- 1/4-beat tick rate (3000-tick window). Returns true while the world
+-- is in night phase. Used by draw_overworld for the dimming overlay
+-- and by night-only NPC visibility closures.
+function sq_is_night()
+  return ((tick or 0) // 3000) % 2 == 1
 end
 
 -- pixel-accurate word wrap using norns screen metrics
@@ -9049,9 +20228,13 @@ local DLG_NAME_TO_CLASS = {
 
 local function draw_dialogue()
   draw_overworld()
-  -- box: y=26..63 = 38px tall. Layout:
-  --   header strip y=27..37 = sprite (8x8) at left + name + underline
-  --   body strip   y=39..62 = up to 3 wrapped lines of text
+  -- Single dialogue box for ALL dialogue (NPC + scene). Same size
+  -- everywhere so the player isn't seeing two different UIs.
+  -- Box: y=26..63 = 38px tall.
+  --   Header strip y=27..37 (sprite + name + underline)
+  --   Body strip   y=39..62 (up to 3 wrapped lines)
+  -- Scenes that need actors visible during dialogue must put them at
+  -- map rows above where the box covers (cam.y=1 → rows 1-3 visible).
   screen.level(0)
   screen.rect(0, 26, 128, 38)
   screen.fill()
@@ -9077,50 +20260,63 @@ local function draw_dialogue()
     body = body:gsub(pat, "")
   end
 
-  -- ── HEADER STRIP (y=27..37) ──
-  -- Pick a sprite for the speaker:
-  --   1. Party-class (Strom/Miel/...) → SPRITE_BY_CLASS via DLG_NAME_TO_CLASS
-  --   2. NPC by name (Tova/Hens/Sergei/...) → NPC_SPRITES[name]
-  --   3. NPC's own dialog with no [Speaker] tag → NPC_SPRITES[dlg.npc.name]
-  local sprite_fn = nil
-  local cls = DLG_NAME_TO_CLASS[speaker]
-  if cls and SPRITE_BY_CLASS[cls] then
-    sprite_fn = SPRITE_BY_CLASS[cls]
-  elseif NPC_SPRITES and NPC_SPRITES[speaker] then
-    sprite_fn = NPC_SPRITES[speaker]
-  end
-  local name_x = 4
-  if sprite_fn then
-    local saved = player.facing
-    player.facing = "down"
-    local bob = ((tick % 6) < 3) and 0 or 1
-    sprite_fn(2, 28 - bob)   -- sprite top-aligned in header
-    -- yapping speech blip near the sprite mouth
-    if (tick % 4) < 2 then
-      screen.level(15); screen.pixel(11, 32 - bob); screen.fill()
+  -- ── HEADER STRIP (y=27..37) — sprite + speaker name + underline ──
+  do
+    local sprite_fn = nil
+    local cls = DLG_NAME_TO_CLASS[speaker]
+    if cls and SPRITE_BY_CLASS[cls] then
+      sprite_fn = SPRITE_BY_CLASS[cls]
+    elseif NPC_SPRITES and NPC_SPRITES[speaker] then
+      sprite_fn = NPC_SPRITES[speaker]
     end
-    player.facing = saved
-    name_x = 13  -- name sits cleanly to the right of the 8x8 sprite
+    local name_x = 4
+    if sprite_fn then
+      local saved = player.facing
+      player.facing = "down"
+      local bob = ((tick % 6) < 3) and 0 or 1
+      sprite_fn(2, 28 - bob)
+      if (tick % 4) < 2 then
+        screen.level(15); screen.pixel(11, 32 - bob); screen.fill()
+      end
+      player.facing = saved
+      name_x = 13
+    end
+    screen.level(15)
+    screen.move(name_x, 34)
+    screen.text(speaker)
+    screen.level(4)
+    screen.move(2, 37); screen.line(126, 37); screen.stroke()
   end
-  -- speaker name (default font, baseline at y=34 — vertically centered
-  -- against the sprite that spans y=28..35)
-  screen.level(15)
-  screen.move(name_x, 34)
-  screen.text(speaker)
-  -- separator line under the header strip
-  screen.level(4)
-  screen.move(2, 37); screen.line(126, 37); screen.stroke()
 
   -- ── BODY STRIP (y=39..62) ──
   -- 3 lines max. Default font (8 tall) fits 3 lines at y=46/54/62; the
   -- compact font (6 tall) is used when wrap count exceeds 3 with default
   -- font, still capped at 3 lines.
+  --
+  -- FF-style typewriter. Characters reveal at TYPEWRITER_CPT chars/tick.
+  -- 3.0 cpt @ 20fps = 60 chars/sec — fast enough that the reveal feels
+  -- snappy ("characters speak quickly") without being instant. A single
+  -- A-press still snaps to fully-revealed; a second A advances.
+  -- (Previous value of 0.85 cpt = 17 chars/sec was glacial — most lines
+  --  took 4+ seconds, which read as "cut off and moving really slow".)
+  if not dlg.line_start_tick then dlg.line_start_tick = tick end
+  local TYPEWRITER_CPT = 4.0   -- ~80 chars/sec, snappy
+  local age = tick - (dlg.line_start_tick or tick)
+  local total_chars = #body
+  local revealed = math.min(total_chars, math.floor(age * TYPEWRITER_CPT))
+  if dlg.snap_to_complete then revealed = total_chars end
+  dlg.complete = (revealed >= total_chars)
+  local visible_body = body:sub(1, revealed)
   screen.level(13)
   local body_x = 2
-  local lines = wrap_text(body, 124 - body_x)
-  if #lines > 3 then
+  -- Pre-compute the FULL line count so font choice doesn't hop mid-
+  -- reveal. (Otherwise a 4-line message would suddenly switch to the
+  -- compact font as the typewriter crossed the 3-line threshold.)
+  local lines = wrap_text(visible_body, 124 - body_x)
+  local full_lines = wrap_text(body, 124 - body_x)
+  if #full_lines > 3 then
     screen.font_face(25); screen.font_size(6)
-    local lines_compact = wrap_text(body, 124 - body_x)
+    local lines_compact = wrap_text(visible_body, 124 - body_x)
     for i = 1, math.min(3, #lines_compact) do
       screen.move(body_x, 45 + i * 6)
       screen.text(lines_compact[i])
@@ -9132,8 +20328,8 @@ local function draw_dialogue()
       screen.text(lines[i])
     end
   end
-  -- advance prompt
-  if (tick % 6) < 4 then
+  -- advance prompt — only flickers once the full line is revealed.
+  if dlg.complete and (tick % 6) < 4 then
     screen.level(15)
     screen.move(122, 62)
     screen.text("v")
@@ -9588,6 +20784,83 @@ function DRAW_ENEMY.frostwisp(cx, cy)
   screen.pixel(cx + 13, cy + 6 - d)
 end
 
+-- The First Chord — post-endgame superboss. A shifting cluster of
+-- void-pixels that rearrange themselves every few ticks (no fixed
+-- form), with a bright central "kernel" that pulses like a heartbeat.
+-- The whole thing reads as a thing too dissonant to settle.
+function DRAW_ENEMY.firstchord(cx, cy)
+  -- outer void halo (dark)
+  screen.level(2); screen.rect(cx - 18, cy - 14, 36, 28); screen.fill()
+  -- shifting field of bright pixels (8 rotating positions)
+  local seed = math.floor(tick / 3) % 8
+  for i = 0, 11 do
+    local a = (i / 12) * math.pi * 2 + (seed * 0.3)
+    local r = 10 + (i % 3) * 3
+    local px = math.floor(cx + math.cos(a) * r)
+    local py = math.floor(cy + math.sin(a) * (r * 0.6))
+    screen.level((i + seed) % 4 == 0 and 15 or 8)
+    screen.pixel(px, py); screen.fill()
+  end
+  -- middle cluster (bright)
+  local pulse = ((tick % 16) < 8) and 13 or 15
+  screen.level(pulse); screen.rect(cx - 4, cy - 4, 9, 9); screen.fill()
+  -- inner kernel (heartbeat)
+  screen.level(0); screen.rect(cx - 1, cy - 1, 3, 3); screen.fill()
+  screen.level(15); screen.pixel(cx, cy); screen.fill()
+  -- vertical "rip" through center (a glitch line)
+  if (tick % 32) < 4 then
+    screen.level(15)
+    screen.rect(cx, cy - 14, 1, 28); screen.fill()
+  end
+end
+
+-- Strom, the academy boss — heavy warrior with a slab hammer. Stands
+-- ~28 tall x ~24 wide; raises the hammer 1 px on alternate ticks so
+-- the silhouette reads as menacing rather than static.
+function DRAW_ENEMY.strom(cx, cy)
+  local hammer_lift = ((tick % 16) < 8) and 0 or 1
+  -- legs (dark armored boots)
+  screen.level(3)
+  screen.rect(cx - 6, cy + 8, 4, 5); screen.fill()
+  screen.rect(cx + 2, cy + 8, 4, 5); screen.fill()
+  -- chestplate (mid-tone iron)
+  screen.level(6)
+  screen.rect(cx - 8, cy - 6, 16, 14); screen.fill()
+  -- chestplate highlight strip (top edge)
+  screen.level(11); screen.rect(cx - 8, cy - 6, 16, 1); screen.fill()
+  -- belt + buckle
+  screen.level(2); screen.rect(cx - 8, cy + 4, 16, 2); screen.fill()
+  screen.level(13); screen.pixel(cx - 1, cy + 5); screen.pixel(cx, cy + 5); screen.fill()
+  -- pauldrons (shoulder armor flares)
+  screen.level(7); screen.rect(cx - 11, cy - 5, 4, 6); screen.fill()
+  screen.level(7); screen.rect(cx + 7,  cy - 5, 4, 6); screen.fill()
+  -- arms holding the hammer (right arm raised across body)
+  screen.level(5); screen.rect(cx - 10, cy - 1, 3, 7); screen.fill()
+  screen.level(5); screen.rect(cx + 2,  cy - 6 - hammer_lift, 3, 9); screen.fill()
+  -- helmet base
+  screen.level(5); screen.rect(cx - 6, cy - 14, 12, 8); screen.fill()
+  -- helmet top crest (a single ridge)
+  screen.level(11); screen.rect(cx - 1, cy - 16, 2, 2); screen.fill()
+  -- helmet visor slit
+  screen.level(0); screen.rect(cx - 5, cy - 10, 10, 2); screen.fill()
+  -- glowing visor eyes
+  screen.level(15)
+  screen.pixel(cx - 3, cy - 9); screen.pixel(cx + 2, cy - 9); screen.fill()
+  -- HAMMER on his right shoulder (handle going up-right; head at top)
+  -- handle
+  screen.level(4)
+  screen.rect(cx + 3, cy - 14 - hammer_lift, 2, 8); screen.fill()
+  -- head (slab block)
+  screen.level(7)
+  screen.rect(cx,     cy - 20 - hammer_lift, 8, 6); screen.fill()
+  screen.level(11); screen.rect(cx, cy - 20 - hammer_lift, 8, 1); screen.fill()
+  screen.level(2);  screen.rect(cx, cy - 15 - hammer_lift, 8, 1); screen.fill()
+  -- rivet marks on the hammer head
+  screen.level(13)
+  screen.pixel(cx + 1, cy - 18 - hammer_lift)
+  screen.pixel(cx + 6, cy - 18 - hammer_lift); screen.fill()
+end
+
 function DRAW_ENEMY.granite(cx, cy)
   -- jagged stone golem
   screen.level(7)
@@ -9843,12 +21116,12 @@ ANIM.draw_action_fx = function(p, sx, sy)
       screen.level(15 - t * 2)
       screen.pixel(sxk, syk); screen.pixel(sxk + 1, syk); screen.pixel(sxk, syk + 1); screen.fill()
     end
-  elseif action == "PLAY" or action == "LYRE" or action == "HORN" or action == "SMPL" then
+  elseif action == "PLAY" or action == "HEAL" or action == "TUNE" or action == "SMPL" then
     -- Musical notes drifting up. Different glyph counts/colors per instrument
     -- so each character's "play" feels visually distinct.
     local count, color = 3, 15
-    if action == "LYRE" then count, color = 4, 13          -- gentle gold
-    elseif action == "HORN" then count, color = 2, 11      -- bold low notes
+    if action == "HEAL" then count, color = 4, 13          -- gentle gold
+    elseif action == "TUNE" then count, color = 2, 11      -- bold low notes
     elseif action == "SMPL" then count, color = 5, 15      -- many bright sparks
     end
     for k = 0, count - 1 do
@@ -9881,6 +21154,30 @@ ANIM.draw_action_fx = function(p, sx, sy)
     screen.move(cxc, cyc - r); screen.line(cxc + r, cyc); screen.stroke()
     screen.move(cxc + r, cyc); screen.line(cxc, cyc + r); screen.stroke()
     screen.move(cxc, cyc + r); screen.line(cxc - r, cyc); screen.stroke()
+  elseif action == "REF" then
+    -- Mirror-shimmer: two concentric diamonds (the 'mirror' field) +
+    -- four orbiting sparkles. Brighter than DEF, hangs longer.
+    local r1 = 3 + t
+    local r2 = 5 + t
+    screen.level(15 - t)
+    screen.move(cxc - r1, cyc); screen.line(cxc, cyc - r1); screen.stroke()
+    screen.move(cxc, cyc - r1); screen.line(cxc + r1, cyc); screen.stroke()
+    screen.move(cxc + r1, cyc); screen.line(cxc, cyc + r1); screen.stroke()
+    screen.move(cxc, cyc + r1); screen.line(cxc - r1, cyc); screen.stroke()
+    screen.level(math.max(2, 12 - t * 2))
+    screen.move(cxc - r2, cyc); screen.line(cxc, cyc - r2); screen.stroke()
+    screen.move(cxc, cyc - r2); screen.line(cxc + r2, cyc); screen.stroke()
+    screen.move(cxc + r2, cyc); screen.line(cxc, cyc + r2); screen.stroke()
+    screen.move(cxc, cyc + r2); screen.line(cxc - r2, cyc); screen.stroke()
+    -- four orbiting sparkles, rotating with t
+    local ang0 = t * 0.8
+    for i = 0, 3 do
+      local a = ang0 + i * (math.pi / 2)
+      local sxp = cxc + math.floor(math.cos(a) * (r2 + 2))
+      local syp = cyc + math.floor(math.sin(a) * (r2 + 2))
+      screen.level(15)
+      screen.pixel(sxp, syp); screen.fill()
+    end
   elseif action == "ITM" then
     -- Bright + cross on the sprite + 4 corner sparkles flying outward
     screen.level(15 - t)
@@ -9917,6 +21214,28 @@ ANIM.draw_stick = function(box_x, box_y, nx, ny)
 end
 
 local function draw_battle()
+  -- Critical-HP vignette: any alive party member below 25% HP triggers a
+  -- subtle pulsing border tint. Reads as urgency without obscuring the
+  -- battle UI. Drawn FIRST so it sits behind everything.
+  do
+    local crit = false
+    for _, p in ipairs(party) do
+      if p.alive and p.hp_max > 0 and (p.hp / p.hp_max) <= 0.25 then crit = true; break end
+    end
+    if crit then
+      local pulse = ((tick % 16) < 8) and 11 or 7
+      screen.level(pulse)
+      -- Two-pixel-thick border at top + bottom (corners only).
+      screen.rect(0, 0, 12, 1); screen.fill()
+      screen.rect(0, 1, 4, 1); screen.fill()
+      screen.rect(116, 0, 12, 1); screen.fill()
+      screen.rect(124, 1, 4, 1); screen.fill()
+      screen.rect(0, 63, 12, 1); screen.fill()
+      screen.rect(0, 62, 4, 1); screen.fill()
+      screen.rect(116, 63, 12, 1); screen.fill()
+      screen.rect(124, 62, 4, 1); screen.fill()
+    end
+  end
   -- ── TOP BAR (rows 0-7): cave name (left) with tiny BPM/key inline ──
   screen.font_face(25); screen.font_size(6)
   screen.level(15)
@@ -10077,13 +21396,29 @@ local function draw_battle()
     -- 4 actions in fixed A/B/X/Y order
     local ca = CLASS_ACTIONS[ap.class]
     local actions = {ca.A, ca.B, ca.X, ca.Y}
+    -- LIMIT BREAK indicator: when this character is at <=25% HP and
+    -- their limit is unused, the ATK row gets a flashing "!" prefix
+    -- so the player knows pressing A will fire their special.
+    local limit_ready = (ap.alive and not ap.limit_used
+                         and ap.hp > 0 and ap.hp <= ap.hp_max * 0.25)
     for i, act in ipairs(actions) do
       local y = py + 13 + (i - 1) * 5
       local sel = (act == ap.queued)
       screen.level(sel and 15 or 6)
       screen.move(px + 3, y)
       screen.font_face(25); screen.font_size(6)
-      screen.text((sel and ">" or " ") .. act)
+      -- For ITM: append the picked item name when one is pinned, so the
+      -- player can see what their next ITM action will use.
+      local label = act
+      if act == "ITM" and sel and ap.item_pick and ap.item_pick ~= "auto" then
+        label = "ITM:" .. ap.item_pick
+      end
+      if act == "ATK" and limit_ready then
+        local blink = (tick % 8) < 4
+        screen.level(blink and 15 or 11)
+        label = "LIMIT!"
+      end
+      screen.text((sel and ">" or " ") .. label)
       screen.font_face(1); screen.font_size(8)
     end
   end
@@ -10109,15 +21444,35 @@ local function draw_battle()
       screen.level((tick % 6 < 3) and 15 or 8)
       screen.rect(cx, 48, 32, 16); screen.stroke()
     end
-    -- character sprite (left of column at row 49) — battle animations land here
+    -- Rhythm-charged indicator: bright ♪ at top-right of column when
+    -- the player armed a rhythm-crit by pressing A on the beat. Fades
+    -- after a few ticks so it reads as confirmation, not clutter.
+    if p.rhythm_charged then
+      local age = tick - (p.rhythm_charged_t or tick)
+      local lev = math.max(8, 15 - math.floor(age * 0.5))
+      screen.level(lev)
+      screen.pixel(cx + 27, 49); screen.pixel(cx + 27, 50)
+      screen.pixel(cx + 28, 49); screen.pixel(cx + 28, 51)
+      screen.pixel(cx + 29, 50); screen.fill()
+    end
+    -- character sprite (left of column at row 49) — battle animations land here.
+    -- FF-style shock-jump: when recently hit (last 6 ticks), the sprite
+    -- bumps 1-2 px back and to the side, easing back to neutral. Reads
+    -- as a recoil from the projectile.
     local sx, sy = cx + 1, 49
     if p.alive then
+      local hit_age = tick - p.last_hit
+      if hit_age >= 0 and hit_age < 6 then
+        -- 0..2: peak displacement; 3..5: ease back.
+        local mag = (hit_age < 3) and (3 - hit_age) or (6 - hit_age)
+        sy = sy + mag             -- pushed down (recoil)
+      end
       local fn = SPRITE_BY_CLASS[p.class]
       if fn then fn(sx, sy) end
       -- per-action firing animation (slash / spell / notes / shield / barrier / heal sparkle)
       ANIM.draw_action_fx(p, sx, sy)
       -- recently hit = bright outline + 4 corner sparks (sprite stays visible)
-      if (tick - p.last_hit) < 3 then
+      if hit_age < 3 then
         screen.level(15)
         screen.rect(sx - 1, sy - 1, 10, 10); screen.stroke()
         screen.pixel(sx - 2, sy - 2); screen.pixel(sx + 9, sy - 2)
@@ -10167,6 +21522,7 @@ local function draw_battle()
       if p.blocking then marks[#marks+1] = "B" end
       if p.buffed then marks[#marks+1] = "+" end
       if p.shield then marks[#marks+1] = "*" end
+      if p.reflect then marks[#marks+1] = "M" end   -- Mirror (Miel's reflect)
       if (p.regen_hp_ticks or 0) > 0 then marks[#marks+1] = "R" end
       if (p.dmg_reduce_ticks or 0) > 0 then marks[#marks+1] = "D" end
       if (p.poison_ticks or 0) > 0 then marks[#marks+1] = "P" end
@@ -10236,98 +21592,255 @@ local function draw_battle()
     screen.level(15); screen.rect(40, 11, 48, 8); screen.stroke()
     screen.move(64, 17); screen.text_center(levelup_flash_who .. " UP!")
   end
-  -- generic story-event banner (Sergei intervention etc.)
+  -- generic story-event banner (Sergei intervention, ambient events,
+  -- chord milestones etc.). Box is full-width-ish (4-124) and uses the
+  -- compact 6px font so 30-40 char strings fit on one line. Without
+  -- the font swap the default 8px font caps usable text at ~12 chars
+  -- and longer banners (e.g. "* a lute, far off, plays one phrase *")
+  -- overflow the previous 96px box.
   if CONTENT.banner_ticks > 0 then
-    screen.level(0); screen.rect(16, 18, 96, 14); screen.fill()
-    screen.level(15); screen.rect(16, 18, 96, 14); screen.stroke()
-    screen.move(64, 27); screen.text_center(CONTENT.banner_text)
+    screen.level(0); screen.rect(4, 18, 120, 12); screen.fill()
+    screen.level(15); screen.rect(4, 18, 120, 12); screen.stroke()
+    screen.font_face(25); screen.font_size(6)
+    screen.move(64, 26); screen.text_center(scrub_text(CONTENT.banner_text or ""))
+    screen.font_face(1); screen.font_size(8)
+  end
+end
+
+-- ── Victory phase 2: XP gain + level-up summary ─────────────────────────
+-- Full-screen slide that follows the rewards window. Up to four rows
+-- (one per alive party member) with sprite + name + Lv.X→Y if leveled.
+-- Globals (no `local`) to dodge the 200-main-chunk-locals cap; the
+-- name lookup is rebuilt inside the function for the same reason.
+function draw_battle_end_xp()
+  local NAMES = {
+    mage="Diegues", cleric="Miel", warrior="Strom", bard="Alder",
+    engineer="Sergei", mathwiz="Paj", drummer="Niko",
+  }
+  draw_battle()
+  screen.level(0); screen.rect(0, 0, 128, 64); screen.fill()
+  screen.level(15); screen.rect(0, 0, 128, 64); screen.stroke()
+
+  -- Header: "+N XP" centered.
+  screen.font_face(1); screen.font_size(8)
+  local sum = CONTENT.xp_summary or {amount = 0, gains = {}}
+  screen.level(15); screen.move(64, 9)
+  screen.text_center("+" .. (sum.amount or 0) .. " XP")
+  screen.level(4); screen.move(2, 12); screen.line(126, 12); screen.stroke()
+
+  -- Up to 4 rows of party gains. Row pitch 11 px keeps the bottom of row
+  -- 4 (sprite ends at y=54, text baseline at 54) clear of the y=58 footer.
+  screen.font_face(25); screen.font_size(6)
+  local saved_facing = player.facing
+  player.facing = "down"
+  for i, g in ipairs(sum.gains) do
+    if i > 4 then break end
+    local row_y = 14 + (i - 1) * 11
+    local fn = SPRITE_BY_CLASS[g.class]
+    if fn then fn(2, row_y) end
+    -- name (left)
+    screen.level(15); screen.move(14, row_y + 4)
+    screen.text(NAMES[g.class] or g.class)
+    -- level info (middle column)
+    if g.leveled then
+      screen.level(15); screen.move(48, row_y + 4)
+      screen.text("Lv." .. g.pre .. ">" .. g.post)
+    else
+      screen.level(11); screen.move(48, row_y + 4)
+      screen.text("Lv." .. g.post)
+    end
+    -- xp progress (right column or LVL UP badge if just leveled)
+    if g.leveled then
+      if (tick % 8) < 5 then
+        screen.level(15); screen.move(126, row_y + 4); screen.text_right("LVL UP!")
+      end
+    elseif g.at_cap then
+      screen.level(8); screen.move(126, row_y + 4); screen.text_right("MAX")
+    else
+      screen.level(13); screen.move(126, row_y + 4)
+      screen.text_right(g.xp_cur .. "/" .. g.xp_next .. " XP")
+    end
+  end
+  player.facing = saved_facing
+  screen.font_face(1); screen.font_size(8)
+
+  -- Footer
+  screen.level(4); screen.move(2, 58); screen.line(126, 58); screen.stroke()
+  if (tick % 6) < 4 then
+    screen.font_face(25); screen.font_size(6)
+    screen.level(12); screen.move(64, 63); screen.text_center("press A to leave")
+    screen.font_face(1); screen.font_size(8)
   end
 end
 
 local function draw_battle_end()
+  -- Phase 2 = XP summary slide (only on victory after A press).
+  if battle_outcome == "VICTORY" and (CONTENT.battle_end_phase or 1) == 2 then
+    draw_battle_end_xp()
+    return
+  end
+  -- Full-screen end-of-battle panel. Bands top→bottom:
+  --   y= 1.. 9  header     — VICTORY/DEFEAT + gold pickup (right)
+  --   y=12        divider
+  --   y=14..36  rewards    — shard/heal, instrument or consumable, class hint
+  --   y=38        divider
+  --   y=39..54  quip strip — speaker sprite + name + body line (one line)
+  --   y=60        press-A   — blinking footer
+  -- Each text line uses a fixed baseline; bands never overlap.
   draw_battle()
-  -- expand the panel a bit when there's a boss drop to announce
-  local has_drop = (last_boss_drop and INSTRUMENTS[last_boss_drop])
-  local panel_h = has_drop and 38 or 28
-  screen.level(0)
-  screen.rect(14, 18, 100, panel_h)
-  screen.fill()
-  screen.level(15)
-  screen.rect(14, 18, 100, panel_h)
-  screen.stroke()
-  screen.move(64, 28)
-  screen.text_center(battle_outcome)
-  screen.level(8)
-  screen.move(64, 36)
+  -- black backdrop + thin border
+  screen.level(0); screen.rect(0, 0, 128, 64); screen.fill()
+  screen.level(15); screen.rect(0, 0, 128, 64); screen.stroke()
+
+  -- ── HEADER ──
+  screen.font_face(1); screen.font_size(8)
+  screen.level(15); screen.move(64, 8); screen.text_center(battle_outcome)
+  if battle_outcome == "VICTORY" and SHOP.last_gold and SHOP.last_gold > 0 then
+    screen.level(11); screen.move(124, 8); screen.text_right("+" .. SHOP.last_gold .. "g")
+  end
+  screen.level(4); screen.move(2, 12); screen.line(126, 12); screen.stroke()
+
   if battle_outcome == "VICTORY" then
+    -- ── REWARDS BAND ──
+    -- Row 1: shard line (boss) OR heal line (random)
     if last_obtained_shard then
-      screen.level(15)
-      screen.move(64, 36)
+      screen.level(15); screen.move(64, 21)
       screen.text_center("+ " .. SHARD_DISPLAY[last_obtained_shard] .. " Shard")
     else
-      screen.text_center("party heals 25%")
+      screen.level(13); screen.move(64, 21); screen.text_center("party heals 25%")
     end
-    if has_drop then
+    -- Row 2: instrument drop (boss) OR consumable drop (random); they're
+    -- mutually exclusive in practice — boss fights don't drop salves and
+    -- random fights don't drop instruments.
+    if last_boss_drop and INSTRUMENTS[last_boss_drop] then
       local inst = INSTRUMENTS[last_boss_drop]
-      screen.level(11)
-      screen.move(64, 45)
-      screen.text_center("+ " .. inst.name)
-      screen.level(6)
-      screen.move(64, 51)
-      screen.text_center("(" .. inst.class .. " — equip in menu)")
-    end
-    -- consumable drop badge (random battles only) — sits below the heal/shard line
-    if SHOP.last_item_drop and SHOP.items[SHOP.last_item_drop] then
-      screen.level(13)
-      screen.move(64, 44)
+      screen.level(11); screen.move(64, 29); screen.text_center("+ " .. inst.name)
+      -- Row 3: class hint in 6px font, comfortably below row 2.
+      screen.font_face(25); screen.font_size(6)
+      screen.level(6); screen.move(64, 36)
+      screen.text_center("(" .. inst.class .. " - equip in menu)")
+      screen.font_face(1); screen.font_size(8)
+    elseif SHOP.last_item_drop and SHOP.items[SHOP.last_item_drop] then
+      screen.level(13); screen.move(64, 29)
       screen.text_center("+ 1 " .. SHOP.items[SHOP.last_item_drop].name)
     end
-    -- gold drop badge (right corner)
-    if SHOP.last_gold and SHOP.last_gold > 0 then
-      screen.level(11)
-      screen.move(110, 28)
-      screen.text_right("+" .. SHOP.last_gold .. "g")
-    end
   else
-    screen.text_center("retreat to overworld")
+    screen.level(8); screen.move(64, 24); screen.text_center("retreat to overworld")
   end
-  if (tick % 6) < 4 then
-    screen.level(12)
-    screen.move(64, 18 + panel_h - 4)
-    screen.text_center("press A to leave")
-  end
-  -- Pass 56: post-victory quip rendered as a dialogue strip at the bottom
-  -- of the screen — matches the in-game NPC dialogue style (sprite at
-  -- left + speaker name + body text). Replaces the old flash banner.
-  if battle_outcome == "VICTORY" and CONTENT.victory_quip then
-    local q = CONTENT.victory_quip
-    -- panel: y = 50..63 = 14 px tall, full width
-    screen.level(0); screen.rect(0, 50, 128, 14); screen.fill()
-    screen.level(15); screen.rect(0, 50, 128, 14); screen.stroke()
-    -- speaker sprite at left (8x8). Map "Speaker" → class via DLG_NAME_TO_CLASS
-    -- with extras for the recruits.
+
+  -- ── VICTORY POSES + QUIP STRIP ──
+  -- Top half (y=38..49): row of celebratory sprites for every alive
+  -- party member, each bobbing on its own phase. Speaker (if any) gets
+  -- a brighter sparkle. Bottom half (y=51..58): speaker name + quip.
+  if battle_outcome == "VICTORY" then
+    screen.level(4); screen.move(2, 38); screen.line(126, 38); screen.stroke()
     local NAME_TO_CLASS = {Alder="bard", Miel="cleric", Strom="warrior", Diegues="mage",
                             Sergei="engineer", Paj="mathwiz", Niko="drummer"}
-    local cls = NAME_TO_CLASS[q.speaker] or q.class
-    local body_x = 4
-    if cls and SPRITE_BY_CLASS[cls] then
+    local q = CONTENT.victory_quip
+    local speaker_cls = q and (NAME_TO_CLASS[q.speaker] or q.class) or nil
+    -- Collect alive party members for the pose row.
+    local alive = {}
+    for _, p in ipairs(party) do if p.alive then alive[#alive + 1] = p end end
+    local n = #alive
+    if n > 0 then
       local saved = player.facing
       player.facing = "down"
-      local bob = ((tick % 6) < 3) and 0 or 1
-      SPRITE_BY_CLASS[cls](2, 53 - bob)
-      if (tick % 4) < 2 then
-        screen.level(15); screen.pixel(11, 56 - bob); screen.fill()
+      local span = 110                    -- usable width
+      local left = 64 - span / 2
+      local step = (n > 1) and (span / (n - 1)) or 0
+      for i, p in ipairs(alive) do
+        local cx = math.floor(left + (i - 1) * step + (n == 1 and span / 2 or 0))
+        local fn = SPRITE_BY_CLASS[p.class]
+        if fn then
+          -- Per-character bob phase so the row reads as four people, not a wave.
+          local bob = (((tick + i * 3) % 8) < 4) and 0 or 1
+          fn(cx - 4, 41 - bob)
+        end
+        -- Celebratory symbol above each head — class-themed glyph that
+        -- pops every few ticks. Speaker gets a brighter twinkle.
+        local is_speaker = (speaker_cls == p.class)
+        local twinkle = (((tick + i * 5) % 12) < 6)
+        if twinkle then
+          local lev = is_speaker and 15 or 11
+          screen.level(lev)
+          if p.class == "bard" then
+            -- musical eighth note (♪)
+            screen.pixel(cx + 1, 36); screen.pixel(cx + 2, 35)
+            screen.pixel(cx + 3, 34); screen.pixel(cx + 3, 36)
+            screen.fill()
+          elseif p.class == "cleric" then
+            -- soft halo dot pair
+            screen.pixel(cx,     35); screen.pixel(cx + 4, 35); screen.fill()
+            screen.pixel(cx + 2, 34); screen.fill()
+          elseif p.class == "warrior" then
+            -- raised-blade glint (vertical 2px + sparkle)
+            screen.rect(cx + 2, 34, 1, 3); screen.fill()
+            screen.pixel(cx + 4, 35); screen.fill()
+          elseif p.class == "mage" then
+            -- arcane sparkle (4-pointed)
+            screen.pixel(cx + 2, 34); screen.fill()
+            screen.pixel(cx + 1, 35); screen.pixel(cx + 3, 35); screen.fill()
+            screen.pixel(cx + 2, 36); screen.fill()
+          else
+            -- generic plus-spark for engineer/mathwiz/drummer
+            screen.pixel(cx + 2, 34); screen.fill()
+            screen.pixel(cx + 1, 35); screen.pixel(cx + 3, 35); screen.fill()
+          end
+        end
       end
       player.facing = saved
-      body_x = 12
     end
-    -- speaker name + thin separator
+    -- Speaker quip (one line, 6px) below the pose row.
+    if q then
+      screen.font_face(25); screen.font_size(6)
+      screen.level(15); screen.move(64, 53); screen.text_center(q.speaker .. ": " .. q.body)
+      screen.font_face(1); screen.font_size(8)
+    end
+  end
+
+  -- ── FOOTER ──
+  if (tick % 6) < 4 then
+    screen.level(12); screen.move(64, 61); screen.text_center("press A to leave")
+  end
+end
+
+-- GAME OVER screen. Black field, slow fade-in of "GAME OVER", a thin rule
+-- of static beneath, blinking "press A — return to title" prompt. Globally
+-- assigned so the dispatcher (which references it by name above) can find
+-- it regardless of declaration order.
+function draw_game_over()
+  screen.level(0); screen.rect(0, 0, 128, 64); screen.fill()
+  local age = tick - (GAME_OVER_TICK or 0)
+  -- 60-tick fade-in on the title text (eased), capped at level 15.
+  local lev = math.min(15, math.floor(age * 0.30))
+  screen.font_face(1); screen.font_size(8)
+  screen.level(lev)
+  screen.move(64, 24); screen.text_center("GAME OVER")
+  -- decorative rule + sparse static below the text
+  screen.level(math.max(2, lev - 7))
+  screen.move(28, 30); screen.line(100, 30); screen.stroke()
+  if age > 24 then
+    for i = 1, 14 do
+      local sx = 28 + (i * 5 + (tick // 4)) % 72
+      local sy = 33 + ((i * 7 + tick) % 4)
+      if ((tick + i) % 5) < 2 then
+        screen.level(math.max(2, lev - 4))
+        screen.pixel(sx, sy); screen.fill()
+      end
+    end
+  end
+  -- subtitle (only after fade-in mostly resolves)
+  if age > 40 then
     screen.font_face(25); screen.font_size(6)
-    screen.level(15); screen.move(body_x, 55); screen.text(q.speaker)
-    screen.level(4)
-    screen.move(body_x, 56); screen.line(body_x + 24, 56); screen.stroke()
-    -- body text (compact font; one line — quips are short)
-    screen.level(13); screen.move(body_x, 62); screen.text(q.body)
+    screen.level(math.max(4, lev - 4))
+    screen.move(64, 44); screen.text_center("the chord falls silent.")
+    screen.font_face(1); screen.font_size(8)
+  end
+  -- blinking prompt
+  if age > 80 and (tick % 12) < 8 then
+    screen.font_face(25); screen.font_size(6)
+    screen.level(11)
+    screen.move(64, 58); screen.text_center("A  return to title")
     screen.font_face(1); screen.font_size(8)
   end
 end
@@ -10338,41 +21851,43 @@ local function draw_menu()
   -- Solid black background so the overworld is fully obscured.
   screen.level(0); screen.rect(0, 0, 128, 64); screen.fill()
 
-  -- ── LEFT: party panels (64 wide × 64 tall, 4 stacked panels of 16) ──
+  -- ── LEFT: party panels (62 wide × 64 tall, 4 stacked panels of 16) ──
+  -- The active leader's panel gets a brighter frame so the "current"
+  -- party member is visually distinguishable from the roster.
   screen.font_face(25); screen.font_size(6)
   local saved_facing = player.facing
   player.facing = "down"
   for i, p in ipairs(party) do
     local py0 = (i - 1) * 16
-    -- thin frame
-    screen.level(11); screen.rect(0, py0, 62, 15); screen.stroke()
-    -- sprite at left
+    local is_lead = (i == active)
+    screen.level(is_lead and 15 or 4); screen.rect(0, py0, 62, 15); screen.stroke()
     local fn = SPRITE_BY_CLASS[p.class]
     if fn then fn(2, py0 + 4) end
-    -- name (top-right of panel)
     screen.level(15); screen.move(13, py0 + 5)
     screen.text(CHAR_NAME[p.class] or p.class)
-    -- level
     screen.level(11); screen.move(45, py0 + 5)
-    screen.text("L" .. (p.level or 1))
-    -- HP "current/max"
+    screen.text("LV " .. (p.level or 1))
     screen.level(p.alive and 15 or 5)
     screen.move(13, py0 + 11)
     screen.text("HP " .. (p.hp or 0) .. "/" .. (p.hp_max or 0))
-    -- KO marker
     if not p.alive then
       screen.level(8); screen.move(13, py0 + 13); screen.text("KO")
     end
   end
-  player.facing = saved_facing
 
   -- ── RIGHT: menu list (64 wide × 64 tall) ──
+  -- The leader-indicator slot was removed — the highlighted (level 15)
+  -- frame on the active leader's left-side party panel is enough of a
+  -- "you are here" cue without crowding the menu header.
   local mx = 64
   screen.level(11); screen.rect(mx, 0, 64, 64); screen.stroke()
+  player.facing = saved_facing
   screen.level(15); screen.move(mx + 32, 6); screen.text_center("MENU")
   screen.level(6); screen.move(mx + 3, 8); screen.line(mx + 61, 8); screen.stroke()
+  -- First option starts at y=14 so its 6px-font glyphs (y=9..14) clear the
+  -- divider at y=8 — was y=12 which had glyphs y=7..12 crashing into the line.
   for i, opt in ipairs(MENU_OPTIONS) do
-    local y = 12 + (i - 1) * 5
+    local y = 14 + (i - 1) * 5
     local label = opt
     if opt == "Debug" then label = opt .. ": " .. (debug_visible and "ON" or "OFF") end
     if i == menu_idx then
@@ -10381,7 +21896,8 @@ local function draw_menu()
       screen.level(7); screen.move(mx + 6, y); screen.text(label)
     end
   end
-  -- footer: gold counter
+  -- Footer: gold counter (left), kept clear of menu options above by the
+  -- 5-px row pitch capping the option list at y=14+8*5=54.
   screen.level(11); screen.move(mx + 3, 62); screen.text(SHOP.gold .. "g")
   screen.font_face(1); screen.font_size(8)
   -- save flash (kept on default font)
@@ -10391,7 +21907,7 @@ local function draw_menu()
     screen.fill()
     screen.level(15)
     screen.move(64, 62)
-    screen.text_center(save_flash_text)
+    screen.text_center(scrub_text(save_flash_text or ""))
   end
 end
 
@@ -10696,106 +22212,84 @@ end  -- portraits
 
 -- ============================================================ STATUS SCREEN
 
-local function draw_status_bar(x, y, w, cur, max, lvl)
+local function draw_status_bar(x, y, w, cur, max, lvl, h)
+  h = h or 3
   screen.level(2)
-  screen.rect(x, y, w, 3)
-  screen.fill()
+  screen.rect(x, y, w, h); screen.fill()
   if max > 0 then
     local f = math.max(0, math.min(1, cur / max))
     screen.level(lvl or 13)
-    screen.rect(x, y, math.floor(w * f + 0.5), 3)
-    screen.fill()
+    screen.rect(x, y, math.floor(w * f + 0.5), h); screen.fill()
   end
-  screen.level(4)
-  screen.rect(x, y, w, 3)
-  screen.stroke()
+  -- Skip the outline at h=1 — a 1-px tall stroked rect renders as a solid
+  -- strip and erases the fill underneath.
+  if h > 1 then
+    screen.level(4); screen.rect(x, y, w, h); screen.stroke()
+  end
 end
 
 local function draw_status()
   if status_idx > #party then status_idx = 1 end
   local p = party[status_idx]
+  local CLASS_LBL = {bard="Bard", cleric="Cleric", warrior="Warrior", mage="Mage",
+                     engineer="Engineer", mathwiz="Mathwiz", drummer="Drummer"}
   local name = CHAR_NAME[p.class]
-  local cls = ({bard="Bard",cleric="Cleric",warrior="Warrior",mage="Mage"})[p.class] or p.class
+  local cls = CLASS_LBL[p.class] or p.class
 
-  -- header bar
-  screen.level(15)
-  screen.move(64, 7)
-  screen.text_center(name .. " — " .. cls)
-  screen.level(3)
-  screen.move(0, 9)
-  screen.line(128, 9)
-  screen.stroke()
+  -- ── HEADER ──
+  -- Name + class on the left, party-selector dots in their own slot top-
+  -- right. Selector was previously a row of dots at y=56 that overlapped
+  -- the y=62 nav hint glyphs. Header uses the compact 6px font so long
+  -- party names ("Engineer") still leave room for the right-side dots.
+  screen.font_face(25); screen.font_size(6)
+  screen.level(15); screen.move(2, 7); screen.text(name .. " - " .. cls)
+  for i = 1, #party do
+    local dx = 100 + (i - 1) * 7
+    screen.level(i == status_idx and 15 or 4)
+    screen.rect(dx, 4, 3, 3); screen.fill()
+  end
+  screen.level(3); screen.move(0, 9); screen.line(128, 9); screen.stroke()
 
-  -- "portrait" — actual in-game sprite blown up 3x and framed at the left.
-  -- Replaces the old detailed portraits.
+  -- ── PORTRAIT (left, 28x40) ──
   local fx, fy, fw, fh = 2, 12, 28, 40
-  -- frame backdrop
   screen.level(2); screen.rect(fx, fy, fw, fh); screen.fill()
   screen.level(11); screen.rect(fx, fy, fw, fh); screen.stroke()
-  -- 3x sprite (24x24) centered horizontally, with a 1-px idle bob
   local bob = ((tick // 6) % 2)
   local sx = fx + math.floor((fw - 24) / 2)
   local sy = fy + 4 - bob
   SPRITE_BY_CLASS.scaled(p.class, sx, sy, 3)
-  -- name plate at the bottom of the frame
-  screen.font_face(25); screen.font_size(6)
-  screen.level(15)
-  screen.move(fx + fw / 2, fy + fh - 2)
-  screen.text_center(name)
-  screen.font_face(1); screen.font_size(8)
-  -- KO overlay
+  screen.level(15); screen.move(fx + fw / 2, fy + fh - 2); screen.text_center(name)
   if not p.alive then
     screen.level(0); screen.rect(fx, fy, fw, fh); screen.fill()
-    screen.level(8)
-    screen.move(fx + fw / 2, fy + fh / 2 + 4); screen.text_center("KO")
+    screen.level(8); screen.move(fx + fw / 2, fy + fh / 2 + 4); screen.text_center("KO")
   end
 
-  -- stats (right column)
-  local rx = 36
-  local ry = 14
-  local row_h = 6
+  -- ── STATS (right column, 6px font, slim 1-px bars) ──
+  -- Layout uses a 6-px row pitch; bars sit in the 1-px gap below each
+  -- text row so they never collide with adjacent glyphs. Bar width 40
+  -- (was 60) leaves the right side clear for level/total readouts.
+  local rx, bw = 36, 40
   local lvl = p.level or 1
   local xp = p.xp or 0
   local xp_next = (lvl >= LEVEL_CAP) and 0 or xp_for_level(lvl)
 
-  -- LV (left) + lifetime XP total (right of name row)
-  screen.level(13)
-  screen.move(rx, ry)
-  screen.text("LV " .. lvl)
-  screen.level(6)
-  screen.move(126, ry)
-  screen.text_right("total " .. (p.xp_total or 0))
+  -- LV (left) + lifetime total XP (right)
+  screen.level(13); screen.move(rx, 14); screen.text("LV " .. lvl)
+  screen.level(6); screen.move(126, 14); screen.text_right("Total XP " .. (p.xp_total or 0))
 
-  -- XP-to-next bar
-  ry = ry + row_h - 1
+  -- XP / HP / MP rows. Each: text at y_text, 1-px bar at y_text+1.
   if lvl >= LEVEL_CAP then
-    screen.level(15)
-    screen.move(rx, ry)
-    screen.text("MAX LV")
+    screen.level(15); screen.move(rx, 21); screen.text("XP MAX LV")
   else
-    screen.level(7)
-    screen.move(rx, ry)
-    screen.text("XP " .. xp .. "/" .. xp_next)
-    draw_status_bar(rx, ry + 1, 60, xp, xp_next, 9)
+    screen.level(7); screen.move(rx, 21); screen.text("XP " .. xp .. "/" .. xp_next)
+    draw_status_bar(rx, 22, bw, xp, xp_next, 9, 1)
   end
+  screen.level(10); screen.move(rx, 28); screen.text("HP " .. p.hp .. "/" .. p.hp_max)
+  draw_status_bar(rx, 29, bw, p.hp, p.hp_max, 13, 1)
+  screen.level(10); screen.move(rx, 35); screen.text("MP " .. p.mp .. "/" .. p.mp_max)
+  draw_status_bar(rx, 36, bw, p.mp, p.mp_max, 11, 1)
 
-  -- HP bar
-  ry = ry + row_h
-  screen.level(10)
-  screen.move(rx, ry)
-  screen.text("HP " .. p.hp .. "/" .. p.hp_max)
-  draw_status_bar(rx, ry + 1, 60, p.hp, p.hp_max, 13)
-
-  -- MP bar
-  ry = ry + row_h + 1
-  screen.level(10)
-  screen.move(rx, ry)
-  screen.text("MP " .. p.mp .. "/" .. p.mp_max)
-  draw_status_bar(rx, ry + 1, 60, p.mp, p.mp_max, 11)
-
-  -- core stats grid (ATK / DEF / MAG / SPD)
-  ry = ry + row_h + 1
-  screen.level(11)
+  -- Core stat grid (2x2): ATK | DEF on row 1, MAG | SPD on row 2.
   local function stat_str(label, base, bonus)
     if bonus and bonus ~= 0 then
       return label .. " " .. base .. (bonus > 0 and "+" or "") .. bonus
@@ -10803,35 +22297,21 @@ local function draw_status()
     return label .. " " .. base
   end
   local inst = INSTRUMENTS[equipped[p.class]]
-  screen.move(rx, ry)
-  screen.text(stat_str("ATK", p.atk or 0, inst and inst.atk))
-  screen.move(rx + 32, ry)
-  screen.text(stat_str("DEF", p.def or 0, inst and inst.def))
-  ry = ry + row_h
-  screen.move(rx, ry)
-  screen.text(stat_str("MAG", p.mag or 0, inst and inst.mag))
-  screen.move(rx + 32, ry)
-  screen.text(stat_str("SPD", p.spd or 0, inst and inst.spd))
-
-  -- equipped instrument (replaces class blurb — instrument is more actionable info)
-  ry = ry + row_h
   screen.level(11)
-  screen.move(rx, ry)
-  screen.text((inst and inst.name) or "(no instrument)")
+  screen.move(rx, 43); screen.text(stat_str("ATK", p.atk or 0, inst and inst.atk))
+  screen.move(rx + 32, 43); screen.text(stat_str("DEF", p.def or 0, inst and inst.def))
+  screen.move(rx, 49); screen.text(stat_str("MAG", p.mag or 0, inst and inst.mag))
+  screen.move(rx + 32, 49); screen.text(stat_str("SPD", p.spd or 0, inst and inst.spd))
 
-  -- footer: page dots + nav hint + shards
-  for i = 1, #party do
-    local x = 64 + (i - (#party + 1) / 2) * 6
-    screen.level(i == status_idx and 15 or 3)
-    screen.rect(x - 1, 56, 3, 3)
-    screen.fill()
-  end
-  screen.level(6)
-  screen.move(2, 62)
-  screen.text("L1/R1: switch")
-  screen.level(7)
-  screen.move(126, 62)
-  screen.text_right(count_shards() .. "/" .. SHARD_TOTAL .. " shards")
+  -- Equipped instrument label.
+  screen.level(11); screen.move(rx, 55); screen.text((inst and inst.name) or "(no instrument)")
+
+  -- ── FOOTER ──
+  -- Page dots removed from this band — they live in the top-right header
+  -- now, so the nav hint and shard count get unobstructed rows.
+  screen.level(6); screen.move(2, 62); screen.text("L1/R1: switch")
+  screen.level(7); screen.move(126, 62); screen.text_right(count_shards() .. "/" .. SHARD_TOTAL .. " shards")
+  screen.font_face(1); screen.font_size(8)
 end
 
 -- ============================================================ CUTSCENE SCENES
@@ -10997,21 +22477,694 @@ local function draw_scene_threat()
   screen.level(4); screen.pixel(102 + (smoke_seed % 2), 48); screen.fill()
 end
 
+-- ── PROLOGUE SCENES ──────────────────────────────────────────────────────
+-- Three vignettes that bridge the cosmic/dark lore into Miel's solo opening:
+-- her throne room, Suno's silencer-coup, and the secret cave passage.
+
+local function draw_scene_throne()
+  -- Marble throne room. Two columns, high window, throne center, Miel
+  -- seated. Quiet moonlight palette so the next "coup" scene reads as
+  -- the inversion.
+  screen.level(2); screen.rect(0, 0, 128, 64); screen.fill()
+  -- floor stripes (faint perspective)
+  screen.level(3)
+  for y = 50, 62, 4 do screen.move(8, y); screen.line(120, y); screen.stroke() end
+  -- columns L + R (with caps)
+  screen.level(5); screen.rect(8, 4, 6, 56); screen.fill()
+  screen.level(5); screen.rect(114, 4, 6, 56); screen.fill()
+  screen.level(7); screen.rect(6, 2, 10, 2); screen.fill()
+  screen.level(7); screen.rect(112, 2, 10, 2); screen.fill()
+  -- high window with moonlight
+  screen.level(11); screen.rect(58, 6, 12, 14); screen.fill()
+  screen.level(15); screen.rect(60, 8, 8, 10); screen.fill()
+  -- throne (seat + backrest) with crown silhouette above
+  screen.level(8); screen.rect(56, 38, 16, 16); screen.fill()
+  screen.level(11); screen.rect(54, 24, 20, 16); screen.fill()
+  screen.level(15)
+  screen.move(60, 24); screen.line(62, 20); screen.line(64, 24)
+  screen.line(66, 20); screen.line(68, 24); screen.stroke()
+  -- Miel seated (head + robe)
+  screen.level(13); screen.rect(62, 30, 4, 4); screen.fill()
+  screen.level(7);  screen.rect(60, 34, 8, 8); screen.fill()
+  -- ambient sparkle from the window
+  if (tick % 14) < 7 then
+    screen.level(11); screen.pixel(63, 28); screen.fill()
+  end
+end
+
+local function draw_scene_coup()
+  -- Same room mid-coup: alarm-pulse backdrop, smoke streaks rising,
+  -- silencer silhouettes advancing, Suno (very tall) framed in the
+  -- doorway with a swinging lantern.
+  local alarm = ((tick // 6) % 2 == 0) and 4 or 2
+  screen.level(alarm); screen.rect(0, 0, 128, 64); screen.fill()
+  -- smoke streaks
+  screen.level(3)
+  for i = 0, 4 do
+    local x = (i * 27 + tick // 2) % 128
+    screen.move(x, 64); screen.line(x + 2, 50 - i * 2); screen.stroke()
+  end
+  -- tipped throne
+  screen.level(7); screen.rect(40, 44, 18, 14); screen.fill()
+  screen.level(8); screen.move(40, 58); screen.line(58, 44); screen.stroke()
+  -- 3 silencer silhouettes advancing
+  for i = 0, 2 do
+    local x = 22 + i * 22
+    screen.level(0); screen.rect(x, 44, 5, 16); screen.fill()
+    screen.level(0); screen.rect(x - 1, 38, 7, 6); screen.fill()
+    if (tick + i) % 8 < 4 then
+      screen.level(11); screen.pixel(x + 1, 41); screen.pixel(x + 3, 41); screen.fill()
+    end
+  end
+  -- Suno: very tall figure in doorway right side
+  screen.level(0); screen.rect(108, 14, 6, 46); screen.fill()
+  screen.level(0); screen.rect(106, 8, 10, 8); screen.fill()
+  -- swinging lantern at his side
+  if (tick % 12) < 8 then
+    screen.level(15); screen.pixel(105, 30); screen.pixel(106, 31); screen.pixel(105, 31); screen.fill()
+    screen.level(13); screen.pixel(104, 30); screen.fill()
+  end
+end
+
+local function draw_scene_passage()
+  -- Cave passage. Stalactite ceiling + uneven floor, distant exit glow,
+  -- a torch flickering on the left wall, Miel walking right.
+  screen.level(0); screen.rect(0, 0, 128, 64); screen.fill()
+  -- ceiling stalactites
+  screen.level(3)
+  for x = 0, 124, 4 do
+    local h = 4 + ((x // 4) % 3) * 2
+    screen.rect(x, 0, 4, h); screen.fill()
+  end
+  -- uneven floor
+  for x = 0, 124, 5 do
+    local h = 6 + ((x // 5) % 4) * 2
+    screen.rect(x, 64 - h, 5, h); screen.fill()
+  end
+  -- exit glow on the right (concentric brightening rings)
+  for r = 14, 6, -2 do
+    local lev = math.min(15, 4 + (16 - r))
+    screen.level(lev); screen.circle(118, 32, r); screen.fill()
+  end
+  screen.level(15); screen.circle(118, 32, 4); screen.fill()
+  -- torch on left wall (flickers)
+  if (tick % 10) < 7 then
+    screen.level(13); screen.pixel(8, 30); screen.pixel(9, 29); screen.pixel(7, 29); screen.fill()
+    screen.level(8);  screen.pixel(8, 28); screen.pixel(9, 28); screen.fill()
+  else
+    screen.level(11); screen.pixel(8, 30); screen.fill()
+  end
+  -- Miel silhouette walking right (slow drift + gentle bob)
+  local fx = 28 + (tick // 8) % 64
+  local bob = ((tick // 4) % 2)
+  screen.level(13); screen.rect(fx + 1, 42 - bob, 3, 3); screen.fill()
+  screen.level(7);  screen.rect(fx, 45 - bob, 5, 7); screen.fill()
+end
+
+function draw_scene_cosmic_stars()
+  -- slow-drifting starfield, three brightness layers, no planet/pulsar
+  screen.level(2)
+  for i = 1, 22 do
+    screen.pixel((i * 13 + tick) % 128, (i * 7) % 64)
+  end
+  screen.fill()
+  screen.level(7)
+  for i = 1, 11 do
+    screen.pixel((i * 23 + tick * 2) % 128, (i * 11 + 4) % 60)
+  end
+  screen.fill()
+  screen.level(15)
+  for i = 1, 3 do
+    screen.pixel((i * 41 + 8) % 128, (i * 17 + 12) % 56)
+  end
+  screen.fill()
+end
+
+function draw_scene_cosmic_chord()
+  screen.level(1)
+  for i = 1, 12 do screen.pixel((i * 17 + tick) % 128, (i * 9) % 64) end
+  screen.fill()
+  local pulse = ((tick % 24) < 12) and 15 or 11
+  screen.level(pulse); screen.circle(64, 32, 3); screen.fill()
+  screen.level(7); screen.circle(64, 32, 5); screen.stroke()
+  for i = 0, 6 do
+    local a = (i / 7) * math.pi * 2 + tick * 0.01
+    local x = 64 + math.floor(math.cos(a) * 22)
+    local y = 32 + math.floor(math.sin(a) * 16)
+    screen.level(13)
+    screen.move(x, y - 2); screen.line(x + 1, y); screen.line(x, y + 2); screen.line(x - 1, y); screen.close(); screen.fill()
+  end
+end
+
+function draw_scene_cosmic_modes()
+  screen.level(1)
+  for i = 1, 10 do screen.pixel((i * 19 + tick) % 128, (i * 11) % 64) end
+  screen.fill()
+  screen.level(5); screen.circle(64, 32, 2); screen.fill()
+  local levels = {15, 13, 11, 9, 7, 5, 3}
+  for i = 0, 6 do
+    local a = (i / 7) * math.pi * 2 - math.pi / 2
+    local x = 64 + math.floor(math.cos(a) * 24)
+    local y = 32 + math.floor(math.sin(a) * 18)
+    screen.level(levels[i + 1])
+    screen.move(x, y - 3); screen.line(x + 2, y); screen.line(x, y + 3); screen.line(x - 2, y); screen.close(); screen.fill()
+    if (tick + i * 6) % 28 < 4 then
+      screen.level(15); screen.pixel(x, y); screen.fill()
+    end
+  end
+end
+
+function draw_scene_cosmic_world()
+  screen.level(0); screen.rect(0, 0, 128, 64); screen.fill()
+  screen.level(2)
+  for i = 1, 14 do screen.pixel((i * 17 + tick) % 128, (i * 7) % 36) end
+  screen.fill()
+  -- Modalia, low and central
+  screen.level(3); screen.circle(64, 56, 16); screen.fill()
+  screen.level(5); screen.circle(60, 52, 12); screen.fill()
+  screen.level(7); screen.circle(58, 50, 4); screen.fill()
+  screen.level(7); screen.circle(66, 56, 3); screen.fill()
+  -- chord humming above the world (three faint horizontal arcs)
+  for i = 0, 2 do
+    screen.level(7 - i * 2)
+    screen.move(48 - i * 2, 42 - i * 2); screen.line(80 + i * 2, 42 - i * 2); screen.stroke()
+  end
+end
+
+function draw_scene_cosmic_shatter()
+  screen.level(1)
+  for i = 1, 10 do screen.pixel((i * 19 + tick) % 128, (i * 11) % 64) end
+  screen.fill()
+  -- afterglow at the shatter origin
+  screen.level(8); screen.pixel(64, 32); screen.pixel(63, 32); screen.pixel(65, 32); screen.pixel(64, 31); screen.pixel(64, 33); screen.fill()
+  -- seven shards flying outward, with trails; cycles every 120 ticks
+  local prog = math.min(1, (tick % 120) / 60)
+  for i = 0, 6 do
+    local a = (i / 7) * math.pi * 2
+    local d = math.floor(prog * 40)
+    screen.level(3)
+    for t = 1, 4 do
+      local dt = math.max(0, d - t * 3)
+      screen.pixel(64 + math.floor(math.cos(a) * dt), 32 + math.floor(math.sin(a) * dt))
+    end
+    screen.fill()
+    screen.level(15)
+    screen.pixel(64 + math.floor(math.cos(a) * d), 32 + math.floor(math.sin(a) * d))
+    screen.fill()
+  end
+end
+
+function draw_scene_cosmic_drift()
+  screen.level(1)
+  for i = 1, 14 do screen.pixel((i * 17 + tick) % 128, (i * 9) % 64) end
+  screen.fill()
+  -- seven shards at rest, scattered, dim
+  local pos = {{14,12},{40,18},{72,8},{102,16},{20,46},{56,52},{96,48}}
+  for _, p in ipairs(pos) do
+    local x, y = p[1], p[2]
+    screen.level(8)
+    screen.move(x, y - 2); screen.line(x + 1, y); screen.line(x, y + 2); screen.line(x - 1, y); screen.close(); screen.fill()
+    screen.level(2); screen.pixel(x, y - 3); screen.pixel(x + 2, y); screen.pixel(x, y + 3); screen.pixel(x - 2, y); screen.fill()
+  end
+end
+
+function draw_scene_dark_suno()
+  screen.level(0); screen.rect(0, 0, 128, 64); screen.fill()
+  screen.level(2); screen.rect(0, 50, 128, 14); screen.fill()
+  -- distant mountains
+  screen.level(1)
+  screen.move(0, 50); screen.line(30, 36); screen.line(60, 44); screen.line(90, 32); screen.line(128, 42); screen.line(128, 50); screen.close(); screen.fill()
+  -- broken seven-pointed sigil in the sky behind Suno
+  screen.level(3)
+  for i = 0, 6 do
+    local a = (i / 7) * math.pi * 2 - math.pi / 2
+    screen.pixel(70 + math.floor(math.cos(a) * 12), 22 + math.floor(math.sin(a) * 10))
+  end
+  screen.fill()
+  -- Suno: tall hooded figure dead center
+  screen.level(0)
+  screen.move(58, 64); screen.line(82, 64); screen.line(76, 28); screen.line(64, 28); screen.close(); screen.fill()
+  screen.circle(70, 24, 8); screen.fill()
+  -- two faint glints inside the hood
+  if (tick % 24) < 14 then
+    screen.level(11); screen.pixel(67, 24); screen.pixel(73, 24); screen.fill()
+  end
+end
+
+function draw_scene_dark_march()
+  screen.level(0); screen.rect(0, 0, 128, 64); screen.fill()
+  -- pale sky
+  screen.level(2); screen.rect(0, 0, 128, 36); screen.fill()
+  -- pale road across the middle
+  screen.level(7); screen.rect(0, 36, 128, 6); screen.fill()
+  screen.level(4); screen.rect(0, 42, 128, 22); screen.fill()
+  -- distant treeline along the horizon
+  screen.level(1)
+  for i = 0, 9 do screen.rect(i * 14, 30, 2, 6); screen.fill() end
+  -- a line of silencers walking left to right (slow drift)
+  local base = (tick // 3) % 24
+  for i = 0, 7 do
+    local x = -16 + i * 18 + base
+    if x > -8 and x < 132 then
+      screen.level(0); screen.rect(x, 32, 3, 8); screen.fill()
+      screen.level(0); screen.rect(x - 1, 28, 5, 4); screen.fill()
+    end
+  end
+end
+
+function draw_scene_dark_village()
+  screen.level(0); screen.rect(0, 0, 128, 64); screen.fill()
+  -- moonless sky, a few dim stars
+  screen.level(1)
+  for i = 1, 6 do screen.pixel((i * 19) % 128, (i * 11) % 24) end
+  screen.fill()
+  -- 4 house silhouettes; chimneys but no smoke
+  local houses = {{0,46,28},{30,48,26},{62,44,30},{96,48,32}}
+  for _, h in ipairs(houses) do
+    local x, y, w = h[1], h[2], h[3]
+    screen.level(3)
+    screen.move(x, y); screen.line(x + w / 2, y - 8); screen.line(x + w, y); screen.close(); screen.fill()
+    screen.rect(x, y, w, 64 - y); screen.fill()
+    screen.level(2); screen.rect(x + 4, y - 4, 2, 4); screen.fill()
+  end
+  screen.level(1)
+  screen.rect(8, 52, 4, 4); screen.stroke()
+  screen.rect(38, 54, 4, 4); screen.stroke()
+  screen.rect(70, 52, 4, 4); screen.stroke()
+  screen.rect(104, 54, 4, 4); screen.stroke()
+end
+
+function draw_scene_lirael_coast()
+  -- night sky
+  screen.level(1); screen.rect(0, 0, 128, 36); screen.fill()
+  screen.level(7)
+  for i = 1, 6 do screen.pixel((i * 21) % 128, (i * 7) % 28) end
+  screen.fill()
+  -- crescent moon upper-right
+  screen.level(13); screen.circle(108, 12, 5); screen.fill()
+  screen.level(1); screen.circle(110, 11, 5); screen.fill()
+  -- sea on the right (rippling lines)
+  screen.level(3); screen.rect(64, 36, 64, 28); screen.fill()
+  screen.level(5)
+  for y = 40, 60, 4 do
+    local off = ((tick + y) // 2) % 6
+    screen.move(64 + off, y); screen.line(120, y); screen.stroke()
+  end
+  -- low headland on the left
+  screen.level(2)
+  screen.move(0, 64); screen.line(0, 42); screen.line(20, 36); screen.line(48, 38); screen.line(64, 42); screen.line(64, 64); screen.close(); screen.fill()
+  -- the keep silhouetted on the headland
+  screen.level(0)
+  screen.rect(20, 22, 16, 18); screen.fill()
+  screen.rect(18, 16, 6, 8); screen.fill()
+  screen.rect(32, 16, 6, 8); screen.fill()
+  -- a single warm window in the keep
+  screen.level(13); screen.pixel(26, 30); screen.pixel(27, 30); screen.fill()
+end
+
+function draw_scene_lirael_belltower()
+  screen.level(0); screen.rect(0, 0, 128, 64); screen.fill()
+  screen.level(1)
+  for i = 1, 8 do screen.pixel((i * 17) % 128, (i * 5) % 18) end
+  screen.fill()
+  -- tower silhouette
+  screen.level(3); screen.rect(56, 18, 16, 46); screen.fill()
+  -- crenellated top
+  screen.rect(54, 14, 4, 4); screen.fill()
+  screen.rect(60, 14, 4, 4); screen.fill()
+  screen.rect(66, 14, 4, 4); screen.fill()
+  -- bell chamber arch
+  screen.level(0); screen.rect(58, 22, 12, 12); screen.fill()
+  -- bell, swung in evening pattern
+  local sw = math.floor(math.sin(tick * 0.12) * 3)
+  screen.level(11); screen.rect(62 + sw, 24, 4, 6); screen.fill()
+  screen.level(13); screen.pixel(64 + sw, 30); screen.fill()
+  -- ground torch beams (suggested as lines)
+  screen.level(7)
+  screen.move(56, 64); screen.line(60, 36); screen.stroke()
+  screen.move(72, 64); screen.line(68, 36); screen.stroke()
+  -- two flickering torch flames at the base
+  if (tick % 10) < 7 then
+    screen.level(15); screen.pixel(56, 60); screen.pixel(72, 60); screen.fill()
+    screen.level(11); screen.pixel(56, 58); screen.pixel(72, 58); screen.fill()
+  else
+    screen.level(11); screen.pixel(56, 60); screen.pixel(72, 60); screen.fill()
+  end
+end
+
+function draw_scene_lirael_hall()
+  -- back wall
+  screen.level(2); screen.rect(0, 0, 128, 64); screen.fill()
+  screen.level(3); screen.rect(0, 0, 128, 28); screen.fill()
+  -- tapestry on the back wall
+  screen.level(7); screen.rect(54, 4, 20, 22); screen.fill()
+  screen.level(11); screen.rect(58, 8, 4, 14); screen.fill()
+  -- two tall side windows, moonlit
+  screen.level(11); screen.rect(8, 6, 8, 16); screen.fill()
+  screen.level(11); screen.rect(112, 6, 8, 16); screen.fill()
+  -- floor stripes
+  screen.level(3)
+  for y = 36, 60, 4 do screen.move(8, y); screen.line(120, y); screen.stroke() end
+  -- long table down the middle
+  screen.level(5); screen.rect(20, 38, 88, 8); screen.fill()
+  screen.level(5); screen.rect(22, 46, 2, 12); screen.fill()
+  screen.level(5); screen.rect(104, 46, 2, 12); screen.fill()
+  -- scribe at left end of table (head + robe)
+  screen.level(7); screen.rect(24, 34, 4, 4); screen.fill()
+  screen.level(11); screen.rect(22, 38, 8, 4); screen.fill()
+  -- candle near the scribe
+  if (tick % 10) < 7 then
+    screen.level(15); screen.pixel(34, 36); screen.fill()
+    screen.level(11); screen.pixel(34, 35); screen.fill()
+  else
+    screen.level(11); screen.pixel(34, 36); screen.fill()
+  end
+  -- page near the door at right (yawning bob)
+  local bob = (tick // 12) % 2
+  screen.level(7); screen.rect(98, 30 + bob, 4, 4); screen.fill()
+  screen.level(11); screen.rect(96, 34 + bob, 8, 6); screen.fill()
+end
+
+function draw_scene_lirael_southwall()
+  -- night sky
+  screen.level(0); screen.rect(0, 0, 128, 36); screen.fill()
+  screen.level(1)
+  for i = 1, 6 do screen.pixel((i * 19) % 128, (i * 7) % 30) end
+  screen.fill()
+  -- distant treeline
+  screen.level(2)
+  for i = 0, 8 do
+    local x = i * 16
+    screen.move(x, 36); screen.line(x + 4, 30); screen.line(x + 8, 36); screen.close(); screen.fill()
+  end
+  -- parapet
+  screen.level(5); screen.rect(0, 36, 128, 28); screen.fill()
+  screen.level(0)
+  for x = 0, 124, 12 do screen.rect(x, 36, 4, 4); screen.fill() end
+  -- three torches mounted along the wall
+  for i = 0, 2 do
+    local tx = 24 + i * 40
+    screen.level(2); screen.rect(tx, 40, 1, 4); screen.fill()
+    if (tick + i * 5) % 10 < 7 then
+      screen.level(15); screen.pixel(tx, 38); screen.pixel(tx + 1, 38); screen.pixel(tx, 37); screen.fill()
+    else
+      screen.level(11); screen.pixel(tx, 38); screen.fill()
+    end
+  end
+  -- captain in profile (slow drift)
+  local fx = 60 + (tick // 8) % 16
+  screen.level(11); screen.rect(fx + 2, 42, 3, 4); screen.fill()
+  screen.level(7); screen.rect(fx, 46, 7, 8); screen.fill()
+  screen.level(3); screen.move(fx, 46); screen.line(fx - 4, 54); screen.line(fx - 2, 54); screen.line(fx + 2, 50); screen.close(); screen.fill()
+end
+
+function draw_scene_lirael_chamber()
+  screen.level(3); screen.rect(0, 0, 128, 64); screen.fill()
+  screen.level(2); screen.rect(0, 0, 128, 30); screen.fill()
+  -- floor stripes
+  screen.level(4)
+  for y = 40, 60, 4 do screen.move(8, y); screen.line(120, y); screen.stroke() end
+  -- mirror behind the dressing table
+  screen.level(11); screen.rect(54, 8, 20, 22); screen.fill()
+  screen.level(7);  screen.rect(56, 10, 16, 18); screen.fill()
+  -- the table
+  screen.level(7); screen.rect(48, 30, 32, 6); screen.fill()
+  screen.level(5); screen.rect(50, 36, 2, 16); screen.fill()
+  screen.level(5); screen.rect(76, 36, 2, 16); screen.fill()
+  -- crown set down on the table
+  screen.level(15)
+  screen.move(58, 28); screen.line(60, 24); screen.line(62, 28); screen.line(64, 24); screen.line(66, 28); screen.line(68, 24); screen.line(70, 28); screen.stroke()
+  screen.level(13); screen.rect(58, 28, 12, 2); screen.fill()
+  -- candle on the side of the table
+  if (tick % 10) < 7 then
+    screen.level(15); screen.pixel(82, 28); screen.pixel(83, 28); screen.fill()
+    screen.level(11); screen.pixel(82, 27); screen.fill()
+  else
+    screen.level(11); screen.pixel(82, 28); screen.fill()
+  end
+end
+
+function draw_scene_lirael_candles()
+  screen.level(2); screen.rect(0, 0, 128, 64); screen.fill()
+  screen.level(5); screen.rect(0, 50, 128, 14); screen.fill()
+  for i = 0, 2 do
+    local cx = 32 + i * 32
+    screen.level(7); screen.rect(cx - 3, 46, 6, 4); screen.fill()
+    screen.level(11); screen.rect(cx - 1, 30, 2, 16); screen.fill()
+  end
+  screen.level(7)
+  for i = 0, 4 do screen.pixel(32 + (i % 2), 28 - i * 3) end
+  screen.fill()
+  screen.level(5)
+  for i = 0, 3 do screen.pixel(64 + ((i + 1) % 2), 28 - i * 3) end
+  screen.fill()
+  if (tick % 10) < 7 then
+    screen.level(15); screen.pixel(96, 28); screen.pixel(96, 27); screen.pixel(95, 28); screen.pixel(97, 28); screen.fill()
+    screen.level(11); screen.pixel(96, 26); screen.fill()
+  else
+    screen.level(13); screen.pixel(96, 28); screen.pixel(96, 27); screen.fill()
+    screen.level(8); screen.pixel(95, 28); screen.pixel(97, 28); screen.fill()
+  end
+  screen.level(5); screen.circle(96, 36, 10); screen.stroke()
+  screen.level(3); screen.circle(96, 36, 14); screen.stroke()
+end
+
+function draw_scene_lirael_road()
+  screen.level(0); screen.rect(0, 0, 128, 64); screen.fill()
+  screen.level(1)
+  for i = 1, 8 do screen.pixel((i * 19) % 128, (i * 11) % 28) end
+  screen.fill()
+  -- horizon
+  screen.level(2); screen.rect(0, 36, 128, 4); screen.fill()
+  -- distant trees
+  screen.level(2)
+  for i = 0, 7 do
+    local x = i * 18
+    screen.move(x, 40); screen.line(x + 4, 30); screen.line(x + 8, 40); screen.close(); screen.fill()
+  end
+  -- road receding to a vanishing point
+  screen.level(4)
+  screen.move(0, 64); screen.line(56, 40); screen.line(72, 40); screen.line(128, 64); screen.close(); screen.fill()
+  screen.level(1)
+  for y = 44, 62, 4 do screen.move(64, y); screen.line(64, y + 1); screen.stroke() end
+  -- lamp post on the right side of the road
+  screen.level(7); screen.rect(86, 28, 1, 24); screen.fill()
+  screen.level(7); screen.rect(82, 28, 8, 1); screen.fill()
+  -- the lamp: dying. faint, intermittent ember
+  if (tick % 40) < 10 then
+    screen.level(11); screen.pixel(86, 26); screen.fill()
+  else
+    screen.level(3); screen.pixel(86, 26); screen.fill()
+  end
+end
+
+function draw_scene_lirael_sentry()
+  screen.level(0); screen.rect(0, 0, 128, 64); screen.fill()
+  screen.level(1)
+  for i = 1, 6 do screen.pixel((i * 17) % 128, (i * 7) % 24) end
+  screen.fill()
+  -- parapet
+  screen.level(5); screen.rect(0, 40, 128, 24); screen.fill()
+  screen.level(0)
+  for x = 0, 124, 12 do screen.rect(x, 40, 4, 4); screen.fill() end
+  -- a thin wooden post for the sentry's lantern
+  screen.level(5); screen.rect(60, 22, 1, 18); screen.fill()
+  screen.level(5); screen.rect(56, 22, 8, 1); screen.fill()
+  -- the lantern, still lit
+  screen.level(7); screen.rect(58, 24, 4, 6); screen.stroke()
+  if (tick % 12) < 8 then
+    screen.level(15); screen.pixel(60, 27); screen.fill()
+    screen.level(11); screen.pixel(59, 27); screen.pixel(61, 27); screen.fill()
+  else
+    screen.level(11); screen.pixel(60, 27); screen.fill()
+  end
+  -- a halberd leaning against the parapet (no sentry)
+  screen.level(7)
+  screen.move(80, 64); screen.line(86, 36); screen.stroke()
+  screen.move(86, 36); screen.line(90, 32); screen.line(86, 30); screen.close(); screen.stroke()
+end
+
+function draw_scene_lirael_captain_run()
+  screen.level(1); screen.rect(0, 0, 128, 36); screen.fill()
+  -- corridor stones
+  screen.level(3); screen.rect(0, 36, 128, 28); screen.fill()
+  screen.level(2)
+  for x = 0, 124, 12 do screen.rect(x, 38, 12, 1); screen.fill() end
+  for x = 6, 124, 12 do screen.rect(x, 50, 12, 1); screen.fill() end
+  -- a torch on the left wall
+  screen.level(2); screen.rect(8, 16, 2, 12); screen.fill()
+  if (tick % 10) < 7 then
+    screen.level(15); screen.pixel(9, 14); screen.pixel(8, 14); screen.pixel(10, 14); screen.fill()
+    screen.level(11); screen.pixel(9, 12); screen.fill()
+  end
+  -- the captain mid-stride, running right
+  local fx = 48 + (tick // 4) % 24
+  screen.level(7)
+  if (tick // 4) % 2 == 0 then
+    screen.move(fx, 56); screen.line(fx - 2, 60); screen.stroke()
+    screen.move(fx + 4, 56); screen.line(fx + 6, 60); screen.stroke()
+  else
+    screen.move(fx, 56); screen.line(fx + 2, 60); screen.stroke()
+    screen.move(fx + 4, 56); screen.line(fx + 2, 60); screen.stroke()
+  end
+  screen.level(11); screen.rect(fx, 44, 6, 12); screen.fill()
+  screen.level(7); screen.rect(fx + 6, 46, 3, 6); screen.fill()
+  screen.level(13); screen.rect(fx + 1, 40, 4, 4); screen.fill()
+  -- cloak trailing
+  screen.level(3)
+  screen.move(fx, 44); screen.line(fx - 8, 50); screen.line(fx - 4, 56); screen.line(fx - 2, 50); screen.close(); screen.fill()
+  -- sword hilt
+  screen.level(15); screen.pixel(fx + 6, 50); screen.pixel(fx + 7, 50); screen.fill()
+end
+
+function draw_scene_lirael_courtyard()
+  -- top-down paving stones
+  screen.level(3); screen.rect(0, 0, 128, 64); screen.fill()
+  screen.level(2)
+  for x = 0, 128, 16 do screen.move(x, 0); screen.line(x, 64); screen.stroke() end
+  for y = 16, 64, 16 do screen.move(0, y); screen.line(128, y); screen.stroke() end
+  -- bell tower at the top of frame
+  screen.level(5); screen.rect(54, 0, 20, 14); screen.fill()
+  -- bell, swung sharply (alarm)
+  local sw = ((tick // 4) % 2 == 0) and 4 or -4
+  screen.level(15); screen.rect(60 + sw, 4, 8, 8); screen.fill()
+  screen.level(11); screen.rect(62 + sw, 8, 4, 2); screen.fill()
+  -- alarm shockwave: two expanding rings
+  local r = (tick // 3) % 24
+  screen.level(7); screen.circle(64, 8, r + 6); screen.stroke()
+  screen.level(3); screen.circle(64, 8, r + 12); screen.stroke()
+  -- small figures running across the courtyard
+  for i = 0, 4 do
+    local fx = (i * 28 + tick // 2) % 128
+    local fy = 30 + (i * 7) % 24
+    screen.level(0); screen.rect(fx, fy, 2, 4); screen.fill()
+    screen.level(0); screen.pixel(fx, fy - 1); screen.fill()
+  end
+end
+
+function draw_scene_lirael_gate()
+  -- inside of the gatehouse: stone walls
+  screen.level(2); screen.rect(0, 0, 128, 64); screen.fill()
+  screen.level(3)
+  for y = 4, 60, 8 do screen.move(0, y); screen.line(128, y); screen.stroke() end
+  -- the south gate: heavy double doors, center
+  screen.level(7); screen.rect(36, 12, 56, 52); screen.fill()
+  -- iron banding
+  screen.level(2); screen.rect(36, 22, 56, 2); screen.fill()
+  screen.level(2); screen.rect(36, 40, 56, 2); screen.fill()
+  screen.level(2); screen.rect(36, 56, 56, 2); screen.fill()
+  -- center seam
+  screen.level(2); screen.rect(63, 12, 2, 52); screen.fill()
+  -- impact crack: jagged line down the right door
+  screen.level(0)
+  screen.move(70, 16)
+  screen.line(74, 22)
+  screen.line(72, 28)
+  screen.line(78, 36)
+  screen.line(74, 44)
+  screen.line(80, 52)
+  screen.line(76, 60)
+  screen.stroke()
+  -- splinter cracks
+  screen.move(74, 22); screen.line(72, 24); screen.stroke()
+  screen.move(78, 36); screen.line(82, 38); screen.stroke()
+  -- impact flash on a slow cycle
+  if (tick % 60) < 6 then
+    screen.level(15); screen.rect(36, 12, 56, 2); screen.fill()
+  end
+end
+
+function draw_scene_lirael_candles_dim()
+  screen.level(1); screen.rect(0, 0, 128, 64); screen.fill()
+  screen.level(4); screen.rect(0, 50, 128, 14); screen.fill()
+  for i = 0, 2 do
+    local cx = 32 + i * 32
+    screen.level(5); screen.rect(cx - 3, 46, 6, 4); screen.fill()
+    screen.level(7); screen.rect(cx - 1, 30, 2, 16); screen.fill()
+  end
+  -- candles 1+2: long-snuffed, smoke nearly gone
+  screen.level(3)
+  for i = 0, 6 do
+    screen.pixel(32 + (i % 2), 28 - i * 4)
+    screen.pixel(64 + (i % 2), 28 - i * 4)
+  end
+  screen.fill()
+  -- candle 3: guttering — small flame, intermittent
+  local phase = tick % 14
+  if phase < 4 then
+    screen.level(13); screen.pixel(96, 28); screen.pixel(96, 27); screen.fill()
+    screen.level(7); screen.pixel(95, 28); screen.pixel(97, 28); screen.fill()
+  elseif phase < 10 then
+    screen.level(7); screen.pixel(96, 28); screen.fill()
+  else
+    screen.level(2); screen.pixel(96, 28); screen.fill()
+  end
+  -- long smoke trail rising from the guttering wick
+  screen.level(5)
+  for i = 1, 8 do screen.pixel(96 + ((i + tick // 2) % 3), 27 - i * 3) end
+  screen.fill()
+  -- much smaller pool of light
+  screen.level(2); screen.circle(96, 36, 6); screen.stroke()
+end
+
 SCENE_DRAW = {
   cosmic  = draw_scene_cosmic,
   dark    = draw_scene_dark,
   village = draw_scene_village,
   threat  = draw_scene_threat,
+  throne  = draw_scene_throne,
+  coup    = draw_scene_coup,
+  passage = draw_scene_passage,
+  -- intro overhaul (2026-05-14): per-panel scenes for the rewritten opening cutscene
+  cosmic_stars        = draw_scene_cosmic_stars,
+  cosmic_chord        = draw_scene_cosmic_chord,
+  cosmic_modes        = draw_scene_cosmic_modes,
+  cosmic_world        = draw_scene_cosmic_world,
+  cosmic_shatter      = draw_scene_cosmic_shatter,
+  cosmic_drift        = draw_scene_cosmic_drift,
+  dark_suno           = draw_scene_dark_suno,
+  dark_march          = draw_scene_dark_march,
+  dark_village        = draw_scene_dark_village,
+  lirael_coast        = draw_scene_lirael_coast,
+  lirael_belltower    = draw_scene_lirael_belltower,
+  lirael_hall         = draw_scene_lirael_hall,
+  lirael_southwall    = draw_scene_lirael_southwall,
+  lirael_chamber      = draw_scene_lirael_chamber,
+  lirael_candles      = draw_scene_lirael_candles,
+  lirael_road         = draw_scene_lirael_road,
+  lirael_sentry       = draw_scene_lirael_sentry,
+  lirael_captain_run  = draw_scene_lirael_captain_run,
+  lirael_courtyard    = draw_scene_lirael_courtyard,
+  lirael_gate         = draw_scene_lirael_gate,
+  lirael_candles_dim  = draw_scene_lirael_candles_dim,
 }
 end  -- scene draws
+
+-- Scrub characters the Tom Thumb / default fonts can't render, mirroring
+-- what pack_dialogue_lines does for NPC dialogue. Used by the cutscene
+-- + ending panels + banners so all in-game text renders consistently.
+-- Global to dodge the 200-local main-chunk cap.
+function scrub_text(s)
+  if not s then return "" end
+  s = s:gsub("\xE2\x80\x94", "--")   -- em-dash UTF-8
+  s = s:gsub("\xE2\x80\x93", "-")    -- en-dash UTF-8
+  s = s:gsub("\xE2\x80\xA6", "...")  -- ellipsis UTF-8 (just in case)
+  s = s:gsub("  +", " ")
+  return s
+end
 
 local function draw_cutscene()
   local panel = CUTSCENE_LINES[cutscene_idx]
   if type(panel) ~= "table" then panel = {text = tostring(panel or ""), scene = "cosmic"} end
+  panel = {text = scrub_text(panel.text), scene = panel.scene}
 
   -- background scene
   local fn = SCENE_DRAW[panel.scene] or SCENE_DRAW.cosmic
   fn()
+
+  -- (Letterbox bars removed — they were clipping content on the 64px
+  -- tall OLED. Cinematic feel is preserved by the existing per-panel
+  -- flash + fade + scene_draw backgrounds.)
 
   -- Panel-change transition: fade text and overlay a brief flash for the
   -- first ~12 ticks after a panel change. cutscene_panel_start is set on
@@ -11067,8 +23220,11 @@ local function draw_ending()
   -- mirrors draw_cutscene structure but reads from ENDING_LINES
   local panel = ENDING_LINES[ending_idx]
   if type(panel) ~= "table" then panel = {text = tostring(panel or ""), scene = "cosmic"} end
+  panel = {text = scrub_text(panel.text), scene = panel.scene}
   local fn = SCENE_DRAW[panel.scene] or SCENE_DRAW.cosmic
   fn()
+  -- (Top letterbox removed — was clipping the cosmic background. Ending
+  -- already feels cinematic via the SCENE_DRAW background + slow text.)
   local lines = wrap_text(panel.text, 116)
   local panel_h = 6 + (#lines * 8)
   local panel_y = 28 - math.floor(#lines * 4)
@@ -11307,7 +23463,7 @@ local function draw_title()
   if TITLE.flash_ticks > 0 then
     TITLE.flash_ticks = TITLE.flash_ticks - 1
     screen.level(0); screen.rect(28, 53, 72, 9); screen.fill()
-    screen.level(15); screen.move(64, 60); screen.text_center(TITLE.flash_text)
+    screen.level(15); screen.move(64, 60); screen.text_center(scrub_text(TITLE.flash_text or ""))
   end
   -- Pass 55: flashing "USB Controller Required" only when no controller
   -- is plugged in. Detection priority:
@@ -11341,14 +23497,17 @@ local function draw_equip()
   end
   local cur_id = equipped[p.class]
   local cur = INSTRUMENTS[cur_id]
-  -- header
-  screen.level(15)
-  screen.move(64, 7)
-  screen.text_center("EQUIP — " .. CHAR_NAME[p.class])
-  screen.level(3)
-  screen.move(0, 9)
-  screen.line(128, 9)
-  screen.stroke()
+  -- header (left-anchored title + dedicated party-selector slot top-right)
+  screen.font_face(25); screen.font_size(6)
+  screen.level(15); screen.move(2, 7)
+  screen.text("EQUIP - " .. (CHAR_NAME[p.class] or p.class))
+  for i = 1, #party do
+    local dx = 100 + (i - 1) * 7
+    screen.level(i == equip_idx and 15 or 4)
+    screen.rect(dx, 4, 3, 3); screen.fill()
+  end
+  screen.level(3); screen.move(0, 9); screen.line(128, 9); screen.stroke()
+  screen.font_face(1); screen.font_size(8)
   -- "portrait" — use the in-game sprite (3x scale + frame) to match the status screen
   local fx, fy, fw, fh = 2, 12, 28, 40
   screen.level(2); screen.rect(fx, fy, fw, fh); screen.fill()
@@ -11357,79 +23516,199 @@ local function draw_equip()
   local sx = fx + math.floor((fw - 24) / 2)
   local sy = fy + 4 - bob
   SPRITE_BY_CLASS.scaled(p.class, sx, sy, 3)
-  -- right column
+  -- ── Right column (6px font for tight rows; sprites + text fully separated)
+  screen.font_face(25); screen.font_size(6)
   local rx = 36
-  screen.level(11)
-  screen.move(rx, 14)
-  screen.text("Equipped:")
-  -- Equipped instrument sprite (8x8) just below the label
-  if cur_id and INST.sprites[cur_id] then
-    INST.sprites[cur_id](rx, 16)
-  end
-  screen.level(15)
-  screen.move(rx + 12, 22)
-  screen.text(cur and cur.name or "—")
-  -- list of owned
-  screen.level(6)
-  screen.move(rx, 30)
-  screen.text("OWNED")
+
+  -- "Equipped:" header row (no sprite on this row — sprite gets its own line below)
+  screen.level(11); screen.move(rx, 14); screen.text("Equipped:")
+  -- Sprite + name on a dedicated row so they no longer collide vertically.
+  if cur_id and INST.sprites[cur_id] then INST.sprites[cur_id](rx, 16) end
+  screen.level(15); screen.move(rx + 11, 22)
+  screen.text(cur and cur.name or "-")
+
+  -- "OWNED" header pushed below the equipped block.
+  screen.level(6); screen.move(rx, 30); screen.text("OWNED")
+
+  -- 4 rows max, 7px pitch so sprite (8x8) + text on each row never crosses
+  -- into the next row's sprite or the delta-preview band.
   for i = 1, math.min(#list, 4) do
     local id = list[i]
     local inst = INSTRUMENTS[id]
-    local y = 36 + (i - 1) * 6
+    local row_top = 32 + i * 6   -- rows at y=38, 44, 50, 56 (sprite top)
     local sel = (i == equip_choice)
     local eq  = (id == cur_id)
-    -- per-row item sprite (8x8) at the left
-    if INST.sprites[id] then INST.sprites[id](rx, y - 5) end
+    if INST.sprites[id] then INST.sprites[id](rx, row_top) end
     screen.level(sel and 15 or (eq and 11 or 5))
-    screen.move(rx + 10, y)
+    screen.move(rx + 11, row_top + 6)
     screen.text((sel and ">" or " ") .. (eq and "*" or " ") .. inst.name)
   end
   if #list == 0 then
-    screen.level(5)
-    screen.move(rx, 38)
-    screen.text("(none)")
+    screen.level(5); screen.move(rx, 42); screen.text("(none)")
   end
-  -- selected-instrument preview deltas vs equipped
+
+  -- Stat-delta preview tucked under the portrait (left column, below frame
+  -- bottom at y=52). Was at y=56 right side, colliding with the 4th OWNED
+  -- row's sprite + text.
   local sel_id = list[equip_choice]
   local sel_inst = sel_id and INSTRUMENTS[sel_id]
   if sel_inst and cur then
-    local d_atk = sel_inst.atk - cur.atk
-    local d_def = sel_inst.def - cur.def
-    local d_mag = sel_inst.mag - cur.mag
-    local d_spd = sel_inst.spd - cur.spd
     local function fmt(label, v)
-      if v == 0 then return label .. ":·" end
-      local s = (v > 0) and ("+" .. v) or tostring(v)
-      return label .. ":" .. s
+      if v == 0 then return label .. ":-" end
+      return label .. ":" .. (v > 0 and ("+" .. v) or tostring(v))
     end
-    screen.level(9)
-    screen.move(2, 56)
-    screen.text(fmt("ATK", d_atk) .. " " .. fmt("DEF", d_def) .. " " .. fmt("MAG", d_mag) .. " " .. fmt("SPD", d_spd))
+    screen.level(9); screen.move(2, 58)
+    screen.text(fmt("A", sel_inst.atk - cur.atk) .. " " ..
+                fmt("D", sel_inst.def - cur.def) .. " " ..
+                fmt("M", sel_inst.mag - cur.mag) .. " " ..
+                fmt("S", sel_inst.spd - cur.spd))
   end
-  -- footer
-  for i = 1, #party do
-    local x = 64 + (i - (#party + 1) / 2) * 6
-    screen.level(i == equip_idx and 15 or 3)
-    screen.rect(x - 1, 49, 3, 3)
-    screen.fill()
+
+  -- Per-character FX read-out (Pass 58). Shows the currently-running
+  -- engine values for this character's voice so the player can see
+  -- their cutoff / reverb / delay at a glance. Adjust via the PARAMS
+  -- menu (long-press K1, then this voice's "_cutoff" / "_xwet" / etc.).
+  do
+    local v = p.class
+    -- Voice aliases (engineer/mathwiz/drummer reuse mage/bard/warrior voices).
+    if v == "engineer" then v = "mage"
+    elseif v == "mathwiz" then v = "bard"
+    elseif v == "drummer" then v = "warrior" end
+    local function pget(id) local ok, val = pcall(function() return params:get(id) end); return ok and val or nil end
+    local cut = pget(v .. "_cutoff_p")
+    local wet = pget(v .. "_wet_p")
+    local dly = pget(v .. "_dly_p")
+    if cut and wet and dly then
+      screen.level(7); screen.move(2, 56)
+      screen.text(string.format("fx: cut %d  rev %.2f  dly %.2f",
+                                math.floor(cut), wet, dly))
+    end
   end
-  screen.level(6)
-  screen.move(2, 62)
-  screen.text("L1/R1 char  A equip  B back")
-  -- equip-toast (reuses CONTENT.flash_*) — shows "Equipped: <name>" briefly
-  if CONTENT.flash_ticks > 0 then
-    screen.level(0); screen.rect(20, 26, 88, 12); screen.fill()
-    screen.level(15); screen.rect(20, 26, 88, 12); screen.stroke()
-    screen.move(64, 34); screen.text_center(CONTENT.flash_text)
+  -- Footer hint (page dots are gone — moved to header top-right).
+  screen.level(6); screen.move(2, 63); screen.text("L1/R1 char  A equip  B back")
+  screen.font_face(1); screen.font_size(8)
+end
+
+-- 8×8 sprites for every shop item. Drawn at the far-left of each row
+-- in draw_shop. Each takes (sx, sy) and renders inside an 8×8 cell.
+SHOP.sprites = {}
+SHOP.sprites.salve = function(sx, sy)
+  -- round amber bottle with cap
+  screen.level(7); screen.rect(sx + 2, sy + 1, 4, 1); screen.fill()    -- cap
+  screen.level(11); screen.rect(sx + 1, sy + 2, 6, 5); screen.fill()    -- body (bright)
+  screen.level(13); screen.pixel(sx + 2, sy + 3); screen.fill()         -- highlight
+  screen.level(5); screen.rect(sx + 1, sy + 7, 6, 1); screen.fill()     -- bottom shadow
+end
+SHOP.sprites.vial = function(sx, sy)
+  -- tall thin flask with stopper, blue
+  screen.level(7); screen.pixel(sx + 3, sy); screen.pixel(sx + 4, sy); screen.fill()  -- stopper
+  screen.level(11); screen.rect(sx + 3, sy + 1, 2, 2); screen.fill()                   -- neck
+  screen.level(8); screen.rect(sx + 2, sy + 3, 4, 4); screen.fill()                    -- bulb
+  screen.level(13); screen.pixel(sx + 3, sy + 4); screen.fill()                        -- shine
+end
+SHOP.sprites.ether = function(sx, sy)
+  -- glowing square bottle, mage purple-bright
+  screen.level(7); screen.rect(sx + 3, sy, 2, 1); screen.fill()                        -- cap
+  screen.level(13); screen.rect(sx + 1, sy + 1, 6, 6); screen.fill()                   -- glowing body
+  screen.level(15); screen.pixel(sx + 3, sy + 3); screen.pixel(sx + 4, sy + 4); screen.fill()  -- spark
+  screen.level(5); screen.rect(sx + 1, sy + 7, 6, 1); screen.fill()
+end
+SHOP.sprites.star = function(sx, sy)
+  -- 5-point star
+  screen.level(15)
+  screen.pixel(sx + 4, sy)                                             -- top
+  screen.pixel(sx + 3, sy + 1); screen.pixel(sx + 4, sy + 1); screen.pixel(sx + 5, sy + 1)
+  screen.pixel(sx + 1, sy + 3); screen.pixel(sx + 2, sy + 3)
+  screen.pixel(sx + 3, sy + 3); screen.pixel(sx + 4, sy + 3); screen.pixel(sx + 5, sy + 3)
+  screen.pixel(sx + 6, sy + 3); screen.pixel(sx + 7, sy + 3)
+  screen.pixel(sx + 2, sy + 4); screen.pixel(sx + 3, sy + 4); screen.pixel(sx + 4, sy + 4); screen.pixel(sx + 5, sy + 4); screen.pixel(sx + 6, sy + 4)
+  screen.pixel(sx + 2, sy + 5); screen.pixel(sx + 3, sy + 5); screen.pixel(sx + 5, sy + 5); screen.pixel(sx + 6, sy + 5)
+  screen.pixel(sx + 1, sy + 6); screen.pixel(sx + 2, sy + 6); screen.pixel(sx + 6, sy + 6); screen.pixel(sx + 7, sy + 6)
+  screen.fill()
+end
+SHOP.sprites.tonic = function(sx, sy)
+  -- round flask with bubbles + cap
+  screen.level(7); screen.rect(sx + 3, sy, 2, 1); screen.fill()
+  screen.level(11); screen.rect(sx + 2, sy + 2, 4, 5); screen.fill()
+  screen.level(15); screen.pixel(sx + 3, sy + 4); screen.pixel(sx + 5, sy + 5); screen.fill()  -- bubbles
+  screen.level(5); screen.rect(sx + 2, sy + 7, 4, 1); screen.fill()
+end
+SHOP.sprites.key = function(sx, sy)
+  -- classic key: bow + shaft + bit
+  screen.level(13)
+  screen.rect(sx + 1, sy + 2, 2, 3); screen.fill()    -- bow (loop)
+  screen.pixel(sx + 1, sy + 1); screen.pixel(sx + 2, sy + 1)
+  screen.pixel(sx + 1, sy + 5); screen.pixel(sx + 2, sy + 5); screen.fill()
+  screen.level(11)
+  screen.rect(sx + 3, sy + 3, 4, 1); screen.fill()    -- shaft
+  screen.pixel(sx + 5, sy + 4); screen.pixel(sx + 6, sy + 4); screen.fill()  -- bit teeth
+end
+SHOP.sprites.field_lute = function(sx, sy)
+  -- compact lute: pear body + neck
+  screen.level(11); screen.rect(sx + 1, sy + 4, 4, 3); screen.fill()
+  screen.level(7); screen.pixel(sx + 2, sy + 5); screen.fill()         -- soundhole
+  screen.level(13); screen.move(sx + 4, sy + 4); screen.line(sx + 7, sy + 1); screen.stroke()
+  screen.level(15); screen.pixel(sx + 7, sy); screen.fill()            -- peg
+end
+SHOP.sprites.bowed_psaltery = function(sx, sy)
+  -- triangular psaltery + bow
+  screen.level(11)
+  screen.move(sx, sy + 6); screen.line(sx + 6, sy + 6); screen.stroke()       -- bottom
+  screen.move(sx, sy + 6); screen.line(sx + 6, sy + 1); screen.stroke()       -- hypotenuse
+  screen.move(sx + 6, sy + 1); screen.line(sx + 6, sy + 6); screen.stroke()   -- right
+  -- 3 strings (horizontal)
+  screen.level(13)
+  screen.move(sx + 1, sy + 3); screen.line(sx + 5, sy + 3); screen.stroke()
+  screen.move(sx + 1, sy + 4); screen.line(sx + 5, sy + 4); screen.stroke()
+  screen.move(sx + 1, sy + 5); screen.line(sx + 5, sy + 5); screen.stroke()
+  -- bow (diagonal)
+  screen.level(7); screen.move(sx + 3, sy); screen.line(sx + 7, sy + 4); screen.stroke()
+end
+SHOP.sprites.tinker_fork = function(sx, sy)
+  -- tuning fork: two prongs + handle
+  screen.level(13)
+  screen.rect(sx + 2, sy, 1, 4); screen.fill()         -- left prong
+  screen.rect(sx + 5, sy, 1, 4); screen.fill()         -- right prong
+  screen.rect(sx + 2, sy + 4, 4, 1); screen.fill()     -- yoke
+  screen.level(11)
+  screen.rect(sx + 3, sy + 5, 2, 3); screen.fill()     -- handle
+end
+SHOP.sprites.field_recorder = function(sx, sy)
+  -- compact tape recorder: rectangular body + reels
+  screen.level(11); screen.rect(sx + 1, sy + 1, 6, 6); screen.fill()           -- body
+  screen.level(0); screen.pixel(sx + 2, sy + 3); screen.pixel(sx + 5, sy + 3); screen.fill()   -- reel holes
+  screen.level(13); screen.rect(sx + 2, sy + 5, 4, 1); screen.fill()           -- VU strip
+  screen.level(15); screen.pixel(sx + 4, sy + 5); screen.fill()                -- meter pointer
+end
+
+-- Shop visible items: hide already-owned one-shot instruments. Eastern
+-- and northern caravans don't carry instruments — those are luthier
+-- crafts only sold in the village shop (map 6). GLOBAL so it can be
+-- called from earlier-defined input handlers (Lua local scope rules).
+function shop_visible_order()
+  local out = {}
+  for _, id in ipairs(SHOP.order) do
+    local it = SHOP.items[id]
+    if it then
+      if it.is_instrument then
+        if current_map_id == 6 and not instruments_owned[id] then
+          out[#out + 1] = id
+        end
+      else
+        out[#out + 1] = id
+      end
+    end
   end
+  return out
 end
 
 local function draw_shop()
-  -- header bar
+  -- header bar — title reflects the current shop interior so each region
+  -- keeps its identity (Hens / Marek / Skari).
+  local titles = {[6] = "HENS' SHOP", [15] = "MAREK'S CARAVAN", [16] = "SKARI'S OUTPOST"}
   screen.level(15)
   screen.move(64, 7)
-  screen.text_center("HENS' SHOP")
+  screen.text_center(titles[current_map_id] or "ITEM SHOP")
   screen.level(3)
   screen.move(0, 9)
   screen.line(128, 9)
@@ -11438,29 +23717,61 @@ local function draw_shop()
   screen.level(11)
   screen.move(126, 7)
   screen.text_right(SHOP.gold .. "g")
-  -- items: one row per item, 7px spacing — name | price | own | desc
+  -- items: one row per item, 7px spacing — name | price | own | desc.
+  -- Use the filtered visible list so the UI doesn't show consumables we
+  -- don't carry or already-bought one-shots.
   screen.font_face(25)
   screen.font_size(6)
-  for i, id in ipairs(SHOP.order) do
+  local vis = shop_visible_order()
+  if SHOP.idx > #vis then SHOP.idx = math.max(1, #vis) end
+  -- Scroll window: 6 rows visible at a time so 10+ items don't overflow.
+  local window = 6
+  local first = math.max(1, math.min(#vis - window + 1, SHOP.idx - math.floor(window / 2)))
+  if first < 1 then first = 1 end
+  local last = math.min(#vis, first + window - 1)
+  -- Row layout (8px tall to give sprites breathing room):
+  --   x=0..7  : 8×8 item sprite
+  --   x=10    : caret
+  --   x=14    : name (left-aligned)
+  --   x=88    : price (right-aligned)
+  --   x=126   : owned count / "(new)" tag (right-aligned)
+  -- Description for the SELECTED row appears in the footer strip
+  -- (replaces the help line), so longer instrument names no longer
+  -- collide with desc text.
+  local row_h = 7
+  for slot = 0, last - first do
+    local i = first + slot
+    local id = vis[i]
     local it = SHOP.items[id]
-    local y = 16 + (i - 1) * 7
+    local y_top = 12 + slot * row_h        -- top of sprite cell
+    local y_txt = y_top + 6                 -- text baseline
     local sel = (i == SHOP.idx)
     local price = QUESTS.hens.discount and math.floor(it.cost * 0.75) or it.cost
+    -- 8×8 item sprite at far left
+    if SHOP.sprites[id] then
+      SHOP.sprites[id](0, y_top - 1)
+    end
     -- selection caret
     screen.level(sel and 15 or 0)
-    screen.move(2, y); screen.text(sel and ">" or " ")
+    screen.move(10, y_txt); screen.text(sel and ">" or " ")
     -- name (highlighted when selected)
     screen.level(sel and 15 or 8)
-    screen.move(8, y); screen.text(it.name)
-    -- price (right-aligned in column)
+    screen.move(14, y_txt); screen.text(it.name)
+    -- price (right-aligned)
     screen.level(sel and 13 or 6)
-    screen.move(46, y); screen.text(price .. "g")
-    -- owned count
+    screen.move(102, y_txt); screen.text_right(price .. "g")
+    -- owned count (right edge)
     screen.level(sel and 11 or 5)
-    screen.move(64, y); screen.text("x" .. SHOP.inv[id])
-    -- description (rest of line)
-    screen.level(sel and 11 or 4)
-    screen.move(78, y); screen.text(it.desc)
+    screen.move(126, y_txt)
+    if it.is_instrument then screen.text_right("(new)")
+    else screen.text_right("x" .. (SHOP.inv[id] or 0)) end
+  end
+  -- scroll indicators
+  if first > 1 then
+    screen.level(8); screen.move(124, 14); screen.text_right("^")
+  end
+  if last < #vis then
+    screen.level(8); screen.move(124, 53); screen.text_right("v")
   end
   screen.font_face(1)
   screen.font_size(8)
@@ -11472,10 +23783,16 @@ local function draw_shop()
     screen.font_face(25); screen.font_size(6)
     screen.level(15)
     screen.move(64, 60)
-    screen.text_center(SHOP.flash_text)
+    screen.text_center(scrub_text(SHOP.flash_text or ""))
     screen.font_face(1); screen.font_size(8)
   else
     screen.font_face(25); screen.font_size(6)
+    -- Selected item description (replaces the row-level desc column).
+    local sel_id = vis[SHOP.idx]
+    local sel_it = sel_id and SHOP.items[sel_id]
+    if sel_it and sel_it.desc then
+      screen.level(11); screen.move(64, 56); screen.text_center(sel_it.desc)
+    end
     screen.level(6)
     screen.move(2, 62); screen.text("up/dn pick  A buy  B leave")
     screen.font_face(1); screen.font_size(8)
@@ -11618,41 +23935,241 @@ end
 
 -- UI is intentionally global (saves a `local` slot — we're at the 200-cap).
 UI = {}
+-- Quest journal: 2-page paginated. L1/R1 flips pages.
+--   Page 1: MAIN — shard count, recruits, prologue.
+--   Page 2: SIDES — Hens, Brann, Tova.
+-- Page state lives on UI.quests_page (defaults to 1).
 UI.draw_quests = function()
+  UI.quests_page = UI.quests_page or 1
   screen.font_face(25); screen.font_size(6)
-  screen.level(15); screen.move(64, 7); screen.text_center("QUESTS")
+  screen.level(15); screen.move(64, 7); screen.text_center("QUEST JOURNAL")
   screen.level(3); screen.move(0, 9); screen.line(128, 9); screen.stroke()
-  -- Hens
-  do
-    local q = QUESTS.hens
-    local status, lev
-    if q.discount then status, lev = "DONE  shop -25%", 11
-    else status, lev = q.wins .. "/" .. q.target .. " road wins", 15 end
-    screen.level(11); screen.move(2, 18); screen.text("Hens (Shopkeep)")
-    screen.level(lev); screen.move(2, 24); screen.text(status)
+  -- pagination indicator (top-right): 1/2 or 2/2
+  screen.level(8); screen.move(126, 7); screen.text_right(UI.quests_page .. "/2")
+
+  if UI.quests_page == 1 then
+    -- ── MAIN QUESTS ──
+    -- Crystal Synth (shards)
+    local n = 0; for _, v in pairs(shards or {}) do if v then n = n + 1 end end
+    screen.level(11); screen.move(2, 17); screen.text("Crystal Synth")
+    local lev = (n >= 7) and 11 or 15
+    screen.level(lev); screen.move(2, 23); screen.text(n .. "/7 shards recovered")
+
+    -- Recruits — show which classes are in party / available
+    screen.level(11); screen.move(2, 31); screen.text("Companions")
+    local CLASSES = {{"cleric", "Miel"}, {"bard", "Alder"},
+                     {"warrior", "Strom"}, {"mage", "Diegues"}}
+    local got, total = 0, #CLASSES
+    local x = 2
+    for _, c in ipairs(CLASSES) do
+      local in_party = class_in_party and class_in_party(c[1])
+      if in_party then got = got + 1 end
+      screen.level(in_party and 11 or 4)
+      screen.move(x, 37); screen.text(c[2]:sub(1, 4))
+      x = x + 22
+    end
+    screen.level(8); screen.move(126, 37); screen.text_right(got .. "/" .. total)
+
+    -- Caves cleared
+    local cleared = 0
+    for i = 1, 7 do if cave_state[i] and cave_state[i].cleared then cleared = cleared + 1 end end
+    screen.level(11); screen.move(2, 45); screen.text("Caves cleared")
+    screen.level(cleared >= 7 and 11 or 15)
+    screen.move(2, 51); screen.text(cleared .. "/7 sealed")
+
+    -- Prologue / endgame state hint
+    if CONTENT.endgame_done then
+      screen.level(11); screen.move(2, 57); screen.text("* the song is whole *")
+    elseif n >= 7 then
+      screen.level(15); screen.move(2, 57); screen.text("the synth is calling.")
+    elseif (CONTENT.prologue_state or "") == "complete" then
+      screen.level(8); screen.move(2, 57); screen.text("escaped the castle.")
+    end
+  else
+    -- ── SIDE QUESTS ──
+    -- Hens
+    do
+      local q = QUESTS.hens
+      local status, lev
+      if q.discount then status, lev = "DONE  shop -25%", 11
+      else status, lev = q.wins .. "/" .. q.target .. " road wins", 15 end
+      screen.level(11); screen.move(2, 17); screen.text("Hens (Shopkeep)")
+      screen.level(lev); screen.move(2, 23); screen.text(status)
+    end
+    -- Brann
+    do
+      local q = QUESTS.brann
+      local status, lev
+      if q.claimed then status, lev = "DONE  +200g, +1 Star", 11
+      else status, lev = q.wins .. "/" .. q.target .. " road wins", 15 end
+      screen.level(11); screen.move(2, 31); screen.text("Brann (Smith)")
+      screen.level(lev); screen.move(2, 37); screen.text(status)
+    end
+    -- Tova
+    do
+      local s = QUESTS.tova.spoke
+      local visited = (s.Veris and 1 or 0) + (s.Aurin and 1 or 0)
+                    + (s.Mira and 1 or 0) + (s.Iolen and 1 or 0)
+      local status, lev
+      if QUESTS.tova.claimed then status, lev = "DONE  +80g + lore", 11
+      else status, lev = visited .. "/4 sages met", 15 end
+      screen.level(11); screen.move(2, 45); screen.text("Tova (Sage)")
+      screen.level(lev); screen.move(2, 51); screen.text(status)
+    end
   end
-  -- Brann
-  do
-    local q = QUESTS.brann
-    local status, lev
-    if q.claimed then status, lev = "DONE  +200g, +1 Star", 11
-    else status, lev = q.wins .. "/" .. q.target .. " road wins", 15 end
-    screen.level(11); screen.move(2, 32); screen.text("Brann (Smith)")
-    screen.level(lev); screen.move(2, 38); screen.text(status)
+
+  screen.level(6); screen.move(2, 62);   screen.text("L1/R1 page")
+  screen.level(6); screen.move(126, 62); screen.text_right("B back")
+  screen.font_face(1); screen.font_size(8)
+end
+
+-- Overworld map: renders the current map at low resolution with the
+-- player position highlighted. Useful for orientation in the wider
+-- regions (Mainland is 64×16 — easy to lose your bearings).
+UI.draw_map = function()
+  screen.font_face(25); screen.font_size(6)
+  -- header
+  local region_name = ({[1]="Modalia",  [2]="Eastern Reaches", [3]="Northern Wilds",
+                        [22]="Western Region", [23]="Lirael Ruins",
+                        [24]="Velthe's Observatory", [26]="Far Hills"})[current_map_id]
+                      or ("Map " .. tostring(current_map_id))
+  screen.level(15); screen.move(64, 7); screen.text_center(region_name)
+  screen.level(3); screen.move(0, 9); screen.line(128, 9); screen.stroke()
+
+  -- Compute scale so the whole map fits in the (124×42) drawing area.
+  local area_x, area_y, area_w, area_h = 2, 12, 124, 42
+  local scale = math.min(area_w / MAP_W, area_h / MAP_H)
+  scale = math.max(1, math.floor(scale))   -- integer scale, min 1
+  local draw_w = MAP_W * scale
+  local draw_h = MAP_H * scale
+  local ox = area_x + math.floor((area_w - draw_w) / 2)
+  local oy = area_y + math.floor((area_h - draw_h) / 2)
+
+  -- Render every tile.
+  for ty = 1, MAP_H do
+    for tx = 1, MAP_W do
+      local t = tile_at(tx, ty)
+      local lev
+      if t == 0 or t == 23 then lev = 6                     -- grass / floor
+      elseif t == 1 or t == 4 then lev = 2                  -- tree / wall
+      elseif t == 2 or t == 45 then lev = 11                -- path / pier
+      elseif t == 3 then lev = 5                            -- water
+      elseif t == 5 or t == 47 or t == 48 or t == 49        -- doors / arches
+          or t == 50 or t == 51 or t == 52 or t == 56 then lev = 13
+      elseif t == 8 then lev = 9                            -- sand
+      elseif t >= 6 and t <= 14 then lev = 7                -- cave / floor variants
+      else lev = 4
+      end
+      screen.level(lev)
+      screen.rect(ox + (tx - 1) * scale, oy + (ty - 1) * scale, scale, scale)
+      screen.fill()
+    end
   end
-  -- Tova
-  do
-    local s = QUESTS.tova.spoke
-    local visited = (s.Veris and 1 or 0) + (s.Aurin and 1 or 0)
-                  + (s.Mira and 1 or 0) + (s.Iolen and 1 or 0)
-    local status, lev
-    if QUESTS.tova.claimed then status, lev = "DONE  +80g + lore", 11
-    else status, lev = visited .. "/4 sages met", 15 end
-    screen.level(11); screen.move(2, 46); screen.text("Tova (Sage)")
-    screen.level(lev); screen.move(2, 52); screen.text(status)
+
+  -- Player position marker — blinking 2×2 bright dot (or +scale-square at small scales).
+  local px = ox + (player.x - 1) * scale
+  local py = oy + (player.y - 1) * scale
+  local sz = math.max(2, scale)
+  if (tick % 12) < 8 then
+    screen.level(15)
+    screen.rect(px, py, sz, sz); screen.fill()
+    -- crosshair extending 1 pixel each side so it's findable on dense maps
+    screen.pixel(px - 1, py); screen.pixel(px + sz, py); screen.fill()
+    screen.pixel(px, py - 1); screen.pixel(px, py + sz); screen.fill()
+  end
+
+  -- Footer: position + region hint
+  screen.level(8); screen.move(2, 62); screen.text("(" .. player.x .. "," .. player.y .. ")")
+  screen.level(6); screen.move(126, 62); screen.text_right("B back")
+  screen.font_face(1); screen.font_size(8)
+end
+
+-- Achievements: a paginated list of milestones. Locked entries show
+-- only a hint; unlocked show the name in bright. Counter at the top.
+UI.draw_achievements = function()
+  screen.font_face(25); screen.font_size(6)
+  screen.level(15); screen.move(64, 7); screen.text_center("ACHIEVEMENTS")
+  screen.level(3); screen.move(0, 9); screen.line(128, 9); screen.stroke()
+  CONTENT.achievements = CONTENT.achievements or {}
+  local unlocked = 0
+  for _, def in ipairs(ACHIEVEMENT_DEFS) do
+    if CONTENT.achievements[def.id] then unlocked = unlocked + 1 end
+  end
+  screen.level(11); screen.move(126, 7)
+  screen.text_right(unlocked .. "/" .. #ACHIEVEMENT_DEFS)
+
+  -- Each entry: bright if unlocked, dim "????" if locked. 7px rows,
+  -- 7 rows fit between y=13 and y=58.
+  local rows = math.min(7, #ACHIEVEMENT_DEFS)
+  for i = 1, rows do
+    local def = ACHIEVEMENT_DEFS[i]
+    local y = 14 + (i - 1) * 7
+    local got = CONTENT.achievements[def.id]
+    screen.level(got and 15 or 5)
+    screen.move(2, y); screen.text(got and ("* " .. def.name) or ("? " .. def.hint))
+  end
+  -- second column (rows 8-13)
+  for i = 8, math.min(#ACHIEVEMENT_DEFS, 13) do
+    local def = ACHIEVEMENT_DEFS[i]
+    local y = 14 + (i - 8) * 7
+    local got = CONTENT.achievements[def.id]
+    screen.level(got and 15 or 5)
+    screen.move(70, y); screen.text(got and ("* " .. def.name) or "?")
   end
   screen.level(6); screen.move(126, 62); screen.text_right("B back")
   screen.font_face(1); screen.font_size(8)
+end
+
+-- Endgame credits roll. Triggered after start_endgame_scene completes.
+-- Slow vertical scroll of the credits text. Press A to advance to the
+-- "PRESS A FOR NEW GAME +" prompt; press A again from the prompt to
+-- enter NG+ (resets shards/cave clears, retains levels/instruments/gold).
+UI.draw_credits = function()
+  screen.level(0); screen.rect(0, 0, 128, 64); screen.fill()
+  local age = tick - (CONTENT.credits_t or tick)
+  -- The roll spans ~600 ticks before the NG+ prompt becomes available.
+  local PROMPT_AT = 600
+  local lines = {
+    "* THE CHORD IS WHOLE *",
+    "",
+    "a synth quest",
+    "",
+    "for the white norns",
+    "",
+    "music & code: lil om",
+    "engine: synth quest",
+    "framework: norns",
+    "",
+    "with thanks to",
+    "monome  /  tehn",
+    "the dust community",
+    "",
+    "and to whoever",
+    "kept the chord",
+    "alive in the dark.",
+    "",
+    "*",
+  }
+  -- Scroll: y starts at 64 (just below screen) and rises.
+  local y0 = 64 - math.floor(age * 0.18)
+  screen.font_face(25); screen.font_size(6)
+  for i, line in ipairs(lines) do
+    local y = y0 + (i - 1) * 9
+    if y > -8 and y < 64 then
+      screen.level((i == 1 or i == 19) and 15 or 11)
+      screen.move(64, y); screen.text_center(line)
+    end
+  end
+  screen.font_face(1); screen.font_size(8)
+  -- NG+ prompt — fades in after PROMPT_AT ticks.
+  if age > PROMPT_AT then
+    local lev = math.min(15, math.floor((age - PROMPT_AT) * 0.20))
+    screen.level(0); screen.rect(0, 50, 128, 14); screen.fill()
+    screen.font_face(25); screen.font_size(6)
+    screen.level(lev); screen.move(64, 60)
+    screen.text_center("press A for NEW GAME +")
+    screen.font_face(1); screen.font_size(8)
+  end
 end
 
 UI.draw_shards = function()
@@ -11698,33 +24215,65 @@ UI.draw_shards = function()
 end
 
 -- Pass 43: per-enemy lore (visual-id keyed, 2 short lines each).
+-- Each entry is now a 3-tuple: {line1 lore, line2 lore, voice/sound-design
+-- note}. The voice line surfaces in the BESTIARY detail view so the
+-- player can see what synth voice + register each enemy actually uses
+-- — turning the bestiary into a small sound-design notebook.
 BESTIARY_LORE = {
-  slime      = {"Plodding gel of cave damp.", "Drops the same beat each time."},
-  bat        = {"Echolocates in flat fifths.", "Quick to chitter, slow to retreat."},
-  mushroom   = {"Releases pollen on a 12-beat", "loop. Patient. Almost polite."},
-  wisp       = {"A bright orphan note.", "Sings the same syllable until it dies."},
-  wolf       = {"Triple-strike pattern. Pack",  "memory; Suno couldn't tame them."},
-  echo       = {"Cave-1 boss. Repeats your",  "last move with crueler timing."},
-  sprite     = {"Faerie remnant. Distracts",  "with bright pixels mid-cast."},
-  treant     = {"Centuries-old. Sap runs slow", "but it runs. Strike the bark."},
-  sentinel   = {"Cave-2 boss. Three-meter",   "weight, three-beat tell."},
-  crab       = {"Side-stepping coastal pest.", "Hard shell, soft underchord."},
-  manta      = {"Tide-glide ambush. Strikes",  "between the seventh wave's beats."},
-  tide       = {"Cave-3 boss. Faces in every", "still pool. Anwell knows them."},
-  scorpion   = {"Dune-bred. Tail-strike on",   "the rest beat — never the count."},
-  spectre    = {"Half-translucent. Was",      "someone's grandmother once."},
-  dunerider  = {"Cave-4 boss. Six-beats out,", "two-back. Cut on the rest."},
-  yeti       = {"Carries the cold in its lungs.", "Breath alone slows your tempo."},
-  frostwisp  = {"A dim wisp the cold caught.",  "Sings in a key it can't escape."},
-  granite    = {"Stone golem. Hears all hits", "as the same dull chord."},
-  crow       = {"Wraith-feathered. Flies",     "between bars, never on them."},
-  snowgaunt  = {"Cave-5 boss. Waltzes in three.", "Don't follow its meter."},
-  lich       = {"Robed and bone-fingered.",    "Conducts pain like a downbeat."},
-  voidcrawler= {"Many-legged shadow. Each",    "leg a separate pulse."},
-  echosuno   = {"Mocking shadow of the King.", "His timing, none of his weight."},
-  mutewarden = {"Suno's silent sentry.",      "No face. No call. No mercy."},
-  locrius    = {"Cave-6 boss. Half-step demon.", "Strike out of time; he can't follow."},
-  suno       = {"The Tuning King.",            "He fears the seventh most of all."},
+  slime      = {"Plodding gel of cave damp.",     "Drops the same beat each time.",
+                "warrior @ MIDI 28 — low pulse"},
+  bat        = {"Echolocates in flat fifths.",    "Quick to chitter, slow to retreat.",
+                "mage @ MIDI 84 — fast click"},
+  mushroom   = {"Releases pollen on a 12-beat",   "loop. Patient. Almost polite.",
+                "bard @ MIDI 33 — soft lute"},
+  wisp       = {"A bright orphan note.",          "Sings the same syllable until it dies.",
+                "mage @ MIDI 88 — bright bell"},
+  wolf       = {"Triple-strike pattern. Pack",    "memory; Suno couldn't tame them.",
+                "warrior @ MIDI 31 — bark stab"},
+  echo       = {"Cave-1 boss. Repeats your",      "last move with crueler timing.",
+                "warrior @ MIDI 24 — dark drone"},
+  sprite     = {"Faerie remnant. Distracts",      "with bright pixels mid-cast.",
+                "mage @ MIDI 92 — pixie ping"},
+  treant     = {"Centuries-old. Sap runs slow",   "but it runs. Strike the bark.",
+                "bard @ MIDI 30 — wood thud"},
+  sentinel   = {"Cave-2 boss. Three-meter",       "weight, three-beat tell.",
+                "cleric @ MIDI 41 — slow swell"},
+  crab       = {"Side-stepping coastal pest.",    "Hard shell, soft underchord.",
+                "warrior @ MIDI 35 — clack"},
+  manta      = {"Tide-glide ambush. Strikes",     "between the seventh wave's beats.",
+                "bard @ MIDI 50 — glide tone"},
+  tide       = {"Cave-3 boss. Faces in every",    "still pool. Anwell knows them.",
+                "bard @ MIDI 48 — washed lute"},
+  scorpion   = {"Dune-bred. Tail-strike on",      "the rest beat — never the count.",
+                "warrior @ MIDI 38 — sharp tap"},
+  spectre    = {"Half-translucent. Was",          "someone's grandmother once.",
+                "cleric @ MIDI 60 — airy pad"},
+  dunerider  = {"Cave-4 boss. Six-beats out,",    "two-back. Cut on the rest.",
+                "mage @ MIDI 72 — dry slap"},
+  yeti       = {"Carries the cold in its lungs.", "Breath alone slows your tempo.",
+                "warrior @ MIDI 24 — heavy drone"},
+  frostwisp  = {"A dim wisp the cold caught.",    "Sings in a key it can't escape.",
+                "mage @ MIDI 86 — frosted bell"},
+  granite    = {"Stone golem. Hears all hits",    "as the same dull chord.",
+                "warrior @ MIDI 26 — slab"},
+  crow       = {"Wraith-feathered. Flies",        "between bars, never on them.",
+                "bard @ MIDI 67 — squawk"},
+  snowgaunt  = {"Cave-5 boss. Waltzes in three.", "Don't follow its meter.",
+                "warrior @ MIDI 21 — bone clack"},
+  lich       = {"Robed and bone-fingered.",       "Conducts pain like a downbeat.",
+                "cleric @ MIDI 31 — dark hymn"},
+  voidcrawler= {"Many-legged shadow. Each",       "leg a separate pulse.",
+                "bard @ MIDI 40 — skitter"},
+  echosuno   = {"Mocking shadow of the King.",    "His timing, none of his weight.",
+                "warrior @ MIDI 36 — distant"},
+  mutewarden = {"Suno's silent sentry.",          "No face. No call. No mercy.",
+                "warrior @ MIDI 30 — rumble"},
+  locrius    = {"Cave-6 boss. Half-step demon.",  "Strike out of time; he can't follow.",
+                "cleric @ MIDI 31 — pulse"},
+  suno       = {"The Tuning King.",               "He fears the seventh most of all.",
+                "cleric @ MIDI 36 — choir"},
+  strom      = {"Ex-Lirael garrison. Now wields", "the same hammer for the wrong king.",
+                "warrior @ MIDI 28 — anvil ring"},
 }
 
 UI.draw_bestiary = function()
@@ -11737,66 +24286,256 @@ UI.draw_bestiary = function()
   table.sort(list, function(a, b) return (a.hp_max or 0) < (b.hp_max or 0) end)
   if #list == 0 then
     screen.level(7); screen.move(64, 36); screen.text_center("(no defeated foes yet)")
-  else
-    local total = #list
-    -- bestiary_idx (selectable via dpad UD in the BESTIARY state handler)
-    CONTENT.bestiary_idx = math.max(1, math.min(total, CONTENT.bestiary_idx or 1))
-    local sel = CONTENT.bestiary_idx
-    screen.level(7); screen.move(126, 16); screen.text_right(sel .. "/" .. total)
-    -- Show 4 entries with selection caret; current at top of view.
-    local view_start = math.max(1, sel - 1)
-    if view_start + 3 > total then view_start = math.max(1, total - 3) end
-    for i = 0, math.min(3, total - 1) do
-      local idx = view_start + i
-      local e = list[idx]
-      local y = 18 + i * 7
-      local is_sel = (idx == sel)
-      screen.level(is_sel and 15 or 0)
-      screen.move(2, y + 5); screen.text(is_sel and ">" or " ")
-      screen.level(is_sel and 15 or 8); screen.move(8, y + 5); screen.text(e.name)
-      screen.level(is_sel and 13 or 6); screen.move(74, y + 5); screen.text("HP " .. e.hp_max)
-      screen.level(is_sel and 13 or 6); screen.move(102, y + 5); screen.text("AT " .. e.atk)
-    end
-    -- Selected entry's lore lines at the bottom (with subtle separator).
-    local cur = list[sel]
-    local lore = BESTIARY_LORE[cur.visual or cur.name] or {"(no lore yet.)", ""}
-    screen.level(3); screen.move(0, 50); screen.line(128, 50); screen.stroke()
-    screen.level(11); screen.move(2, 56); screen.text(lore[1] or "")
-    screen.level(11); screen.move(2, 62); screen.text(lore[2] or "")
+    screen.level(6); screen.move(126, 62); screen.text_right("B back")
+    screen.font_face(1); screen.font_size(8)
+    return
   end
-  screen.level(6); screen.move(126, 62); screen.text_right("B back")
+  local total = #list
+  CONTENT.bestiary_idx = math.max(1, math.min(total, CONTENT.bestiary_idx or 1))
+  local sel = CONTENT.bestiary_idx
+  local cur = list[sel]
+  local lore = BESTIARY_LORE[cur.visual or cur.name] or {"(no lore yet.)", ""}
+
+  if CONTENT.bestiary_detail then
+    -- ── DETAIL VIEW: name strip + sprite center + stats + lore ──
+    -- name strip
+    screen.level(15); screen.move(64, 15); screen.text_center(cur.name)
+    -- enemy sprite drawn via DRAW_ENEMY (these funcs draw around a center
+    -- point with class-typical dimensions; most fit comfortably here).
+    local fn = DRAW_ENEMY[cur.visual or "slime"] or DRAW_ENEMY.slime
+    pcall(fn, 64, 30)
+    -- compact stats row below the sprite
+    screen.level(3); screen.move(0, 44); screen.line(128, 44); screen.stroke()
+    screen.level(11); screen.move(2, 50);  screen.text("HP " .. (cur.hp_max or 0))
+    screen.level(11); screen.move(36, 50); screen.text("AT " .. (cur.atk or 0))
+    -- voice / sound-design note (right side of stats row)
+    screen.level(7); screen.move(126, 50); screen.text_right(lore[3] or "")
+    -- lore (2 compact lines)
+    screen.level(13); screen.move(2, 56); screen.text(lore[1] or "")
+    screen.level(13); screen.move(2, 62); screen.text(lore[2] or "")
+    screen.level(6); screen.move(126, 62); screen.text_right("B back")
+    screen.font_face(1); screen.font_size(8)
+    return
+  end
+
+  -- ── LIST VIEW: 4 entries + selected lore at bottom ──
+  screen.level(7); screen.move(126, 16); screen.text_right(sel .. "/" .. total)
+  local view_start = math.max(1, sel - 1)
+  if view_start + 3 > total then view_start = math.max(1, total - 3) end
+  for i = 0, math.min(3, total - 1) do
+    local idx = view_start + i
+    local e = list[idx]
+    local y = 18 + i * 7
+    local is_sel = (idx == sel)
+    screen.level(is_sel and 15 or 0)
+    screen.move(2, y + 5); screen.text(is_sel and ">" or " ")
+    screen.level(is_sel and 15 or 8); screen.move(8, y + 5); screen.text(e.name)
+    screen.level(is_sel and 13 or 6); screen.move(74, y + 5); screen.text("HP " .. e.hp_max)
+    screen.level(is_sel and 13 or 6); screen.move(102, y + 5); screen.text("AT " .. e.atk)
+  end
+  -- Single lore line in list view (line 2 lives in the detail view) so
+  -- the y=62 footer is free for hints without text collisions.
+  screen.level(3); screen.move(0, 50); screen.line(128, 50); screen.stroke()
+  screen.level(11); screen.move(2, 57); screen.text(lore[1] or "")
+  screen.level(6); screen.move(2, 63); screen.text("A view")
+  screen.level(6); screen.move(126, 63); screen.text_right("B back")
   screen.font_face(1); screen.font_size(8)
+end
+
+-- Items menu: selectable list. dpad Y / E2 scrolls; A uses the selected
+-- item out-of-battle (heals/MP/revive/buff/etc); B/START returns. Globals
+-- kept in CONTENT to dodge the 200-locals cap.
+ITEMS_ORDER = {"salve", "vial", "ether", "star", "tonic", "key"}
+ITEMS_INFO = {
+  salve = {name="Salve", desc="+35 HP party"},
+  vial  = {name="Vial",  desc="+10 MP party"},
+  ether = {name="Ether", desc="+25 MP party"},
+  star  = {name="Star",  desc="Revive KO'd"},
+  tonic = {name="Tonic", desc="+ATK 1 fight"},
+  key   = {name="Key",   desc="Open lock"},
+}
+
+-- Tiny SFX layer for menu item use. Each item gets its own short chime
+-- trig'd on the bard or cleric voice; honors the live combat_reverb_mix.
+-- Global (no `local`) to dodge the 200-main-chunk-locals cap.
+function items_play_sfx(id)
+  local crm = CONTENT.combat_reverb_mix or 1.0
+  local function chime(voice, midi, vel, atk, rel, wet)
+    local f = midi_to_freq(midi)
+    local w = math.min(1, (wet or 0.4) * crm)
+    if engine["trig_" .. voice] then
+      engine["trig_" .. voice](f, vel, atk, rel, w)
+    end
+  end
+  if id == "salve" then
+    chime("cleric", 76, 0.55, 0.04, 1.20, 0.55)   -- warm rising heal pad
+    chime("bard",   83, 0.45, 0.005, 0.50, 0.65)
+  elseif id == "vial" then
+    chime("bard",   79, 0.50, 0.003, 0.35, 0.55)  -- bright single chime
+  elseif id == "ether" then
+    chime("bard",   79, 0.55, 0.003, 0.45, 0.60)  -- richer ether chime
+    chime("cleric", 67, 0.40, 0.06,  1.50, 0.65)
+  elseif id == "star" then
+    -- Triumphant 3-note revive arpeggio (like a level-up but smaller)
+    local notes = {72, 76, 79}
+    for k, m in ipairs(notes) do
+      clock.run(function()
+        clock.sleep((k - 1) * 0.07)
+        chime("bard", m, 0.65, 0.003, 0.55, 0.60)
+      end)
+    end
+  elseif id == "tonic" then
+    chime("warrior", 48, 0.70, 0.005, 0.45, 0.20)  -- low confident thrum
+  elseif id == "key" then
+    chime("warrior", 36, 0.45, 0.005, 0.18, 0.10)  -- dim refusal click
+  end
+end
+
+function items_use_selected()
+  local id = ITEMS_ORDER[CONTENT.items_idx or 1]
+  if not id then return end
+  local inv = SHOP.inv
+  if (inv[id] or 0) <= 0 then
+    CONTENT.items_flash = "(none left)"
+    CONTENT.items_flash_ticks = 30
+    -- Soft refusal blip
+    if engine.trig_warrior then
+      engine.trig_warrior(midi_to_freq(36), 0.30, 0.005, 0.10, 0.05)
+    end
+    return
+  end
+  local msg
+  if id == "salve" then
+    inv.salve = inv.salve - 1
+    for _, q in ipairs(party) do
+      if q.alive then q.hp = math.min(q.hp_max, q.hp + 35) end
+    end
+    msg = "+35 HP party"
+  elseif id == "vial" then
+    inv.vial = inv.vial - 1
+    for _, q in ipairs(party) do
+      if q.alive then q.mp = math.min(q.mp_max, q.mp + 10) end
+    end
+    msg = "+10 MP party"
+  elseif id == "ether" then
+    inv.ether = inv.ether - 1
+    for _, q in ipairs(party) do
+      if q.alive then q.mp = math.min(q.mp_max, q.mp + 25) end
+    end
+    msg = "+25 MP party"
+  elseif id == "star" then
+    local target
+    for _, q in ipairs(party) do
+      if not q.alive then target = q; break end
+    end
+    if not target then
+      CONTENT.items_flash = "no one needs reviving"
+      CONTENT.items_flash_ticks = 30
+      return
+    end
+    inv.star = inv.star - 1
+    target.alive = true
+    target.hp = target.hp_max
+    msg = "Revived " .. (CHAR_NAME[target.class] or target.class)
+  elseif id == "tonic" then
+    inv.tonic = inv.tonic - 1
+    for _, q in ipairs(party) do
+      if q.alive then q.tonic_ticks = 999 end
+    end
+    msg = "ATK boost set for next fight"
+  elseif id == "key" then
+    CONTENT.items_flash = "save Keys for locked chests"
+    CONTENT.items_flash_ticks = 36
+    items_play_sfx("key")
+    return
+  end
+  items_play_sfx(id)
+  CONTENT.items_flash = msg or ""
+  CONTENT.items_flash_ticks = 30
 end
 
 UI.draw_items = function()
   screen.font_face(25); screen.font_size(6)
   screen.level(15); screen.move(64, 7); screen.text_center("ITEMS")
   screen.level(3); screen.move(0, 9); screen.line(128, 9); screen.stroke()
-  local rows = {
-    {"Salve", SHOP.inv.salve, "+35 HP all"},
-    {"Vial",  SHOP.inv.vial,  "+10 MP all"},
-    {"Ether", SHOP.inv.ether, "+25 MP all"},
-    {"Star",  SHOP.inv.star,  "Revive KO'd"},
-    {"Tonic", SHOP.inv.tonic, "+ATK 1 fight"},
-    {"Key",   SHOP.inv.key,   "Open lock"},
-  }
-  for i, r in ipairs(rows) do
-    local y = 14 + (i - 1) * 8
-    screen.level(11); screen.move(8, y); screen.text(r[1])
-    screen.level(15); screen.move(46, y); screen.text("x" .. r[2])
-    screen.level(7); screen.move(72, y); screen.text(r[3])
+
+  CONTENT.items_idx = math.max(1, math.min(#ITEMS_ORDER, CONTENT.items_idx or 1))
+  for i, id in ipairs(ITEMS_ORDER) do
+    local info = ITEMS_INFO[id]
+    local y = 14 + (i - 1) * 7
+    local is_sel = (i == CONTENT.items_idx)
+    local count = SHOP.inv[id] or 0
+    local has = count > 0
+    -- caret
+    screen.level(is_sel and 15 or 0)
+    screen.move(2, y); screen.text(is_sel and ">" or " ")
+    -- name (dim if zero count)
+    screen.level(is_sel and 15 or (has and 11 or 4))
+    screen.move(8, y); screen.text(info.name)
+    -- count
+    screen.level(is_sel and 13 or (has and 7 or 4))
+    screen.move(44, y); screen.text("x" .. count)
+    -- description
+    screen.level(is_sel and 13 or (has and 6 or 4))
+    screen.move(64, y); screen.text(info.desc)
   end
-  screen.level(11); screen.move(2, 60); screen.text("Gold:")
-  screen.level(15); screen.move(28, 60); screen.text(SHOP.gold .. "g")
-  screen.level(6); screen.move(126, 60); screen.text_right("B back")
+
+  -- Footer: gold (left) + persistent hint (right). The use-result message
+  -- now lives in a centered modal box (drawn below) instead of competing
+  -- for footer space with the gold readout.
+  screen.level(11); screen.move(2, 62); screen.text("Gold:")
+  screen.level(15); screen.move(28, 62); screen.text(SHOP.gold .. "g")
+  screen.level(6); screen.move(126, 62); screen.text_right("A use  B back")
+
+  -- Use-result modal: center-screen rectangular box, black fill + bright
+  -- border, message centered inside. Sized 110x16 so the longest string
+  -- ("ATK boost set for next fight" ~84 px wide at 6px font) fits with
+  -- generous side padding and never overlaps the border.
+  if (CONTENT.items_flash_ticks or 0) > 0 then
+    local bw, bh = 110, 16
+    local bx, by = (128 - bw) / 2, (64 - bh) / 2
+    screen.level(0); screen.rect(bx, by, bw, bh); screen.fill()
+    screen.level(15); screen.rect(bx, by, bw, bh); screen.stroke()
+    screen.level(15); screen.move(64, by + 11)
+    screen.text_center(CONTENT.items_flash or "")
+  end
   screen.font_face(1); screen.font_size(8)
+end
+
+-- Build the dynamic STANDBY cell list shown in PARTYSEL's bottom half.
+-- Cells are: every character in CHARACTERS not currently in `party`
+-- (reserve, swappable), then any locked recruits (joined=false). Stable
+-- order keeps the same character in the same cell across redraws.
+function partysel_cells()
+  local CLASS_ORDER = {mage=1, cleric=2, warrior=3, bard=4,
+                       engineer=5, mathwiz=6, drummer=7}
+  local cells = {}
+  local in_party = {}
+  for _, p in ipairs(party) do in_party[p.class] = true end
+  local reserve = {}
+  for cls, _ in pairs(CHARACTERS or {}) do
+    if not in_party[cls] then reserve[#reserve + 1] = cls end
+  end
+  table.sort(reserve, function(a, b)
+    return (CLASS_ORDER[a] or 99) < (CLASS_ORDER[b] or 99)
+  end)
+  for _, cls in ipairs(reserve) do
+    cells[#cells + 1] = {kind = "reserve", char = CHARACTERS[cls]}
+  end
+  for _, r in ipairs(CONTENT.recruits) do
+    if not r.joined then
+      cells[#cells + 1] = {kind = "locked", recruit = r}
+    end
+  end
+  return cells
 end
 
 UI.draw_partysel = function()
   screen.font_face(25); screen.font_size(6)
   screen.level(15); screen.move(64, 7); screen.text_center("PARTY")
   screen.level(3); screen.move(0, 9); screen.line(128, 9); screen.stroke()
-  -- ── ACTIVE PARTY (top half, rows 11-37) ──
+
+  -- ── ACTIVE PARTY (top half, y=11..37) — 4 cells, 32 wide each ──
   local saved_facing = player.facing
   player.facing = "down"
   for i, p in ipairs(party) do
@@ -11809,36 +24548,60 @@ UI.draw_partysel = function()
     local fn = SPRITE_BY_CLASS[p.class]
     if fn then fn(cx + 12, 13) end
     screen.level(act and 15 or 11)
-    screen.move(cx + 16, 28); screen.text_center(CHAR_NAME[p.class])
+    screen.move(cx + 16, 28); screen.text_center(CHAR_NAME[p.class] or p.class)
     screen.level(p.alive and 11 or 4)
-    screen.move(cx + 16, 35); screen.text_center("HP " .. p.hp .. " L" .. (p.level or 1))
+    screen.move(cx + 16, 35); screen.text_center("LV " .. (p.level or 1))
   end
-  -- ── RECRUITS (lower half, rows 39-58) ──
+
+  -- ── STANDBY (bottom half, y=39..57) — up to 3 dynamic cells ──
+  -- Anyone NOT in the active party (recruits OR displaced starters) appears
+  -- here automatically; locked recruits dim out at the end.
   screen.level(3); screen.move(0, 38); screen.line(128, 38); screen.stroke()
-  screen.level(11); screen.move(2, 44); screen.text("RECRUITS")
-  for i, r in ipairs(CONTENT.recruits) do
-    local cx = (i - 1) * 64
+  screen.level(11); screen.move(2, 43); screen.text("STANDBY")
+
+  local cells = partysel_cells()
+  -- Clamp focus to the cell range (0 = no focus).
+  if (CONTENT.partysel_focus or 0) > #cells then
+    CONTENT.partysel_focus = 0
+  end
+  for i, cell in ipairs(cells) do
+    if i > 3 then break end   -- only 3 cells fit horizontally
+    local cx = (i - 1) * 43
     local focused = (CONTENT.partysel_focus == i)
     if focused then
-      screen.level(2); screen.rect(cx, 45, 64, 14); screen.fill()
-      screen.level(15); screen.rect(cx, 45, 64, 14); screen.stroke()
+      screen.level(2); screen.rect(cx, 45, 42, 13); screen.fill()
+      screen.level(15); screen.rect(cx, 45, 42, 13); screen.stroke()
     end
-    -- sprite on left
-    local fn = SPRITE_BY_CLASS[r.class]
-    if fn then fn(cx + 2, 47) end
-    -- name + class + joined badge
-    screen.level(focused and 15 or (r.joined and 11 or 7))
-    screen.move(cx + 12, 52); screen.text(CHAR_NAME[r.class])
-    screen.level(r.joined and 11 or 4)
-    screen.move(cx + 12, 58); screen.text(r.joined and "JOINED" or "(locked)")
+    if cell.kind == "reserve" then
+      local ch = cell.char
+      local fn = SPRITE_BY_CLASS[ch.class]
+      if fn then fn(cx + 2, 47) end
+      screen.level(focused and 15 or 11)
+      screen.move(cx + 12, 51); screen.text(CHAR_NAME[ch.class] or ch.class)
+      screen.level(focused and 13 or 6)
+      screen.move(cx + 12, 57); screen.text("LV " .. (ch.level or 1))
+    else  -- locked
+      local r = cell.recruit
+      local fn = SPRITE_BY_CLASS[r.class]
+      if fn then fn(cx + 2, 47) end
+      screen.level(focused and 11 or 4)
+      screen.move(cx + 12, 51); screen.text(CHAR_NAME[r.class] or r.class)
+      screen.level(focused and 8 or 3)
+      screen.move(cx + 12, 57); screen.text("(locked)")
+    end
   end
   player.facing = saved_facing
-  if CONTENT.partysel_focus > 0
-     and CONTENT.recruits[CONTENT.partysel_focus]
-     and CONTENT.recruits[CONTENT.partysel_focus].joined then
-    screen.move(2, 63); screen.text("A swap   B back")
+
+  -- Footer (y=63 baseline; cells end at y=58 so glyphs at y=58..63 don't
+  -- touch the cell borders).
+  local focus_cell = cells[CONTENT.partysel_focus or 0]
+  if focus_cell and focus_cell.kind == "reserve" then
+    screen.level(11); screen.move(2, 63)
+    screen.text("A: bring " .. (CHAR_NAME[focus_cell.char.class] or focus_cell.char.class) .. " into Slot " .. active)
+  elseif focus_cell and focus_cell.kind == "locked" then
+    screen.level(8); screen.move(2, 63); screen.text("(not yet joined)")
   else
-    screen.move(2, 63); screen.text("UD focus recruit  B back")
+    screen.level(6); screen.move(2, 63); screen.text("L1/R1 slot   UD pick   B back")
   end
   screen.font_face(1); screen.font_size(8)
 end
@@ -11863,6 +24626,7 @@ function redraw()
   elseif game_state == "DIALOGUE" then draw_dialogue()
   elseif game_state == "BATTLE" then draw_battle()
   elseif game_state == "BATTLE_END" then draw_battle_end()
+  elseif game_state == "GAME_OVER" then draw_game_over()
   elseif game_state == "MENU" then draw_menu()
   elseif game_state == "STATUS" then draw_status()
   elseif game_state == "EQUIP" then draw_equip()
@@ -11872,9 +24636,12 @@ function redraw()
   elseif game_state == "JAM" then draw_jam()
   elseif game_state == "ITEMS" then UI.draw_items()
   elseif game_state == "QUESTS" then UI.draw_quests()
+  elseif game_state == "MAP" then UI.draw_map()
+  elseif game_state == "ACHIEVEMENTS" then UI.draw_achievements()
   elseif game_state == "BESTIARY" then UI.draw_bestiary()
   elseif game_state == "SHARDS" then UI.draw_shards()
   elseif game_state == "PARTYSEL" then UI.draw_partysel()
+  elseif game_state == "CREDITS" then UI.draw_credits()
   end
   -- Pass 36: MIDI activity indicator. Tiny dot in the top-right corner
   -- that flickers when an event came in within the last few ticks.
@@ -11937,6 +24704,13 @@ function redraw()
       screen.rect(127, 0, 1, 64); screen.fill()
     end
   end
+  -- Scene fade overlay (covers HUD too — drawn last). No-op when fade==0.
+  -- Letterbox bars sit ABOVE the world but BELOW the fade overlay,
+  -- so a fade-to-black still covers them.
+  if SCENE and SCENE.draw_letterbox then SCENE.draw_letterbox() end
+  if SCENE and SCENE.draw_fade then SCENE.draw_fade() end
+  -- Particle pool overlay (region-ambient, e.g. snow / leaves / ash).
+  if PARTICLES and PARTICLES.draw then PARTICLES.draw() end
   -- Reset shake translate so the next frame starts clean.
   if shake_dx ~= 0 or shake_dy ~= 0 then
     screen.translate(-shake_dx, -shake_dy)

@@ -1148,3 +1148,570 @@ the do-block to avoid main-chunk local-cap pressure)
   https://github.com/om-i-god/synth-quest.
 - `backups/` directory holds timestamped `.lua` snapshots after each
   notable pass; gitignored.
+
+## 2026-05-09 — Combat overhaul, prologue rewrite, dialogue packer
+### Miel = REFLECT (was DEF)
+- Cleric's B-button is now `REF`. New `ARTIC.REF` profile (bell-bright
+  shimmer, +24 pitch, 2.2s release, 0.85 wet) so the action has a
+  distinct sonic signature.
+- `damage_party` checks `p.reflect` early (after Strom's blocker
+  redirect, before any other reduction): full incoming damage is bounced
+  back at the enemy via `damage_enemy(amount, false)`, the reflect is
+  consumed, and a silver chime plays. Miel takes no HP damage and gets
+  no hit-wobble (no `last_hit` set, no banner) — the read is "she
+  repelled it cleanly," and the visible feedback is the damage number
+  appearing on the enemy.
+- HUD: `M` (mirror) marker added to the per-character status row when
+  reflect is armed.
+- New action visual on Miel's sprite: two concentric diamonds + four
+  orbiting sparkles that rotate with `t`. Brighter than DEF, hangs
+  longer.
+- All 4 battle-init sites and the post-battle reset clear the new
+  `reflect` / `reflect_ticks` fields alongside `shield`/`buffed`/etc.
+
+### Game Over state (was: silent walk-around-with-dead-party)
+- Party wipe in real combat now drops to a new `GAME_OVER` game state.
+  Black field, 60-tick fade-in of "GAME OVER" centered, decorative rule,
+  sparse static beneath, subtitle "the chord falls silent.", blinking
+  `A — return to title` after ~80 ticks.
+- Tutorial / scripted fights still soft-revive: the prologue silencer
+  fights, the escape-cave wisps, and the academy Strom duel all bring
+  the party back at 75% HP / 50% MP and return to the overworld with a
+  banner ("you fall back. try again."). Avoids the soft-lock from the
+  previous design while making "real" deaths actually punitive.
+- Press A on the GAME_OVER screen → TITLE with `TITLE.idx = 1`
+  (cursor parked on Continue) so a load is one button press away.
+
+### Suno dialogue rework
+- The original prologue had Suno effectively coaching Miel to the
+  tapestry exit — wrong character voice. Rewrote to make Suno explicitly
+  unaware of the secret door:
+  - Cuts all "make for the tapestry" hand-holding.
+  - Suno now demands the Aeolian shard concretely, asks Miel to sing
+    only as a lie-detector ("the shard answers your blood — lie to me
+    with your voice and I will hear it"), and orders the silencers to
+    take her "hands first" before withdrawing to the corridor.
+  - Miel speaks back early ("You will not stand on that dais"), so she
+    has agency from the first beat.
+  - The escape-door realisation is purely Miel's memory of her
+    grandmother's room.
+- Finale rework too: Suno's old "you walked from a tapestry to my
+  throne" implied he knew the route. Replaced with "You should be a
+  wagon-print in the road by now... I underestimated the room I left
+  you in." Closes the loop on the prologue without ever revealing he
+  knew the door.
+- New dedicated `OW_THEMES.castle` underscore: hammered dotted-quarter
+  pulse on warrior + dissonant minor-2nd cleric stab + urgent climbing
+  8th-note mage figure + brittle bard offbeats. Throne room map (id 20)
+  rerouted from the soft `inn` theme to this new `castle` theme.
+
+### Cascade-split dialogue packer
+- The pack_dialogue_lines splitter only knew sentence punctuation, so a
+  single 100-char sentence with no internal `. ! ?` would render as one
+  page that overflowed the 3-line body strip and got clipped.
+- Rewrote `split_long` as a delimiter cascade: sentences first, then
+  `--` clause break, then `;`, then `,`, then a balanced word-boundary
+  split (last resort, equalizes chunk sizes so we don't end up with a
+  5-char orphan tail after a 70-char chunk).
+- Speaker prefix preservation: when a tagged line `[Suno] long...` is
+  split, every produced chunk keeps the `[Suno] ` prefix so the
+  re-merger sees consistent speakers.
+- Audit: 89 lines previously overflowing the 75-char body budget, now
+  zero. No source dialogue edits required — every existing line auto-
+  splits into ≤75-char pages.
+
+## 2026-05-09 (later) — SCENE engine + autonomous content expansion
+A long autonomous run focused on FF-style scene choreography and net-new
+content. Baseline 16,054 lines / 676KB → final 18,155 lines / 752KB.
+
+### SCENE choreography engine
+- New `SCENE` global with actor pool, smoothstep position tweens,
+  camera tween, fade-in/out (dithered stipple at low values, solid black
+  at 15), and a step-based script processor. Step shapes:
+  `spawn`, `move`, `face`, `despawn`, `wait`, `dialogue`, `camera_to`,
+  `fade_in`/`fade_out`, `sfx`, `shake`, `flash`, `teleport_player`,
+  `hide_player`/`show_player`, `set` (arbitrary state poke).
+- Actors render between map sprites and the player on the overworld
+  draw stack. Per-actor facing is honored by temporarily setting
+  `player.facing` while the sprite draws (since SPRITE_BY_CLASS reads
+  it at render time), then restoring.
+- Per-tick `SCENE.tick` advances tweens always; advances the script
+  only when not in DIALOGUE and not waiting. Dialogue steps hand off
+  to the existing DIALOGUE state via `CONTENT.post_dialogue` so
+  `pack_dialogue_lines` + the dialogue UI continue to be the source
+  of truth for line rendering.
+- Input suppression: gamepad dpad/button + norns key handlers all
+  early-return from OVERWORLD when `SCENE.active` is true, so the
+  player can't walk through a cutscene.
+- Scope: defined SCENE method bodies after `SPRITE_BY_CLASS` (not at
+  the data table) so all needed locals are in lexical scope without
+  trying to refactor `cam`/`player`/`dlg` into globals.
+- Save/load wipes any in-progress scene; GAME_OVER → TITLE clears
+  scene state on the way out.
+- An NPC may now declare a `scene = function() return script end`
+  field; if present, talking to the NPC fires the script via
+  `SCENE.start` instead of the standard text-only dialogue.
+
+### Choreographed scenes (10 SCENE.start callsites)
+- **Prologue throne room** — auto-fires on first map-20 entry (state
+  "untriggered"). Suno + 2 silencers spawn at the south doorway, Suno
+  paces the full hall length over 60 ticks, stops one step short of
+  the dais, dialogue beats interleave with sprite turns and lantern
+  SFX, Suno walks back out, doors thud, silencers step into Miel's
+  path, Miel whispers her grandmother's secret door line. Player gains
+  control. Static talk-to-Suno NPC removed (auto-fire replaces it).
+- **Diegues academy join** — Diegues turns from the lectern, Strom
+  enters from the east doorway, dialogue-with-movement, Diegues walks
+  down to flank Miel, on_complete drops Diegues into the active party
+  and starts the Strom fight.
+- **Strom epilogue (post-battle)** — Strom on his knees mid-room,
+  hammer-fall SFX + shake, Diegues walks down from the lectern, beat-
+  by-beat dialogue with strom-rises facing changes, both step into
+  formation behind Miel.
+- **Alder recruit** — soft lute idle SFX, Miel's hum (sustained cleric
+  tone), Alder turns down briefly (recoil), faces Miel, stands, walks
+  to her tile, joins.
+- **Niko recruit** — at the moment of joining, brushed-cymbal sting,
+  Niko stands and steps toward Miel, four kick-drum 4-on-the-floor
+  hits punctuate the join banner.
+- **Reya's Cairn** (Strom-only) — only fires when `class_in_party
+  ("warrior")`. Strom walks 70 ticks from Miel to the cairn at (24,5),
+  faces it, bell-wind SFX, kneel + stand sequence with two facing
+  changes, places a stone, wind answers, both walk back to Miel's
+  position. Unlocks `reya_cairn` achievement.
+- **Lirael Ruins first visit** — long, slow memory beat. Party
+  companions spawn at the south end as standing actors; Miel walks
+  alone across the courtyard toward her grandmother's empty throne
+  (108 ticks, two-segment path); optional reactions from Strom/Diegues/
+  Alder if present (each walks to a different position with their own
+  dialogue beat); a bell rings of its own accord; a small white bird
+  appears in the rafters; awards a Tonic.
+- **Velthe's Observatory first visit** — Iola plucks three orrery
+  tones (mage voice ascending), greets Miel, walks down to her, awards
+  the Sightings Lens instrument with cleric high-chord SFX, unlocks
+  `velthe_sightings` achievement.
+- **Choir Hour** at the academy — fires on revisit with ≥3 shards
+  after `academy_state == "complete"`. Diegues at the lectern with
+  baton, four students (one of each class for sprite variety) seated
+  in a semicircle, all face up on the conductor's cue, four-part chord
+  stacks bottom-up (warrior C2 → cleric C4 → mage G4 → bard C5) with
+  4-second release each, students sit, Diegues smiles. Unlocks
+  `choir_hour` achievement.
+- **Suno finale approach** — pre-combat scene at cave 7. Suno spawns
+  facing away (up); after Miel's "I came here so I could sing for it"
+  he turns in two facing-change beats (left → down) with 1.2s release
+  warrior-voice SFX punctuating each; six-shard ring fires three
+  harmonized triggers across cleric/mage/bard at successive pitches
+  with screen shake; on_complete launches the cave-7 boss fight.
+- **Campfire choreography** — every campfire memory now seats the
+  active party in a deterministic 6-class ring around the flame
+  (Miel NW, Alder NE, Strom W, Diegues E, Sergei SW, Paj SE,
+  Niko S). Sustained cleric chord on settle. Sprites despawn after
+  the dialogue closes.
+- **Inn dawn departure** — 25% chance after inn rest (when STORY.play
+  has nothing queued and party ≥ 2). Picks a random non-leader
+  companion; they appear beside Miel for one short class-flavored
+  morning line (per-class line pools — Strom is "two hours' light
+  burned", Diegues "I have written down a dream", etc).
+
+### New locations + maps
+- **Lirael Ruins (map 23)** — 16×11 burned ancestral home. Bell-tower
+  silhouette (col 7-8 row 3-4), twin scorched hearths (col 5/12 row 6),
+  the empty throne (col 7 row 6), broken bookshelves, ruined wall
+  blocks. Custom ash-floor renderer (dim stone with seeded ash flecks)
+  + custom ruined-wall renderer (chipped edge with deterministic
+  notch). Reachable via tile 51 (vine-arched stone door) on the
+  Western Region west edge. South tile 47 returns to Western Region.
+- **Velthe's Observatory (map 24)** — 16×10 dark stone interior.
+  Brass orrery centerpiece (col 7 row 5), reading-fire, chart shelves,
+  decorative columns. Custom starfield-floor renderer (deep blue-black
+  with stable bright pixels) + brass-fitting wall renderer. Reachable
+  via tile 52 (lantern-domed wooden door) in the Northern Wilds; gated
+  by 3 shards (soft "the door is sealed" banner if under).
+
+### New music themes
+- `OW_THEMES.lirael` — mournful Aeolian descent. Cleric breathes a
+  slow held A3 → G3 → F3 → E3 ladder (6.5s release each); mage
+  answers with a tiny minor-third figure on every other bar; warrior
+  pulses a single low A on bar 1 + 5; bard places a brittle high A
+  every 8 bars (the bell). Long attacks + heavy reverb so the chamber
+  feels empty even with notes in it.
+- `OW_THEMES.observatory` — mathematical Lydian sequence. Mage runs a
+  5-note climbing figure (1, b3, 5, b7, 1) that resets on bar 4
+  coloration; cleric holds a brilliant high pad; warrior pulses a
+  clean major triad on every bar one; bard accents the offbeats.
+  Bright and curious — sound of doing the math while the stars
+  hold still.
+- `OW_THEMES.cairn` — single bell-tone with 12-second decay + low
+  pedal. Cleric strikes A4 every 8 bars; warrior sustains a low
+  pedal. That's the whole arrangement; designed to make the player
+  aware they're standing somewhere quiet. (Ready for a future
+  cairn-area map; cairn NPC scene currently fires inside Northern
+  Wilds without a dedicated map.)
+
+### New tiles (5)
+- **32** bell-tower base — pale stone column, arched window slit,
+  faint slow-pulsing brass bell glint inside the slit, pitted edge.
+- **51** Lirael Ruins arch — narrow stone arch with vine pixels on
+  the top, dim warm glow visible deep in the dark.
+- **52** Observatory door — wooden door under a small dome with a
+  brass lantern that blinks on a 6-tick cycle.
+- **53** empty throne — slightly-off-center silhouette, broken back
+  with chipped corners, occasional dim heat-bleached stud glint.
+- **54** village plaza flag — 7-tile-tall pole with a small banner
+  that animates on a 3-frame sway cycle. Banner color follows shard
+  progress: dim grey at 0, brass at 4+, bright cream at 7. Placed at
+  col 15 row 6 on mainland (directly above the village fountain).
+
+### New NPCs (each with custom 8×8 sprite + animated detail)
+- **Tovia the Cartographer** — wandering. Visible in mainland inn
+  at 0-2 shards, eastern inn at 3-4, northern inn at 5-6. Russet
+  cloak, vellum sheet held in front, occasional bright pixel
+  (writing). Lore deepens each appearance; final line at 5 shards
+  is a goodbye.
+- **Bren the smith** (mainland col 8 row 5) — broad shoulders,
+  leather apron, hammer-down posture, occasional anvil glint.
+  Plays an anvil-ring SFX on dialogue open. Class-aware lines for
+  Strom (recognizes military stance).
+- **Tilo the dock-child** (mainland col 22 row 9) — small, hood up,
+  hands held together as if counting boats. Boat count grows with
+  shard progress.
+- **Aunt Vell** (mainland col 5 row 5) — wide-brimmed hat, small
+  frame, with a yellow bee particle that orbits her sprite via
+  `sin/cos(tick)`. Beekeeper at woods edge; bees fall quiet when
+  the chord is broken, sing again as it heals.
+- **Iola** (Velthe's Observatory) — chalk-white hair, dark robe,
+  occasional silver lens glint. Apprentice; awards Sightings Lens
+  on first visit, gives shard-tier flavor on revisits.
+- **Maro** (Western Region col 5 row 8) — Tovia's apprentice,
+  sketching the academy facade, charcoal-stick flicker.
+- **WhiteBird** (Lirael Ruins, in the bell-tower rafters) — tiny
+  white sprite that ruffles wings on a 30-tick cycle. Talking to it
+  rings the bell once more, very small; Miel "...you remember her."
+- **KeeperStone** (Lirael Ruins) — small inscribed stone with two
+  lines of voice — Velthe's chronicle and a margin note in another
+  hand signed "M.".
+- **Orrery** (Observatory centerpiece) — interactable brass-rings
+  sprite drawn over the underlying hearth tile. Each interaction
+  cycles through 5 named constellations (The Loom, The Captain,
+  The Bell, The Long Hand, The Seventh Sister), each with a held
+  cleric chord and a brief lore beat.
+
+### Visual ambience — PARTICLES engine
+- New `PARTICLES` global with a 60-particle hard-capped pool.
+  Per-tick spawn driven by current map / region:
+  - Mainland woods → `leaf` (gold pixels, slight horizontal sway)
+  - Mainland coast → `mist` (dim flicker)
+  - Northern Wilds + Frost Vault → `snow` (pale falling pixels)
+  - Western Region → `leaf`
+  - Lirael Ruins → `ash` (dim trailing pixels)
+  - Dune Hall → `sand` (horizontal streaks)
+- Coast-region creatures: rare `bird` (3-pixel V-glyph that flaps
+  every 8 ticks, with subtle vertical sine), rare `splash` (small
+  expanding ring near pier coords).
+- Drawn over the world after the SCENE fade overlay so they read on
+  top of even faded scenes.
+
+### Polish + safety
+- All NPC visibility / dialogue functions returning long lines now
+  pass the new cascade packer cleanly — `python3 /tmp/dlg_audit.py`
+  reports 0 overflows across 260 candidate dialogue strings.
+- Place names registered for new maps (Lirael Ruins, Velthe's
+  Observatory, Reya's Cairn, Hall of Resonance, Western Region, etc.)
+  so the place-banner reads correctly on entry.
+- `start_dialogue` extended to detect `npc.scene` and prefer it over
+  `npc.dialogue` (fallback chain preserved if the scene returns nil).
+- New animated tiles (32, 52, 53, 54) added to the per-tick draw call
+  so they receive the `tick` argument.
+
+### HDMIMirror robustness (earlier today, included for completeness)
+- Viewer was constantly disconnecting/reconnecting because the lua-
+  socket `tcp:send` returns `(nil, "timeout", last_byte_sent)` on a
+  partial send and the previous code assumed all-or-nothing. Receiver
+  read pixel bytes as length headers and dropped the connection in a
+  loop.
+- Rewrote with a `send_all()` helper that resumes from `last + 1` on
+  timeout. Added `tcp-nodelay`. Lowered TARGET_FPS 20→12 (half the
+  bandwidth, plenty for a turn-based JRPG). Bumped reconnect interval
+  3s → 5s.
+
+### Ergonomics
+- Viewer config (`~/.config/synth-quest/viewer.conf` on the norns)
+  now points at the Mac's current LAN IP. `viewer/mac-run.sh` still
+  prints the IP to set when launched from Terminal.
+- All deploys via `rsync -az -e 'ssh -i ~/.ssh/norns'` to
+  `we@norns.local:/home/we/dust/code/synth-quest/synth-quest.lua`.
+  Snapshots of each major pass live in `backups/` (~7 across the day).
+
+## 2026-05-09 (final wave) — FF4-tier scene polish + camera + typewriter
+A second autonomous run focused on dragging every scripted scene up to
+Final Fantasy IV/V/VI standard. Baseline 18,155 lines → final 20,400+
+lines. The throne-room bug fix that started this pass exposed a deeper
+omission: the SCENE engine had no camera-pan support, no letterbox, no
+walking animation, no auto-look. All added; every existing scene
+reworked to use them.
+
+### Throne-room bug fix
+- The original bug: castle map is 12w × 10h; view is 16w × 8h. Player
+  starts at (6, 5) → cam.y pinned to 1, view shows rows 1-8. Suno was
+  spawning at (6, 9) — OFF SCREEN. Player only saw silencer NPCs (which
+  also lit up the moment the scene set `prologue_state = "coup"`).
+- Fix #1: gate the static silencer NPCs behind a NEW
+  `CONTENT.prologue_scene_done` flag. They no longer materialise
+  during the cutscene — only after.
+- Fix #2: the throne scene now pans the camera DOWN to the doorway
+  (cam.y = 3 → view rows 3-10) BEFORE Suno enters. Suno spawns visible.
+  Then a measured walk-up + a SECOND camera pan back to frame Miel +
+  Suno across the dais. Pure FF6 establishing-shot grammar.
+
+### SCENE engine extensions
+- **`focus = {x, y}` / `focus = id`** — auto-pan camera to a tile or
+  to keep an actor centered. Clamps to map bounds. Smoothstep tween.
+- **`look = id, toward = id`** — auto-rotate one actor to face another
+  based on their relative position. Used for "characters look at each
+  other" beats without the writer having to compute facings by hand.
+- **`bump = id, dir = "up"|"down"|"left"|"right"`** — small back-and-
+  forth tween used for shock reactions. The actor moves 0.4 tile in
+  `dir`, then snaps back over the same duration. Reads as a recoil.
+- **`letterbox_in` / `letterbox_out`** — animated 6px black bars at top
+  + bottom that ease in over ~6 ticks. Drawn between SCENE.draw and
+  SCENE.draw_fade so a fade-to-black still covers them.
+- **Step-walk animation** — actors lift 1px on alternating beats of
+  their move tween (computed from `step_phase = floor(move_t * 4 /
+  move_dur) % 2`). Walks now read as footsteps, not ice-skating.
+- **NPC sprite priority in SCENE.draw**: explicit `sprite` override →
+  `NPC_SPRITES[name]` → `SPRITE_BY_CLASS[class]` → placeholder. Lets
+  scenes spawn boss silhouettes by name (Echo, Sentinel, Tidewatch,
+  Rider, Snowgaunt, Locrius — each with bespoke 8×8 art).
+
+### FF-polished existing scenes (8)
+Every scene from the first pass got the new treatment:
+- **Prologue throne room** — full camera choreography (start on Miel,
+  pan to doorway, hold during Suno's entry, pan back for dialogue,
+  follow Suno out), letterboxed, look/bump for facing changes.
+- **Diegues academy join** — Diegues spotted Miel with a `bump = up`
+  shock recoil, look-at-each-other beats during the dialogue, Strom
+  enters from the south doorway with hammer-drag SFX. Letterboxed.
+- **Strom epilogue** — multi-stage facing changes (down for "looking
+  at hands", left for "looking at Diegues", left for "looking at
+  Miel"). Letterboxed.
+- **Alder recruit** — camera focus on the fire, Alder's `bump = down`
+  recoil when he hears Miel's hum, look-at-each-other when he stands.
+- **Niko recruit** — camera focus on The Hollow's back room, Niko
+  looks at his sticks (face down) before turning to Miel.
+- **Reya's Cairn** — camera frames player + cairn together, then
+  focuses on the cairn for the wind-answer beat, then back to Miel
+  on the walk home.
+- **Lirael Ruins first visit** — establishing shot of the throne
+  before introducing Miel, camera tracks Miel's slow walk to the
+  throne, fade-from-black entrance.
+- **Velthe Observatory first visit** — camera holds on the orrery
+  before introducing Iola, then frames Iola + Miel together.
+- **Choir Hour** — letterboxed + fade-from-black opener.
+- **Suno finale** — camera cuts between wide-shot, Miel-tight, Suno-
+  tight as he turns. Letterboxed.
+
+### New scenes (10)
+- **Eastern Reaches arrival** — gull-cry SFX, party walks ashore, Strom
+  or Alder one-line reaction.
+- **Northern Wilds arrival** — held wind tone, snow falling, Strom
+  remembers his lost company.
+- **Suno's Domain arrival** — held low drone, party draws together,
+  per-companion dread reaction.
+- **Tower-entry** — first time on tower tile with 5+ shards: party
+  gathers at the threshold, two tower-hum SFX, per-companion goodbye
+  to the village, fade-out warps to Suno's Domain.
+- **Escape cave first-step** — solo Miel, fade-from-black, tapestry-
+  thud, hum begins, walks east into the dark.
+- **Village arrival "queen of nothing"** — slow fade-in (60 ticks),
+  bell-shimmer SFX, Miel sets back her hood, long pause, the line.
+- **Six-shards convergence** — fires when shard count hits 6 (queued
+  via `CONTENT.queued_scene` from `obtain_shard`, fires on next
+  `exit_battle`). Party gathers at the village fountain; per-companion
+  one-liner; full party-chord stack as the held resolution.
+- **First-shard celebration** — bespoke aftermath for Cave 1 victory.
+  The shard hums home, the village fountain begins to run for the
+  first time in 20 years, three-note arpeggio on the basin.
+- **Boss-aftermath** for caves 2-6 — shorter beats, one held cleric
+  shimmer + one quoted line from the appropriate party member (Strom
+  for Sentinel/Snowgaunt, Diegues for Locrius, Miel for Tidewatch,
+  Alder for Dune Rider).
+- **Strom inn-dream** — black-screen flashback, no actors. Distant
+  rain SFX, Reya's voice in his memory, wakes to the line "...Reya."
+  Fires once on first inn-rest with Strom in party.
+- **Diegues' study** — quiet revisit beat at the academy with 5+
+  shards and Diegues in party. He reads his own old chronicle pages
+  and admits he was wrong about most of them.
+- **Alder ambient** — very rare (~0.5% per tile, throttled to once per
+  ~minute) flavor scene fired during village walking. Alder appears
+  next to Miel for 3 ticks, plays a 3-note phrase, vanishes.
+
+### Boss approach choreography (caves 1-6)
+- New `start_boss_approach_scene(cv)` helper — runs FIRST time the
+  player crosses each boss-arena tile. Boss spawns visible with a
+  bespoke NPC sprite (Echo flickering ghost, Sentinel mossed wooden
+  giant, Tidewatch waving water silhouette, Dune Rider on horseback,
+  Snowgaunt conducting figure, Locrius skeletal teeth-glint). Per-
+  cave atmosphere SFX cluster + boss tone. Party draws together on
+  beat 3. Final `bump` on the boss before transition to combat.
+- Cave 7 still routes to `start_finale_scene` (already FF-polished).
+
+### Sage first-meeting choreography (4)
+- Veris (woods), Aurin (coast), Mira (eastern dunes), Iolen (north).
+  Each is a one-shot `scene` field on the NPC: when the player first
+  walks up, the sage approaches from off-tile (or comes into focus),
+  letterboxed, three-beat introduction with auto-look. Subsequent
+  visits use the original progression-aware dialogue.
+
+### Recruit choreography (3 more)
+- **Paj** (mathwiz) — fires the moment she joins (Cave 5 cleared +
+  not yet joined). Pen-down SFX, look at Miel, mage-voice resolution
+  chord on join.
+- **Sergei** (engineer) peaceful path — fires when player visits the
+  Old Resonator after defeating Tidewatch without wiping. Cable-thump
+  SFX, slow turn, look at Miel.
+
+### Dialogue typewriter (FF char-by-char reveal)
+- `draw_dialogue` now reveals body text at ~17 chars/sec
+  (TYPEWRITER_CPT = 0.85 chars/tick at 20fps). `dlg.line_start_tick`
+  is set on every new line; lazy-init in draw_dialogue so callsites
+  that bypass `start_dialogue` still get the reveal.
+- A-press behavior: if not yet revealed, FIRST press snaps to fully-
+  revealed (`dlg.snap_to_complete = true`); SECOND press advances
+  the line. Classic FF dialogue feel.
+- The advance "v" prompt only flickers once `dlg.complete` is true.
+- Wrap-line stability: font choice (default vs compact) is pinned by
+  the FULL body length, not the currently-revealed prefix, so the
+  layout doesn't hop mid-reveal.
+- Save/load wipes typewriter state so a load mid-dialogue doesn't
+  show a stale partial line.
+
+### Battle polish
+- **Pre-battle visual sting** — `enter_battle` now fires a 2px shake
+  + 8-particle burst + low warrior tone before combat begins. Skipped
+  when SCENE is active (boss-approach scenes already handle their
+  own entry animation).
+- **Character shock-jump** — when a HUD party sprite takes damage,
+  it bumps 1-3px down for the first 6 ticks then eases back. Reads
+  as recoil from the projectile.
+- **Critical-HP vignette** — any party member below 25% HP triggers
+  a subtle pulsing screen-corner border tint (alternating brightness
+  11 ↔ 7 every 8 ticks). Drawn behind everything else so the battle
+  UI stays crisp.
+
+### Shard pickup polish
+- `obtain_shard` now ALSO fires a center-screen particle burst (size
+  scales with total shards owned), a 12-tick shake, and at shard 5+
+  an extra rising 4-note cleric arpeggio over the existing sting.
+  At shard 7: a held bass cleric tone + the "* THE CHORD IS WHOLE *"
+  banner.
+
+### Particles + ambient
+- Bird/splash particles already wired (last pass) — now bird flight
+  is more atmospheric in the coast.
+
+### Engine safety
+- Save/load wipes SCENE state (active, script, actors, fade,
+  letterbox, hide_player, cam_tween) AND the typewriter state. No
+  more loading mid-cutscene leaving stale actors on screen.
+- GAME_OVER → TITLE clears scene state.
+- New `CONTENT.queued_scene` mechanism for scenes that need to fire
+  AFTER battle exit (six-shards, boss-aftermath). Set in clear_boss /
+  obtain_shard, dispatched at the end of `exit_battle`.
+- Old saves predating `prologue_scene_done`: if they're past the
+  "untriggered" prologue state, we assume the scene already played
+  (so static silencers continue to be visible).
+
+### Cinematic CUTSCENE intro
+- The boot-time intro CUTSCENE state is its own slideshow system, but
+  it now ramps in 6px letterbox bars over the first panel for
+  consistent FF framing.
+
+### Ending polish
+- ENDING state gets a constant 4px top letterbox (bottom kept clear
+  for progress dots + "A >" prompt).
+
+## 2026-05-14 — Lore catch-up pass: bible reconciled with code
+
+Bible (`story/bible.md`) had drifted from `synth-quest.lua` since
+2026-04-29. This pass reconciled the two. No code was changed; this
+was a documentation pass only.
+
+### Standing rule established
+- Going forward, any narrative content added or changed in the code
+  (characters, areas, items, NPCs, factions, dialogue beats) must be
+  reflected in `story/bible.md` and `story/scripts/` in the same pass.
+  Tracked in user memory as `feedback_synth_quest_lore_sync.md`.
+
+### Surveyed both sources
+- Bible state at 2026-04-29: world/cosmology committed, 7 modes
+  proposed, 4 party members locked, Suno + 3 lieutenants proposed,
+  caves 3-7 sketched with specific bosses (Harbormaster, First Call,
+  Broken Cadence, Tritone), Resonances proposed, Ionian = ceremonial.
+- Code state at 2026-05-14: 4 party members (match), 24+ named NPCs,
+  7 caves named (TIDE CAVERN, GLASS CAVERN, ICE GROTTO, LOCRIAN
+  CRYPT, SUNO'S CHAMBER), 8 named bosses, 26 enemy types, regions
+  including Lirael, Velthe's Observatory, Reya's Cairn, Far Hills,
+  Eastern Reaches, Northern Wilds, the Tower, the Academy. Plus a
+  post-game superboss (THE FIRST CHORD, Cave 8).
+
+### Contradictions resolved (per user direction, expand-canon mode)
+- **Cave 3**: code's TIDEWATCH is now canonized as the GHOST of the
+  bible's old HARBORMASTER. Call-and-response duel mechanic preserved.
+- **Cave 4**: GLASS CAVERN is the glass-vitrified buried Phrygian
+  palace. TWO bosses now canon: DUNE RIDER (gate, upper) and THE
+  FIRST CALL (shard-holder, lower throne room).
+- **Cave 5**: split into TWO locations — LIRAEL cathedral catastrophe
+  (Act 3 narrative event, boss = THE BROKEN CADENCE, no shard drop)
+  and the ICE GROTTO (Cave 5 proper, boss = SNOWGAUNT, shard drop).
+  Lirael's last queen sent the shard north before the cathedral fell.
+- **Cave 6**: both locations canon — OBSERVATORY above and LOCRIAN
+  CRYPT below, connected. THE TRITONE is mid-boss (upper), LOCRIUS
+  is shard-boss (lower). Locrius is now lore-tied to Velthe.
+- **Cave 7**: TWO STAGES — defeat Suno first, then sustain the Held
+  Chord for one minute. Ionian shard is GRANTED by the ceremony,
+  not looted from Suno.
+- **Lieutenants**: all three (Kael, Quartermaster, Arsen) kept as
+  PLANNED. Arsen anchored to the Lirael catastrophe.
+- **Resonances**: kept and expanded as worldbuilding lore even if
+  the summon system never ships as gameplay.
+
+### Added to bible
+- New region entries: LIRAEL, the SAGE CIRCLE & Velthe's Observatory,
+  the TOWER & Suno's Domain, plus capsule entries for Eastern Reaches,
+  Northern Wilds, Western Region, Far Hills, Escape Cave, Reya's
+  Cairn, the Academy.
+- New NAMED CAST section: stubs for 18 named NPCs in code that the
+  bible hadn't acknowledged (Capt. Ren, Page, Mira, Iolen, Iska,
+  Aurin, Wena, Sergei, Paj, Niko, Winna, Brann, Lutist, Echo, Reya,
+  Rider, Wanderer, Elder). Each marked STATUS: STUB pending future
+  backstory development. Lore-significant figures (Velthe, Iola,
+  Locrius, Harbormaster) given full treatment in their region sections.
+- New BESTIARY — STANDARD ENEMIES section listing the 26 code-canon
+  enemy types by region, with lore guidance that enemy types reflect
+  their region's mode.
+- New CAVE 8 entry: THE FIRST CHORD as post-game superboss in the
+  Crystal Synth's core.
+- Header date updated to 2026-05-14; preamble updated with new
+  STATUS conventions (IN CODE / STUB / PROPOSED / PLANNED).
+
+### Notes for future sessions
+- Several enemy lists in the bestiary (Cave 5 in particular) keep
+  the bible's flavor-named placeholders alongside the code's actual
+  enemy types. Future passes should decide whether to align code
+  to bible names or vice versa.
+- Stubs in the named cast are deliberately thin — they exist so
+  future sessions know the character is real, but their backstory
+  is open. Don't treat stubs as canon, treat them as placeholders.
+- The Lirael / Ice Grotto split is structurally important: the
+  Broken Cadence does NOT drop the shard. If implemented in code,
+  this needs to be coded as two sequential dungeons in Act 3.
+
+## 2026-05-14 — intro cutscene overhaul
+
+Replaced the 4 "court emptied months ago" panels with a 12-panel
+"Lirael ordinary night" sequence (21 panels total). 21 new
+draw_scene_* functions, 21 new SCENE_DRAW entries. Cosmic + Dark
+prose preserved (Dark trimmed 4→3). Existing wake/breach/throne
+scripts untouched.
+
