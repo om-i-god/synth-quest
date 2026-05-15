@@ -12495,6 +12495,15 @@ local function try_random_encounter()
   if current_map_id == 23 or current_map_id == 24 or current_map_id == 25 then
     return false
   end
+  -- Sunward Coast Town (map 35): interior is safe; light coastal encounters
+  -- only on the perimeter (docks south row 10+, west edge x <= 2).
+  if current_map_id == 35 then
+    local at_perimeter = (player.y >= 10) or (player.x <= 2)
+    if not at_perimeter then return false end
+    if math.random() >= 0.04 then return false end
+    enter_battle(3, true)   -- cave 3 = Sunward Coast pool (Crab, Manta, Tide Sprite, Sea Wisp)
+    return true
+  end
   if math.random() >= ENCOUNTER_CHANCE then return false end
   local cave_id
   if current_map_id == 1 then
