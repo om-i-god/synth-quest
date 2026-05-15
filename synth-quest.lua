@@ -6619,6 +6619,73 @@ function start_sunward_arrival_scene()
   SCENE.start(script)
 end
 
+-- start_sunward_bandstand_scene() — Bard-lead + night trigger. Alder
+-- takes the empty stage at the Sunward Coast bandstand; four-note
+-- Mixolydian SFX sequence, six townsfolk gather, Mara welcomes him
+-- home. Fires once per save (flag.bandstand_done). Alder gains +1 MAG.
+function start_sunward_bandstand_scene()
+  local px, py = player.x, player.y
+  local script = {
+    {hide_player = true},
+    {set = function() SCENE.fade = 15 end},
+    {letterbox_in = true},
+    {focus = {x = 16, y = 5}, ticks = 24},
+    {wait = 10},
+    -- Mara on the bandstand; Alder steps up as a scene actor.
+    {spawn = "mara_stage",  class = "bard",  name = "Mara",  x = 15, y = 5, facing = "right", bob = false},
+    {spawn = "alder_stage", class = "bard",  name = "Alder", x = 16, y = 5, facing = "down",  bob = false},
+    {wait = 8},
+    {dialogue = {
+      "(Mara hands you the lute. The townfolk gather.)",
+    }, npc = nil},
+    {wait = 6},
+    -- Four-note SFX sequence: C–E–G–Bb (Mixolydian with flat-7).
+    {sfx = {class = "bard", note = 60, vel = 0.60, attack = 0.02, release = 0.60, wet = 0.30}},
+    {wait = 8},
+    {sfx = {class = "bard", note = 64, vel = 0.70, attack = 0.02, release = 0.60, wet = 0.30}},
+    {wait = 8},
+    {sfx = {class = "bard", note = 67, vel = 0.80, attack = 0.02, release = 0.80, wet = 0.40}},
+    {wait = 8},
+    {sfx = {class = "bard", note = 70, vel = 0.90, attack = 0.02, release = 1.20, wet = 0.60}},  -- the flat-7
+    {wait = 16},
+    -- Six townsfolk gather around the bandstand and bob.
+    {spawn = "town1", class = "civ", name = "", x = 14, y = 6, facing = "up", bob = true},
+    {spawn = "town2", class = "civ", name = "", x = 15, y = 6, facing = "up", bob = true},
+    {spawn = "town3", class = "civ", name = "", x = 17, y = 6, facing = "up", bob = true},
+    {spawn = "town4", class = "civ", name = "", x = 18, y = 6, facing = "up", bob = true},
+    {spawn = "town5", class = "civ", name = "", x = 15, y = 7, facing = "up", bob = true},
+    {spawn = "town6", class = "civ", name = "", x = 17, y = 7, facing = "up", bob = true},
+    {wait = 30},
+    {dialogue = {
+      "[Mara]   There he is. Welcome home, traveler.",
+    }, npc = {name = "Mara"}},
+    {wait = 8},
+    -- Clear the stage.
+    {despawn = "town1"}, {despawn = "town2"}, {despawn = "town3"},
+    {despawn = "town4"}, {despawn = "town5"}, {despawn = "town6"},
+    {despawn = "alder_stage"}, {despawn = "mara_stage"},
+    {teleport_player = {x = px, y = py, facing = player.facing}},
+    {show_player = true},
+    {letterbox_out = true},
+    {set = function()
+      flag.bandstand_done = true
+      -- Permanent +1 MAG to Alder (bard class member of the party).
+      if party then
+        for _, p in ipairs(party) do
+          if p.class == "bard" then
+            p.mag = (p.mag or 0) + 1
+          end
+        end
+      end
+    end},
+    {dialogue = {
+      "(You feel a small lift in your chest.)",
+      "Alder's MAG +1.",
+    }, npc = nil},
+  }
+  return script
+end
+
 -- start_strom_dream_scene() — black-screen flashback, no actors
 -- visible. Pure SFX + dialogue. Reya's voice in Strom's memory of his
 -- last morning with her. Fires once on first inn-rest with Strom.
@@ -10924,6 +10991,13 @@ CONTENT.sunward_coast_npcs = {
       end
     end,
     barks = {"(she tunes a string)", "(humming a Mixolydian air)"},
+    -- Bandstand Performance: Bard-lead + night + not yet seen → cutscene.
+    scene = function()
+      local lead = party[active] and party[active].class
+      if lead == "bard" and not flag.bandstand_done and sq_is_night and sq_is_night() then
+        return start_sunward_bandstand_scene()
+      end
+    end,
   },
   -- Hask — tavern keeper, gossip-monger
   { x = 25, y = 6, name = "Hask", kind = "npc",
