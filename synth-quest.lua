@@ -4753,6 +4753,12 @@ local cutscene_idx = 1
 
 -- 0=grass 1=tree 2=path 3=water 4=wall 5=door 6=cave1 (Lydian) 7=cave2 (Dorian)
 -- 8=sand 9=cave3 (Mixolydian) 10=boat 11=cave4 (Phrygian)
+-- New Sunward Coast tiles (Phase 1)
+-- 60 = wood_dock        (walkable; planks over water)
+-- 61 = tavern_floor     (walkable; interior wood)
+-- 62 = bandstand        (walkable; raised platform)
+-- 63 = fish_barrel      (impassable object)
+-- 64 = market_stall     (impassable; shared with Phrygian)
 -- Map data is per-continent; active map swaps via travel_to().
 -- MAINLAND (64x16): cols 1-32 = Village; 33-48 = Hollow Woods; 49-64 = Sunward Coast.
 -- Mountain pass (id 15) at row 1 col 13 → Northern Wilds (current_map_id 3).
@@ -17088,6 +17094,54 @@ TILE_DRAW[35] = function(px, py)
   screen.level(13); screen.pixel(px + 3, py + 1); screen.pixel(px + 4, py + 1); screen.fill()
 end
 
+-- ── Sunward Coast tiles (Phase 1) ─────────────────────────────────────────
+
+-- Tile 60 — Wood dock (walkable; planks over water).
+TILE_DRAW[60] = function(px, py)
+  -- horizontal planks with seams
+  screen.level(6)
+  screen.rect(px, py, 8, 8); screen.fill()
+  screen.level(2)
+  screen.move(px, py+2); screen.line_rel(8, 0); screen.stroke()
+  screen.move(px, py+5); screen.line_rel(8, 0); screen.stroke()
+end
+
+-- Tile 61 — Tavern floor (walkable; interior wood).
+TILE_DRAW[61] = function(px, py)
+  screen.level(4)
+  screen.rect(px, py, 8, 8); screen.fill()
+  screen.level(2)
+  screen.pixel(px+1, py+1); screen.pixel(px+6, py+6); screen.fill()
+end
+
+-- Tile 62 — Bandstand (walkable; raised platform with ambient light flicker).
+TILE_DRAW[62] = function(px, py, t)
+  -- raised platform with one ambient light flicker
+  screen.level(8)
+  screen.rect(px, py, 8, 8); screen.fill()
+  screen.level(2)
+  screen.rect(px, py, 8, 1); screen.fill()
+  local flicker = (t % 60 < 30) and 14 or 12
+  screen.level(flicker)
+  screen.pixel(px+3, py+3); screen.pixel(px+4, py+3); screen.fill()
+end
+
+-- Tile 63 — Fish barrel (impassable object).
+TILE_DRAW[63] = function(px, py)
+  screen.level(5)
+  screen.rect(px+1, py+1, 6, 6); screen.fill()
+  screen.level(2)
+  screen.move(px+1, py+3); screen.line_rel(6, 0); screen.stroke()
+end
+
+-- Tile 64 — Market stall (impassable; shared with Phrygian).
+TILE_DRAW[64] = function(px, py)
+  screen.level(3)
+  screen.rect(px, py+2, 8, 6); screen.fill()
+  screen.level(7)  -- awning
+  screen.rect(px, py, 8, 2); screen.fill()
+end
+
 local SPRITE_BY_CLASS
 do
 
@@ -19891,7 +19945,7 @@ local function draw_overworld()
         TILE_DRAW.cavefloor(sx, sy, tx + ty * MAP_W)
       else
         local fn = TILE_DRAW[t] or TILE_DRAW[0]
-        if t == 3 or t == 6 or t == 7 or t == 9 or t == 11 or t == 14 or t == 16 or t == 18 or t == 19 or t == 20 or t == 24 or t == 27 or t == 30 or t == 32 or t == 36 or t == 38 or t == 39 or t == 41 or t == 43 or t == 52 or t == 53 or t == 54 or t == 55 or t == 56 or t == 57 or t == 58 then fn(sx, sy, tick)
+        if t == 3 or t == 6 or t == 7 or t == 9 or t == 11 or t == 14 or t == 16 or t == 18 or t == 19 or t == 20 or t == 24 or t == 27 or t == 30 or t == 32 or t == 36 or t == 38 or t == 39 or t == 41 or t == 43 or t == 52 or t == 53 or t == 54 or t == 55 or t == 56 or t == 57 or t == 58 or t == 62 then fn(sx, sy, tick)
         elseif t == 0 or t == 8 then fn(sx, sy, tx + ty * MAP_W)
         else fn(sx, sy)
         end
