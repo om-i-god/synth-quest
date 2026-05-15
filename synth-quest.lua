@@ -13106,11 +13106,11 @@ local function try_move(dx, dy)
       local last_sw = CONTENT.last_sunward_ambient_t or -9999
       if (tick - last_sw) > 600 then
         local sc = nil
-        if nx == 16 and ny == 5 then
+        if nx == 14 and ny == 6 then
           sc = ambient_sunward_bandstand_practice and ambient_sunward_bandstand_practice()
         elseif nx == 9 and ny == 11 then
           sc = ambient_sunward_dock_gull and ambient_sunward_dock_gull()
-        elseif nx == 11 and ny == 5 then
+        elseif nx == 12 and ny == 5 then
           sc = ambient_sunward_market_cry and ambient_sunward_market_cry()
         elseif nx == 31 and ny == 7 then
           sc = ambient_sunward_cliff_reeds and ambient_sunward_cliff_reeds()
