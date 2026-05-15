@@ -10982,6 +10982,27 @@ end
 
 -- ============================================================ SAVE / LOAD
 
+-- ── Story flags ──────────────────────────────────────────────────────────────
+-- Flat table of boolean story gates. Persisted in save data under data.flag.
+-- The `or false` idiom gives old saves safe defaults on load.
+flag = flag or {}
+-- Region expansion flags (2026-05-14)
+flag.lirael_unlocked       = flag.lirael_unlocked       or false
+flag.veiled_mystic_spoken  = flag.veiled_mystic_spoken  or false
+flag.iolas_letter_received = flag.iolas_letter_received or false
+flag.velthes_entry_heard   = flag.velthes_entry_heard   or false
+flag.broken_cadence_done   = flag.broken_cadence_done   or false
+flag.bandstand_done        = flag.bandstand_done        or false
+flag.strom_confronted      = flag.strom_confronted      or false
+flag.diegues_returned      = flag.diegues_returned      or false
+flag.unlock_all            = flag.unlock_all            or false  -- debug toggle
+-- Per-scene completion flags (added incrementally per phase, listed here for index)
+flag.sunward_arrival_done    = flag.sunward_arrival_done    or false
+flag.phrygian_arrival_done   = flag.phrygian_arrival_done   or false
+flag.observatory_tour_done   = flag.observatory_tour_done   or false
+flag.miel_walks_alone_done   = flag.miel_walks_alone_done   or false
+flag.lirael_theme_shifted    = flag.lirael_theme_shifted    or false
+
 -- Single save file (Pass 49 multi-slot reverted Pass 54).
 local function SAVE_PATH()
   return _path.data .. "synth-quest/save.data"
@@ -11070,6 +11091,9 @@ save_game = function()
   for k, v in pairs(CONTENT.scene_seen or {}) do data.scene_seen[k] = v end
   data.silencer_defeated = CONTENT.silencer_defeated
   data.cave_monster_defeated = CONTENT.cave_monster_defeated
+  -- story flags
+  data.flag = {}
+  for k, v in pairs(flag) do data.flag[k] = v end
   tab.save(data, SAVE_PATH())
   save_flash_ticks = 24
   save_flash_text = "Game Saved"
@@ -11276,6 +11300,10 @@ local function load_game()
   end
   if data.cave_monster_defeated then
     CONTENT.cave_monster_defeated = data.cave_monster_defeated
+  end
+  -- story flags (safe merge: new flags default to false if absent in old saves)
+  if data.flag then
+    for k, v in pairs(data.flag) do flag[k] = v end
   end
   if data.inv then
     SHOP.inv.salve = data.inv.salve or 0
