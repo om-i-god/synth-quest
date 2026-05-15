@@ -4769,7 +4769,7 @@ local MAINLAND = {
   {1,0,4,0,4,0,0,0,4,0,4,0,2,0,0,0,0,0,4,0,4,0,0,0,1,0,0,0,0,0,0,1, 0,0,0,0,0,0,36,1,0,0,43,0,0,0,1,1, 1,0,0,0,0,0,0,0,0,0,8,8,0,0,1,1},
   {1,0,4,5,4,0,0,0,4,5,4,0,2,0,0,0,0,0,4,5,4,2,2,2,2,2,2,2,2,2,1,1, 0,2,2,2,2,2,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
   {1,0,0,0,0,0,0,0,0,0,0,0,2,0,54,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,2,0,0,0,2,0,0,0,1,0,0,0,1,0,0, 1,0,0,0,0,1,0,0,0,0,0,0,1,0,0,1},  -- col 15 row 6: village plaza flag
-  {1,0,0,13,0,12,0,0,0,0,0,0,2,0,14,0,18,0,0,0,0,0,0,0,0,0,0,0,6,0,0,0, 0,2,0,0,0,2,2,2,2,2,2,2,7,0,0,0, 2,2,2,2,2,2,2,2,2,2,2,2,2,9,0,10},
+  {1,0,0,13,0,12,0,0,0,0,0,0,2,0,14,0,18,0,0,0,0,0,0,0,0,0,0,0,6,0,0,0, 0,2,0,0,0,2,2,2,2,2,2,2,7,0,0,0, 2,2,2,2,2,2,2,2,2,2,2,2,2,9,65,10},  -- col 63: Sunward Coast signpost (tile 65) between Cave 3 entry (col 62=9) and boat (col 64=10)
   {1,1,0,0,0,0,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1,1, 0,2,0,0,0,2,0,0,0,0,0,0,0,0,1,1, 0,0,0,0,2,0,0,0,0,0,0,0,8,8,0,1},
   {1,1,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4,5,4,0,57,0,0,0,1, 1,2,0,0,0,0,0,0,0,0,0,0,1,0,0,1, 1,0,0,0,2,0,0,0,0,0,0,0,8,8,0,1},  -- col 28: anvil tile next to Brann the smith (col 27 = Brann NPC)
   {1,0,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4,0,4,0,1,0,0,0,1, 1,2,0,0,0,0,0,0,0,0,0,1,0,0,0,1, 1,0,0,0,0,0,0,0,0,0,8,8,8,0,0,1},
@@ -4855,7 +4855,7 @@ SUNWARD_COAST_MAP = {
   {1,0,4,0,4,0,2,64,64,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,1},
   {0,0,0,0,0,0,2,0,0,2,64,64,2,0,0,62,62,62,0,0,0,0,0,4,5,4,0,0,0,2,0,0},
   {0,0,0,0,0,0,2,0,0,2,0,0,2,0,0,62,62,62,0,0,0,0,0,4,61,4,0,0,0,2,0,0},
-  {2,2,2,2,2,2,2,0,0,2,0,0,2,0,0,62,62,62,0,0,0,0,0,4,61,4,0,0,0,2,2,9},
+  {65,2,2,2,2,2,2,0,0,2,0,0,2,0,0,62,62,62,0,0,0,0,0,4,61,4,0,0,0,2,2,9},  -- col 1: Sunward Coast signpost (tile 65) — west-path return to MAINLAND
   {0,0,0,0,0,0,2,0,0,2,64,64,2,0,0,0,0,0,0,0,0,0,0,4,5,4,0,0,0,2,0,0},
   {0,0,0,0,0,0,2,0,0,2,0,0,2,63,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,0},
   {3,3,3,60,60,60,2,0,0,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,3,3},
@@ -10912,6 +10912,7 @@ local function is_walkable(tx, ty)
       or t == 52   -- Velthe's Observatory door (Northern Wilds → map 24)
       or t == 56   -- Far Hills cave-mouth (mainland → map 26)
       or t == 58   -- Castle interior door (throne hall ↔ hallway ↔ rooms)
+      or t == 65   -- Sunward Coast signpost (MAINLAND east coast ↔ Sunward Coast Town)
 end
 
 -- True when an NPC is currently rendered + interactable. NPCs may have
@@ -12175,6 +12176,25 @@ local function try_move(dx, dy)
     CONTENT.cave_entered = CONTENT.cave_entered or {}
     if not CONTENT.cave_entered[3] then
       CONTENT.cave_entered[3] = true; if STORY.play_id("enter_cave3") then return end
+    end
+    redraw()
+    return
+  end
+  if t == 65 then
+    -- Sunward Coast signpost — bidirectional:
+    --   MAINLAND (1) east coast (row 7, col 63) → Sunward Coast Town (35), spawn at west path edge.
+    --   Sunward Coast (35) west path (row 7, col 1) → MAINLAND, restore prior position.
+    if current_map_id == 1 then
+      CONTENT.return_map = current_map_id
+      CONTENT.return_x = nx; CONTENT.return_y = ny
+      travel_to(35, 2, 7)   -- arrive just inside Sunward Coast's west path
+      flag.sunward_arrival_done = flag.sunward_arrival_done or false
+    elseif current_map_id == 35 then
+      if CONTENT.return_map == 1 and CONTENT.return_x and CONTENT.return_y then
+        travel_to(1, CONTENT.return_x, CONTENT.return_y)
+      else
+        travel_to(1, 63, 7)   -- fallback: MAINLAND east coast path
+      end
     end
     redraw()
     return
@@ -14088,6 +14108,8 @@ travel_to = function(map_id, x, y)
     map = CONTENT.cave6_map; npcs = CONTENT.cave6_npcs
   elseif map_id == 14 then
     map = CONTENT.cave7_map; npcs = CONTENT.cave7_npcs
+  elseif map_id == 35 then
+    map = SUNWARD_COAST_MAP; npcs = CONTENT.sunward_coast_npcs or {}
   else
     map = SUNOS_DOMAIN; npcs = SUNOS_NPCS
   end
@@ -17164,6 +17186,15 @@ TILE_DRAW[64] = function(px, py)
   screen.rect(px, py+2, 8, 6); screen.fill()
   screen.level(7)  -- awning
   screen.rect(px, py, 8, 2); screen.fill()
+end
+
+-- Tile 65 — Sunward Coast entry signpost (walkable; routes MAINLAND ↔ Sunward Coast Town).
+-- Placed on MAINLAND east coast (row 7, col 63) and at SUNWARD_COAST_MAP west path (row 7, col 1).
+TILE_DRAW[65] = function(px, py)
+  screen.level(4)
+  screen.rect(px+3, py+1, 2, 6); screen.fill()  -- post
+  screen.level(8)
+  screen.rect(px, py, 8, 2); screen.fill()       -- sign
 end
 
 local SPRITE_BY_CLASS
