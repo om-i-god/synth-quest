@@ -1715,8 +1715,113 @@ end
 -- Region expansion (2026-05-14): placeholder theme aliases for map IDs 35 and 36.
 -- These fall back to existing audio so the game doesn't crash if a player reaches
 -- those maps before the real compositions land in later phases.
-OW_THEMES.sunward_coast = OW_THEMES.coast or OW_THEMES.village  -- placeholder until Phase 1.7
+-- sunward_coast placeholder replaced by real composition in Phase 1.7 (below).
 OW_THEMES.phrygian_city = OW_THEMES.eastern or OW_THEMES.village  -- placeholder until Phase 2.7
+
+-- SUNWARD COAST (Phase 1.7) — A Mixolydian; communal, sunlit, harbour-town bandstand.
+-- Voices: fiddle melody (mage), hand drum shuffle (warrior), open-fifth pad (cleric),
+-- bright offbeat shimmer (bard). Flat-7 (G natural, idx 15/20) is the signature lift.
+-- Scale indices reference the A-pentatonic default: idx 6=A2, 8=D3, 9=E3, 11=A3,
+-- 14=E4, 15=G4, 16=A4, 17=C5, 18=D5, 19=E5, 20=G5, 21=A5, 22=C6.
+-- ~96 BPM feel: 8 bars × 16 steps per bar = 128 steps total.
+do
+  local function mk(events)
+    local p = {}
+    for i = 1, OW_PATTERN_LEN do p[i] = 0 end
+    for _, e in ipairs(events) do p[e[1]] = e[2] end
+    return p
+  end
+
+  OW_THEMES.sunward_coast = {
+    pattern = {
+      -- MAGE (fiddle): 8th-note Mixolydian ostinato. Bars 1-2 ascend through
+      -- A C D E G (flat-7 lift on idx 20), bars 3-4 peak and descend, bars 5-6
+      -- echo bars 1-2, bars 7-8 sweep up and settle on A4.
+      mage = {
+        -- bar 1: A4 C5 D5 E5 G5 E5 D5 C5  (8th notes, odd steps)
+        16, 0, 17, 0, 18, 0, 19, 0, 20, 0, 19, 0, 18, 0, 17, 0,
+        -- bar 2: A4 C5 E5 G5 A5 G5 E5 C5  (climbing toward A5)
+        16, 0, 17, 0, 19, 0, 20, 0, 21, 0, 20, 0, 19, 0, 17, 0,
+        -- bar 3: E5 G5 A5 G5 E5 D5 C5 A4  (peak descent)
+        19, 0, 20, 0, 21, 0, 20, 0, 19, 0, 18, 0, 17, 0, 16, 0,
+        -- bar 4: D5 E5 G5 E5 D5 C5 A4 A4  (settle with Mixolydian cadence)
+        18, 0, 19, 0, 20, 0, 19, 0, 18, 0, 17, 0, 16, 0, 16, 0,
+        -- bar 5: echo bar 1 (bandstand repeat)
+        16, 0, 17, 0, 18, 0, 19, 0, 20, 0, 19, 0, 18, 0, 17, 0,
+        -- bar 6: echo bar 2 with slight colour — E5 instead of leading C5
+        16, 0, 19, 0, 20, 0, 21, 0, 20, 0, 19, 0, 18, 0, 17, 0,
+        -- bar 7: ascending run A4→A5 (festival lift)
+        16, 0, 17, 0, 18, 0, 19, 0, 20, 0, 21, 0, 20, 0, 19, 0,
+        -- bar 8: descend and land on A4 (loop back cleanly)
+        18, 0, 17, 0, 16, 0, 17, 0, 16, 0, 18, 0, 16, 0,  0, 0,
+      },
+      -- WARRIOR (hand drum): bass on beats 1+3 (steps 1,5,9,13 per bar),
+      -- ghost note on the off-8th (step 3) for a loose shuffle feel.
+      -- Bass = A2 (idx 6), ghost = D2 (idx 3).
+      warrior = {
+        -- bar 1
+         6, 0, 3, 0,  6, 0, 0, 0,  6, 0, 3, 0,  6, 0, 0, 0,
+        -- bar 2
+         6, 0, 3, 0,  6, 0, 0, 0,  6, 0, 3, 0,  9, 0, 0, 0,  -- E3 on bar-end
+        -- bar 3
+         6, 0, 3, 0,  6, 0, 0, 0,  6, 0, 3, 0,  6, 0, 0, 0,
+        -- bar 4
+         6, 0, 3, 0,  9, 0, 0, 0,  6, 0, 3, 0,  6, 0, 0, 0,
+        -- bar 5
+         6, 0, 3, 0,  6, 0, 0, 0,  6, 0, 3, 0,  6, 0, 0, 0,
+        -- bar 6
+         6, 0, 3, 0,  6, 0, 0, 0,  9, 0, 3, 0,  6, 0, 0, 0,  -- E3 colour
+        -- bar 7
+         6, 0, 3, 0,  6, 0, 3, 0,  6, 0, 3, 0,  6, 0, 3, 0,  -- busier 7th bar
+        -- bar 8
+         6, 0, 0, 0,  6, 0, 0, 0,  6, 0, 0, 0,  6, 0, 0, 0,  -- bare quarter settle
+      },
+      -- CLERIC (bandstand pad): slow harmonic colour. A3 open-fifth with E3,
+      -- one change per bar. Long attacks let it swell under the fiddle.
+      cleric = {
+        -- bar 1-2: A3 (root)
+        11, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,
+        11, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,
+        -- bar 3-4: E3 (fifth — open spacing)
+         9, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,
+         9, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,
+        -- bar 5-6: back to A3
+        11, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,
+        11, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,
+        -- bar 7: D3 for Mixolydian bVII colour (bVII = G Maj, but D adds sus4 warmth)
+         8, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,
+        -- bar 8: resolve to A3
+        11, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,
+      },
+      -- BARD (shimmer): high offbeat glints; G5(20)/A5(21)/C6(22)/E5(19).
+      -- Stabs on even steps (offbeat 8ths) — airy, festival-crowd brightness.
+      bard = {
+        -- bar 1
+         0, 0, 21, 0,  0, 0, 20, 0,  0, 0, 22, 0,  0, 0, 20, 0,
+        -- bar 2
+         0, 0, 22, 0,  0, 0, 21, 0,  0, 0, 20, 0,  0, 0, 22, 0,
+        -- bar 3
+         0, 0, 21, 0,  0, 0, 22, 0,  0, 0, 21, 0,  0, 0, 19, 0,
+        -- bar 4
+         0, 0, 20, 0,  0, 0, 21, 0,  0, 0, 20, 0,  0, 0, 21, 0,
+        -- bar 5
+         0, 0, 21, 0,  0, 0, 20, 0,  0, 0, 22, 0,  0, 0, 20, 0,
+        -- bar 6
+         0, 0, 22, 0,  0, 0, 21, 0,  0, 0, 22, 0,  0, 0, 21, 0,
+        -- bar 7
+         0, 0, 22, 0,  0, 0, 21, 0,  0, 0, 22, 0,  0, 0, 21, 0,
+        -- bar 8
+         0, 0, 21, 0,  0, 0, 20, 0,  0, 0, 19, 0,  0, 0, 21, 0,
+      },
+    },
+    artic = {
+      mage    = {vel=0.55, attack=0.004, release=0.25, wet=0.35},  -- bright fiddle, short decay
+      warrior = {vel=0.60, attack=0.003, release=0.18, wet=0.20},  -- dry hand drum thud
+      cleric  = {vel=0.40, attack=0.18,  release=3.50, wet=0.65},  -- slow-swell bandstand pad
+      bard    = {vel=0.40, attack=0.005, release=0.22, wet=0.40},  -- crisp shimmer
+    },
+  }
+end
 
 -- ============================================================ BATTLE THEMES
 -- Pass 34: FF4-FF10-style battle themes. Driving 8th-note bass ostinato in
