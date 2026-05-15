@@ -1,7 +1,7 @@
 ================================================================
                     SYNTH QUEST — STORY BIBLE
                 Companion to the Dossier (deeper cuts)
-                       (as of 2026-04-29)
+                       (as of 2026-05-14)
 ================================================================
 
 This document supersets the dossier. Where the dossier locks a fact,
@@ -9,9 +9,21 @@ this bible defers to it ("see Dossier §..."). Where the dossier is
 silent or marks something TBD, this bible proposes.
 
 Anything labeled `STATUS: PROPOSED` is a sketch and not committed.
-Anything labeled `(planned)` is on the roadmap but not built. The
-playable shape today is Village Clearing + Hollow Woods, with the
-Lydian and Dorian shards recovered. See Dossier §SHARDS — STATUS.
+Anything labeled `(planned)` is on the roadmap but not built.
+`STATUS: IN CODE` means the entity is present in synth-quest.lua
+right now; canon must respect it. `STATUS: STUB` means the entity
+exists in code but its backstory is open for future development.
+
+The playable shape today is Village Clearing + Hollow Woods, with
+the Lydian and Dorian shards recovered. See Dossier §SHARDS — STATUS.
+
+CANON RECONCILIATION 2026-05-14: this bible's caves 3–7 have been
+blended with the names/structures present in code. Earlier proposals
+(Harbormaster, The First Call, The Broken Cadence, The Tritone,
+royal cathedral as Cave 5, ceremonial-only Cave 7) are PRESERVED as
+co-canon alongside the code's current implementations (Tidewatch,
+Dune Rider, Snowgaunt, Locrius, Suno-in-Cave-7). See each cave
+section below for the reconciliation.
 
 
 -------- THE WORLD: MODALIA --------
@@ -123,103 +135,349 @@ proposals.
    FF reference: FF9 Black Mage Village / Cleyra's roots.
 
 
--------- 3. MIXOLYDIAN — TBD --------
+-------- 3. MIXOLYDIAN — THE SUNWARD COAST --------
 
-   STATUS: PROPOSED
+   STATUS: IN CODE (Cave 3 = TIDE CAVERN; named area = Sunward Coast)
 
    Mode character: major with flat seventh. Sunlit folksong. The
    mode of dance, of taverns, of the road home.
 
-   Proposed nation: a sun-bleached coastal stretch of fishing towns
-   and ports. Long days, long evenings, music played outdoors.
-   Climate warm and dry. Trial-temple is an open-air amphitheatre
-   built into a cliff face — the boss is a piece of music played
-   live by a competing bard-king who refuses to give up the shard
-   without a duel of song. Possible boss: HARBORMASTER, an old
-   bandleader whose attacks are call-and-response phrases the
-   party must "answer" on the correct beat.
+   Nation: a sun-bleached coastal stretch of fishing towns and ports.
+   Long days, long evenings, music played outdoors. Climate warm and
+   dry. The Mixolydian shard sleeps in the TIDE CAVERN — an open-air
+   amphitheatre carved into a cliff face by centuries of tide, the
+   sea itself completing the back wall of the stage. At high tide
+   the stage floods to the player's knees and the room rings.
+
+   Boss: TIDEWATCH — the ghost of the old HARBORMASTER. In life he
+   was a bandleader who held call-and-response duels with any singer
+   who sailed in; he refused to give up the shard he sat on and Suno's
+   first refinery crew killed him for it. His body went into the sea
+   but his cadence stayed in the cavern. He still wants the duel.
+   The fight is call-and-response: he plays a four-note phrase, the
+   party has one bar to answer on the matching beats. Right answer
+   = full damage; wrong = stagger. Sound design: his voice is a wet
+   echo, half-drowned, with a brass-band undertone that only resolves
+   when the player answers correctly. Drops the MIXOLYDIAN SHARD.
 
    FF reference: FF5 Walse / FF9 Treno's gentler face.
 
 
--------- 4. PHRYGIAN — TBD --------
+-------- 4. PHRYGIAN — THE EASTERN REACHES --------
 
-   STATUS: PROPOSED
+   STATUS: IN CODE (Cave 4 = GLASS CAVERN; named area = Eastern Reaches)
 
    Mode character: minor with flat second. Tense, exotic, ritual.
    Spanish in our world. Eastern in Modalia.
 
-   Proposed nation: a high-desert city of sand-coloured towers and
-   night markets. Music is microtonal, drone-based, vocal. Climate
-   hot by day, freezing by night. Trial-temple is a buried palace
-   under shifting dunes; entry shifts each cycle. Possible boss:
-   THE FIRST CALL, a giant ritual horn that the party fights as a
-   structure rather than a creature — they damage it by interrupting
-   its phrases.
+   Nation: a high-desert city of sand-coloured towers and night
+   markets. Music is microtonal, drone-based, vocal. Climate hot by
+   day, freezing by night. The Phrygian shard rests in the GLASS
+   CAVERN — what locals call the buried palace of a forgotten Phrygian
+   dynasty. When the dunes shifted in a single night two hundred
+   years ago, sand glassified by the shard's heat formed a vast
+   crystalline shell over the old throne rooms. Entry shifts with
+   the dunes; the same door is in a different place each cycle.
+
+   TWO BOSSES — the party fights through both before earning the shard:
+
+   1. DUNE RIDER — a mounted herald who patrols the dune-line above
+      the glass shell. He is the FIRST CALL's outrider; his job is
+      to keep pilgrims from reaching the buried palace at all. Fast,
+      high-evasion fight on shifting sand; the floor tilts each bar.
+      His mount is Phrygian by inheritance, not by choice — it was a
+      caravan horse before. Defeating Dune Rider opens the descent
+      into the Glass Cavern proper.
+
+   2. THE FIRST CALL — a giant ritual horn that fills the throne
+      room beneath. Fought as a STRUCTURE rather than a creature.
+      It plays a long phrase (20 beats); the party damages it by
+      interrupting on its weak beats. The horn predates the dynasty
+      that buried it — it may predate the Shattering. Drops the
+      PHRYGIAN SHARD when its phrase finally collapses.
 
    FF reference: FF6 Figaro / FF7 Cosmo Canyon, with FF9 Cleyra's
    ritual edge.
 
 
--------- 5. AEOLIAN — TBD --------
+-------- 5. AEOLIAN — LIRAEL & THE NORTHERN WILDS --------
 
-   STATUS: PROPOSED
+   STATUS: IN CODE (Cave 5 = ICE GROTTO in Northern Wilds; the
+   kingdom of Lirael is referenced in code as Miel's homeland with
+   its capital cathedral in ruins).
 
    Mode character: natural minor. Wistful. The mode of memory and
    loss. Miel's home register.
 
-   Proposed nation: a sea-cliff capital city, white stone, pale
-   blue water, long cold winters. Court culture: chamber music,
-   sung verse, formal mourning songs. The mother country of Princess
-   Miel (per Dossier §PARTY — Miel is from "the capital"; this bible
-   commits her capital to Aeolian country). Trial-temple is the
-   royal cathedral itself; the shard lives in the foundation. Per
-   Dossier §ARC, this nation is the one Suno breaks in Act 3 to
-   trigger the World of Silence — the temple is the site of the
-   catastrophe. Possible boss (Act 3 phase): THE BROKEN CADENCE,
-   a former cathedral chorister now playing Suno's instrument.
+   The Aeolian nation in canon is now SPLIT across two locations
+   tied by a single story:
 
-   FF reference: FF10 Bevelle / FF9 Alexandria. Miel as Garnet/Yuna.
+   ── LIRAEL — THE FALLEN KINGDOM ──
+
+   Lirael is Miel's ancestral kingdom and the historical seat of
+   Aeolian culture. Sea-cliff capital city, white stone, pale blue
+   water, long cold winters. Court culture: chamber music, sung
+   verse, formal mourning songs. The royal cathedral at the capital
+   was, for generations, where the Aeolian shard was held.
+
+   By the time of the game, LIRAEL IS RUINS. Suno's forces — engineered
+   by CONDUCTOR ARSEN — detonated the cathedral refinery and tore the
+   kingdom's tonal center out. This catastrophe is the Act 3 reveal
+   (see ACT 3 — THE WORLD OF SILENCE). Lirael's last queen, Miel's
+   mother, anticipated the strike and sent the Aeolian shard north
+   for safekeeping before the cathedral fell.
+
+   When the player reaches Lirael (Act 3), they walk the burned
+   capital. The cathedral is rubble. The shard is not here.
+
+   Boss-event of Lirael: THE BROKEN CADENCE — a former cathedral
+   chorister now playing Suno's instrument, fought in the ruined
+   nave. Mechanic: the fight is a song that won't resolve; every
+   phrase ends one note short until the player FORCES the resolution.
+   Defeating her does NOT yield the shard (it's already gone north);
+   it yields the truth of where the shard went, and triggers the
+   journey to the Ice Grotto.
+
+   ── THE ICE GROTTO — WHERE THE SHARD HID ──
+
+   Cave 5 proper in the code: the ICE GROTTO of the NORTHERN WILDS.
+   A frozen sea-cave at the top of the world, where Lirael's last
+   queen sent the Aeolian shard with a single trusted courier. The
+   shard's grief made the surrounding rock cold, then colder; what
+   was once tundra is now permafrost glass. The shard has been
+   waiting here, alone, for as long as Lirael has been ruins.
+
+   Boss of the Ice Grotto: SNOWGAUNT — what the shard's loneliness
+   has shaped from the courier and her dogs. Tall, narrow, made of
+   frost-fused bone and antler. Sound signature: an Aeolian breath
+   passed through a flute of ice. Fights with patience, not fury;
+   long pauses between blows. Drops the AEOLIAN SHARD.
+
+   Note: the cathedral catastrophe and the Ice Grotto recovery are
+   sequential, both Act 3. Miel's grief arc weaves through both.
+
+   FF reference: FF10 Bevelle / FF9 Alexandria for Lirael; FF6's
+   Narshe for the Ice Grotto. Miel as Garnet/Yuna throughout.
 
 
--------- 6. LOCRIAN — TBD --------
+-------- 6. LOCRIAN — THE OBSERVATORY & THE CRYPT --------
 
-   STATUS: PROPOSED
+   STATUS: IN CODE (Cave 6 = LOCRIAN CRYPT, sited within Suno's
+   Domain in code; the observatory above the crypt is bible canon
+   and a planned approach zone).
 
    Mode character: diminished. The broken seventh. The only mode
    that resists settling.
 
-   Proposed nation: a half-ruined region on the edge of the Dead
-   Lands. The shard's instability has been bleeding into the soil
-   for centuries; the people who remain are stoic, half-deafened,
-   sing in cracked harmony. Climate: ash, twilight, low cloud.
-   Trial-temple is a half-collapsed observatory whose architecture
-   is itself a tritone — every angle wrong on purpose. Possible
-   boss: THE TRITONE, a creature whose every attack is two notes
-   that refuse to resolve until the party plays the resolving third.
+   Nation: a half-ruined region on the edge of the Dead Lands. The
+   shard's instability has been bleeding into the soil for centuries;
+   the people who remain are stoic, half-deafened, sing in cracked
+   harmony. Climate: ash, twilight, low cloud.
+
+   Cave 6 is a TWO-LEVEL dungeon:
+
+   ── THE OBSERVATORY ── (upper level)
+
+   A half-collapsed observatory whose architecture is itself a
+   tritone — every angle wrong on purpose. It was built by the
+   Sage Circle to study the Locrian shard's instability; VELTHE
+   wrote her final twelve years of observations here before she
+   vanished. Astronomers' chambers, broken telescope housings,
+   star-charts pinned to the walls with rusted iron.
+
+   Boss (upper-level mid-encounter): THE TRITONE — a creature
+   whose every attack is two notes that refuse to resolve. Player
+   must hold a third voice for a full bar to force the cadence;
+   the Tritone drops only when the third is sustained. Defeating
+   it opens the floor — literally — and the party descends into:
+
+   ── THE LOCRIAN CRYPT ── (lower level, Suno's Domain)
+
+   Beneath the observatory, the shard's centuries of decay carved
+   a crypt that Suno later annexed into his Domain. This is the
+   first part of the Tower's underworks the party touches. Ash falls
+   from the ceiling like snow.
+
+   Boss (lower-level / shard-holder): LOCRIUS — a Sage-Circle scholar
+   who descended into the crypt centuries ago to "stabilize" the
+   shard and was instead stabilized BY it. He is now the diminished
+   chord made man — three pitches that refuse to be a major or minor
+   triad, sustained for centuries. He recognizes Diegues' notation
+   on sight; he was once Velthe's contemporary. Drops the LOCRIAN
+   SHARD.
 
    FF reference: FF6 Kefka's Tower's approach corridor / FF7's
-   Sleeping Forest at its strangest.
+   Sleeping Forest at its strangest. The two-level structure
+   echoes FF4's Tower of Babil.
 
 
--------- 7. IONIAN — TBD --------
+-------- 7. IONIAN — SUNO'S CHAMBER & THE HELD CHORD --------
 
-   STATUS: PROPOSED
+   STATUS: IN CODE (Cave 7 = SUNO'S CHAMBER inside The Tower; Suno
+   is the final boss; the Held Chord ceremony gates the Ionian
+   shard reward).
 
    Mode character: pure major. The cadence home. The mode of
    triumph and arrival.
 
-   Proposed nation: a lost or hidden country — by Act 4 the party
-   learns it is the vanished nation that sang Alder into being
-   (see Dossier §ARC, Act 4). Geography: an island, or a place that
-   shifts, or a city beneath the sea — undetermined. Climate:
-   eternal first light. Trial-temple may be the Crystal Synth itself
-   re-entered. Possible boss: none in the conventional sense — the
-   Ionian shard may be granted, not won. (Or: it must be sung into
-   place by the party, with no enemy at all, the "battle" being
-   the world's last act of remembering.)
+   The "Ionian nation" is not a place in the geographic sense. It
+   is the vanished nation that sang Alder into being (see Dossier
+   §ARC Act 4) — submerged, scattered, gone except as Alder himself
+   and as the music that wakes when the chord is sustained. Its
+   territory is wherever the chord can still be held. The Tower
+   sits on what was, before the Shattering, its last temple.
+
+   Cave 7 is the climax. It has TWO STAGES, both required:
+
+   ── STAGE 1: SUNO'S CHAMBER ──
+
+   The party fights SUNO at the top of The Tower. His phases strip
+   voices from the battle theme — first the bass, then the harmony,
+   then the lead, until the last phase plays without music at all.
+   His own voice is not loud; it is suppressive. He lowers the
+   noise floor of the room he is in. Defeating Suno does NOT yield
+   the shard directly — it stops the suppression that has been
+   keeping the chord from forming.
+
+   ── STAGE 2: THE HELD CHORD ──
+
+   Once Suno is down, the chamber's geometry resolves. The party
+   must sustain the seven-note chord for one full minute of
+   game-time, contributing the voices they have learned across
+   the journey. If any voice drops the chord — silenced, fled, or
+   reduced to 0 HP — the encounter restarts from Stage 2 (Suno
+   stays defeated).
+
+   The Ionian shard is GRANTED at the end of the held minute, not
+   looted from Suno. The win condition is HOLDING, not damage. The
+   battle becomes the world's last act of remembering.
+
+   This blend preserves both: the code's existing Suno-as-final-
+   boss implementation, and the bible's design of the held-chord
+   ceremony. Suno IS gating the ceremony; defeating him does not
+   end the encounter, only the silence.
 
    FF reference: FF9 Memoria / FF10 Zanarkand. Held until last.
+
+
+-------- THE TOWER & SUNO'S DOMAIN --------
+
+   STATUS: IN CODE. The Tower is the final-act megastructure, gated
+   by recovery of 5+ shards. Inside lies Suno's Domain.
+
+The Tower stands at what was, before the Shattering, the last
+temple of the Ionian nation. Suno raised his Domain on top of it,
+using the temple's foundation as the bottom of his refinery
+apparatus. The Tower is therefore literally Suno's industrialization
+stacked on top of Modalia's lost cadence — every floor of the
+machine sits on a floor of the temple.
+
+Floors (rough sketch, code-current):
+   - Lower works: refinery floors, machinery, lieutenants' offices.
+   - Mid works: the Locrian Crypt (Cave 6 lower; see CAVE 6 above).
+   - Approach floors: ascending corridors, voice-stripping puzzles.
+   - Suno's Chamber: the top, where the temple's old dais sits.
+
+The 5-shard gate is in-fiction: the Tower's outer wards are tuned
+to the missing modes. The party can only attune past the wards by
+carrying enough of the broken chord to sound LIKE the lost music
+the wards were built to admit.
+
+A player enters the Tower expecting it to be Suno's. It is not —
+it was the Ionian temple first. Suno is squatting in the ruin.
+
+
+-------- LIRAEL — THE FALLEN KINGDOM --------
+
+   STATUS: IN CODE (referenced as a named location and as Miel's
+   ancestral inheritance).
+
+See AEOLIAN nation entry above for the full treatment. Lirael is
+the Aeolian kingdom; its capital cathedral was the historical
+seat of the shard, until Conductor Arsen's catastrophe. By the
+time the player arrives in Lirael, the kingdom is ruins. Miel
+is the surviving line — heir to a kingdom that no longer exists.
+
+In dialogue:
+   - NPCs who knew Lirael before the fall speak of it with the
+     slightly antique cadence of mourning. Past tense always.
+   - Miel does not narrate Lirael; she only walks through it.
+
+
+-------- THE SAGE CIRCLE & VELTHE'S OBSERVATORY --------
+
+   STATUS: IN CODE (Velthe named in code as Academy founder and
+   first chronicler; her observatory is a visitable location; her
+   apprentice Iola appears in code).
+
+The SAGE CIRCLE is the scholarly order of Modalia — the institution
+that has, across centuries, tried to keep the world's musical
+knowledge written down. They are not magicians and not priests;
+they are scribes, observers, and notators. The Sage Circle's
+authority is purely citational: they remember what the rest of
+Modalia has forgotten, and the world tolerates them for it.
+
+The ACADEMY is the Sage Circle's central institution. Diegues
+trained there. The Academy is in the code as a visitable location
+(map_id 19).
+
+VELTHE is the Academy's founder and the first chronicler of the
+post-Shattering era. She wrote the first systematic notation of
+all seven mode-shards and spent her final twelve years at her own
+observatory studying the Locrian shard's instability before she
+vanished. Her observatory still stands above the Locrian Crypt
+(see CAVE 6).
+
+Velthe is dead in the game's present, but her writings are
+canonical and her observatory's notebooks are findable artifacts
+that grant lore beats to the player.
+
+IOLA is Velthe's last apprentice. She appears in the code as an
+NPC; in canon she is the living connection back to the Sage
+Circle's deepest lore. Diegues respects her.
+
+LOCRIUS (Cave 6 boss) was Velthe's contemporary. The Sage Circle
+lost him to the shard he tried to stabilize. This is part of why
+they stopped sending scholars to Locrian country.
+
+
+-------- REGIONS OF MODALIA — THE LARGER MAP --------
+
+   STATUS: IN CODE (regions listed are present as named map IDs;
+   their lore is canonized here for the first time).
+
+Beyond the seven mode-nations, the code names several broader
+territories. These are the connective tissue of the overworld:
+
+   MODALIA (overworld) — the continent itself; the overworld map
+      the party crosses. Geological rather than political; nations
+      cluster around shards rather than evenly across the map.
+
+   EASTERN REACHES — the desert beyond the Hollow Woods; holds the
+      Phrygian Glass Cavern (Cave 4). The reach is sparsely populated
+      between the dunes and the cliffs.
+
+   NORTHERN WILDS — the frozen north; holds the Aeolian Ice Grotto
+      (Cave 5). Tundra, then permafrost, then the grotto itself.
+
+   WESTERN REGION — west of Hollow Woods, between Lydian country
+      and the open Dead Lands. Code uses Hollow Woods music here.
+
+   FAR HILLS — rolling lowlands; code uses the woods theme. The
+      countryside between the more named regions. A place of
+      side encounters and wandering NPCs.
+
+   ESCAPE CAVE — small tunnel system used as a post-boss escape
+      route in the code. Echoes of Cave 1 in the music.
+
+   REYA'S CAIRN — a memorial site marked by a single struck bell
+      tone. Reya was a fallen ally or chronicler whose death is
+      remembered here. Her cairn is a saving point and a quiet
+      lore beat.
+
+   THE TOWER — see THE TOWER & SUNO'S DOMAIN above.
+
+   THE ACADEMY — see THE SAGE CIRCLE above.
 
 
 -------- THE PARTY — DEEPER --------
@@ -689,9 +947,10 @@ Caves 1 and 2 are dossier-canon. Sketches for Caves 3–7 follow.
 All `STATUS: PROPOSED`; pattern values are placeholders.
 
 
--------- CAVE 3 — MIXOLYDIAN SHARD --------
+-------- CAVE 3 — TIDE CAVERN / MIXOLYDIAN SHARD --------
 
-   STATUS: PROPOSED. Coastal amphitheatre / cliff caves.
+   STATUS: IN CODE. Sunward Coast / tide-carved amphitheatre.
+   Bible canon: HP/atk values below remain proposed.
 
    GULL          HP 100  atk 4   pattern {2,2,4,2,2,6}    bard high call
    FISHERMAN     HP 160  atk 6   pattern {6,6,8,6}        warrior mid hit
@@ -700,17 +959,19 @@ All `STATUS: PROPOSED`; pattern values are placeholders.
    STAGE GHOST   HP 220  atk 6   pattern {12,8,12,16}     cleric airy
 
    BOSS:
-   HARBORMASTER  HP 950  atk 9   pattern {16,8,8,16,16}   bard call+resp
-              Old bandleader. Phases as a CALL/RESPONSE duel:
-              he plays a four-note phrase; the player has one
+   TIDEWATCH    HP 1100 atk 10  pattern {16,8,8,16,16}   bard call+resp
+              Ghost of the old HARBORMASTER. Phases as a CALL/RESPONSE
+              duel: he plays a four-note phrase; the player has one
               bar to "answer" by attacking on the matching beats.
               Wrong answer = stagger; right answer = full damage.
-              Drops the MIXOLYDIAN SHARD.
+              Visually half-drowned; voice is a wet echo with a
+              brass-band undertone. Drops the MIXOLYDIAN SHARD.
 
 
--------- CAVE 4 — PHRYGIAN SHARD --------
+-------- CAVE 4 — GLASS CAVERN / PHRYGIAN SHARD --------
 
-   STATUS: PROPOSED. Buried palace under shifting dunes.
+   STATUS: IN CODE. Eastern Reaches; glass-vitrified buried palace.
+   TWO BOSSES — Dune Rider (above) and The First Call (below).
 
    SAND-SINGER   HP 140  atk 5   pattern {4,4,8,4}        bard drone
    JACKAL        HP 120  atk 7   pattern {2,2,2,2,4}      warrior bite
@@ -718,18 +979,39 @@ All `STATUS: PROPOSED`; pattern values are placeholders.
    GLASS WASP    HP 80   atk 4   pattern {2,2,2}          mage sting
    MIRAGE        HP 200  atk 5   pattern {12,4,12,4}      mage flicker
 
-   BOSS:
-   THE FIRST CALL   HP 1100  atk 11  pattern {20,4,4,20}  warrior horn
+   GATE BOSS (upper, dune-line):
+   DUNE RIDER   HP 1300  atk 11  pattern {2,2,4,2,2,8}    warrior charge
+              Mounted herald of the First Call; patrols the dunes
+              above the glass shell. Fast, high-evasion fight on
+              shifting sand; the arena floor tilts each bar.
+              Defeating him opens the descent into the palace.
+
+   SHARD BOSS (lower, throne room):
+   THE FIRST CALL   HP 1400  atk 12  pattern {20,4,4,20}  warrior horn
               Giant ritual horn fought as a structure. It plays
               a long phrase (20 beats); the player damages it
-              by interrupting that phrase on its weak beats.
-              Drops the PHRYGIAN SHARD.
+              by interrupting on its weak beats. May predate the
+              Shattering. Drops the PHRYGIAN SHARD.
 
 
--------- CAVE 5 — AEOLIAN SHARD --------
+-------- CAVE 5 — ICE GROTTO / AEOLIAN SHARD --------
 
-   STATUS: PROPOSED. Royal cathedral foundation. Tied to Act 3
-   catastrophe — this cave doubles as Act 3's central dungeon.
+   STATUS: IN CODE. Northern Wilds / frozen sea-cave. Cave 5 is
+   reached AFTER the Lirael cathedral catastrophe (mid-Act 3); the
+   Broken Cadence fight occurs in Lirael, the Snowgaunt fight
+   occurs here, both Act 3.
+
+   ── LIRAEL CATHEDRAL EVENT (precedes Cave 5) ──
+
+   THE BROKEN CADENCE  HP 1300  atk 12  pattern {12,12,8,4}  cleric falter
+              Former cathedral chorister now Suno's instrument,
+              fought in the ruined nave at Lirael. Mechanic: a
+              song that won't resolve — every phrase ends one
+              note short until the player FORCES the resolution.
+              Does NOT drop the shard (it was sent north before
+              the fall). Drops a key that opens the Ice Grotto.
+
+   ── ICE GROTTO STANDARD ENEMIES ──
 
    ACOLYTE       HP 130  atk 5   pattern {6,6,6,6}        cleric soft
    HOLLOW BELL   HP 240  atk 7   pattern {16,16}          warrior toll
@@ -737,17 +1019,25 @@ All `STATUS: PROPOSED`; pattern values are placeholders.
    DROWNED SINGER HP 160 atk 6   pattern {8,8,12}         bard waterlog
    SUNO LIEUT.   HP 220  atk 8   pattern {6,6,6,6}        warrior square
 
-   BOSS:
-   THE BROKEN CADENCE  HP 1300  atk 12  pattern {12,12,8,4}  cleric falter
-              Former chorister now Suno's instrument. The fight
-              is a song that won't resolve — every phrase ends
-              one note short until the player FORCES the resolution.
-              Drops the AEOLIAN SHARD. Triggers Act 3 reveal.
+   (Note: code currently uses generic Northern-Wilds enemies — Frost
+   Wisp, Yeti, Granite Beast, Crow Wraith, Lich, Voidcrawler. Either
+   set may be canon depending on later balance work.)
+
+   SHARD BOSS:
+   SNOWGAUNT    HP 1500  atk 13  pattern {12,8,16,8}      cleric breath
+              What the shard's loneliness has shaped from a dead
+              courier and her dogs. Tall, narrow, made of frost-
+              fused bone and antler. Aeolian breath through an
+              ice flute. Fights with patience: long pauses between
+              blows. Drops the AEOLIAN SHARD.
 
 
--------- CAVE 6 — LOCRIAN SHARD --------
+-------- CAVE 6 — OBSERVATORY & LOCRIAN CRYPT / LOCRIAN SHARD --------
 
-   STATUS: PROPOSED. Half-collapsed observatory in ash twilight.
+   STATUS: IN CODE (Locrian Crypt in Suno's Domain). Bible canon
+   includes the upper Observatory level above the crypt.
+
+   ── UPPER LEVEL: OBSERVATORY ──
 
    HUSK          HP 120  atk 5   pattern {3,3,3,3}        warrior dry
    FLAT-BIRD     HP 90   atk 6   pattern {2,2,2,2,2,4}    mage off-key
@@ -755,28 +1045,70 @@ All `STATUS: PROPOSED`; pattern values are placeholders.
    UNRESOLVED    HP 150  atk 6   pattern {7,7,7}          mage tritone
    SILENT THING  HP 280  atk 8   pattern {16,4}           --(no sound)
 
-   BOSS:
+   MID-BOSS (opens descent):
    THE TRITONE  HP 1500  atk 13  pattern {6,6,6,6}        mage augmented
               Two voices that refuse to resolve. Player must hold
               a third voice for a full bar to force the cadence;
-              the boss drops to 0 only when that third is held.
-              Drops the LOCRIAN SHARD.
+              the Tritone drops only when that third is sustained.
+              Defeating it opens the floor and the descent into
+              the Crypt below.
+
+   ── LOWER LEVEL: LOCRIAN CRYPT ──
+
+   SHARD BOSS:
+   LOCRIUS     HP 1900  atk 14   pattern {7,7,7,3}        mage diminished
+              A Sage-Circle scholar who descended centuries ago
+              to stabilize the shard and was stabilized BY it.
+              The diminished chord made man — three pitches that
+              refuse to be a triad. Recognizes Diegues' notation
+              on sight; was Velthe's contemporary. Drops the
+              LOCRIAN SHARD.
 
 
--------- CAVE 7 — IONIAN SHARD --------
+-------- CAVE 7 — SUNO'S CHAMBER & THE HELD CHORD / IONIAN SHARD --------
 
-   STATUS: PROPOSED. Hidden / submerged / vanished nation. Final
-   approach. May be no battle at all — the shard granted, not won.
+   STATUS: IN CODE. Top of The Tower. TWO STAGES — Suno fight, then
+   Held Chord ceremony. Ionian shard granted by ceremony, not loot.
 
-   (No standard enemies. The cave plays a piece of music; the
-   party walks through it.)
+   (No standard enemies. The Tower's lower floors carry the
+   approach encounters. Suno's Chamber itself plays a piece of
+   music; the party walks through it to the dais.)
 
-   BOSS (or non-boss):
+   STAGE 1 — SUNO:
+   SUNO          HP 3000  atk 16  pattern {4,4,4,4,...}   anti-voice
+              Final antagonist. Phases strip voices from the battle
+              theme: bass, then harmony, then lead. Last phase has
+              no music. His voice is suppressive — lowers the room's
+              noise floor. Defeating Suno does not yield the shard;
+              it stops the suppression keeping the chord from forming.
+
+   STAGE 2 — THE HELD CHORD:
    THE HELD CHORD  HP --   atk --   pattern {sustain}     all voices
-              Not a fight. The party must sustain the chord for
-              one full minute of game-time; if any voice drops
-              the chord (HP 0, silenced, fled), the encounter
-              restarts. Grants the IONIAN SHARD.
+              Not a fight. The party must sustain the seven-note
+              chord for one full minute of game-time. If any voice
+              drops (silenced, fled, 0 HP), the encounter restarts
+              from Stage 2 only — Suno stays defeated. Grants the
+              IONIAN SHARD when the minute completes.
+
+
+-------- CAVE 8 — THE FIRST CHORD (POST-GAME SUPERBOSS) --------
+
+   STATUS: IN CODE. Optional encounter unlocked after Cave 7.
+
+   No standard enemies. The arena is the Crystal Synth's core, re-
+   entered after the world is healed. THE FIRST CHORD is the original
+   sustained tone of the Held Chord, given shape — not a creature
+   so much as the music itself testing whether the player has earned
+   it. Mythologically: this is what the Held Chord SOUNDED LIKE
+   before it was scattered, made playable for one fight.
+
+   SUPERBOSS:
+   THE FIRST CHORD  HP 6500  atk 20  pattern {sustain}    all voices
+              Fights using every mechanic the seven shards have
+              taught the party. No drop — the reward is the
+              encounter itself. Beating it unlocks a post-credits
+              cutscene (planned) of the Held Chord ringing without
+              a singer.
 
 Bosses in this game are MUSICAL IDEAS first, HP sponges second.
 A player should remember each fight as a piece of music, not as
@@ -799,6 +1131,145 @@ For the dossier list, see §RECURRING THEMES. Additions:
      the world goes atonal the music is still there. (Act 3.)
    - Recording is rare and slightly taboo. A recorded voice cannot
      change. Modalians prefer their songs sung live and forgotten.
+
+
+-------- NAMED CAST — NPC STUBS --------
+
+   STATUS: each entry IN CODE; backstories marked STUB are open
+   for development. Stubs are placeholders, not committed canon;
+   they exist so that future sessions know the character is real
+   and where they live.
+
+Lore-significant NPCs already established elsewhere (Veris, Lyrik,
+Kael of the Second Voice, The Quartermaster, Conductor Arsen,
+Velthe, Iola, Locrius, the Harbormaster) appear in their own
+sections above. The list below covers the rest of the named cast
+present in the code.
+
+   ELDER (Village Clearing)
+      Role: village elder, opens the troupe quest hook for the
+      first Lydian shard. STATUS: IN CODE. Backstory: STUB —
+      probably the oldest living singer in the Clearing; may have
+      heard a true Held Chord fragment as a child.
+
+   CAPT. REN (location TBD)
+      Role: a captain — likely military or harbor. STATUS: STUB.
+      Possible threads: Strom-adjacent (former comrade), or
+      Mixolydian coast captain who knew the Harbormaster.
+
+   PAGE (location TBD)
+      Role: a court page, given the name. STATUS: STUB. Possible
+      thread: Lirael survivor, child who escaped the cathedral.
+
+   MIRA (location TBD)
+      Role: STUB. Possible thread: a Lydian-country wanderer or
+      a young singer auditioning for the Sage Circle.
+
+   IOLEN (location TBD)
+      Role: STUB. Possibly Iola-adjacent (name echo) — sibling,
+      cousin, or former classmate at the Academy.
+
+   ISKA (location TBD)
+      Role: STUB.
+
+   AURIN (location TBD)
+      Role: STUB. Name suggests Aeolian / Aurelian — possible
+      Lirael diaspora figure.
+
+   WENA (location TBD)
+      Role: STUB.
+
+   SERGEI (location TBD)
+      Role: STUB. Name leans Eastern / Phrygian — possible glass-
+      cavern guide.
+
+   PAJ (location TBD)
+      Role: STUB.
+
+   NIKO (location TBD)
+      Role: STUB.
+
+   WINNA (location TBD)
+      Role: STUB.
+
+   BRANN (location TBD)
+      Role: STUB.
+
+   LUTIST (Village Clearing — likely)
+      Role: a lutist NPC, possibly a tutor or rival to Alder.
+      STATUS: STUB. Likely a Lydian-country troupe member.
+
+   ECHO (location TBD)
+      Role: STUB. The name suggests a Resonance-adjacent figure
+      — possibly a spirit, possibly an NPC who has lived too
+      close to a Resonance.
+
+   REYA (Reya's Cairn)
+      Role: a remembered figure; the cairn is named for her. She
+      is dead in the present. STATUS: STUB. Possible thread: a
+      chronicler ally of Velthe's, lost to the Dead Lands; her
+      single bell-tone theme is a leitmotif.
+
+   RIDER (overworld, possibly Eastern Reaches)
+      Role: a roaming horseman. STATUS: STUB. Possibly distinct
+      from Dune Rider; could be a Phrygian-country scout or
+      Suno-affiliated outrider.
+
+   WANDERER (overworld)
+      Role: a roaming NPC who appears across regions. STATUS:
+      STUB. Strong candidate for a mythic-frame NPC — a
+      Resonance walking the map in human shape.
+
+When developing any of these characters in future sessions:
+   - Decide their region first, then their music, then their
+     role in the broader arc.
+   - Every NPC who could plausibly know a party member must
+     have a `lead == "<class>"` branch in their dialogue (per
+     code convention).
+   - If they're tied to a Resonance or to Velthe/the Sage Circle,
+     flag it in their stub above so the connection survives.
+
+
+-------- BESTIARY — STANDARD ENEMIES (CODE-CANONICAL) --------
+
+   STATUS: IN CODE. Lore-frame proposed.
+
+The code currently defines 26 standard enemy types across the
+overworld and dungeons. They are listed here so the bible knows
+what the player will actually fight, even where the bestiary
+section above used different placeholders.
+
+   Lydian / early-game:
+      SLIME, BAT, MUSHROOM, WISP, WOLF, SPRITE, TREANT
+
+   Dorian / Hollow Woods:
+      HOLLOW WISP, WOOD WOLF
+
+   Mixolydian / Sunward Coast:
+      CRAB, MANTA, TIDE SPRITE, SEA WISP
+
+   Phrygian / Eastern Reaches:
+      SCORPION, SPECTRE, SAND MANTA, DUNE WOLF
+
+   Aeolian / Northern Wilds:
+      FROST WISP, YETI, GRANITE BEAST
+
+   Locrian / approach to Suno's Domain:
+      CROW WRAITH, LICH, VOIDCRAWLER
+
+   Suno's Domain interior:
+      ECHO OF SUNO — a refined fragment of his own voice given
+         body; the closer the party gets to Suno, the more these
+         appear. Their music is a single phrase of his stripped
+         from the rest.
+      MUTE WARDEN — Tower-floor guard, voiceless by design.
+         Carries Suno-issued harness like the Forest Sentinel did.
+
+Lore guidance: enemy types reflect their region's mode. Frost
+Wisps SING in Aeolian when struck. Sand Mantas drone Phrygian.
+Tide Sprites carry the Mixolydian flat seventh. This is
+worldbuilding through the bestiary — the player should hear the
+region's mode in the enemies they fight there.
 
 
 -------- DESIGN GUARDRAILS --------

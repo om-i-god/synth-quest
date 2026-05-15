@@ -16,20 +16,23 @@ Engine_SynthQuest : CroneEngine {
 			    mod_index=2, mod_ratio=2,
 			    cutoff=2200, resonance=0.3,
 			    env_attack=0.005, env_release=0.55,
-			    wet=0, extra_wet=0, delay_amt=0,
+			    wet=0, extra_wet=0, delay_amt=0, delay_time=0.375,
+			    room=0.88, damp=0.35,
 			    t_trig=0;
-			var env, mod, car, sig, dry, rev, extra_rev, del;
+			var env, mod, car, sig, dry, rev, extra_rev, del, rclip, dclip;
 			env = EnvGen.kr(Env.perc(env_attack, env_release, 1, -4), t_trig);
 			mod = SinOsc.ar(freq * mod_ratio) * mod_index * freq * env;
 			car = SinOsc.ar(freq + mod);
 			sig = car * env * amp * amp_mul;
 			sig = RLPF.ar(sig, cutoff.clip(40, 18000), resonance.clip(0.05, 0.95));
+			rclip = room.clip(0, 0.99);
+			dclip = damp.clip(0, 1);
 			dry = sig;
-			rev = FreeVerb.ar(sig, 1, 0.88, 0.35);
+			rev = FreeVerb.ar(sig, 1, rclip, dclip);
 			sig = (dry * (1 - wet)) + (rev * wet);
-			extra_rev = FreeVerb.ar(sig, 1, 0.92, 0.4);
+			extra_rev = FreeVerb.ar(sig, 1, (rclip + 0.04).clip(0, 0.99), (dclip + 0.05).clip(0, 1));
 			sig = sig + (extra_rev * extra_wet * 1.6);
-			del = CombC.ar(sig, 0.6, 0.375, 1.5);
+			del = CombC.ar(sig, 2.0, delay_time.clip(0.001, 2.0), 1.5);
 			sig = sig + (del * delay_amt * 1.3);
 			Out.ar(out, sig.dup);
 		}).add;
@@ -39,9 +42,10 @@ Engine_SynthQuest : CroneEngine {
 			arg out=0, freq=220, amp=0.22, amp_mul=1,
 			    cutoff=1600, resonance=0.2,
 			    env_attack=0.06, env_release=1.4,
-			    detune=0.005, wet=0, extra_wet=0, delay_amt=0,
+			    detune=0.005, wet=0, extra_wet=0, delay_amt=0, delay_time=0.5,
+			    room=0.92, damp=0.40,
 			    t_trig=0;
-			var env, sig, chorus, dry, rev, extra_rev, del;
+			var env, sig, chorus, dry, rev, extra_rev, del, rclip, dclip;
 			env = EnvGen.kr(Env.perc(env_attack, env_release, 1, -3), t_trig);
 			sig = LFTri.ar(freq) + (LFTri.ar(freq * (1 + detune)) * 0.7);
 			chorus = DelayC.ar(sig, 0.05,
@@ -49,12 +53,14 @@ Engine_SynthQuest : CroneEngine {
 			sig = (sig + chorus) * 0.4;
 			sig = RLPF.ar(sig, cutoff.clip(40, 18000), resonance.clip(0.05, 0.95));
 			sig = sig * env * amp * amp_mul;
+			rclip = room.clip(0, 0.99);
+			dclip = damp.clip(0, 1);
 			dry = sig;
-			rev = FreeVerb.ar(sig, 1, 0.92, 0.4);
+			rev = FreeVerb.ar(sig, 1, rclip, dclip);
 			sig = (dry * (1 - wet)) + (rev * wet);
-			extra_rev = FreeVerb.ar(sig, 1, 0.94, 0.45);
+			extra_rev = FreeVerb.ar(sig, 1, (rclip + 0.02).clip(0, 0.99), (dclip + 0.05).clip(0, 1));
 			sig = sig + (extra_rev * extra_wet * 1.6);
-			del = CombC.ar(sig, 0.6, 0.5, 2.0);
+			del = CombC.ar(sig, 2.0, delay_time.clip(0.001, 2.0), 2.0);
 			sig = sig + (del * delay_amt * 1.3);
 			Out.ar(out, sig.dup);
 		}).add;
@@ -64,21 +70,24 @@ Engine_SynthQuest : CroneEngine {
 			arg out=0, freq=110, amp=0.3, amp_mul=1,
 			    cutoff=1300, resonance=0.4,
 			    env_attack=0.003, env_release=0.22,
-			    wet=0, extra_wet=0, delay_amt=0,
+			    wet=0, extra_wet=0, delay_amt=0, delay_time=0.375,
+			    room=0.85, damp=0.50,
 			    t_trig=0;
-			var env, sig, sub, dry, rev, extra_rev, del;
+			var env, sig, sub, dry, rev, extra_rev, del, rclip, dclip;
 			env = EnvGen.kr(Env.perc(env_attack, env_release, 1, -6), t_trig);
 			sig = Pulse.ar(freq, 0.5);
 			sub = SinOsc.ar(freq * 0.5) * 0.6;
 			sig = (sig + sub) * 0.5;
 			sig = RLPF.ar(sig, cutoff.clip(40, 18000), resonance.clip(0.05, 0.95));
 			sig = sig * env * amp * amp_mul;
+			rclip = room.clip(0, 0.99);
+			dclip = damp.clip(0, 1);
 			dry = sig;
-			rev = FreeVerb.ar(sig, 1, 0.85, 0.5);
+			rev = FreeVerb.ar(sig, 1, rclip, dclip);
 			sig = (dry * (1 - wet)) + (rev * wet);
-			extra_rev = FreeVerb.ar(sig, 1, 0.90, 0.5);
+			extra_rev = FreeVerb.ar(sig, 1, (rclip + 0.05).clip(0, 0.99), dclip);
 			sig = sig + (extra_rev * extra_wet * 1.6);
-			del = CombC.ar(sig, 0.6, 0.25, 1.0);
+			del = CombC.ar(sig, 2.0, delay_time.clip(0.001, 2.0), 1.0);
 			sig = sig + (del * delay_amt * 1.3);
 			Out.ar(out, sig.dup);
 		}).add;
@@ -89,21 +98,24 @@ Engine_SynthQuest : CroneEngine {
 			    wt_pos=0,
 			    cutoff=2200, resonance=0.5,
 			    env_attack=0.012, env_release=0.5,
-			    wet=0, extra_wet=0, delay_amt=0,
+			    wet=0, extra_wet=0, delay_amt=0, delay_time=0.375,
+			    room=0.90, damp=0.40,
 			    t_trig=0;
-			var env, sig, sine, saw, dry, rev, extra_rev, del;
+			var env, sig, sine, saw, dry, rev, extra_rev, del, rclip, dclip;
 			env = EnvGen.kr(Env.perc(env_attack, env_release, 1, -4), t_trig);
 			sine = SinOsc.ar(freq);
 			saw = LFSaw.ar(freq) * 0.7;
 			sig = XFade2.ar(sine, saw, wt_pos.clip(-1, 1));
 			sig = RLPF.ar(sig, cutoff.clip(40, 18000), resonance.clip(0.05, 0.95));
 			sig = sig * env * amp * amp_mul;
+			rclip = room.clip(0, 0.99);
+			dclip = damp.clip(0, 1);
 			dry = sig;
-			rev = FreeVerb.ar(sig, 1, 0.9, 0.4);
+			rev = FreeVerb.ar(sig, 1, rclip, dclip);
 			sig = (dry * (1 - wet)) + (rev * wet);
-			extra_rev = FreeVerb.ar(sig, 1, 0.93, 0.45);
+			extra_rev = FreeVerb.ar(sig, 1, (rclip + 0.03).clip(0, 0.99), (dclip + 0.05).clip(0, 1));
 			sig = sig + (extra_rev * extra_wet * 1.6);
-			del = CombC.ar(sig, 0.6, 0.375, 1.5);
+			del = CombC.ar(sig, 2.0, delay_time.clip(0.001, 2.0), 1.5);
 			sig = sig + (del * delay_amt * 1.3);
 			Out.ar(out, sig.dup);
 		}).add;
@@ -172,11 +184,28 @@ Engine_SynthQuest : CroneEngine {
 		this.addCommand("warrior_xwet", "f", { arg msg; sq_warrior.set(\extra_wet, msg[1]); });
 		this.addCommand("bard_xwet",    "f", { arg msg; sq_bard.set(\extra_wet, msg[1]); });
 
-		// per-voice delay (left stick X)
+		// per-voice delay mix (left stick X)
 		this.addCommand("mage_dly",    "f", { arg msg; sq_mage.set(\delay_amt, msg[1]); });
 		this.addCommand("cleric_dly",  "f", { arg msg; sq_cleric.set(\delay_amt, msg[1]); });
 		this.addCommand("warrior_dly", "f", { arg msg; sq_warrior.set(\delay_amt, msg[1]); });
 		this.addCommand("bard_dly",    "f", { arg msg; sq_bard.set(\delay_amt, msg[1]); });
+
+		// per-voice delay time (seconds; clamped to 2.0 in the SynthDef)
+		this.addCommand("mage_dly_time",    "f", { arg msg; sq_mage.set(\delay_time, msg[1]); });
+		this.addCommand("cleric_dly_time",  "f", { arg msg; sq_cleric.set(\delay_time, msg[1]); });
+		this.addCommand("warrior_dly_time", "f", { arg msg; sq_warrior.set(\delay_time, msg[1]); });
+		this.addCommand("bard_dly_time",    "f", { arg msg; sq_bard.set(\delay_time, msg[1]); });
+
+		// per-voice reverb size (FreeVerb room) and damping
+		this.addCommand("mage_room",    "f", { arg msg; sq_mage.set(\room, msg[1]); });
+		this.addCommand("cleric_room",  "f", { arg msg; sq_cleric.set(\room, msg[1]); });
+		this.addCommand("warrior_room", "f", { arg msg; sq_warrior.set(\room, msg[1]); });
+		this.addCommand("bard_room",    "f", { arg msg; sq_bard.set(\room, msg[1]); });
+
+		this.addCommand("mage_damp",    "f", { arg msg; sq_mage.set(\damp, msg[1]); });
+		this.addCommand("cleric_damp",  "f", { arg msg; sq_cleric.set(\damp, msg[1]); });
+		this.addCommand("warrior_damp", "f", { arg msg; sq_warrior.set(\damp, msg[1]); });
+		this.addCommand("bard_damp",    "f", { arg msg; sq_bard.set(\damp, msg[1]); });
 
 		// drone control
 		this.addCommand("drone_amp",    "f", { arg msg; sq_drone.set(\amp, msg[1]); });
