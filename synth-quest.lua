@@ -10844,6 +10844,174 @@ CONTENT.hollow_npcs = {
   },
 }
 
+-- Sunward Coast town NPCs (map id 35). Loaded by travel_to() via
+-- CONTENT.sunward_coast_npcs. Eight characters centred on the bandstand,
+-- the harbormaster's absence, and the off-stage refinery.
+CONTENT.sunward_coast_npcs = {
+  -- Mara — Harbormaster's widow, runs the bandstand
+  { x = 16, y = 5, name = "Mara", kind = "npc",
+    dialogue = function()
+      local lead = party[active] and party[active].class
+      if lead == "bard" then
+        return {
+          "(she sees Alder and her hands still on the lute)",
+          "Alder. The wind brought you here, then.",
+          "There's an empty stage tonight if you want it.",
+        }
+      elseif lead == "cleric" then
+        return {
+          "Princess. You won't remember me; I sang at",
+          "your mother's coronation. Bless this stand,",
+          "if you would. It's all we have of him now.",
+        }
+      elseif lead == "warrior" then
+        return {
+          "You walk like he did. The same weight in",
+          "the shoulders. Don't tell me he sent you.",
+        }
+      elseif lead == "mage" then
+        return {
+          "Scholar. The Sage Circle keeps a small",
+          "post here; Vesa records every visitor.",
+          "She'll want to write your name down.",
+        }
+      else
+        return {
+          "Welcome to Sunward Coast. We don't",
+          "see many travelers since the refinery",
+          "took the Harbormaster.",
+        }
+      end
+    end,
+    barks = {"(she tunes a string)", "(humming a Mixolydian air)"},
+  },
+  -- Hask — tavern keeper, gossip-monger
+  { x = 25, y = 6, name = "Hask", kind = "npc",
+    dialogue = function()
+      local lead = party[active] and party[active].class
+      if lead == "warrior" then
+        return {
+          "Hold up. That scar on your collar — that's",
+          "a Suno harness mark. I've buried men who",
+          "wore that and never spoke after.",
+        }
+      elseif lead == "bard" then
+        return {
+          "Bards drink free here on Sevenday. Mara's",
+          "rule, not mine. Mostly mine.",
+        }
+      else
+        return {
+          "Refinery's hidden behind the headlands now.",
+          "You can hear it if the wind comes wrong.",
+        }
+      end
+    end,
+    barks = {"(he wipes a glass)", "(eyes the door)"},
+  },
+  -- Coral — 12-year-old aspiring singer
+  { x = 17, y = 6, name = "Coral", kind = "npc",
+    dialogue = function()
+      local lead = party[active] and party[active].class
+      if lead == "bard" then
+        return {
+          "Are you a real bard? Can I try? I can sing",
+          "the Mara-song already. Most of it.",
+          "(she sings two notes, almost in tune)",
+        }
+      else
+        return {
+          "(she watches the bandstand from a stair)",
+          "(she's mouthing words to herself)",
+        }
+      end
+    end,
+  },
+  -- Beck — fisherman
+  { x = 4, y = 11, name = "Beck", kind = "npc",
+    dialogue = function()
+      local lead = party[active] and party[active].class
+      if lead == "warrior" then
+        return {
+          "Strong arms. Want to haul nets at dawn?",
+          "Pay's three coppers and a flask of cider.",
+        }
+      else
+        return {
+          "At low tide, listen east of the cavern mouth.",
+          "Sometimes the old bandleader still calls back.",
+        }
+      end
+    end,
+  },
+  -- Wynne — traveling bard passing through
+  { x = 12, y = 4, name = "Wynne", kind = "npc",
+    dialogue = function()
+      local lead = party[active] and party[active].class
+      if lead == "bard" then
+        return {
+          "Trade phrases? I have a Mixolydian turn",
+          "from a Locrian funeral. You won't believe",
+          "what it does in a major key.",
+        }
+      else
+        return {
+          "I'm passing through. The Harbormaster's",
+          "duels were the reason I came. He's gone,",
+          "but the cavern still answers.",
+        }
+      end
+    end,
+  },
+  -- Pell — market fishmonger (shop)
+  { x = 11, y = 5, name = "Pell", kind = "shop",
+    dialogue = function()
+      return {
+        "Salted fish, two coppers. Kelp tea, one.",
+        "Healing draught, twelve. Take it or leave it.",
+      }
+    end,
+  },
+  -- Vesa — Sage Circle outpost archivist
+  { x = 26, y = 5, name = "Vesa", kind = "npc",
+    dialogue = function()
+      local lead = party[active] and party[active].class
+      if lead == "mage" then
+        return {
+          "Diegues, isn't it? Iola wrote me about you.",
+          "I'm keeping the eastern records here while",
+          "she sees to Velthe's last papers.",
+        }
+      else
+        return {
+          "I record every singer who passes. Names",
+          "are how we remember after the music goes.",
+        }
+      end
+    end,
+  },
+  -- Iolen — tide-watcher kid
+  { x = 8, y = 9, name = "Iolen", kind = "npc",
+    dialogue = function()
+      local lead = party[active] and party[active].class
+      if lead == "warrior" then
+        return {
+          "(he stands straighter when he sees Strom)",
+          "Sir. I keep the tide tally. Take this stone —",
+          "it's smooth from a hundred high tides.",
+          "(adds Iolen's Tide Stone to party inventory)",
+        }
+      else
+        return {
+          "(a kid watching the water)",
+          "Tide's high in an hour. You can tell by",
+          "the gulls — they go quiet first.",
+        }
+      end
+    end,
+  },
+}
+
 local npcs = MAINLAND_NPCS  -- active NPC list (mutable; swaps on travel_to)
 
 -- ============================================================ HELPERS
