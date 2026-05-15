@@ -6579,6 +6579,46 @@ function start_sunos_arrival_scene()
   SCENE.start(script)
 end
 
+-- start_sunward_arrival_scene() — first time arriving at Sunward Coast
+-- (map 35). Camera pans to the bandstand where Mara is tuning her lute;
+-- she greets the party and points them toward the Tide Cavern. Fires
+-- exactly once per save via CONTENT.scene_seen.sunward_arrival.
+function start_sunward_arrival_scene()
+  local px, py = player.x, player.y
+  local script = {
+    {hide_player = true},
+    {set = function() SCENE.fade = 15 end},
+    {letterbox_in = true},
+    {focus = {x = px, y = py}, ticks = 1},
+    {fade_in = 36},
+    {wait = 6},
+    -- Soft bard tone: lantern-light, warm harbour air.
+    {sfx = {class = "bard", note = 67, vel = 0.40, attack = 0.30, release = 5.0, wet = 0.90}},
+    {focus = {x = 16, y = 5}, ticks = 30},   -- pan camera to bandstand
+    {wait = 10},
+    {dialogue = {
+      "(The road bends east, and the sea opens.)",
+      "(Lanterns on the bandstand. A woman tuning a lute.)",
+    }, npc = nil},
+    {wait = 4},
+    {dialogue = {
+      "[Mara]   Sunward Coast. Stay as long as you need.",
+    }, npc = {name = "Mara"}},
+    {dialogue = {
+      "[Mara]   If you walk east past the docks, the Tide",
+      "[Mara]   Cavern keeps the Harbormaster's name.",
+    }, npc = {name = "Mara"}},
+    {wait = 6},
+    {focus = "player", ticks = 20},
+    {wait = 4},
+    {show_player = true},
+    {letterbox_out = true},
+    {flash = "* Sunward Coast *", ticks = 60},
+    {set = function() flag.sunward_arrival_done = true end},
+  }
+  SCENE.start(script)
+end
+
 -- start_strom_dream_scene() — black-screen flashback, no actors
 -- visible. Pure SFX + dialogue. Reya's voice in Strom's memory of his
 -- last morning with her. Fires once on first inn-rest with Strom.
@@ -14362,6 +14402,11 @@ travel_to = function(map_id, x, y)
     CONTENT.scene_seen = CONTENT.scene_seen or {}
     CONTENT.scene_seen.sunos_arrival = true
     start_sunos_arrival_scene()
+  elseif map_id == 35 and start_sunward_arrival_scene
+     and not (CONTENT.scene_seen and CONTENT.scene_seen.sunward_arrival) then
+    CONTENT.scene_seen = CONTENT.scene_seen or {}
+    CONTENT.scene_seen.sunward_arrival = true
+    start_sunward_arrival_scene()
   end
   -- First-arrival story beats. Each fires exactly once per save.
   if map_id == 21 then
