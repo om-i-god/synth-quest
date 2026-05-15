@@ -162,6 +162,22 @@ proposals.
 
    FF reference: FF5 Walse / FF9 Treno's gentler face.
 
+   ── SUNWARD COAST TOWN (in code: map_id 35) ──
+
+   Sun-bleached harbor town adjacent to the Tide Cavern. Layout:
+   sea cliff on the south edge, wood docks below the market square,
+   tavern + bandstand on the east side, small residential cluster
+   to the west, path east to the Tide Cavern entrance.
+
+   Cultural anchor: the bandstand, kept alive in the Harbormaster's
+   name by his widow Mara. Bards passing through perform there;
+   Sage Circle archivist Vesa records every singer who plays.
+   Coral, a twelve-year-old, watches from the stairs and learns
+   the songs.
+
+   Status: established. Reachable from MAINLAND east coast via
+   tile code 65 (the signpost above the coastal path).
+
 
 -------- 4. PHRYGIAN — THE EASTERN REACHES --------
 
@@ -1165,9 +1181,46 @@ present in the code.
       Role: STUB. Possible thread: a Lydian-country wanderer or
       a young singer auditioning for the Sage Circle.
 
-   IOLEN (location TBD)
-      Role: STUB. Possibly Iola-adjacent (name echo) — sibling,
-      cousin, or former classmate at the Academy.
+   IOLEN (Sunward Coast)
+      Role: Tide-watcher kid who idolizes Strom. Keeps a tide tally
+      on a smooth stone — passes it to the warrior on first meeting
+      (the "Tide Stone" callout).
+      STATUS: IN CODE.
+
+   MARA (Sunward Coast)
+      Role: Widow of the Harbormaster. Runs the bandstand in his
+      memory. Invites Alder to perform; recognizes Miel's mother.
+      STATUS: IN CODE.
+
+   HASK (Sunward Coast)
+      Role: Tavern keeper, gossip-monger. Notices Strom's old
+      Suno-issued harness scar. Sells warm drinks.
+      STATUS: IN CODE.
+
+   CORAL (Sunward Coast)
+      Role: Twelve-year-old aspiring singer. Watches the bandstand
+      from the stair. Wants Alder to teach her.
+      STATUS: IN CODE.
+
+   BECK (Sunward Coast)
+      Role: Fisherman who knows where Tidewatch's cadence echoes
+      at low tide. Knows Strom-type laborers when he sees them.
+      STATUS: IN CODE.
+
+   WYNNE (Sunward Coast)
+      Role: Traveling bard, passing through. Came for the
+      Harbormaster's duels; trades Mixolydian phrases with Alder.
+      STATUS: IN CODE.
+
+   PELL (Sunward Coast)
+      Role: Market fishmonger. Shop NPC: salted fish, kelp tea,
+      healing draughts.
+      STATUS: IN CODE.
+
+   VESA (Sunward Coast)
+      Role: Sage Circle outpost archivist. Records every visiting
+      singer's name. Knows Iola; seeds the Sage Hub path.
+      STATUS: IN CODE.
 
    ISKA (location TBD)
       Role: STUB.
