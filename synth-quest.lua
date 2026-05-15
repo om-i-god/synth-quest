@@ -1712,6 +1712,12 @@ do
   }
 end
 
+-- Region expansion (2026-05-14): placeholder theme aliases for map IDs 35 and 36.
+-- These fall back to existing audio so the game doesn't crash if a player reaches
+-- those maps before the real compositions land in later phases.
+OW_THEMES.sunward_coast = OW_THEMES.coast or OW_THEMES.village  -- placeholder until Phase 1.7
+OW_THEMES.phrygian_city = OW_THEMES.eastern or OW_THEMES.village  -- placeholder until Phase 2.7
+
 -- ============================================================ BATTLE THEMES
 -- Pass 34: FF4-FF10-style battle themes. Driving 8th-note bass ostinato in
 -- the warrior, sustained pad in the cleric, fast melodic line in the mage,
@@ -11482,6 +11488,11 @@ local function active_theme_id()
   if current_map_id == 24 then return "observatory" end -- Velthe Observatory: mathematical Lydian
   if current_map_id == 25 then return "cairn" end  -- Reya's Cairn: single bell tone
   if current_map_id == 26 then return "woods" end  -- Far Hills: woods theme (rolling hills, scattered trees)
+  -- Region expansion (2026-05-14) — placeholders, theme strings replaced per phase
+  if current_map_id == 35 then return "sunward_coast" end
+  if current_map_id == 36 then return "phrygian_city" end
+  -- Note: id 19 (academy), id 23 (lirael), id 24 (observatory) already return their
+  -- own placeholder strings; those themes get composed and replaced in later phases.
   if current_map_id == 7 then return "echoes" end
   if current_map_id == 8 then return "grove" end
   if current_map_id == 9 then return "grotto" end
