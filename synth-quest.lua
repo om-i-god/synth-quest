@@ -11003,6 +11003,15 @@ flag.observatory_tour_done   = flag.observatory_tour_done   or false
 flag.miel_walks_alone_done   = flag.miel_walks_alone_done   or false
 flag.lirael_theme_shifted    = flag.lirael_theme_shifted    or false
 
+-- Unlock gate for Lirael Ruins (map_id 23).
+-- Requires 4+ shards AND the Veiled Mystic conversation, OR the debug
+-- unlock_all toggle. Centralises this condition for tile renderer and
+-- step_player; all call sites are defined later in the file.
+function lirael_is_unlocked()
+  if flag.unlock_all then return true end
+  return (count_shards() >= 4) and flag.veiled_mystic_spoken
+end
+
 -- Single save file (Pass 49 multi-slot reverted Pass 54).
 local function SAVE_PATH()
   return _path.data .. "synth-quest/save.data"
