@@ -6791,6 +6791,48 @@ function start_sunward_bandstand_scene()
   return script
 end
 
+-- ── Sunward Coast ambient micro-scenes (map 35) ─────────────────────────────
+-- Each fires when the player steps onto a specific tile on map 35. Throttled
+-- by CONTENT.last_sunward_ambient_t (once per ~600 ticks). All globals to
+-- dodge the 200-main-chunk-locals cap.
+
+-- Bandstand practice: faint lute tone + caption. Tile (16, 5).
+function ambient_sunward_bandstand_practice()
+  return {
+    {sfx = {class = "bard", note = 67, vel = 0.4, attack = 0.05, release = 0.3, wet = 0.4}},
+    {dialogue = {"(someone is practicing inside)"}, npc = nil},
+  }
+end
+
+-- Dock gull: two high calls, a pause, then a low Mixolydian motif. Tile (9, 11).
+function ambient_sunward_dock_gull()
+  return {
+    {sfx = {class = "bard", note = 84, vel = 0.5, attack = 0.01, release = 0.8, wet = 0.6}},
+    {sfx = {class = "bard", note = 81, vel = 0.4, attack = 0.01, release = 0.6, wet = 0.6}},
+    {wait = 6},
+    {sfx = {class = "bard", note = 70, vel = 0.3, attack = 0.05, release = 0.6, wet = 0.5}},
+  }
+end
+
+-- Market cry: a brief overheard vendor shout. Tile (11, 5).
+function ambient_sunward_market_cry()
+  return {
+    {dialogue = {"\"FRESH MORNING CATCH — FRESH MORNING —\""}, npc = nil},
+  }
+end
+
+-- Cliff reeds: wind drone + caption that changes once Cave 3 is cleared. Tile (31, 7).
+function ambient_sunward_cliff_reeds()
+  local done = CONTENT.cave_monster_defeated and CONTENT.cave_monster_defeated[3]
+  return {
+    {sfx = {class = "cleric", note = 48, vel = 0.3, attack = 0.5, release = 1.2, wet = 0.8}},
+    {dialogue = {
+      done and "(the wind carries Tidewatch's cadence back)"
+           or  "(something out east is answering the wind)"
+    }, npc = nil},
+  }
+end
+
 -- start_strom_dream_scene() — black-screen flashback, no actors
 -- visible. Pure SFX + dialogue. Reya's voice in Strom's memory of his
 -- last morning with her. Fires once on first inn-rest with Strom.
@@ -13056,6 +13098,29 @@ local function try_move(dx, dy)
           CONTENT.flash_ticks = 36
         end
         break
+      end
+    end
+    -- Sunward Coast tile micro-scenes: fire on specific tiles in map 35.
+    -- Throttled to once per ~600 ticks so re-stepping doesn't spam-fire.
+    if current_map_id == 35 and not (SCENE and SCENE.active) then
+      local last_sw = CONTENT.last_sunward_ambient_t or -9999
+      if (tick - last_sw) > 600 then
+        local sc = nil
+        if nx == 16 and ny == 5 then
+          sc = ambient_sunward_bandstand_practice and ambient_sunward_bandstand_practice()
+        elseif nx == 9 and ny == 11 then
+          sc = ambient_sunward_dock_gull and ambient_sunward_dock_gull()
+        elseif nx == 11 and ny == 5 then
+          sc = ambient_sunward_market_cry and ambient_sunward_market_cry()
+        elseif nx == 31 and ny == 7 then
+          sc = ambient_sunward_cliff_reeds and ambient_sunward_cliff_reeds()
+        end
+        if sc then
+          CONTENT.last_sunward_ambient_t = tick
+          SCENE.start(sc)
+          redraw()
+          return
+        end
       end
     end
     -- Ambient event roll FIRST (peaceful surprise can pre-empt a fight).
