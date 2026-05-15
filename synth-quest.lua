@@ -11007,6 +11007,7 @@ flag.lirael_theme_shifted    = flag.lirael_theme_shifted    or false
 -- Requires 4+ shards AND the Veiled Mystic conversation, OR the debug
 -- unlock_all toggle. Centralises this condition for tile renderer and
 -- step_player; all call sites are defined later in the file.
+-- global: hitting Lua's 200-local limit in this chunk
 function lirael_is_unlocked()
   if flag.unlock_all then return true end
   return (count_shards() >= 4) and flag.veiled_mystic_spoken
