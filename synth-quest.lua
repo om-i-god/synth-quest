@@ -1038,13 +1038,11 @@ local CUTSCENE_LINES = {
   {text = "In the great hall, a scribe scratches at parchment. A page yawns at his post.", scene = "lirael_hall"},
   {text = "Captain Ren walks the south wall and counts his guards by name.", scene = "lirael_southwall"},
   {text = "In her chamber, Queen Miel sets her crown on the dressing table.", scene = "lirael_chamber"},
-  {text = "She blows out two of the three candles. She does not blow out the third.", scene = "lirael_candles"},
   {text = "Outside, on the road from the west, a lamp goes out that should not.", scene = "lirael_road"},
   {text = "On the south wall, a sentry does not answer the next watchword.", scene = "lirael_sentry"},
   {text = "The captain stops walking. He waits one beat too long. He runs.", scene = "lirael_captain_run"},
   {text = "In the courtyard the bell sounds again — wrong, sharp, twice.", scene = "lirael_courtyard"},
   {text = "The south gate takes the first blow. The old stones remember.", scene = "lirael_gate"},
-  {text = "In her chamber, the queen has not yet woken. The third candle is guttering.", scene = "lirael_candles_dim"},
 }
 
 -- ENDING cutscene panels (run after defeating Suno). Long-form FF4-style
@@ -1781,7 +1779,119 @@ end
 -- These fall back to existing audio so the game doesn't crash if a player reaches
 -- those maps before the real compositions land in later phases.
 -- sunward_coast placeholder replaced by real composition in Phase 1.7 (below).
-OW_THEMES.phrygian_city = OW_THEMES.eastern or OW_THEMES.village  -- placeholder until Phase 2.7
+-- PHRYGIAN CITY (Phase 2.7) — A Phrygian; drone-based, ritual, sparse.
+-- Phrygian scale: {0,1,3,5,7,8,10} → 7 notes/octave, base A1 (midi 33).
+-- Index map (key indices used here):
+--   idx 1=A1, idx 5=E2, idx 8=A2, idx 10=C3, idx 11=D3, idx 12=E3,
+--   idx 13=F3, idx 14=G3, idx 15=A3, idx 16=Bb3(b2), idx 17=C4, idx 18=D4,
+--   idx 19=E4, idx 20=F4, idx 22=A4, idx 23=Bb4(b2), idx 24=C5.
+-- Voices: cleric=sustained bass drone (A1/A2), bard=ney-flute lead (b2 motif),
+--   warrior=irregular offbeat percussion (avoids beat 1), mage=sparse shimmer.
+-- ~84 BPM feel. 8 bars × 16 steps = 128 steps total.
+do
+  local function mk(events)
+    local p = {}
+    for i = 1, OW_PATTERN_LEN do p[i] = 0 end
+    for _, e in ipairs(events) do p[e[1]] = e[2] end
+    return p
+  end
+
+  OW_THEMES.phrygian_city = {
+    pattern = {
+      -- CLERIC (bass drone): deep A1/A2 breath, one attack per bar with very
+      -- long release so it hangs through each measure. Bar 7 shifts to E2 (fifth)
+      -- for brief modal motion then returns to A1 at bar 8.
+      cleric = {
+        -- bar 1: A1 drone
+         1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,
+        -- bar 2: A1 (re-attack, breath of city)
+         1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,
+        -- bar 3: A2 (lift one octave — slight warmth)
+         8, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,
+        -- bar 4: A2 continued
+         8, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,
+        -- bar 5: A1 (sink back, ritual gravity)
+         1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,
+        -- bar 6: A1 held
+         1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,
+        -- bar 7: E2 (fifth — brief modal colour before resolve)
+         5, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,
+        -- bar 8: A1 (resolve, loop reset)
+         1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,
+      },
+      -- BARD (ney-flute lead): sparse, breathed phrases. Flat-2 (Bb3 idx 16)
+      -- appears in nearly every phrase — the signature Phrygian drop. Rests
+      -- are generous; the silences matter as much as the notes.
+      bard = {
+        -- bar 1: enter mid-phrase on A3, fall to Bb3(b2), long silence
+        15, 0, 0, 0,  16, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,
+        -- bar 2: rest (breath)
+         0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,
+        -- bar 3: C4 D4 A3 — small rising phrase then settle
+        17, 0, 0, 0,  18, 0, 0, 0,  15, 0, 0, 0,  0, 0, 0, 0,
+        -- bar 4: Bb3(b2) ornament, G3 below (Phrygian pull downward)
+        16, 0, 14, 0,  0, 0, 0, 0,  15, 0, 0, 0,  0, 0, 0, 0,
+        -- bar 5: rest then E4 F4 (upper phrase begins)
+         0, 0, 0, 0,  19, 0, 0, 0,  20, 0, 0, 0,  0, 0, 0, 0,
+        -- bar 6: Bb3(b2) leading down to A3 — sigh figure
+        16, 0, 0, 0,  15, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,
+        -- bar 7: high phrase C4 Bb3 A3 — peak then settle
+        17, 0, 16, 0,  15, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,
+        -- bar 8: long rest then Bb3 into loop (anticipation)
+         0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  16, 0, 0, 0,
+      },
+      -- WARRIOR (irregular percussion): intentionally avoids beat 1 as primary
+      -- landing. Accents on beat 2 (step 5), beat 4 (step 13), & of 4 (step 15),
+      -- and occasional mid-bar pokes. Low A1(idx1)=thud; E2(idx5)=lighter accent.
+      warrior = {
+        -- bar 1: hit on beat 2 only — unsettled from the start
+         0, 0, 0, 0,  1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,
+        -- bar 2: beat 2 + "&4" — syncopated pair
+         0, 0, 0, 0,  1, 0, 0, 0,  0, 0, 0, 0,  5, 0, 1, 0,
+        -- bar 3: beat 2 only
+         0, 0, 0, 0,  5, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,
+        -- bar 4: beat 4 + "&4" pair (heavy end-of-bar push)
+         0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  1, 0, 5, 0,
+        -- bar 5: beat 2 + beat "3e" offset
+         0, 0, 0, 0,  1, 0, 0, 0,  0, 0, 5, 0,  0, 0, 0, 0,
+        -- bar 6: beat 2 + beat 4 — dual-accent, no beat 1
+         0, 0, 0, 0,  1, 0, 0, 0,  0, 0, 0, 0,  1, 0, 0, 0,
+        -- bar 7: busier — beat 2, mid-3 (step 10), beat 4
+         0, 0, 0, 0,  5, 0, 0, 0,  0, 1, 0, 0,  1, 0, 0, 0,
+        -- bar 8: single sparse thud on beat 4 — settle before loop
+         0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  1, 0, 0, 0,
+      },
+      -- MAGE (night-market shimmer): finger-cymbal/bell character. Very sparse —
+      -- only a few glints per 2-bar phrase; mostly silence.
+      -- Uses A4(22), Bb4(23 = high b2), C5(24).
+      mage = {
+        -- bar 1: silence
+         0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,
+        -- bar 2: one glint on step 11 (offbeat 3)
+         0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 22, 0,  0, 0, 0, 0,
+        -- bar 3: silence
+         0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,
+        -- bar 4: Bb4 glint on step 14 (offbeat 4)
+         0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 23, 0, 0,
+        -- bar 5: silence
+         0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,
+        -- bar 6: C5 on step 7 (offbeat 2) — high shimmer above flute phrase
+         0, 0, 0, 0,  0, 0, 24, 0,  0, 0, 0, 0,  0, 0, 0, 0,
+        -- bar 7: A4 + Bb4 glints (steps 3 and 11)
+         0, 0, 22, 0,  0, 0, 0, 0,  0, 0, 23, 0,  0, 0, 0, 0,
+        -- bar 8: single C5 on step 9 — last shimmer before loop
+         0, 0, 0, 0,  0, 0, 0, 0,  24, 0, 0, 0,  0, 0, 0, 0,
+      },
+    },
+    artic = {
+      cleric  = {vel=0.50, attack=0.30,  release=6.00, wet=0.70},  -- slow-swell bass breath
+      bard    = {vel=0.50, attack=0.020, release=0.90, wet=0.55},  -- ney: breathy, medium decay
+      warrior = {vel=0.55, attack=0.003, release=0.20, wet=0.15},  -- dry percussion thud
+      mage    = {vel=0.35, attack=0.008, release=0.35, wet=0.50},  -- delicate bell shimmer
+    },
+    bpm = 84,
+  }
+end
 
 -- SUNWARD COAST (Phase 1.7) — A Mixolydian; communal, sunlit, harbour-town bandstand.
 -- Voices: fiddle melody (mage), hand drum shuffle (warrior), open-fifth pad (cleric),
@@ -5451,8 +5561,7 @@ function start_prologue_castle_intro()
     {spawn = "miel", class = "cleric", name = "Miel", x = 3, y = 2, facing = "down", bob = false},
     {wait = 14},
     {dialogue = {
-      "(Miel wakes. The candles in her chamber are wrong -- two are out, the third is guttering.)",
-      "(Beyond the walls: shouts in the courtyard. A bell rings once and is cut short.)",
+      "(Miel wakes. Beyond the walls: shouts in the courtyard. A bell rings once and is cut short.)",
       "(Then the muffled crack of something heavy striking the south gate.)",
     }, npc = nil},
     -- A second courtyard wave: more distant shouts + a sharp clash.
@@ -24377,31 +24486,6 @@ function draw_scene_lirael_chamber()
   end
 end
 
-function draw_scene_lirael_candles()
-  screen.level(2); screen.rect(0, 0, 128, 64); screen.fill()
-  screen.level(5); screen.rect(0, 50, 128, 14); screen.fill()
-  for i = 0, 2 do
-    local cx = 32 + i * 32
-    screen.level(7); screen.rect(cx - 3, 46, 6, 4); screen.fill()
-    screen.level(11); screen.rect(cx - 1, 30, 2, 16); screen.fill()
-  end
-  screen.level(7)
-  for i = 0, 4 do screen.pixel(32 + (i % 2), 28 - i * 3) end
-  screen.fill()
-  screen.level(5)
-  for i = 0, 3 do screen.pixel(64 + ((i + 1) % 2), 28 - i * 3) end
-  screen.fill()
-  if (tick % 10) < 7 then
-    screen.level(15); screen.pixel(96, 28); screen.pixel(96, 27); screen.pixel(95, 28); screen.pixel(97, 28); screen.fill()
-    screen.level(11); screen.pixel(96, 26); screen.fill()
-  else
-    screen.level(13); screen.pixel(96, 28); screen.pixel(96, 27); screen.fill()
-    screen.level(8); screen.pixel(95, 28); screen.pixel(97, 28); screen.fill()
-  end
-  screen.level(5); screen.circle(96, 36, 10); screen.stroke()
-  screen.level(3); screen.circle(96, 36, 14); screen.stroke()
-end
-
 function draw_scene_lirael_road()
   screen.level(0); screen.rect(0, 0, 128, 64); screen.fill()
   screen.level(1)
@@ -24578,39 +24662,6 @@ function draw_scene_lirael_bell_alcove()
   end
 end
 
-function draw_scene_lirael_candles_dim()
-  screen.level(1); screen.rect(0, 0, 128, 64); screen.fill()
-  screen.level(4); screen.rect(0, 50, 128, 14); screen.fill()
-  for i = 0, 2 do
-    local cx = 32 + i * 32
-    screen.level(5); screen.rect(cx - 3, 46, 6, 4); screen.fill()
-    screen.level(7); screen.rect(cx - 1, 30, 2, 16); screen.fill()
-  end
-  -- candles 1+2: long-snuffed, smoke nearly gone
-  screen.level(3)
-  for i = 0, 6 do
-    screen.pixel(32 + (i % 2), 28 - i * 4)
-    screen.pixel(64 + (i % 2), 28 - i * 4)
-  end
-  screen.fill()
-  -- candle 3: guttering — small flame, intermittent
-  local phase = tick % 14
-  if phase < 4 then
-    screen.level(13); screen.pixel(96, 28); screen.pixel(96, 27); screen.fill()
-    screen.level(7); screen.pixel(95, 28); screen.pixel(97, 28); screen.fill()
-  elseif phase < 10 then
-    screen.level(7); screen.pixel(96, 28); screen.fill()
-  else
-    screen.level(2); screen.pixel(96, 28); screen.fill()
-  end
-  -- long smoke trail rising from the guttering wick
-  screen.level(5)
-  for i = 1, 8 do screen.pixel(96 + ((i + tick // 2) % 3), 27 - i * 3) end
-  screen.fill()
-  -- much smaller pool of light
-  screen.level(2); screen.circle(96, 36, 6); screen.stroke()
-end
-
 SCENE_DRAW = {
   cosmic  = draw_scene_cosmic,
   dark    = draw_scene_dark,
@@ -24634,13 +24685,11 @@ SCENE_DRAW = {
   lirael_hall         = draw_scene_lirael_hall,
   lirael_southwall    = draw_scene_lirael_southwall,
   lirael_chamber      = draw_scene_lirael_chamber,
-  lirael_candles      = draw_scene_lirael_candles,
   lirael_road         = draw_scene_lirael_road,
   lirael_sentry       = draw_scene_lirael_sentry,
   lirael_captain_run  = draw_scene_lirael_captain_run,
   lirael_courtyard    = draw_scene_lirael_courtyard,
   lirael_gate         = draw_scene_lirael_gate,
-  lirael_candles_dim  = draw_scene_lirael_candles_dim,
   lirael_bell_alcove  = draw_scene_lirael_bell_alcove,
 }
 end  -- scene draws
