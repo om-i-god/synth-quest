@@ -7389,6 +7389,32 @@ function start_sunward_bandstand_scene()
   return script
 end
 
+-- start_academy_diegues_returns_scene() — Mage-lead first entry to the
+-- Academy (map 19). Iola descends from her office; the astrolabe ticks once;
+-- a fragment of Velthe's voice surfaces. Fires once per save (flag.diegues_returned).
+function start_academy_diegues_returns_scene()
+  local script = {
+    {letterbox_in = true},
+    {focus = {x = 13, y = 6}, ticks = 30},   -- pan to courtyard astrolabe
+    -- Iola descends from her office
+    {spawn = "iola_descending", class = "mage", name = "Iola", x = 20, y = 2, facing = "down"},
+    {move = "iola_descending", to = {x = 18, y = 5}, ticks = 30},
+    {look = "iola_descending", toward = "player"},
+    {wait = 8},
+    {dialogue = {"Iola:", "Diegues. You came back."}, npc = {name = "Iola"}},
+    {dialogue = {"Iola:", "Velthe said you would, eventually.", "She also said you wouldn't know why yet."}, npc = {name = "Iola"}},
+    {wait = 4},
+    -- Echo at astrolabe murmurs a Velthe fragment
+    {sfx = {class = "cleric", note = 60, vel = 0.3, attack = 0.5, release = 1.5, wet = 0.7}},
+    {dialogue = {"(the astrolabe ticks once)", "\"...not a chord. The third —\""}, npc = nil},
+    {wait = 6},
+    {despawn = "iola_descending"},
+    {letterbox_out = true},
+    {set = function() flag.diegues_returned = true end},
+  }
+  return script
+end
+
 -- start_phrygian_strom_confronted_scene() — Warrior-lead + Aram NPC in
 -- Phrygian City. Strom's former second-in-command faces him across the
 -- bazaar stall. One-way absolution: Aram lowers his hand, gives his
@@ -15703,6 +15729,11 @@ travel_to = function(map_id, x, y)
     CONTENT.scene_seen = CONTENT.scene_seen or {}
     CONTENT.scene_seen.phrygian_arrival = true
     start_phrygian_arrival_scene()
+  elseif not _scene_busy and map_id == 19 and not flag.diegues_returned then
+    local lead = party[active] and party[active].class
+    if lead == "mage" and start_academy_diegues_returns_scene then
+      SCENE.start(start_academy_diegues_returns_scene())
+    end
   end
   -- First-arrival story beats. Each fires exactly once per save.
   if not _scene_busy and map_id == 21 then
