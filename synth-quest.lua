@@ -4962,6 +4962,13 @@ local cutscene_idx = 1
 -- 62 = bandstand        (walkable; raised platform)
 -- 63 = fish_barrel      (impassable object)
 -- 64 = market_stall     (impassable; shared with Phrygian)
+-- 65 = sunward_signpost  (walkable; MAINLAND ↔ Sunward Coast Town)
+-- New Phrygian Night City tiles (Phase 2)
+-- 66 = sand_brick       (impassable wall, sand-colored)
+-- 67 = tower_base       (impassable; faint window flicker)
+-- 68 = prayer_alcove    (walkable; archway interior)
+-- 69 = desert_sand_path (walkable; lighter than mainland sand)
+-- 70 = lantern_post     (impassable; flickers)
 -- Map data is per-continent; active map swaps via travel_to().
 -- MAINLAND (64x16): cols 1-32 = Village; 33-48 = Hollow Woods; 49-64 = Sunward Coast.
 -- Mountain pass (id 15) at row 1 col 13 → Northern Wilds (current_map_id 3).
@@ -5806,15 +5813,19 @@ function start_prologue_throne_scene()
       "[Suno]    She does not need her voice for the road.",
       "[Suno]    I will be in the corridor. Do not break her quickly.",
     }, npc = {name = "Suno"}},
-    -- Suno walks back out south through the corridor. Silencers
-    -- advance into the throne hall — they stop at (7, 5) and (9, 5)
-    -- flanking Miel's position, blocking her south retreat.
-    {move = "suno", to = {x = 4, y = 5}, ticks = 22},
+    -- Suno walks back south through the throne-hall doors. The carpet
+    -- (tile 2) runs straight down cols 7-8 from the dais; the south
+    -- doors (tile 58) sit at row 9 cols 7-8. Path: (8, 6) → (8, 8)
+    -- along the carpet, hold a beat at the threshold, then through
+    -- the door at (8, 9) and one tile off-map south (8, 10) before
+    -- despawning. Silencers advance to flank Miel: (7, 4) and (9, 4),
+    -- blocking her retreat toward the dais.
+    {move = "suno", to = {x = 8, y = 8}, ticks = 22},
     {move = "sil_l", to = {x = 7, y = 4}, ticks = 18},
     {move = "sil_r", to = {x = 9, y = 4}, ticks = 18},
     {wait = 22},
-    {move = "suno", to = {x = 4, y = 8}, ticks = 36},
-    {wait = 36},
+    {move = "suno", to = {x = 8, y = 10}, ticks = 32},
+    {wait = 32},
     -- Suno crosses the threshold. Doors thud. He's gone.
     {despawn = "suno"},
     {sfx = {class = "warrior", note = 24, vel = 0.85, attack = 0.001, release = 0.30, wet = 0.05}},
@@ -11488,6 +11499,8 @@ local function is_walkable(tx, ty)
       or t == 56   -- Far Hills cave-mouth (mainland → map 26)
       or t == 58   -- Castle interior door (throne hall ↔ hallway ↔ rooms)
       or t == 65   -- Sunward Coast signpost (MAINLAND east coast ↔ Sunward Coast Town)
+      or t == 68   -- Phrygian Night City prayer alcove (walkable; archway interior)
+      or t == 69   -- Phrygian Night City desert sand path (walkable; lighter sand)
 end
 
 -- True when an NPC is currently rendered + interactable. NPCs may have
@@ -17941,6 +17954,63 @@ TILE_DRAW[65] = function(px, py)
   screen.rect(px, py, 8, 2); screen.fill()       -- sign
 end
 
+-- ── Phrygian Night City tiles (Phase 2) ───────────────────────────────────
+
+-- Tile 66 — Sand brick wall (impassable; warm sand-colored with grout lines).
+TILE_DRAW[66] = function(px, py)
+  -- sand_brick wall: warm light yellow with grout lines
+  screen.level(9)
+  screen.rect(px, py, 8, 8); screen.fill()
+  screen.level(5)
+  screen.move(px, py+3); screen.line_rel(8, 0); screen.stroke()
+  screen.move(px+4, py); screen.line_rel(0, 3); screen.stroke()
+  screen.move(px+3, py+3); screen.line_rel(0, 5); screen.stroke()
+end
+
+-- Tile 67 — Tower base (impassable; tall sand-brick with breathing window light).
+TILE_DRAW[67] = function(px, py, t)
+  -- tower_base: tall sand-brick with one window that breathes
+  screen.level(8)
+  screen.rect(px, py, 8, 8); screen.fill()
+  screen.level(4)
+  screen.move(px, py+5); screen.line_rel(8, 0); screen.stroke()
+  local lit = (t % 90 < 60)
+  screen.level(lit and 13 or 7)
+  screen.pixel(px+3, py+2); screen.pixel(px+4, py+2); screen.fill()
+end
+
+-- Tile 68 — Prayer alcove (walkable; dark recess with bright archway).
+TILE_DRAW[68] = function(px, py)
+  -- prayer_alcove: dark recess with bright archway
+  screen.level(3)
+  screen.rect(px, py, 8, 8); screen.fill()
+  screen.level(11)
+  -- archway shape (rectangle plus a top arc approximation)
+  screen.move(px+2, py+6); screen.line(px+2, py+3); screen.stroke()
+  screen.move(px+6, py+6); screen.line(px+6, py+3); screen.stroke()
+  screen.move(px+2, py+3); screen.line(px+6, py+3); screen.stroke()
+  screen.pixel(px+3, py+2); screen.pixel(px+4, py+2); screen.pixel(px+5, py+2); screen.fill()
+end
+
+-- Tile 69 — Desert sand path (walkable; pale sand floor with scattered grit).
+TILE_DRAW[69] = function(px, py)
+  -- desert_sand_path: pale sand floor with scattered grit
+  screen.level(10)
+  screen.rect(px, py, 8, 8); screen.fill()
+  screen.level(8)
+  screen.pixel(px+1, py+3); screen.pixel(px+5, py+5); screen.pixel(px+3, py+1); screen.fill()
+end
+
+-- Tile 70 — Lantern post (impassable; flickering flame atop a narrow post).
+TILE_DRAW[70] = function(px, py, t)
+  -- lantern_post: post with a flickering flame
+  screen.level(4)
+  screen.rect(px+3, py+2, 2, 6); screen.fill()
+  local flicker = (t % 24 < 4) and 15 or 13
+  screen.level(flicker)
+  screen.rect(px+2, py, 4, 3); screen.fill()
+end
+
 local SPRITE_BY_CLASS
 do
 
@@ -20868,7 +20938,7 @@ local function draw_overworld()
         TILE_DRAW.cavefloor(sx, sy, tx + ty * MAP_W)
       else
         local fn = TILE_DRAW[t] or TILE_DRAW[0]
-        if t == 3 or t == 6 or t == 7 or t == 9 or t == 11 or t == 14 or t == 16 or t == 18 or t == 19 or t == 20 or t == 24 or t == 27 or t == 30 or t == 32 or t == 36 or t == 38 or t == 39 or t == 41 or t == 43 or t == 52 or t == 53 or t == 54 or t == 55 or t == 56 or t == 57 or t == 58 or t == 62 then fn(sx, sy, tick)
+        if t == 3 or t == 6 or t == 7 or t == 9 or t == 11 or t == 14 or t == 16 or t == 18 or t == 19 or t == 20 or t == 24 or t == 27 or t == 30 or t == 32 or t == 36 or t == 38 or t == 39 or t == 41 or t == 43 or t == 52 or t == 53 or t == 54 or t == 55 or t == 56 or t == 57 or t == 58 or t == 62 or t == 67 or t == 70 then fn(sx, sy, tick)
         elseif t == 0 or t == 8 then fn(sx, sy, tx + ty * MAP_W)
         else fn(sx, sy)
         end
