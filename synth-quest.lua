@@ -1038,11 +1038,13 @@ local CUTSCENE_LINES = {
   {text = "In the great hall, a scribe scratches at parchment. A page yawns at his post.", scene = "lirael_hall"},
   {text = "Captain Ren walks the south wall and counts his guards by name.", scene = "lirael_southwall"},
   {text = "In her chamber, Queen Miel sets her crown on the dressing table.", scene = "lirael_chamber"},
+  {text = "She blows out two of the three candles. She does not blow out the third.", scene = "lirael_candles"},
   {text = "Outside, on the road from the west, a lamp goes out that should not.", scene = "lirael_road"},
   {text = "On the south wall, a sentry does not answer the next watchword.", scene = "lirael_sentry"},
   {text = "The captain stops walking. He waits one beat too long. He runs.", scene = "lirael_captain_run"},
   {text = "In the courtyard the bell sounds again — wrong, sharp, twice.", scene = "lirael_courtyard"},
   {text = "The south gate takes the first blow. The old stones remember.", scene = "lirael_gate"},
+  {text = "In her chamber, the queen has not yet woken. The third candle is guttering.", scene = "lirael_candles_dim"},
 }
 
 -- ENDING cutscene panels (run after defeating Suno). Long-form FF4-style
@@ -5561,7 +5563,8 @@ function start_prologue_castle_intro()
     {spawn = "miel", class = "cleric", name = "Miel", x = 3, y = 2, facing = "down", bob = false},
     {wait = 14},
     {dialogue = {
-      "(Miel wakes. Beyond the walls: shouts in the courtyard. A bell rings once and is cut short.)",
+      "(Miel wakes. The candles in her chamber are wrong -- two are out, the third is guttering.)",
+      "(Beyond the walls: shouts in the courtyard. A bell rings once and is cut short.)",
       "(Then the muffled crack of something heavy striking the south gate.)",
     }, npc = nil},
     -- A second courtyard wave: more distant shouts + a sharp clash.
@@ -5756,8 +5759,11 @@ function start_page_warning_scene()
       "[Page]    (kneels, briefly. Touches his brow.) For Lirael.",
     }, npc = {name = "Page"}},
     {wait = 8},
-    -- Page sprints back north out the doors.
-    {move = "page", to = {x = 5, y = 1}, ticks = 28},
+    -- Page steps over to his static post at (8, 8) beside the east-wall
+    -- lantern, so when the scene ends and the scene actor despawns the
+    -- static NPC at the same tile is already in position — no jump-cut.
+    {move = "page", to = {x = 8, y = 8}, ticks = 28},
+    {face = "page", facing = "down"},
     {despawn = "page"},
     {despawn = "miel"},
     {teleport_player = {x = px, y = py, facing = "up"}},
@@ -24486,6 +24492,31 @@ function draw_scene_lirael_chamber()
   end
 end
 
+function draw_scene_lirael_candles()
+  screen.level(2); screen.rect(0, 0, 128, 64); screen.fill()
+  screen.level(5); screen.rect(0, 50, 128, 14); screen.fill()
+  for i = 0, 2 do
+    local cx = 32 + i * 32
+    screen.level(7); screen.rect(cx - 3, 46, 6, 4); screen.fill()
+    screen.level(11); screen.rect(cx - 1, 30, 2, 16); screen.fill()
+  end
+  screen.level(7)
+  for i = 0, 4 do screen.pixel(32 + (i % 2), 28 - i * 3) end
+  screen.fill()
+  screen.level(5)
+  for i = 0, 3 do screen.pixel(64 + ((i + 1) % 2), 28 - i * 3) end
+  screen.fill()
+  if (tick % 10) < 7 then
+    screen.level(15); screen.pixel(96, 28); screen.pixel(96, 27); screen.pixel(95, 28); screen.pixel(97, 28); screen.fill()
+    screen.level(11); screen.pixel(96, 26); screen.fill()
+  else
+    screen.level(13); screen.pixel(96, 28); screen.pixel(96, 27); screen.fill()
+    screen.level(8); screen.pixel(95, 28); screen.pixel(97, 28); screen.fill()
+  end
+  screen.level(5); screen.circle(96, 36, 10); screen.stroke()
+  screen.level(3); screen.circle(96, 36, 14); screen.stroke()
+end
+
 function draw_scene_lirael_road()
   screen.level(0); screen.rect(0, 0, 128, 64); screen.fill()
   screen.level(1)
@@ -24662,6 +24693,39 @@ function draw_scene_lirael_bell_alcove()
   end
 end
 
+function draw_scene_lirael_candles_dim()
+  screen.level(1); screen.rect(0, 0, 128, 64); screen.fill()
+  screen.level(4); screen.rect(0, 50, 128, 14); screen.fill()
+  for i = 0, 2 do
+    local cx = 32 + i * 32
+    screen.level(5); screen.rect(cx - 3, 46, 6, 4); screen.fill()
+    screen.level(7); screen.rect(cx - 1, 30, 2, 16); screen.fill()
+  end
+  -- candles 1+2: long-snuffed, smoke nearly gone
+  screen.level(3)
+  for i = 0, 6 do
+    screen.pixel(32 + (i % 2), 28 - i * 4)
+    screen.pixel(64 + (i % 2), 28 - i * 4)
+  end
+  screen.fill()
+  -- candle 3: guttering — small flame, intermittent
+  local phase = tick % 14
+  if phase < 4 then
+    screen.level(13); screen.pixel(96, 28); screen.pixel(96, 27); screen.fill()
+    screen.level(7); screen.pixel(95, 28); screen.pixel(97, 28); screen.fill()
+  elseif phase < 10 then
+    screen.level(7); screen.pixel(96, 28); screen.fill()
+  else
+    screen.level(2); screen.pixel(96, 28); screen.fill()
+  end
+  -- long smoke trail rising from the guttering wick
+  screen.level(5)
+  for i = 1, 8 do screen.pixel(96 + ((i + tick // 2) % 3), 27 - i * 3) end
+  screen.fill()
+  -- much smaller pool of light
+  screen.level(2); screen.circle(96, 36, 6); screen.stroke()
+end
+
 SCENE_DRAW = {
   cosmic  = draw_scene_cosmic,
   dark    = draw_scene_dark,
@@ -24685,11 +24749,13 @@ SCENE_DRAW = {
   lirael_hall         = draw_scene_lirael_hall,
   lirael_southwall    = draw_scene_lirael_southwall,
   lirael_chamber      = draw_scene_lirael_chamber,
+  lirael_candles      = draw_scene_lirael_candles,
   lirael_road         = draw_scene_lirael_road,
   lirael_sentry       = draw_scene_lirael_sentry,
   lirael_captain_run  = draw_scene_lirael_captain_run,
   lirael_courtyard    = draw_scene_lirael_courtyard,
   lirael_gate         = draw_scene_lirael_gate,
+  lirael_candles_dim  = draw_scene_lirael_candles_dim,
   lirael_bell_alcove  = draw_scene_lirael_bell_alcove,
 }
 end  -- scene draws
