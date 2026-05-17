@@ -173,6 +173,71 @@ local CLASS_ACTIONS = {
 local CLASS_INSTRUMENT = {bard="LUTE", cleric="HEAL", warrior="TUNE", mage="SMPL",
                           engineer="MIX", mathwiz="CODE", drummer="DRUM"}
 
+-- ── RESONANCES ──────────────────────────────────────────────────────────
+-- Catalog of all 8 Resonances per docs/specs/2026-05-14-resonances-acquisition-design.md.
+-- Each row: name, character (class string), mp_cost, mythos, effect spec.
+-- The `effect` spec is read by apply_resonance_effect (stub for now;
+-- real combat behaviors land in a separate spec).
+RESONANCES = {
+  ring = {
+    name      = "The Ring",
+    character = "cleric",
+    mp_cost   = 6,
+    mythos    = "Two bell-tuners who married and learned to multiply each other's notes.",
+    effect    = { kind = "ignore_def_clangor", dmg_mult = 1.30, screen_shake = true },
+  },
+  heavy_hand = {
+    name      = "The Heavy Hand",
+    character = "drummer",
+    mp_cost   = 6,
+    mythos    = "A drummer whose strikes were so heavy that every other voice in the room ducked out of his way.",
+    effect    = { kind = "duck_enemies", duration_bars = 2, dmg_mult = 0.50 },
+  },
+  long_echo    = { name = "The Long Echo",    character = nil, mp_cost = 4, mythos = "TBD", effect = {} },
+  masked_voice = { name = "The Masked Voice", character = nil, mp_cost = 6, mythos = "TBD", effect = {} },
+  spring       = { name = "The Spring",       character = nil, mp_cost = 4, mythos = "TBD", effect = {} },
+  scatter      = { name = "The Scatter",      character = nil, mp_cost = 4, mythos = "TBD", effect = {} },
+  slow_wheel   = { name = "The Slow Wheel",   character = nil, mp_cost = 4, mythos = "TBD", effect = {} },
+  threefold    = { name = "The Threefold",    character = nil, mp_cost = 8, mythos = "TBD", effect = {} },
+}
+
+-- World data — where each Resonance's item lives + where its shrine is.
+-- Only `ring` has fully-populated entries; the other 7 are stubs so
+-- iteration over the table stays type-safe. None fire because they have
+-- no shrine handler attached.
+RESONANCE_SITES = {
+  ring = {
+    item = {
+      kind  = "npc",
+      name  = "Tisa",
+      lead  = "cleric",
+      label = "Tisa's Bell",
+      hint  = "the tapestry alcove",
+    },
+    shrine = {
+      map  = 20,
+      x    = 8, y = 2,
+      lead = "cleric",
+      signature = {
+        visual = "lirael_bell_alcove",
+        sound  = { class = "cleric", note = 67, vel = 0.7, attack = 0.05, release = 4.0, wet = 1.0 },
+        dialogue = {
+          "(Miel turns the small bell in her hand. It is silent.)",
+          "[Miel]    Two bell-tuners. They married. Their sound never finished folding.",
+          "(she rings it once. Somewhere far off -- outside time -- the second bell answers.)",
+        },
+      },
+    },
+  },
+  heavy_hand   = { item = nil, shrine = nil },
+  long_echo    = { item = nil, shrine = nil },
+  masked_voice = { item = nil, shrine = nil },
+  spring       = { item = nil, shrine = nil },
+  scatter      = { item = nil, shrine = nil },
+  slow_wheel   = { item = nil, shrine = nil },
+  threefold    = { item = nil, shrine = nil },
+}
+
 -- Each enemy has its own attack sequence (gaps between hits, looped) and
 -- a unique attack-sound voice (one of the party SynthDefs at a fixed pitch).
 local CAVE_POOLS, CAVE_BOSSES
@@ -2435,6 +2500,7 @@ CONTENT = {
   -- 0 = bone-dry, 2 = doubled (clamped to 1). Set live from PARAMS menu.
   music_reverb_mix = 0.25,
   combat_reverb_mix = 0.25,
+  _r2_prev = false,  -- edge-detection state for R2/triggerright (avoids a top-level local)
   bestiary = {},   -- visual id -> {name, hp_max, atk, visual}
   -- Active NPC barks. Each entry: {npc_name, line, t (tick spawned)}.
   -- Rendered as a small bubble above the NPC for ~90 ticks then pruned.
@@ -2469,6 +2535,18 @@ CONTENT = {
   },
   sergei_intervened = false,    -- one-shot Tidewatch rescue
   banner_ticks = 0,             -- generic story-event banner countdown
+  -- Per-Resonance state. item=true once the sacred item has been collected;
+  -- attuned=true once the shrine attunement has fired. Persists in save.data.
+  resonances = {
+    ring         = { item = false, attuned = false },
+    heavy_hand   = { item = false, attuned = false },
+    long_echo    = { item = false, attuned = false },
+    masked_voice = { item = false, attuned = false },
+    spring       = { item = false, attuned = false },
+    scatter      = { item = false, attuned = false },
+    slow_wheel   = { item = false, attuned = false },
+    threefold    = { item = false, attuned = false },
+  },
   banner_text = "",
   partysel_focus = 0,           -- 0 = none, 1 = Sergei, 2 = Paj, 3 = Niko
   -- Campfires: small rest points scattered on overworld; stepping on one heals
@@ -2725,6 +2803,20 @@ CONTENT = {
     { x = 7, y = 4, name = "Tisa", kind = "pet",
       visible = function() return CONTENT.prologue_intro_done end,
       dialogue = function()
+        local lead = party[active] and party[active].class
+        -- First-time interaction with Miel as lead: Tisa surrenders the bell.
+        if lead == "cleric" and not CONTENT.resonances.ring.item then
+          CONTENT.resonances.ring.item = true
+          CONTENT.banner_text  = "* obtained: Tisa's Bell *"
+          CONTENT.banner_ticks = 60
+          return {
+            "(Tisa stretches. Paws something out from under the bed -- a small bell on a frayed ribbon.)",
+            "(your grandmother sewed this onto her collar. you had forgotten.)",
+            "[Miel]    ...thank you, Tisa.",
+            "(Tisa closes her eye again. Her work for the night is done.)",
+          }
+        end
+        -- Default (non-cleric lead, or after the bell was given): the standard line.
         return {
           "(Tisa, the queen's cat, opens one yellow eye. Closes it.)",
           "(she has slept through every coup in this castle's history. she will sleep through this one.)",
@@ -4789,8 +4881,14 @@ local NPC_SPRITES
 local dlg = { npc = nil, line = 1 }
 
 -- party (persists across battles)
-local party = {}
-local active = 1
+-- GLOBAL (not local) for the same reason as CONTENT above: closures
+-- defined inside CONTENT NPC tables (Tisa, Maro, Tova, etc.) reference
+-- party[active] at compile time. The local declaration here happens
+-- after those closures are parsed, so as a local it's invisible to
+-- them and they bind 'party' as a global. Keeping it global makes
+-- those references resolve correctly at runtime.
+party = {}
+active = 1
 
 -- battle state
 local enemy = nil
@@ -5376,16 +5474,19 @@ function start_courtyard_breach_script()
     -- Spawn silencers OFF-MAP below the gate (row 13-14). Actor coords
     -- can be outside the tile grid; the scene draw clips them when
     -- they walk into view. They emerge through the gate tiles row 12.
-    {spawn = "s1", class = "warrior", name = "Silencer1", x = 6, y = 14, facing = "up", bob = false},
-    {spawn = "s2", class = "warrior", name = "Silencer2", x = 8, y = 14, facing = "up", bob = false},
-    {spawn = "s3", class = "warrior", name = "Silencer3", x = 7, y = 14, facing = "up", bob = false},
-    {spawn = "s4", class = "warrior", name = "Silencer4", x = 9, y = 14, facing = "up", bob = false},
+    -- Columns picked to weave BETWEEN the guards (gA=4, gB=6, gC=9, gD=11)
+    -- so the lines don't visually overlap at the clash.
+    {spawn = "s1", class = "warrior", name = "Silencer1", x = 5, y = 14, facing = "up", bob = false},
+    {spawn = "s2", class = "warrior", name = "Silencer2", x = 7, y = 14, facing = "up", bob = false},
+    {spawn = "s3", class = "warrior", name = "Silencer3", x = 8, y = 14, facing = "up", bob = false},
+    {spawn = "s4", class = "warrior", name = "Silencer4", x = 10, y = 14, facing = "up", bob = false},
     {wait = 8},
-    -- Silencers pour through the gate (row 12) into the courtyard.
-    {move = "s1", to = {x = 6, y = 12}, ticks = 22},
-    {move = "s2", to = {x = 8, y = 12}, ticks = 22},
-    {move = "s3", to = {x = 7, y = 12}, ticks = 22},
-    {move = "s4", to = {x = 9, y = 12}, ticks = 22},
+    -- Silencers pour through the gate (row 12) into the courtyard,
+    -- threading between the guard columns rather than landing on them.
+    {move = "s1", to = {x = 5, y = 12}, ticks = 22},
+    {move = "s2", to = {x = 7, y = 12}, ticks = 22},
+    {move = "s3", to = {x = 8, y = 12}, ticks = 22},
+    {move = "s4", to = {x = 10, y = 12}, ticks = 22},
     {wait = 4},
     -- Guards step toward them. Captain doesn't move (holds the center).
     {move = "gA", to = {x = 4, y = 11}, ticks = 18},
@@ -5457,8 +5558,10 @@ function start_courtyard_breach_script()
     {despawn = "s1"}, {despawn = "s2"}, {despawn = "s3"}, {despawn = "s4"},
     {despawn = "miel"},
     {set = function() CONTENT.courtyard_breached = true end},
-    {set = function() travel_to(27, 5, 13) end},
-    {teleport_player = {x = 5, y = 13, facing = "up"}},
+    -- Land Miel one tile east of the BarringGuard (who sits at 5,13)
+    -- so she doesn't spawn on top of him.
+    {set = function() travel_to(27, 6, 13) end},
+    {teleport_player = {x = 6, y = 13, facing = "up"}},
     {show_player = true},
     {letterbox_out = true},
     {flash = "* RETURN TO THE THRONE ROOM *", ticks = 90},
@@ -5504,6 +5607,49 @@ function start_page_warning_scene()
     {show_player = true},
     {letterbox_out = true},
     {flash = "* find the throne room *", ticks = 60},
+  }
+  SCENE.start(script)
+end
+
+-- start_resonance_attunement(id) -- shared scaffold for all Resonance
+-- attunement scenes. Reads RESONANCE_SITES[id].shrine.signature for the
+-- per-Resonance overrides (visual scene-id, sound spec, dialogue lines).
+-- Sets CONTENT.resonances[id].attuned = true at the end.
+function start_resonance_attunement(id)
+  local r   = RESONANCES[id]
+  local s   = RESONANCE_SITES[id] and RESONANCE_SITES[id].shrine
+  if not (r and s and s.signature) then return end
+  local sig = s.signature
+  local px, py = player.x, player.y
+  local script = {
+    {hide_player = true},
+    {letterbox_in = true},
+    {set = function() SCENE.fade = 12 end},
+    {focus = {x = px, y = py}, ticks = 1},
+    {fade_in = 24},
+    {wait = 12},
+    -- Spawn the lead character at the shrine, facing the alcove.
+    {spawn = "attuner", class = (party[active] and party[active].class) or s.lead,
+     name = (party[active] and CHAR_NAME[party[active].class]) or "",
+     x = px, y = py, facing = "up", bob = false},
+    {wait = 14},
+    -- Signature sound (one-shot).
+    {sfx = sig.sound},
+    {wait = 8},
+    -- Dialogue lines from the signature block.
+    {dialogue = sig.dialogue, npc = nil},
+    {wait = 12},
+    -- Banner + flag flip.
+    {set = function()
+      CONTENT.banner_text  = "* Resonance learned -- " .. r.name .. " *"
+      CONTENT.banner_ticks = 90
+      CONTENT.resonances[id].attuned = true
+    end},
+    {wait = 24},
+    {despawn = "attuner"},
+    {teleport_player = {x = px, y = py, facing = "up"}},
+    {show_player = true},
+    {letterbox_out = true},
   }
   SCENE.start(script)
 end
@@ -11567,6 +11713,11 @@ save_game = function()
   for k, v in pairs(CONTENT.scene_seen or {}) do data.scene_seen[k] = v end
   data.silencer_defeated = CONTENT.silencer_defeated
   data.cave_monster_defeated = CONTENT.cave_monster_defeated
+  -- Resonances state (per-Resonance item-collected + attuned flags).
+  data.resonances = {}
+  for id, r in pairs(CONTENT.resonances or {}) do
+    data.resonances[id] = { item = r.item or false, attuned = r.attuned or false }
+  end
   -- story flags
   data.flag = {}
   for k, v in pairs(flag) do data.flag[k] = v end
@@ -11777,6 +11928,18 @@ local function load_game()
   if data.cave_monster_defeated then
     CONTENT.cave_monster_defeated = data.cave_monster_defeated
   end
+  -- Resonances state — restore if present, initialize if missing (older saves).
+  if data.resonances then
+    for id, r in pairs(data.resonances) do
+      if CONTENT.resonances[id] then
+        CONTENT.resonances[id].item    = r.item or false
+        CONTENT.resonances[id].attuned = r.attuned or false
+      end
+    end
+  end
+  -- (CONTENT.resonances was already initialized at module load with all 8
+  -- ids set to false, so missing data.resonances on a legacy save just
+  -- leaves the defaults in place.)
   -- story flags (safe merge: new flags default to false if absent in old saves)
   if data.flag then
     for k, v in pairs(data.flag) do flag[k] = v end
@@ -12846,6 +13009,21 @@ local function try_move(dx, dy)
     return
   end
   if t == 48 then
+    -- Resonance shrine intercept (Miel's). When stepping onto the
+    -- tapestry tile on map 20 with Miel as lead AND Tisa's Bell held
+    -- AND The Ring not yet attuned, fire the attunement scene instead
+    -- of the escape teleport. All other contexts keep the original
+    -- escape behavior.
+    local p = party[active]
+    if current_map_id == 20
+       and p and p.class == "cleric"
+       and CONTENT.resonances.ring.item
+       and not CONTENT.resonances.ring.attuned
+       and start_resonance_attunement then
+      start_resonance_attunement("ring")
+      redraw()
+      return
+    end
     -- Tapestry door (castle interior, prologue). One-way: enters the
     -- escape cave at its starting tile. Sets prologue_state to "escape".
     CONTENT.prologue_state = "escape"
@@ -12858,12 +13036,15 @@ local function try_move(dx, dy)
     -- the door tile the player just stepped onto. All bidirectional —
     -- walking back through the same tile returns to the previous map.
     if current_map_id == 20 then
-      -- Throne room south wall (cols 7-8, row 9) → hallway north end.
+      -- Throne room south wall (cols 8-9, row 9) → hallway north end.
       travel_to(27, 5, 2)
     elseif current_map_id == 27 then
       -- Hallway: route by door position.
       if ny == 1 then                       -- north doors → throne hall
-        travel_to(20, 7, 8)                 -- spawn just north of map 20's south wall
+        -- Spawn ABOVE the throne hall's south doorway (cols 8-9, row 9).
+        -- Row 8 col 8 is the carpet tile directly north of the door
+        -- so Miel walks out of the doorway, not through the adjacent wall.
+        travel_to(20, 8, 8)
       elseif ny == 14 then                  -- south doors → courtyard
         if CONTENT.courtyard_breached then
           -- The door is barred from the inside. Audible bashing
@@ -12974,9 +13155,12 @@ local function try_move(dx, dy)
   end
   if is_walkable(nx, ny) and not npc_at(nx, ny) then
     -- Pass 53: footstep dust puff at the previous tile (in screen coords).
+    -- Apply the same interior_view_offset the player/NPC renderers use,
+    -- otherwise puffs land in the centering margin on small interior maps.
     do
-      local sx = (player.x - cam.x) * TILE + 4
-      local sy = (player.y - cam.y) * TILE + 7
+      local view_ox, view_oy = interior_view_offset()
+      local sx = (player.x - cam.x) * TILE + 4 + view_ox
+      local sy = (player.y - cam.y) * TILE + 7 + view_oy
       ANIM.dust_puff(sx, sy)
     end
     player.x = nx
@@ -14058,6 +14242,34 @@ local function apply_player_action(p)
     p.reflect = true
     p.reflect_ticks = 24
     p.mp = math.min(p.mp_max, p.mp + 1)
+  elseif p.queued == "RESO" then
+    -- Resonance call. MP was deducted at queue-time (R2 handler), matching
+    -- the existing HEAL/MAG pattern. Fire the signature sound, flash a
+    -- banner, and stub the effect.
+    local rid = p.queued_resonance
+    local r   = rid and RESONANCES[rid]
+    if r then
+      -- Feedback: sound + banner so the player can tell the call landed.
+      local sig = RESONANCE_SITES[rid] and RESONANCE_SITES[rid].shrine and RESONANCE_SITES[rid].shrine.signature
+      if sig and sig.sound then
+        sq_trig(sig.sound.class, midi_to_freq(sig.sound.note),
+                sig.sound.vel or 0.7,
+                sig.sound.attack or 0.05,
+                sig.sound.release or 4.0,
+                math.min(1, (sig.sound.wet or 1.0) * (CONTENT.combat_reverb_mix or 1.0)))
+      end
+      CONTENT.banner_text  = "* " .. r.name .. " *"
+      CONTENT.banner_ticks = 36
+      -- TODO (separate spec): apply_resonance_effect(rid, p) per r.effect.kind.
+      -- For now: deal a normal-ATK as a placeholder so the action consumes
+      -- a turn and feels like SOMETHING happened.
+      if enemy and enemy.alive then
+        local dmg = INST.atk(p)
+        damage_enemy(dmg, false)
+      end
+      p.last_fire = tick
+      p.last_action = "RESO"
+    end
   end
 end
 
@@ -14583,7 +14795,13 @@ travel_to = function(map_id, x, y)
   -- Academy story trigger: first time the player enters map 19 with
   -- academy_state still "untriggered", launch the entry cutscene which
   -- chains into the Strom battle when its dialogue closes.
-  if map_id == 19 and CONTENT and CONTENT.academy_state == "untriggered" then
+  -- IMPORTANT: every scene-launcher below is gated on `not SCENE.active`
+  -- so that a scripted scene calling `travel_to(...)` in a `set` step
+  -- can't trigger a NESTED scene that would clobber its own state
+  -- (SCENE.start wipes script/step/actors). E.g. the courtyard breach
+  -- ends with travel_to(27, ...) and must not re-fire page_warning.
+  local _scene_busy = (SCENE and SCENE.active) and true or false
+  if not _scene_busy and map_id == 19 and CONTENT and CONTENT.academy_state == "untriggered" then
     if start_academy_intro then start_academy_intro() end
   end
   -- Castle prologue: on first map entry, play a brief INTRO beat
@@ -14591,12 +14809,12 @@ travel_to = function(map_id, x, y)
   -- private chamber. Suno's confrontation scene now fires when Miel
   -- walks INTO the throne hall (handled in the per-tile try_move
   -- check via CONTENT.prologue_throne_room_pending).
-  if map_id == 28 and CONTENT and not CONTENT.prologue_intro_done then
+  if not _scene_busy and map_id == 28 and CONTENT and not CONTENT.prologue_intro_done then
     if start_prologue_castle_intro then start_prologue_castle_intro() end
   end
   -- First time stepping into the hallway from Quarters during prologue:
   -- the royal Page sprints up to Miel with the warning. Once-only.
-  if map_id == 27 and CONTENT and CONTENT.prologue_intro_done
+  if not _scene_busy and map_id == 27 and CONTENT and CONTENT.prologue_intro_done
      and not CONTENT.prologue_scene_done
      and not (CONTENT.scene_seen and CONTENT.scene_seen.page_warning) then
     CONTENT.scene_seen = CONTENT.scene_seen or {}
@@ -14605,7 +14823,7 @@ travel_to = function(map_id, x, y)
   end
   -- Post-clear academy revisit: a one-time quiet beat when player walks
   -- back into the cleared library.
-  if map_id == 19 and CONTENT and CONTENT.academy_state == "complete" then
+  if not _scene_busy and map_id == 19 and CONTENT and CONTENT.academy_state == "complete" then
     queue_first_arrival("academy_revisit", {
       "(The Hall of Resonance is quiet. Plaster dust still drifts. Diegues stops at the lectern.)",
       "[Diegues] (touches the wood; his hand comes away white) ...still warm. Where the silencer's hammer fell.",
@@ -14640,29 +14858,29 @@ travel_to = function(map_id, x, y)
   -- Cinematic first-arrivals for the three remote regions. Each is a
   -- choreographed SCENE with camera pan, atmospheric SFX, and a brief
   -- party-reaction beat — replaces the older text-only banner.
-  if map_id == 2 and start_eastern_arrival_scene
+  if not _scene_busy and map_id == 2 and start_eastern_arrival_scene
      and not (CONTENT.scene_seen and CONTENT.scene_seen.eastern_arrival) then
     CONTENT.scene_seen = CONTENT.scene_seen or {}
     CONTENT.scene_seen.eastern_arrival = true
     start_eastern_arrival_scene()
-  elseif map_id == 3 and start_northern_arrival_scene
+  elseif not _scene_busy and map_id == 3 and start_northern_arrival_scene
      and not (CONTENT.scene_seen and CONTENT.scene_seen.northern_arrival) then
     CONTENT.scene_seen = CONTENT.scene_seen or {}
     CONTENT.scene_seen.northern_arrival = true
     start_northern_arrival_scene()
-  elseif map_id == 4 and start_sunos_arrival_scene
+  elseif not _scene_busy and map_id == 4 and start_sunos_arrival_scene
      and not (CONTENT.scene_seen and CONTENT.scene_seen.sunos_arrival) then
     CONTENT.scene_seen = CONTENT.scene_seen or {}
     CONTENT.scene_seen.sunos_arrival = true
     start_sunos_arrival_scene()
-  elseif map_id == 35 and start_sunward_arrival_scene
+  elseif not _scene_busy and map_id == 35 and start_sunward_arrival_scene
      and not (CONTENT.scene_seen and CONTENT.scene_seen.sunward_arrival) then
     CONTENT.scene_seen = CONTENT.scene_seen or {}
     CONTENT.scene_seen.sunward_arrival = true
     start_sunward_arrival_scene()
   end
   -- First-arrival story beats. Each fires exactly once per save.
-  if map_id == 21 then
+  if not _scene_busy and map_id == 21 then
     -- First step into the escape cave — choreographed if we have the
     -- helper, otherwise fall back to plain text.
     if not (CONTENT.scene_seen and CONTENT.scene_seen.escape_cave_first)
@@ -14680,14 +14898,14 @@ travel_to = function(map_id, x, y)
         "(She hums her grandmother's song, so the dark stays small. She walks east.)",
       })
     end
-  elseif map_id == 22 then
+  elseif not _scene_busy and map_id == 22 then
     -- First step into the Western Region overworld.
     queue_first_arrival("western_region_first", {
       "(The land west of the village is older than maps. Trees grew here when the Crystal still sang as one.)",
       "(Through the trees, a building. Tall windows. A spiral on the door, faintly carved.)",
       "(This was the Academy. Once. It is being attacked now. You can hear the breaking.)",
     })
-  elseif map_id == 23 then
+  elseif not _scene_busy and map_id == 23 then
     -- First step into the Lirael Ruins. A long, slow memory scene that
     -- only fires once per save — heavy on stage direction, light on
     -- combat. Choreographed: the camera rests on the empty throne; Miel
@@ -14698,7 +14916,7 @@ travel_to = function(map_id, x, y)
       CONTENT.scene_seen.lirael_first = true
       start_lirael_first_visit()
     end
-  elseif map_id == 24 then
+  elseif not _scene_busy and map_id == 24 then
     -- First step into Velthe's Observatory. Iola greets Miel; awards the
     -- Sightings Lens instrument.
     if not (CONTENT.scene_seen and CONTENT.scene_seen.observatory_first)
@@ -14707,7 +14925,7 @@ travel_to = function(map_id, x, y)
       CONTENT.scene_seen.observatory_first = true
       start_observatory_first_visit()
     end
-  elseif map_id == 26 then
+  elseif not _scene_busy and map_id == 26 then
     -- First step into the Far Hills. A small text panel and a held
     -- bard tone — the chord ran here once.
     queue_first_arrival("far_hills_first", {
@@ -14717,6 +14935,12 @@ travel_to = function(map_id, x, y)
     })
   end
 end
+-- Mirror travel_to into _ENV so closures created BEFORE the forward
+-- decl at line ~11630 (e.g. start_courtyard_breach_script, defined at
+-- line ~5443) can resolve it via global lookup at call time. Without
+-- this, those closures call nil and the error is silently swallowed
+-- by their pcall wrappers, leaving the player on the old map.
+_G.travel_to = travel_to
 
 -- Pass 45: rare encounters. Each cave-pool has a uniquely-named, boosted
 -- variant of one of its enemies that drops a guaranteed high-tier item.
@@ -15125,14 +15349,32 @@ function gamepad.dpad(axis, sign)
       return
     end
     if axis == "Y" then
-      -- dpad UD cycles the queued action for the active character
+      -- dpad UD cycles the queued action for the active character.
+      -- If this character has an attuned Resonance, RESO is appended as
+      -- a 5th option in the cycle.
       local p = party[active]
       if p and p.alive then
         local ca = CLASS_ACTIONS[p.class]
         local list = {ca.A, ca.B, ca.X, ca.Y}
+        local has_reso = false
+        local reso_id  = nil
+        for id, r in pairs(RESONANCES) do
+          if r.character == p.class
+             and CONTENT.resonances[id]
+             and CONTENT.resonances[id].attuned then
+            has_reso = true; reso_id = id; break
+          end
+        end
+        if has_reso then list[5] = "RESO" end
+        local n = #list
         local cur = 1
         for i, a in ipairs(list) do if a == p.queued then cur = i end end
-        p.queued = list[((cur - 1 + sign) % 4) + 1]
+        p.queued = list[((cur - 1 + sign) % n) + 1]
+        if p.queued == "RESO" then
+          p.queued_resonance = reso_id
+        else
+          p.queued_resonance = nil
+        end
         p.prev_queued = nil
         p.jamming = false
         redraw()
@@ -15664,6 +15906,42 @@ function gamepad.analog(sensor_axis, val, half_reso)
       redraw()
     end
     _trigger_prev = now_pressed
+    return
+  end
+  if sensor_axis == "triggerright" then
+    -- ONE-SHOT: rising-edge queues RESO action for the active character
+    -- in battle. Same drift-resistant pattern as triggerleft.
+    local now_pressed = (val / half_reso) > 0.2
+    if now_pressed and not CONTENT._r2_prev then
+      if game_state == "BATTLE" then
+        local p = party[active]
+        if p and p.alive then
+          local rid = nil
+          for id, r in pairs(RESONANCES) do
+            if r.character == p.class
+               and CONTENT.resonances[id]
+               and CONTENT.resonances[id].attuned then
+              rid = id; break
+            end
+          end
+          if not rid then
+            CONTENT.banner_text  = "* no resonance attuned *"
+            CONTENT.banner_ticks = 36
+          elseif p.mp < RESONANCES[rid].mp_cost then
+            CONTENT.banner_text  = "* not enough MP *"
+            CONTENT.banner_ticks = 36
+          else
+            p.queued = "RESO"
+            p.queued_resonance = rid
+            p.mp = p.mp - RESONANCES[rid].mp_cost
+            p.prev_queued = nil
+            p.jamming = false
+          end
+          redraw()
+        end
+      end
+    end
+    CONTENT._r2_prev = now_pressed
     return
   end
   if game_state ~= "BATTLE" and game_state ~= "OVERWORLD" and game_state ~= "DIALOGUE" and game_state ~= "JAM" then return end
@@ -20215,6 +20493,130 @@ NPC_SPRITES["Capt.Ren"] = function(sx, sy)
   screen.level(3); screen.rect(sx + 5, sy + 7, 1, 1); screen.fill()
 end
 
+-- ── Courtyard guard line: four visually distinct silhouettes so the
+--    player can tell them apart during the breach scene. Each guard
+--    has a SIGNATURE element that protrudes outside the 8x8 body box.
+-- GuardA: PIKEMAN. Pike shaft sticks 2px above the head — tallest figure.
+NPC_SPRITES.GuardA = function(sx, sy)
+  screen.level(11); screen.pixel(sx + 1, sy - 2); screen.fill()       -- pike head
+  screen.level(13); screen.pixel(sx + 1, sy - 1); screen.fill()       -- pike head highlight
+  screen.level(7);  screen.rect(sx + 1, sy, 1, 8); screen.fill()      -- pike shaft (tall)
+  screen.level(9);  screen.rect(sx + 3, sy + 1, 3, 2); screen.fill()  -- narrow helm
+  screen.level(13); screen.rect(sx + 3, sy + 3, 3, 1); screen.fill()  -- face strip
+  screen.level(7);  screen.rect(sx + 3, sy + 4, 3, 3); screen.fill()  -- chest mail
+  screen.level(3);  screen.rect(sx + 3, sy + 7, 1, 1); screen.fill()  -- L boot
+  screen.level(3);  screen.rect(sx + 5, sy + 7, 1, 1); screen.fill()  -- R boot
+end
+
+-- GuardB: SHIELDBEARER. Big round shield on the left covers most of
+--   the left half — instantly recognisable shape.
+NPC_SPRITES.GuardB = function(sx, sy)
+  screen.level(11); screen.rect(sx, sy + 2, 3, 5); screen.fill()      -- shield disc
+  screen.level(13); screen.rect(sx + 1, sy + 3, 1, 3); screen.fill()  -- shield rivets column
+  screen.level(15); screen.pixel(sx + 1, sy + 4); screen.fill()       -- shield boss
+  screen.level(8);  screen.rect(sx + 4, sy + 1, 3, 3); screen.fill()  -- helm
+  screen.level(13); screen.pixel(sx + 5, sy + 3); screen.fill()       -- chin
+  screen.level(6);  screen.rect(sx + 4, sy + 4, 3, 3); screen.fill()  -- body
+  screen.level(3);  screen.rect(sx + 4, sy + 7, 1, 1); screen.fill()
+  screen.level(3);  screen.rect(sx + 6, sy + 7, 1, 1); screen.fill()
+end
+
+-- GuardC: ARCHER. Bow drawn vertically along the LEFT side, fletched
+--   arrow at the top — unmistakable archery silhouette, no helmet.
+NPC_SPRITES.GuardC = function(sx, sy)
+  -- arrow tip + fletching above the head
+  screen.level(13); screen.pixel(sx, sy);     screen.fill()           -- fletching
+  screen.level(11); screen.pixel(sx + 1, sy); screen.pixel(sx, sy + 1); screen.fill()
+  -- bow curve (left side)
+  screen.level(7);  screen.pixel(sx, sy + 2); screen.pixel(sx, sy + 5); screen.fill()
+  screen.level(7);  screen.rect(sx, sy + 3, 1, 2); screen.fill()
+  screen.level(9);  screen.rect(sx + 1, sy + 2, 1, 4); screen.fill()  -- bowstring
+  -- bare head (no helmet) + dark hair on top
+  screen.level(3);  screen.rect(sx + 3, sy + 1, 3, 1); screen.fill()  -- hair
+  screen.level(13); screen.rect(sx + 3, sy + 2, 3, 2); screen.fill()  -- face
+  screen.level(0);  screen.pixel(sx + 4, sy + 3); screen.fill()       -- eye
+  -- light tunic + quiver strap
+  screen.level(5);  screen.rect(sx + 3, sy + 4, 3, 3); screen.fill()
+  screen.level(9);  screen.move(sx + 3, sy + 4); screen.line(sx + 6, sy + 6); screen.stroke()  -- diagonal strap
+  screen.level(3);  screen.rect(sx + 3, sy + 7, 1, 1); screen.fill()
+  screen.level(3);  screen.rect(sx + 5, sy + 7, 1, 1); screen.fill()
+end
+
+-- GuardD: SERGEANT VETERAN. Horns sticking out the sides of a heavy
+--   helmet, warhammer with a square head on the right.
+NPC_SPRITES.GuardD = function(sx, sy)
+  -- horns out both sides above the helmet
+  screen.level(13); screen.pixel(sx + 1, sy + 1); screen.pixel(sx + 6, sy + 1); screen.fill()
+  screen.level(11); screen.pixel(sx + 2, sy);     screen.pixel(sx + 5, sy);     screen.fill()
+  -- helmet
+  screen.level(9);  screen.rect(sx + 2, sy + 1, 4, 3); screen.fill()
+  screen.level(0);  screen.rect(sx + 3, sy + 2, 2, 1); screen.fill()  -- visor slit
+  -- warhammer at right: large square head + shaft
+  screen.level(11); screen.rect(sx + 6, sy + 2, 2, 2); screen.fill()  -- hammer head
+  screen.level(7);  screen.rect(sx + 6, sy + 4, 1, 4); screen.fill()  -- shaft
+  -- broad heavy plate
+  screen.level(8);  screen.rect(sx + 1, sy + 4, 5, 3); screen.fill()
+  screen.level(11); screen.rect(sx + 1, sy + 4, 5, 1); screen.fill()  -- top edge highlight
+  screen.level(15); screen.pixel(sx + 3, sy + 5); screen.fill()       -- sergeant medallion
+  screen.level(3);  screen.rect(sx + 1, sy + 7, 2, 1); screen.fill()
+  screen.level(3);  screen.rect(sx + 4, sy + 7, 2, 1); screen.fill()
+end
+
+-- Generic Silencer: tattered black wraith. No armour, no weapon — a
+--   ragged hooded shape with a pale featureless face patch that
+--   flickers and a torn hem that varies frame-to-frame.
+local function _draw_silencer(sx, sy)
+  -- hood + shoulders (medium dim so it reads as "dark figure", not background)
+  screen.level(4); screen.rect(sx + 2, sy, 4, 2); screen.fill()        -- hood crown
+  screen.level(5); screen.rect(sx + 1, sy + 1, 6, 3); screen.fill()    -- hood + shoulders
+  screen.level(3); screen.rect(sx + 2, sy + 2, 4, 2); screen.fill()    -- face cavity (darker)
+  -- pale featureless face patch (always-on so it's clearly NOT a helmet visor)
+  screen.level(15); screen.rect(sx + 3, sy + 2, 2, 2); screen.fill()
+  if (tick % 12) < 6 then
+    screen.level(0); screen.pixel(sx + 3, sy + 3); screen.pixel(sx + 4, sy + 3); screen.fill()  -- pinprick eyes blink
+  end
+  -- tattered robe — uneven bottom edge animated
+  screen.level(4); screen.rect(sx + 1, sy + 4, 6, 3); screen.fill()
+  screen.level(2); screen.pixel(sx + 2, sy + 6); screen.pixel(sx + 5, sy + 6); screen.fill()
+  -- ragged hem: alternate which pixels poke down each frame
+  local tear = (tick % 6) < 3
+  screen.level(3)
+  if tear then
+    screen.pixel(sx + 1, sy + 7); screen.pixel(sx + 4, sy + 7); screen.pixel(sx + 6, sy + 7)
+  else
+    screen.pixel(sx + 2, sy + 7); screen.pixel(sx + 3, sy + 7); screen.pixel(sx + 5, sy + 7)
+  end
+  screen.fill()
+end
+NPC_SPRITES.Silencer1 = _draw_silencer
+NPC_SPRITES.Silencer2 = _draw_silencer
+NPC_SPRITES.Silencer3 = _draw_silencer
+NPC_SPRITES.Silencer4 = _draw_silencer
+
+-- BarringGuard: the guard bracing the hallway south doors after the
+--   courtyard breach. Distinct posture — arms raised pushing UP against
+--   the door bar above his head, no helmet (knit cap), no weapon free.
+NPC_SPRITES.BarringGuard = function(sx, sy)
+  -- horizontal door-bar held overhead
+  screen.level(11); screen.rect(sx, sy, 8, 1); screen.fill()
+  screen.level(13); screen.pixel(sx + 1, sy); screen.pixel(sx + 6, sy); screen.fill()  -- bar end caps
+  -- raised forearms (both arms up, gripping the bar)
+  screen.level(13); screen.rect(sx + 1, sy + 1, 1, 2); screen.fill()
+  screen.level(13); screen.rect(sx + 6, sy + 1, 1, 2); screen.fill()
+  -- knit cap (soft, not a helmet)
+  screen.level(5);  screen.rect(sx + 3, sy + 1, 2, 2); screen.fill()
+  -- face
+  screen.level(13); screen.rect(sx + 3, sy + 3, 2, 1); screen.fill()
+  screen.level(0);  screen.pixel(sx + 3, sy + 3); screen.fill()
+  -- torso: leather over tunic, leaning into the door
+  screen.level(7);  screen.rect(sx + 2, sy + 4, 4, 3); screen.fill()
+  screen.level(11); screen.rect(sx + 2, sy + 4, 4, 1); screen.fill()  -- leather harness top
+  screen.level(3);  screen.pixel(sx + 4, sy + 5); screen.fill()        -- belt
+  -- bracing legs (planted wide)
+  screen.level(3);  screen.rect(sx + 1, sy + 7, 2, 1); screen.fill()
+  screen.level(3);  screen.rect(sx + 5, sy + 7, 2, 1); screen.fill()
+end
+
 -- Runner: a courier in light dress, mid-sprint pose.
 NPC_SPRITES.Runner = function(sx, sy, t)
   -- short hair (dark)
@@ -20480,10 +20882,23 @@ local function draw_overworld()
   -- dispatcher when rendered.
   local saved_facing_npc = player.facing
   player.facing = "down"
+  -- During an active SCENE, hide any static NPC whose name is being
+  -- puppeted by a scene actor (e.g. the breach script spawns "Capt.Ren"
+  -- + "GuardA..D"). Without this filter, the static NPC keeps rendering
+  -- at its original tile while the scene actor moves — leaving a
+  -- "ghost" sprite at the start position.
+  local _scene_puppets = nil
+  if SCENE and SCENE.active and SCENE.actors and #SCENE.actors > 0 then
+    _scene_puppets = {}
+    for _, a in ipairs(SCENE.actors) do
+      if a.name then _scene_puppets[a.name] = true end
+    end
+  end
   for _, n in ipairs(npcs) do
     if n.x >= cam.x and n.x < cam.x + VIEW_W
        and n.y >= cam.y and n.y < cam.y + VIEW_H
-       and npc_visible(n) then
+       and npc_visible(n)
+       and not (_scene_puppets and _scene_puppets[n.name]) then
       local fn = NPC_SPRITES[n.name] or draw_npc_at
       -- subtle idle bob: each NPC breathes 1px out of phase with the others
       local bob = (((tick + n.x * 7 + n.y * 3) % 32) < 16) and 0 or 1
@@ -23703,6 +24118,37 @@ function draw_scene_lirael_gate()
   end
 end
 
+function draw_scene_lirael_bell_alcove()
+  -- Tapestry alcove with a slow-swinging bell silhouette growing larger
+  -- as the attunement reaches its peak. Background is the alcove
+  -- (dark tapestry), foreground is the bell.
+  screen.level(1); screen.rect(0, 0, 128, 64); screen.fill()
+  -- alcove walls (frame the tapestry)
+  screen.level(3); screen.rect(40, 4, 48, 56); screen.fill()
+  -- tapestry pattern (vertical stripes, dim)
+  screen.level(5)
+  for x = 44, 84, 4 do screen.move(x, 8); screen.line(x, 56); screen.stroke() end
+  -- floor stripes leading to the alcove
+  screen.level(2)
+  for y = 56, 62, 2 do screen.move(0, y); screen.line(128, y); screen.stroke() end
+  -- the bell silhouette: grows over a 60-tick cycle, then resets
+  local phase = (tick % 60) / 60
+  local r = 6 + math.floor(phase * 14)
+  local sw = math.floor(math.sin(tick * 0.18) * 4)
+  -- bell body
+  screen.level(11)
+  screen.circle(64 + sw, 28, r); screen.fill()
+  -- bell mouth (cut-out)
+  screen.level(0)
+  screen.circle(64 + sw, 28 + r, 2); screen.fill()
+  -- clapper at the bottom
+  screen.level(13); screen.pixel(64 + sw, 28 + r); screen.fill()
+  -- soft halo around the bell at peak
+  if phase > 0.6 then
+    screen.level(7); screen.circle(64 + sw, 28, r + 4); screen.stroke()
+  end
+end
+
 function draw_scene_lirael_candles_dim()
   screen.level(1); screen.rect(0, 0, 128, 64); screen.fill()
   screen.level(4); screen.rect(0, 50, 128, 14); screen.fill()
@@ -23766,6 +24212,7 @@ SCENE_DRAW = {
   lirael_courtyard    = draw_scene_lirael_courtyard,
   lirael_gate         = draw_scene_lirael_gate,
   lirael_candles_dim  = draw_scene_lirael_candles_dim,
+  lirael_bell_alcove  = draw_scene_lirael_bell_alcove,
 }
 end  -- scene draws
 
