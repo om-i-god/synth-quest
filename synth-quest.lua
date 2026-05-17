@@ -5084,6 +5084,13 @@ local cutscene_idx = 1
 -- 69 = desert_sand_path (walkable; lighter than mainland sand)
 -- 70 = lantern_post     (impassable; flickers)
 -- 71 = phrygian_city_entry (walkable; caravan road waypost in EASTERN_REACHES → Phrygian Night City)
+-- New Sage Hub tiles (Phase 3)
+-- 72 = bookshelf_tall   (impassable; library)
+-- 73 = astrolabe        (impassable; courtyard, animated)
+-- 74 = desk_with_papers (walkable interactable; Velthe's desk)
+-- 75 = lectern          (impassable; lecture hall)
+-- 76 = telescope_broken (impassable; observatory roof)
+-- 77 = crypt_stair      (walkable; locked until flag.iolas_letter_received)
 -- Map data is per-continent; active map swaps via travel_to().
 -- MAINLAND (64x16): cols 1-32 = Village; 33-48 = Hollow Woods; 49-64 = Sunward Coast.
 -- Mountain pass (id 15) at row 1 col 13 → Northern Wilds (current_map_id 3).
@@ -11975,6 +11982,8 @@ local function is_walkable(tx, ty)
       or t == 68   -- Phrygian Night City prayer alcove (walkable; archway interior)
       or t == 69   -- Phrygian Night City desert sand path (walkable; lighter sand)
       or t == 71   -- Phrygian City entry waypost (EASTERN_REACHES → Phrygian Night City)
+      or t == 74   -- Sage Hub desk_with_papers (walkable interactable; Velthe's desk)
+      or t == 77   -- Sage Hub crypt_stair (walkable; lock enforced in routing handler)
 end
 
 -- True when an NPC is currently rendered + interactable. NPCs may have
@@ -18556,6 +18565,75 @@ TILE_DRAW[71] = function(px, py)
   screen.rect(px+1, py+1, 6, 2); screen.fill()
 end
 
+-- ── Sage Hub tiles (Phase 3) ───────────────────────────────────────────────
+
+-- Tile 72 — Bookshelf tall (impassable; Academy library + Observatory study).
+TILE_DRAW[72] = function(px, py)
+  -- bookshelf_tall: tall warm-brown shelf with five visible book rows
+  screen.level(4)
+  screen.rect(px, py, 8, 8); screen.fill()
+  screen.level(2)
+  for i = 1, 7, 2 do
+    screen.move(px, py+i); screen.line_rel(8, 0); screen.stroke()
+  end
+end
+
+-- Tile 73 — Astrolabe (impassable; Academy courtyard, animated rotating ring).
+TILE_DRAW[73] = function(px, py, t)
+  -- astrolabe: rotating ring + glowing center
+  screen.level(3)
+  screen.rect(px, py, 8, 8); screen.fill()
+  local theta = (t / 120) * 6.283
+  local cx, cy = px+4, py+4
+  screen.level(12)
+  screen.move(cx + math.cos(theta)*3, cy + math.sin(theta)*3)
+  screen.line(cx + math.cos(theta+3.14)*3, cy + math.sin(theta+3.14)*3); screen.stroke()
+  screen.level(14)
+  screen.pixel(cx, cy); screen.fill()
+end
+
+-- Tile 74 — Desk with papers (walkable interactable; Velthe's desk).
+TILE_DRAW[74] = function(px, py)
+  -- desk_with_papers: brown desk + pale paper stack
+  screen.level(5)
+  screen.rect(px, py+3, 8, 5); screen.fill()
+  screen.level(13)
+  screen.rect(px+1, py+1, 5, 2); screen.fill()
+end
+
+-- Tile 75 — Lectern (impassable; Academy lecture hall).
+TILE_DRAW[75] = function(px, py)
+  -- lectern: triangular silhouette
+  screen.level(6)
+  screen.move(px+2, py+7); screen.line(px+4, py+1); screen.line(px+6, py+7); screen.stroke()
+end
+
+-- Tile 76 — Telescope broken (impassable; Observatory upper-level broken-roof aperture).
+TILE_DRAW[76] = function(px, py)
+  -- telescope_broken: cracked dark sky with a diagonal break + visible star pixel
+  screen.level(2)
+  screen.rect(px, py, 8, 8); screen.fill()
+  screen.level(8)
+  screen.move(px+1, py+6); screen.line(px+6, py+1); screen.stroke()
+  screen.level(13)
+  screen.pixel(px+5, py+1); screen.fill()
+end
+
+-- Tile 77 — Crypt stair (walkable; visual changes based on flag.iolas_letter_received).
+TILE_DRAW[77] = function(px, py)
+  -- crypt_stair: visual changes based on whether Iola's Letter was received
+  if flag and flag.iolas_letter_received then
+    screen.level(7)   -- unlocked, brighter
+  else
+    screen.level(3)   -- locked, dim
+  end
+  screen.rect(px, py, 8, 8); screen.fill()
+  screen.level(0)
+  screen.move(px+1, py+6); screen.line_rel(6, 0); screen.stroke()
+  screen.move(px+2, py+4); screen.line_rel(4, 0); screen.stroke()
+  screen.move(px+3, py+2); screen.line_rel(2, 0); screen.stroke()
+end
+
 local SPRITE_BY_CLASS
 do
 
@@ -21483,7 +21561,7 @@ local function draw_overworld()
         TILE_DRAW.cavefloor(sx, sy, tx + ty * MAP_W)
       else
         local fn = TILE_DRAW[t] or TILE_DRAW[0]
-        if t == 3 or t == 6 or t == 7 or t == 9 or t == 11 or t == 14 or t == 16 or t == 18 or t == 19 or t == 20 or t == 24 or t == 27 or t == 30 or t == 32 or t == 36 or t == 38 or t == 39 or t == 41 or t == 43 or t == 52 or t == 53 or t == 54 or t == 55 or t == 56 or t == 57 or t == 58 or t == 62 or t == 67 or t == 70 then fn(sx, sy, tick)
+        if t == 3 or t == 6 or t == 7 or t == 9 or t == 11 or t == 14 or t == 16 or t == 18 or t == 19 or t == 20 or t == 24 or t == 27 or t == 30 or t == 32 or t == 36 or t == 38 or t == 39 or t == 41 or t == 43 or t == 52 or t == 53 or t == 54 or t == 55 or t == 56 or t == 57 or t == 58 or t == 62 or t == 67 or t == 70 or t == 73 then fn(sx, sy, tick)
         elseif t == 0 or t == 8 then fn(sx, sy, tx + ty * MAP_W)
         else fn(sx, sy)
         end
@@ -26339,6 +26417,18 @@ function redraw()
   if (tick - (CONTENT.midi_active_t or -99)) < 6 then
     screen.level(15); screen.rect(125, 0, 3, 3); screen.fill()
     screen.level(8);  screen.pixel(124, 1); screen.fill()
+  end
+  -- DEBUG: bottom-left state tag so we can see whether BATTLE_END is
+  -- being entered at all, and what banner text is on screen. Remove
+  -- once the missing battle-summary issue is diagnosed.
+  do
+    screen.font_face(25); screen.font_size(6)
+    screen.level(15); screen.move(0, 64)
+    screen.text(tostring(game_state or "?") ..
+                " bt=" .. tostring(battle_end_ticks or 0) ..
+                " phB=" .. tostring(CONTENT.battle_end_phase or 0) ..
+                " bn=" .. tostring(CONTENT.banner_ticks or 0))
+    screen.font_face(1); screen.font_size(8)
   end
   -- (Pass 48 day/night stipple removed — the density math was inverted,
   --  flooding the screen with black pixels during transitions. If we
