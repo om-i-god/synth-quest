@@ -6920,6 +6920,55 @@ function start_sunward_arrival_scene()
   SCENE.start(script)
 end
 
+-- start_phrygian_arrival_scene() — first time arriving at Phrygian City
+-- (map 36). Party crests the dune-line; camera slow-pans across the
+-- towers and bazaar as lanterns rise at dusk. Sergei speaks at the south
+-- gate. Fires exactly once per save via CONTENT.scene_seen.phrygian_arrival.
+function start_phrygian_arrival_scene()
+  local px, py = player.x, player.y
+  local script = {
+    {hide_player = true},
+    {set = function() SCENE.fade = 15 end},
+    {letterbox_in = true},
+    {focus = {x = px, y = py}, ticks = 1},
+    {fade_in = 36},
+    {wait = 6},
+    -- Bass drone: cleric class, deep root note, slow swell.
+    {sfx = {class = "cleric", note = 36, vel = 0.40, attack = 1.20, release = 2.40, wet = 0.70}},
+    -- Pan west across the tower district.
+    {focus = {x = 2, y = 2}, ticks = 30},
+    {wait = 8},
+    {dialogue = {
+      "(The dune-line breaks. A city carved from amber stone.)",
+      "(Towers catch the last of the light — lanterns begin to rise.)",
+    }, npc = nil},
+    {wait = 4},
+    -- Second lantern tone, higher partial.
+    {sfx = {class = "cleric", note = 48, vel = 0.30, attack = 1.00, release = 2.00, wet = 0.70}},
+    -- Slow pan to center bazaar.
+    {focus = {x = 16, y = 5}, ticks = 36},
+    {wait = 10},
+    -- Pan east to tower district.
+    {focus = {x = 29, y = 2}, ticks = 30},
+    {wait = 10},
+    -- Sergei at the south gate (row 4, col 17 per NPC table).
+    {focus = {x = 17, y = 4}, ticks = 24},
+    {wait = 4},
+    {dialogue = {
+      "[Sergei]   Stay close after the gate closes.",
+      "[Sergei]   Phrygian night is not for visitors who wander.",
+    }, npc = {name = "Sergei"}},
+    {wait = 6},
+    {focus = "player", ticks = 20},
+    {wait = 4},
+    {show_player = true},
+    {letterbox_out = true},
+    {flash = "* Phrygian City *", ticks = 60},
+    {set = function() flag.phrygian_arrival_done = true end},
+  }
+  SCENE.start(script)
+end
+
 -- start_sunward_bandstand_scene() — Bard-lead + night trigger. Alder
 -- takes the empty stage at the Sunward Coast bandstand; four-note
 -- Mixolydian SFX sequence, six townsfolk gather, Mara welcomes him
@@ -15118,6 +15167,11 @@ travel_to = function(map_id, x, y)
     CONTENT.scene_seen = CONTENT.scene_seen or {}
     CONTENT.scene_seen.sunward_arrival = true
     start_sunward_arrival_scene()
+  elseif not _scene_busy and map_id == 36 and start_phrygian_arrival_scene
+     and not (CONTENT.scene_seen and CONTENT.scene_seen.phrygian_arrival) then
+    CONTENT.scene_seen = CONTENT.scene_seen or {}
+    CONTENT.scene_seen.phrygian_arrival = true
+    start_phrygian_arrival_scene()
   end
   -- First-arrival story beats. Each fires exactly once per save.
   if not _scene_busy and map_id == 21 then
