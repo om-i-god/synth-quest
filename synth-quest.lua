@@ -7257,6 +7257,47 @@ function ambient_sunward_cliff_reeds()
   }
 end
 
+-- =================================================================
+-- PHRYGIAN NIGHT CITY (map 36) ambient micro-scenes — Task 2.8
+-- Throttled via CONTENT.last_phrygian_ambient_t (600-tick cooldown).
+-- All globals to dodge the 200-main-chunk-locals cap.
+-- =================================================================
+
+-- Vendor cry from the bazaar stalls. Tile (17, 7).
+function ambient_phrygian_vendor()
+  return {
+    {dialogue = {"\"STAR-OIL — TWO BLOSSOMS — STAR-OIL —\""}, npc = nil},
+  }
+end
+
+-- Prayer alcove: descending Phrygian call heard from the temple quarter. Tile (17, 3).
+function ambient_phrygian_prayer()
+  return {
+    {sfx = {class = "cleric", note = 68, vel = 0.4, attack = 0.6, release = 1.5, wet = 0.7}},
+    {wait = 8},
+    {sfx = {class = "cleric", note = 65, vel = 0.4, attack = 0.6, release = 1.5, wet = 0.7}},
+    {wait = 8},
+    {sfx = {class = "cleric", note = 68, vel = 0.5, attack = 0.6, release = 2.0, wet = 0.7}},
+  }
+end
+
+-- Lantern flicker near the bazaar at night: a single wavering tone. Tile (9, 5). Night-only.
+function ambient_phrygian_lantern()
+  return {
+    {sfx = {class = "bard", note = 72, vel = 0.2, attack = 0.3, release = 1.0, wet = 0.5}},
+    {wait = 4},
+    {dialogue = {"(a lantern gutters in the desert wind)"}, npc = nil},
+  }
+end
+
+-- Tova's hum: a soft two-note murmur from the bazaar interior. Tile (5, 9).
+function ambient_phrygian_tova_hum()
+  return {
+    {sfx = {class = "cleric", note = 60, vel = 0.3, attack = 0.5, release = 1.2, wet = 0.6}},
+    {sfx = {class = "cleric", note = 63, vel = 0.3, attack = 0.5, release = 1.2, wet = 0.6}},
+  }
+end
+
 -- start_strom_dream_scene() — black-screen flashback, no actors
 -- visible. Pure SFX + dialogue. Reya's voice in Strom's memory of his
 -- last morning with her. Fires once on first inn-rest with Strom.
@@ -13784,6 +13825,27 @@ local function try_move(dx, dy)
           SCENE.start(sc)
           redraw()
           return
+        end
+      end
+    end
+    -- Phrygian Night City tile micro-scenes: fire on specific tiles in map 36.
+    -- Throttled to once per ~600 ticks. Lantern scene is night-only.
+    if current_map_id == 36 then
+      local now = tick or 0
+      local last = CONTENT.last_phrygian_ambient_t or 0
+      if not (SCENE and SCENE.active) and now - last > 600 then
+        if nx == 17 and ny == 7 then
+          SCENE.start(ambient_phrygian_vendor())
+          CONTENT.last_phrygian_ambient_t = now
+        elseif nx == 17 and ny == 3 then
+          SCENE.start(ambient_phrygian_prayer())
+          CONTENT.last_phrygian_ambient_t = now
+        elseif nx == 9 and ny == 5 and sq_is_night and sq_is_night() then
+          SCENE.start(ambient_phrygian_lantern())
+          CONTENT.last_phrygian_ambient_t = now
+        elseif nx == 5 and ny == 9 then
+          SCENE.start(ambient_phrygian_tova_hum())
+          CONTENT.last_phrygian_ambient_t = now
         end
       end
     end
