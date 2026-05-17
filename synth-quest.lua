@@ -13626,9 +13626,19 @@ local function try_random_encounter()
   end
   -- Story / interior areas: no random encounters.
   --   23 = Lirael Ruins (memory/exploration)
-  --   24 = Velthe's Observatory (interior)
   --   25 = Reya's Cairn (memorial)
-  if current_map_id == 23 or current_map_id == 24 or current_map_id == 25 then
+  if current_map_id == 23 or current_map_id == 25 then
+    return false
+  end
+  -- Academy interior (map 19): safe everywhere (also caught by the guard above).
+  if current_map_id == 19 then return false end
+  -- Observatory (map 24): mostly safe; sparse Crow Wraith / Locrian-edge encounters
+  -- only in the upper telescope chamber (rows 2-5).  Cave 6 = Locrian Crypt pool.
+  if current_map_id == 24 then
+    if player.y >= 2 and player.y <= 5 and math.random() < 0.02 then
+      enter_battle(13, true)
+      return true
+    end
     return false
   end
   -- Sunward Coast Town (map 35): interior is safe; light coastal encounters
