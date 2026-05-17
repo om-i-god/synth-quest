@@ -7689,6 +7689,47 @@ function ambient_phrygian_tova_hum()
   }
 end
 
+-- =================================================================
+-- SAGE HUB (Academy map 19, Observatory map 24) ambient micro-scenes — Task 3.11
+-- Throttled via CONTENT.last_sage_hub_ambient_t (600-tick cooldown).
+-- All globals to dodge the 200-main-chunk-locals cap.
+-- =================================================================
+
+-- Academy library reading: scholar reads Velthe aloud. Tile (21, 10).
+function ambient_academy_library()
+  return {
+    {dialogue = {"(she's reading Velthe's third volume aloud)"}, npc = nil},
+  }
+end
+
+-- Academy courtyard astrolabe whisper: Echo's voice fragment. Tile (13, 7).
+function ambient_academy_astrolabe()
+  local mage_lead = party and party[active] and party[active].class == "mage"
+  return {
+    {sfx = {class = "cleric", note = 72, vel = 0.3, attack = 0.05, release = 0.4, wet = 0.5}},
+    {dialogue = {
+      mage_lead
+        and "(the astrolabe ticks; you hear \"—the third—\")"
+        or "(the astrolabe ticks; a whisper, indistinct)"
+    }, npc = nil},
+  }
+end
+
+-- Observatory roof stars: only fires at night, under the broken-roof aperture. Tile (12, 2).
+function ambient_observatory_stars()
+  return {
+    {sfx = {class = "cleric", note = 51, vel = 0.3, attack = 1.5, release = 3.0, wet = 0.9}},
+    {dialogue = {"(stars visible through the broken roof)"}, npc = nil},
+  }
+end
+
+-- Observatory desk premature: fires near Velthe's desk BEFORE the Final Entry scene plays. Tile (12, 9).
+function ambient_observatory_desk_premature()
+  return {
+    {dialogue = {"(Velthe's handwriting is still drying — impossible)"}, npc = nil},
+  }
+end
+
 -- start_strom_dream_scene() — black-screen flashback, no actors
 -- visible. Pure SFX + dialogue. Reya's voice in Strom's memory of his
 -- last morning with her. Fires once on first inn-rest with Strom.
@@ -14349,6 +14390,32 @@ local function try_move(dx, dy)
         elseif nx == 5 and ny == 9 then
           SCENE.start(ambient_phrygian_tova_hum())
           CONTENT.last_phrygian_ambient_t = now
+        end
+      end
+    end
+    -- Sage Hub (Academy id 19, Observatory id 24) ambients
+    if current_map_id == 19 then
+      local now = tick or 0
+      local last = CONTENT.last_sage_hub_ambient_t or 0
+      if not (SCENE and SCENE.active) and now - last > 600 then
+        if nx == 21 and ny == 10 then
+          SCENE.start(ambient_academy_library())
+          CONTENT.last_sage_hub_ambient_t = now
+        elseif nx == 13 and ny == 7 then
+          SCENE.start(ambient_academy_astrolabe())
+          CONTENT.last_sage_hub_ambient_t = now
+        end
+      end
+    elseif current_map_id == 24 then
+      local now = tick or 0
+      local last = CONTENT.last_sage_hub_ambient_t or 0
+      if not (SCENE and SCENE.active) and now - last > 600 then
+        if nx == 12 and ny == 2 and sq_is_night and sq_is_night() then
+          SCENE.start(ambient_observatory_stars())
+          CONTENT.last_sage_hub_ambient_t = now
+        elseif nx == 12 and ny == 9 and not flag.velthes_entry_heard then
+          SCENE.start(ambient_observatory_desk_premature())
+          CONTENT.last_sage_hub_ambient_t = now
         end
       end
     end
