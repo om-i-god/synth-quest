@@ -7457,6 +7457,52 @@ function start_academy_iolas_letter_scene()
   return script
 end
 
+-- start_observatory_velthes_entry_scene() — Task 3.9. Lore-payoff scene at
+-- Velthe's desk in the Observatory (map 24, tile 74, row 8 col 12). Fires
+-- once per save after flag.iolas_letter_received is set and only while
+-- flag.velthes_entry_heard is still false. Velthe's voice imprint manifests
+-- at the desk and reads her final journal entry. Mentions Locrius by name.
+-- Mage-lead variant: Diegues finishes the incomplete final line in his own
+-- voice. Sets flag.velthes_entry_heard = true on completion, which:
+--   • unlocks the crypt_stair (Task 3.4 routing handler checks this flag)
+--   • triggers Iola's migration to the Observatory (Task 3.5 visibility flags)
+function start_observatory_velthes_entry_scene()
+  local mage_lead = party and party[active] and party[active].class == "mage"
+  local script = {
+    {letterbox_in = true},
+    {focus = {x = 12, y = 8}, ticks = 24},
+    -- Velthe's voice imprint manifests at the desk
+    {spawn = "velthe_imprint", class = "mage", name = "Velthe", x = 12, y = 7, facing = "down"},
+    {sfx = {class = "cleric", note = 60, vel = 0.4, attack = 0.6, release = 2.0, wet = 0.85}},
+    {dialogue = {"Velthe:", "\"Entry forty-three. The shard's instability",
+                            "is not a property of the shard.\""}, npc = {name = "Velthe"}},
+    {wait = 8},
+    {dialogue = {"Velthe:", "\"Locrius has been with it for centuries.",
+                            "I believe he has become it.\""}, npc = {name = "Velthe"}},
+    {wait = 8},
+    {dialogue = {"Velthe:", "\"The third chord is not a chord. It is —\""}, npc = {name = "Velthe"}},
+    {wait = 4},
+    {sfx = {class = "cleric", note = 53, vel = 0.5, attack = 1.2, release = 3.0, wet = 0.9}},
+  }
+  -- Mage-lead variant: Diegues completes the line in his own voice
+  if mage_lead then
+    table.insert(script, {dialogue = {"Diegues: \"— a sustain.\""}, npc = {name = "Diegues"}})
+  else
+    table.insert(script, {dialogue = {"(the imprint trails off)"}, npc = nil})
+  end
+  -- Final steps
+  for _, step in ipairs({
+    {wait = 12},
+    {despawn = "velthe_imprint"},
+    {letterbox_out = true},
+    {set = function() flag.velthes_entry_heard = true end},
+    {dialogue = {"The stair below is unlocked. Cave 6 lies beyond."}, npc = nil},
+  }) do
+    table.insert(script, step)
+  end
+  return script
+end
+
 -- start_phrygian_strom_confronted_scene() — Warrior-lead + Aram NPC in
 -- Phrygian City. Strom's former second-in-command faces him across the
 -- bazaar stall. One-way absolution: Aram lowers his hand, gives his
@@ -14206,6 +14252,19 @@ local function try_move(dx, dy)
           CONTENT.flash_ticks = 36
         end
         break
+      end
+    end
+    -- Observatory: Velthe's Final Entry — one-shot lore scene (Task 3.9).
+    -- Fires when player steps onto the desk tile (col 12, row 8) in map 24,
+    -- only after iolas_letter_received is true and before velthes_entry_heard
+    -- is set. Takes precedence over ambient scenes (not throttled).
+    if current_map_id == 24 and nx == 12 and ny == 8
+       and flag.iolas_letter_received and not flag.velthes_entry_heard
+       and not (SCENE and SCENE.active) then
+      if start_observatory_velthes_entry_scene then
+        SCENE.start(start_observatory_velthes_entry_scene())
+        redraw()
+        return
       end
     end
     -- Sunward Coast tile micro-scenes: fire on specific tiles in map 35.
