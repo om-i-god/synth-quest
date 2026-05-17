@@ -3235,7 +3235,7 @@ CONTENT = {
     {1,0,0,0,0,0,0,0,0,4, 0, 0, 0, 0,4,0,0,0,0,0,0,0,0,1},   -- building interior visible
     {1,0,0,0,0,0,0,0,0,4, 4, 4,50, 4,4,0,0,0,0,0,0,0,0,1},   -- front wall + entry tile 50
     {1,51,8,0,0,0,0,0,0,0, 0, 0, 0, 0,0,0,0,0,0,0,0,0,0,1},  -- Lirael Ruins arch (col 1 row 7)
-    {1,0,8,8,0,0,0,0,0,0, 0, 0, 0, 0,0,0,0,0,0,0,0,0,0,1},
+    {1,0,8,8,0,0,0,0,0,0, 0, 0, 0,78,0,0,0,0,0,0,0,0,0,1},  -- academy_entry arch (col 14 row 8)
     {1,0,0,0,0,0,8,8,8,0, 0, 0, 0, 0,0,0,0,0,8,8,8,0,0,1},
     {1,0,0,0,0,0,8,8,0,0, 0, 0, 0, 0,0,0,0,0,0,8,8,0,0,1},
     {1,1,1,1,1,1,1,1,1,1, 1, 1, 1, 1,1,1,1,1,1,1,1,1,47,1},   -- east-edge return tile
@@ -5130,6 +5130,8 @@ local cutscene_idx = 1
 -- 75 = lectern          (impassable; lecture hall)
 -- 76 = telescope_broken (impassable; observatory roof)
 -- 77 = crypt_stair      (walkable; locked until flag.iolas_letter_received)
+-- 78 = academy_entry    (walkable; Western Region → Academy expanded interior, map 19)
+-- 79 = observatory_entry (walkable; Northern Wilds → Observatory expanded interior, map 24)
 -- Map data is per-continent; active map swaps via travel_to().
 -- MAINLAND (64x16): cols 1-32 = Village; 33-48 = Hollow Woods; 49-64 = Sunward Coast.
 -- Mountain pass (id 15) at row 1 col 13 → Northern Wilds (current_map_id 3).
@@ -5180,7 +5182,7 @@ local NORTHERN_WILDS = {
   {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},
   {1,0,0,0,0,0,0,0,0,0,0,0,0,0,8,8,8,0,0,0,0,0,0,0,0,0,0,1},
   {1,0,1,0,0,0,0,8,8,8,8,0,0,0,0,8,8,8,0,0,0,0,1,0,0,0,0,1},
-  {1,0,0,0,0,1,0,0,8,8,0,0,0,2,0,0,8,8,0,0,0,0,0,0,52,0,0,1},  -- Velthe Observatory entry @ col 25 row 4
+  {1,0,0,0,0,1,0,0,8,8,0,0,0,2,0,0,8,8,0,0,0,79,0,0,52,0,0,1},  -- col 22: observatory_entry arch; col 25: Velthe Observatory entry (tile 52)
   {1,0,0,0,0,0,0,0,0,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
   {1,0,1,0,0,0,0,0,0,1,0,0,0,2,0,0,0,0,0,1,0,0,1,0,0,0,0,1},
   {1,0,0,0,0,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,16,0,0,0,0,0,0,1},
@@ -12023,6 +12025,8 @@ local function is_walkable(tx, ty)
       or t == 71   -- Phrygian City entry waypost (EASTERN_REACHES → Phrygian Night City)
       or t == 74   -- Sage Hub desk_with_papers (walkable interactable; Velthe's desk)
       or t == 77   -- Sage Hub crypt_stair (walkable; lock enforced in routing handler)
+      or t == 78   -- academy_entry (walkable; Western Region → Academy expanded interior)
+      or t == 79   -- observatory_entry (walkable; Northern Wilds → Observatory expanded interior)
 end
 
 -- True when an NPC is currently rendered + interactable. NPCs may have
@@ -13683,6 +13687,42 @@ local function try_move(dx, dy)
         "[Miel]   (...quietly...) Queen of nothing, then.",
         "(She walks down the path. Her hum is small but it carries. A bard at a fire looks up.)",
       })
+    end
+    redraw()
+    return
+  end
+  if t == 78 and current_map_id == 22 then
+    -- Western Region → Academy expanded interior (map 19).
+    -- Tile 78 placed at row 8 col 14 in western_region_map.
+    CONTENT.return_map = 22
+    CONTENT.return_x = nx; CONTENT.return_y = ny
+    travel_to(19, 14, 12)   -- spawn 1 tile above the south corridor exit (row 13 col 14)
+    redraw()
+    return
+  end
+  if t == 79 and current_map_id == 3 then
+    -- Northern Wilds → Observatory expanded interior (map 24).
+    -- Tile 79 placed at row 4 col 22 in NORTHERN_WILDS.
+    CONTENT.return_map = 3
+    CONTENT.return_x = nx; CONTENT.return_y = ny
+    travel_to(24, 11, 12)   -- spawn 1 tile above the south entry hall exit (row 13 col 11)
+    redraw()
+    return
+  end
+  if t == 77 and current_map_id == 24 then
+    -- Observatory crypt_stair → Cave 6 (Locrian Crypt, map 13).
+    -- Gated by flag.iolas_letter_received; tile 77 at row 11 col 16 of observatory_map.
+    if flag.iolas_letter_received then
+      CONTENT.return_map = 24
+      CONTENT.return_x = nx; CONTENT.return_y = ny
+      travel_to(13, 9, 14)   -- spawn 1 tile above the crypt exit row (row 15 cols 8-9)
+      CONTENT.cave_entered = CONTENT.cave_entered or {}
+      if not CONTENT.cave_entered[6] then
+        CONTENT.cave_entered[6] = true; if STORY.play_id("enter_cave6") then return end
+      end
+    else
+      CONTENT.banner_text  = "* The stair is sealed. Velthe's mark is on the lock. *"
+      CONTENT.banner_ticks = 48
     end
     redraw()
     return
@@ -18671,6 +18711,23 @@ TILE_DRAW[77] = function(px, py)
   screen.move(px+1, py+6); screen.line_rel(6, 0); screen.stroke()
   screen.move(px+2, py+4); screen.line_rel(4, 0); screen.stroke()
   screen.move(px+3, py+2); screen.line_rel(2, 0); screen.stroke()
+end
+
+-- Tile 78 — academy_entry: scholarly arch in Western Region → Academy expanded interior.
+TILE_DRAW[78] = function(px, py)
+  screen.level(7)
+  screen.rect(px, py, 8, 8); screen.fill()
+  screen.level(3)
+  screen.move(px+2, py+5); screen.line(px+4, py+1); screen.line(px+6, py+5); screen.stroke()
+end
+
+-- Tile 79 — observatory_entry: tower silhouette in Northern Wilds → Observatory expanded interior.
+TILE_DRAW[79] = function(px, py)
+  screen.level(6)
+  screen.rect(px+1, py+1, 6, 7); screen.fill()
+  screen.level(3)
+  screen.move(px+3, py+1); screen.line(px+3, py+7); screen.stroke()
+  screen.move(px+5, py+1); screen.line(px+5, py+7); screen.stroke()
 end
 
 local SPRITE_BY_CLASS
