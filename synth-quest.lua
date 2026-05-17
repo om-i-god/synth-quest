@@ -2795,7 +2795,141 @@ CONTENT = {
     -- row 14 (south wall)
     {4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4},
   },
-  academy_npcs = {},
+  academy_npcs = {
+    -- Iola — Velthe's last apprentice, senior scholar (visible at Academy until migration)
+    {
+      x = 20, y = 2, name = "Iola", kind = "npc",
+      visible = function() return not flag.velthes_entry_heard end,
+      dialogue = function()
+        local lead = party[active] and party[active].class
+        if lead == "mage" then
+          return {
+            "(she sets down her pen)",
+            "Diegues. Velthe always said you'd come back",
+            "when you were ready to ask the right question.",
+          }
+        else
+          return {
+            "I'm Iola. I was Velthe's last apprentice.",
+            "Diegues, if he's with you, knows my name.",
+          }
+        end
+      end,
+      scene = function()
+        local lead = party[active] and party[active].class
+        if lead == "mage" and count_shards and count_shards() >= 3 and not flag.iolas_letter_received then
+          if start_academy_iolas_letter_scene then  -- Task 3.7 will define this
+            return start_academy_iolas_letter_scene()
+          end
+        end
+      end,
+    },
+    -- Master Theron — Academy headmaster (new character)
+    {
+      x = 5, y = 2, name = "Theron", kind = "npc",
+      dialogue = function()
+        local lead = party[active] and party[active].class
+        if lead == "mage" then
+          return {
+            "(he peers at your notation)",
+            "That's a Velthe hand. I taught you to write",
+            "like that. I take it the cave was kind.",
+          }
+        elseif lead == "cleric" then
+          return {
+            "Princess. The Academy stands with Lirael.",
+            "What's left of it. (he bows formally)",
+          }
+        else
+          return {
+            "Welcome to the Sage Circle's Academy.",
+            "Quiet voices, slow questions.",
+          }
+        end
+      end,
+    },
+    -- Aurin — junior scholar (from bible stub)
+    {
+      x = 14, y = 7, name = "Aurin", kind = "npc",
+      dialogue = function()
+        local lead = party[active] and party[active].class
+        if lead == "bard" then
+          return {
+            "Are you a bard? A real one? I'm writing a",
+            "treatise on troupe music — would you sit",
+            "for two questions?",
+          }
+        elseif lead == "warrior" then
+          return {
+            "(he visibly steps back when Strom approaches)",
+            "I — I don't have anything to write about you.",
+          }
+        else
+          return {
+            "Junior scholar. I'm working on the question",
+            "of why folk songs survive when libraries burn.",
+          }
+        end
+      end,
+    },
+    -- Paj — librarian (from bible stub; shop)
+    {
+      x = 26, y = 10, name = "Paj", kind = "shop",
+      dialogue = function()
+        local lead = party[active] and party[active].class
+        if lead == "mage" then
+          return {
+            "Diegues. Velthe's late volumes are in the back.",
+            "I'll show you. Books that boost MAG, scrolls",
+            "for MP, the usual.",
+          }
+        else
+          return {
+            "Books, scrolls, the rare bound parchment.",
+            "Prices are firm. Sage Circle rules.",
+          }
+        end
+      end,
+    },
+    -- Wena — dorm philosopher (from bible stub)
+    {
+      x = 3, y = 10, name = "Wena", kind = "npc",
+      dialogue = function()
+        local lead = party[active] and party[active].class
+        if lead == "cleric" then
+          return {
+            "(midnight, she's awake)",
+            "Princess. The Aeolian thinkers say a held",
+            "note is grief made bearable. Is that true?",
+          }
+        else
+          return {
+            "Some nights I just can't sleep. Have you ever",
+            "thought about why minor sounds sad?",
+          }
+        end
+      end,
+    },
+    -- Echo — semi-transparent figure near astrolabe (from bible stub)
+    {
+      x = 13, y = 6, name = "Echo", kind = "npc",
+      dialogue = function()
+        local lead = party[active] and party[active].class
+        if lead == "mage" then
+          return {
+            "(the astrolabe ticks; Velthe's voice through it)",
+            "\"The third chord is not a chord. The third —\"",
+            "(a fragment, dropped)",
+          }
+        else
+          return {
+            "(the astrolabe ticks, slowly)",
+            "(a whisper, indistinct)",
+          }
+        end
+      end,
+    },
+  },
   -- Diegues arc story state. Untriggered → scene_done (entry cutscene
   -- played, Diegues joined, Strom battle launched) → complete (Strom
   -- defeated and joined). Persists in save data.
@@ -3470,6 +3604,60 @@ CONTENT = {
           "[Iola]   You can leave a shard here for an evening if you like. They sing back to each other.",
           "[Iola]   It is good company for them. They have been alone a long time.",
         }
+      end,
+    },
+    -- Iola — present at Observatory ONLY after flag.velthes_entry_heard
+    {
+      x = 12, y = 8, name = "Iola", kind = "npc",
+      visible = function() return flag.velthes_entry_heard end,
+      dialogue = function()
+        local lead = party[active] and party[active].class
+        if lead == "mage" then
+          return {
+            "(she's reading Velthe's marginalia)",
+            "Look — she annotated this passage four times.",
+            "She knew Locrius was the cost before she went.",
+          }
+        else
+          return {
+            "(reading by lamplight)",
+            "It's quieter here than the Academy. I think",
+            "she preferred it.",
+          }
+        end
+      end,
+    },
+    -- The Caretaker — kept the Observatory since Velthe vanished
+    {
+      x = 5, y = 7, name = "Caretaker", kind = "npc",
+      dialogue = function()
+        return {
+          "I've kept this place since Velthe walked out",
+          "and didn't come back. Her last words to me:",
+          "\"The third chord is not a chord.\"",
+          "Twelve years and I still don't know what she",
+          "meant.",
+        }
+      end,
+    },
+    -- A trapped Sage Circle scout (upper level side scene)
+    {
+      x = 14, y = 4, name = "scout_trapped", kind = "npc",
+      dialogue = function()
+        local lead = party[active] and party[active].class
+        if lead == "bard" then
+          return {
+            "(she's pinned under a fallen rafter)",
+            "Help me — sing the timber loose if you can.",
+            "(Alder hums; the rafter creaks; she's free)",
+          }
+        else
+          return {
+            "(she's pinned under a fallen rafter)",
+            "Please — fetch Iola's medicine from the Academy.",
+            "I can wait. I can't move.",
+          }
+        end
       end,
     },
   },
