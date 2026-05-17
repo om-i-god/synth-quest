@@ -5138,6 +5138,8 @@ local SHOP = {
     field_recorder = { name="Field Recorder", cost=120, desc="mage upgrade",    is_instrument=true },
     -- Quest reward: Aram's Token (Phrygian, Strom Confronted scene)
     arams_token    = { name="Aram's Token",   cost=0,   desc="iron disc; Strom's keep", is_instrument=true },
+    -- Quest reward: Velthe's Letter (Academy, Iola's Letter scene)
+    velthes_letter = { name="Velthe's Letter", cost=0,  desc="sealed letter, opened; Velthe's hand", is_instrument=true },
   },
   order = {"salve", "vial", "ether", "star", "tonic", "key",
            "field_lute", "bowed_psaltery", "tinker_fork", "field_recorder"},
@@ -7411,6 +7413,46 @@ function start_academy_diegues_returns_scene()
     {despawn = "iola_descending"},
     {letterbox_out = true},
     {set = function() flag.diegues_returned = true end},
+  }
+  return script
+end
+
+-- start_academy_iolas_letter_scene() — Mage-lead, 3+ shards. Iola hands
+-- over a letter Velthe left for whoever finds the Locrian shard. Typewriter
+-- delivery with cleric SFX layered over the final lines. Fires once per save
+-- (flag.iolas_letter_received). Grants Velthe's Letter (instruments_owned).
+function start_academy_iolas_letter_scene()
+  local script = {
+    {letterbox_in = true},
+    {focus = {x = 23, y = 10}, ticks = 24},   -- library tile
+    {dialogue = {"Iola:", "I have something for you. It was meant for",
+                 "whoever finds the Locrian shard."}, npc = {name = "Iola"}},
+    {wait = 6},
+    {dialogue = {"(she hands you a sealed letter)"}, npc = nil},
+    {wait = 8},
+    -- typewriter letter; Velthe's voice fades in over final lines
+    {dialogue = {"\"To my successor:"}, npc = nil},
+    {dialogue = {"If you are reading this, the Locrian shard is",
+                 "near and the world has not yet ended."}, npc = nil},
+    {dialogue = {"I went down. I expected to come back.",
+                 "Locrius is the cost of that lesson."}, npc = nil},
+    {sfx = {class = "cleric", note = 55, vel = 0.4, attack = 0.8, release = 2.5, wet = 0.8}},
+    {dialogue = {"The third chord is not a chord.",
+                 "Find what is wrong with the lock."}, npc = nil},
+    {sfx = {class = "cleric", note = 52, vel = 0.5, attack = 1.0, release = 3.0, wet = 0.85}},
+    {dialogue = {"— Velthe.\""}, npc = nil},
+    {wait = 12},
+    {dialogue = {"Iola:", "Go when you're ready. She left the stair",
+                 "in the Observatory unlocked for you."}, npc = {name = "Iola"}},
+    {letterbox_out = true},
+    {set = function()
+      flag.iolas_letter_received = true
+      -- Velthe's Letter stored alongside instruments/quest items.
+      if instruments_owned then
+        instruments_owned.velthes_letter = true
+      end
+    end},
+    {dialogue = {"(Velthe's Letter added to your keep.)"}, npc = nil},
   }
   return script
 end
