@@ -4797,6 +4797,8 @@ local SHOP = {
     bowed_psaltery = { name="Bowed Psaltery", cost=120, desc="cleric upgrade",  is_instrument=true },
     tinker_fork    = { name="Tinker Fork",    cost=120, desc="warrior upgrade", is_instrument=true },
     field_recorder = { name="Field Recorder", cost=120, desc="mage upgrade",    is_instrument=true },
+    -- Quest reward: Aram's Token (Phrygian, Strom Confronted scene)
+    arams_token    = { name="Aram's Token",   cost=0,   desc="iron disc; Strom's keep", is_instrument=true },
   },
   order = {"salve", "vial", "ether", "star", "tonic", "key",
            "field_lute", "bowed_psaltery", "tinker_fork", "field_recorder"},
@@ -7031,6 +7033,68 @@ function start_sunward_bandstand_scene()
     {dialogue = {
       "(You feel a small lift in your chest.)",
       "Alder's MAG +1.",
+    }, npc = nil},
+  }
+  return script
+end
+
+-- start_phrygian_strom_confronted_scene() — Warrior-lead + Aram NPC in
+-- Phrygian City. Strom's former second-in-command faces him across the
+-- bazaar stall. One-way absolution: Aram lowers his hand, gives his
+-- father's token. Fires once per save (flag.strom_confronted).
+-- Rewards: Strom MaxHP +5, Aram's Token added to instruments_owned.
+function start_phrygian_strom_confronted_scene()
+  local script = {
+    {hide_player = true},
+    {letterbox_in = true},
+    {focus = {x = 22, y = 5}, ticks = 18},
+    {wait = 8},
+    {dialogue = {
+      "[Aram]   You were my second.",
+      "[Aram]   (his hand goes to where his blade used to be)",
+      "[Aram]   You ran.",
+    }, npc = {name = "Aram"}},
+    {wait = 12},
+    {dialogue = {
+      "[Strom]  I saw what we were ordered to do.",
+      "[Strom]  I did not run.",
+      "[Strom]  I stopped.",
+    }, npc = {name = "Strom"}},
+    {wait = 12},
+    {sfx = {class = "warrior", note = 44, vel = 0.9, attack = 0.01, release = 0.3, wet = 0.1}},
+    {wait = 16},
+    {dialogue = {
+      "[Aram]   (he lowers his hand from his hip)",
+      "[Aram]   Then I have nothing left to say to you.",
+    }, npc = {name = "Aram"}},
+    {wait = 12},
+    {dialogue = {
+      "[Aram]   ...Take this.",
+      "[Aram]   It was my father's before mine.",
+    }, npc = {name = "Aram"}},
+    {flash = "* Aram's Token obtained *", ticks = 60},
+    {sfx = {class = "warrior", note = 52, vel = 0.6, attack = 0.02, release = 1.5, wet = 0.4}},
+    {letterbox_out = true},
+    {show_player = true},
+    {set = function()
+      flag.strom_confronted = true
+      -- Permanent +5 MaxHP to Strom (warrior class member).
+      if party then
+        for _, p in ipairs(party) do
+          if p.class == "warrior" then
+            p.max_hp = (p.max_hp or 200) + 5
+            p.hp = math.min((p.hp or p.max_hp) + 5, p.max_hp)
+          end
+        end
+      end
+      -- Aram's Token stored alongside instruments/quest items.
+      if instruments_owned then
+        instruments_owned.arams_token = true
+      end
+    end},
+    {dialogue = {
+      "Strom's MaxHP +5.",
+      "(Aram's Token added to your keep.)",
     }, npc = nil},
   }
   return script
@@ -11546,7 +11610,12 @@ CONTENT.phrygian_city_npcs = {
         }
       end
     end,
-    -- scene = function() ... end  -- Phase 2.6 will add the Strom Confronted scene trigger here
+    scene = function()
+      local lead = party[active] and party[active].class
+      if lead == "warrior" and not flag.strom_confronted then
+        return start_phrygian_strom_confronted_scene()
+      end
+    end,
   },
   -- Sergei — glass-cavern guide
   {
@@ -21581,16 +21650,16 @@ local function draw_overworld()
      and (current_map_id == 1 or current_map_id == 2 or current_map_id == 3
           or current_map_id == 22 or current_map_id == 26)
      and not (SCENE and SCENE.active) then
-    -- per-pixel scattered dim pattern (every 3rd pixel along a hashed grid)
-    for y = 0, 47, 2 do
-      for x = (y % 4), 127, 4 do
-        screen.level(2); screen.pixel(x, y); screen.fill()
-      end
-    end
-    -- subtle vignette: dim the corners with a thicker edge
+    -- Soft "it is night" cue, no screen-wide stipple — the dense
+    -- pattern was reading as visual noise and made sprites hard to
+    -- track. Now: thin dim line at the top + bottom of the playfield,
+    -- a handful of fixed-position stars, and the moon glyph.
     screen.level(3)
     screen.rect(0, 0, 128, 1); screen.fill()
     screen.rect(0, 47, 128, 1); screen.fill()
+    screen.level(7)
+    screen.pixel(14, 3); screen.pixel(38, 5); screen.pixel(62, 2)
+    screen.pixel(86, 6); screen.pixel(102, 4); screen.fill()
     -- moon glyph top-right
     screen.level(11); screen.pixel(120, 4); screen.pixel(121, 3)
     screen.pixel(122, 3); screen.pixel(122, 4); screen.pixel(122, 5); screen.fill()
