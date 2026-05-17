@@ -4969,6 +4969,7 @@ local cutscene_idx = 1
 -- 68 = prayer_alcove    (walkable; archway interior)
 -- 69 = desert_sand_path (walkable; lighter than mainland sand)
 -- 70 = lantern_post     (impassable; flickers)
+-- 71 = phrygian_city_entry (walkable; caravan road waypost in EASTERN_REACHES → Phrygian Night City)
 -- Map data is per-continent; active map swaps via travel_to().
 -- MAINLAND (64x16): cols 1-32 = Village; 33-48 = Hollow Woods; 49-64 = Sunward Coast.
 -- Mountain pass (id 15) at row 1 col 13 → Northern Wilds (current_map_id 3).
@@ -4998,7 +4999,7 @@ local EASTERN_REACHES = {
   {1,0,0,0,8,8,8,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,8,8,8,0,0,0,0,0,0,1},
   {1,0,0,0,0,8,8,8,8,0,0,1,0,0,0,0,0,0,0,0,8,8,8,0,0,0,0,0,1,0,0,1},
   {1,0,0,0,0,0,0,8,8,8,0,0,0,0,0,0,0,0,0,8,8,0,0,0,0,1,0,0,0,0,0,1},
-  {1,0,0,0,0,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,0,0,0,0,0,0,0,0,0,0,1},
+  {1,0,0,0,0,2,2,2,2,2,2,2,2,71,2,2,2,2,2,2,2,0,0,0,0,0,0,0,0,0,0,1},  -- col 14: Phrygian City entry waypost
   {1,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,1},
   {1,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,0,0,0,11,0,0,0,0,0,0,1},
   {10,2,2,2,2,2,0,0,0,0,0,0,0,0,0,0,0,0,0,2,2,2,2,2,2,2,0,0,0,0,0,1},
@@ -11539,6 +11540,7 @@ local function is_walkable(tx, ty)
       or t == 65   -- Sunward Coast signpost (MAINLAND east coast ↔ Sunward Coast Town)
       or t == 68   -- Phrygian Night City prayer alcove (walkable; archway interior)
       or t == 69   -- Phrygian Night City desert sand path (walkable; lighter sand)
+      or t == 71   -- Phrygian City entry waypost (EASTERN_REACHES → Phrygian Night City)
 end
 
 -- True when an NPC is currently rendered + interactable. NPCs may have
@@ -12851,8 +12853,33 @@ local function try_move(dx, dy)
     redraw()
     return
   end
+  if t == 71 then
+    -- Phrygian city entry waypost (EASTERN_REACHES caravan road → Phrygian Night City south gate).
+    -- Only triggered from Eastern Reaches (map 2); save return position for the south-gate exit.
+    if current_map_id == 2 then
+      CONTENT.return_map = current_map_id
+      CONTENT.return_x = nx; CONTENT.return_y = ny
+      travel_to(36, 17, 12)   -- arrive one tile north of the south gate (row 12, col 17)
+    end
+    redraw()
+    return
+  end
+  if t == 69 and current_map_id == 36 and ny >= 13 then
+    -- Phrygian Night City south gate exit → return to EASTERN_REACHES.
+    -- Tile 69 (desert_sand_path) at row 13, col 17 is the only walkable exit on that row.
+    if CONTENT.return_map == 2 and CONTENT.return_x and CONTENT.return_y then
+      travel_to(2, CONTENT.return_x, CONTENT.return_y)
+    else
+      travel_to(2, 14, 4)   -- fallback: caravan road waypost position in EASTERN_REACHES
+    end
+    redraw()
+    return
+  end
   if t == 11 then
     -- Cave 4 entry: enter the explorable interior.
+    -- This handles both EASTERN_REACHES (map 2) direct entry and
+    -- Phrygian Night City (map 36) north gate; return_map is set to
+    -- current_map_id so the Cave 4 exit restores the correct overworld.
     CONTENT.return_map = current_map_id
     CONTENT.return_x = nx; CONTENT.return_y = ny + 1
     travel_to(10, 7, 12)
@@ -14834,6 +14861,8 @@ travel_to = function(map_id, x, y)
     map = CONTENT.cave7_map; npcs = CONTENT.cave7_npcs
   elseif map_id == 35 then
     map = SUNWARD_COAST_MAP; npcs = CONTENT.sunward_coast_npcs or {}
+  elseif map_id == 36 then
+    map = PHRYGIAN_CITY_MAP; npcs = CONTENT.phrygian_city_npcs or {}
   else
     map = SUNOS_DOMAIN; npcs = SUNOS_NPCS
   end
@@ -18047,6 +18076,15 @@ TILE_DRAW[70] = function(px, py, t)
   local flicker = (t % 24 < 4) and 15 or 13
   screen.level(flicker)
   screen.rect(px+2, py, 4, 3); screen.fill()
+end
+
+-- Tile 71 — Phrygian city entry (weathered desert waypost; triggers transition to Phrygian Night City).
+TILE_DRAW[71] = function(px, py)
+  -- weathered desert waypost: tall stone with sand-colored top
+  screen.level(9)
+  screen.rect(px+3, py, 2, 8); screen.fill()
+  screen.level(5)
+  screen.rect(px+1, py+1, 6, 2); screen.fill()
 end
 
 local SPRITE_BY_CLASS
