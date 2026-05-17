@@ -472,11 +472,50 @@ that grant lore beats to the player.
 
 IOLA is Velthe's last apprentice. She appears in the code as an
 NPC; in canon she is the living connection back to the Sage
-Circle's deepest lore. Diegues respects her.
+Circle's deepest lore. Diegues respects her. See IOLA entry in
+NAMED CAST for her full role and migration note.
 
 LOCRIUS (Cave 6 boss) was Velthe's contemporary. The Sage Circle
 lost him to the shard he tried to stabilize. This is part of why
 they stopped sending scholars to Locrian country.
+
+   ── ACADEMY (in code: map_id 19) ──
+
+   Expanded to a four-zone institution: north lecture hall
+   (with lecterns), central stone courtyard (the astrolabe at
+   its heart), east library wing (Paj keeps the late volumes),
+   west dormitory wing (Wena lives here). Iola's office sits
+   north-east of the lecture hall. Reached via the Western
+   Region road.
+
+   The Academy is the home from which Diegues left and the place
+   he must return to before the Locrian shard can be approached.
+   Echo, the astrolabe-bound figure, drops Velthe-fragments to
+   anyone who lingers near the device — clearer fragments to
+   Diegues himself.
+
+   ── VELTHE'S OBSERVATORY (in code: map_id 24) ──
+
+   A two-level structure: the upper telescope chamber (broken
+   roof open to the sky) and the lower study (Velthe's desk
+   still keeps her papers, drying as if she only just stood up).
+   A LOCKED CRYPT STAIR in the lower study descends to the
+   Locrian Crypt (Cave 6) — sealed until Velthe's Final Entry
+   scene fires at the desk.
+
+   The CARETAKER has kept the Observatory since Velthe vanished.
+   He remembers her last spoken words: "The third chord is not
+   a chord." Twelve years on, he still doesn't know what she
+   meant.
+
+   GATE-CHAIN for Cave 6 access:
+     1. Diegues (Mage lead) returns to Academy first time →
+        Diegues Returns scene.
+     2. Mage lead + 3+ shards + visit Iola → Iola's Letter
+        scene; Velthe's Letter added to inventory.
+     3. Step on Velthe's desk at the Observatory → Velthe's
+        Final Entry scene; Iola migrates here; crypt_stair
+        tile unlocks.
 
 
 -------- REGIONS OF MODALIA — THE LARGER MAP --------
@@ -1246,23 +1285,38 @@ present in the code.
       singer's name. Knows Iola; seeds the Sage Hub path.
       STATUS: IN CODE.
 
+   IOLA (Academy → Observatory, migrates)
+      Role: Velthe's last apprentice. Senior Sage Circle scholar
+      and the living connection to the deepest pre-Shattering
+      lore. Holds Velthe's sealed letter for whoever finds the
+      Locrian shard.
+      MIGRATION: Present at the Academy until Velthe's Final
+      Entry scene fires at the Observatory. After that, she's
+      found at the Observatory's lower study.
+      STATUS: IN CODE.
+
    ISKA (location TBD)
       Role: STUB.
 
-   AURIN (location TBD)
-      Role: STUB. Name suggests Aeolian / Aurelian — possible
-      Lirael diaspora figure.
+   AURIN (Academy)
+      Role: Junior Sage Circle scholar. Eager but green. Writing
+      a treatise on troupe music; visibly afraid of Strom.
+      STATUS: IN CODE.
 
-   WENA (location TBD)
-      Role: STUB.
+   WENA (Academy dormitories)
+      Role: Dormitory student, midnight philosopher. Asks Miel
+      about Aeolian theology.
+      STATUS: IN CODE.
 
    SERGEI (Phrygian Night City)
       Role: Glass-cavern guide. Offers three-silver escort to the
       dune-line approach to Cave 4. Trustworthy; knows the route.
       STATUS: IN CODE.
 
-   PAJ (location TBD)
-      Role: STUB.
+   PAJ (Academy library)
+      Role: Academy librarian. Shop NPC selling MP/MAG-boost
+      scrolls and bound parchments. Friendly to Diegues.
+      STATUS: IN CODE.
 
    NIKO (location TBD)
       Role: STUB.
@@ -1310,10 +1364,24 @@ present in the code.
       Role: a lutist NPC, possibly a tutor or rival to Alder.
       STATUS: STUB. Likely a Lydian-country troupe member.
 
-   ECHO (location TBD)
-      Role: STUB. The name suggests a Resonance-adjacent figure
-      — possibly a spirit, possibly an NPC who has lived too
-      close to a Resonance.
+   ECHO (Academy courtyard, astrolabe-bound)
+      Role: Semi-transparent figure manifest near the astrolabe.
+      Speaks only in fragments of Velthe's voice. Reveals a
+      clearer line to Diegues.
+      STATUS: IN CODE.
+
+   MASTER THERON (Academy)
+      Role: Academy headmaster. Recognizes Diegues' notation as
+      Velthe-school. Bows formally to Miel; pledges Academy's
+      standing with Lirael.
+      STATUS: IN CODE.
+
+   THE CARETAKER (Velthe's Observatory)
+      Role: Keeper of the Observatory since Velthe walked down
+      the stair and didn't come back. Remembers her last spoken
+      words: "The third chord is not a chord." Twelve years on,
+      still doesn't know what she meant.
+      STATUS: IN CODE.
 
    REYA (Reya's Cairn)
       Role: a remembered figure; the cairn is named for her. She
