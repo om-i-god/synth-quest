@@ -13154,6 +13154,15 @@ local function try_random_encounter()
     enter_battle(3, true)   -- cave 3 = Sunward Coast pool (Crab, Manta, Tide Sprite, Sea Wisp)
     return true
   end
+  -- Phrygian Night City (map 36): interior is safe; light desert encounters
+  -- only at the gate perimeter (north gate y <= 2, south gate y >= 12).
+  if current_map_id == 36 then
+    local at_gate = (player.y <= 2) or (player.y >= 12)
+    if not at_gate then return false end
+    if math.random() >= 0.04 then return false end
+    enter_battle(4, true)   -- cave 4 = Glass Cavern pool (Scorpion, Sand Manta, Dune Wolf)
+    return true
+  end
   if math.random() >= ENCOUNTER_CHANCE then return false end
   local cave_id
   if current_map_id == 1 then
