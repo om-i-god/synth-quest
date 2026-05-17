@@ -3333,16 +3333,35 @@ CONTENT = {
   -- as decorative columns; tile 30 (hearth) for the small reading-fire;
   -- tile 31 for chart-shelves. Tile 47 = south exit.
   observatory_map = {
-    {4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4},
-    {4, 0, 0, 0, 0, 0, 0,32,32, 0, 0, 0, 0, 0, 0, 4},
-    {4, 0,31, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,31, 0, 4},
-    {4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4},
-    {4, 0, 0, 0, 0, 0, 0,30, 0, 0, 0, 0, 0, 0, 0, 4},  -- reading-fire (col 7 row 5)
-    {4, 0,31, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,31, 0, 4},
-    {4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4},
-    {4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4},
-    {4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4},
-    {4, 4, 4, 4, 4, 4, 4, 4,47, 4, 4, 4, 4, 4, 4, 4},  -- south exit
+    -- 24w x 14h
+    -- row 1 (upper level: telescope chamber, broken roof open to sky via tile 76)
+    {4,4,4,4,4,4,76,76,76,76,76,76,76,76,76,76,76,4,4,4,4,4,4,4},
+    -- row 2 (upper interior open space)
+    {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4,4,4,4,4,4,4},
+    -- row 3 (broken telescope footprint - inner alcove walls)
+    {4,0,0,0,0,0,0,4,4,4,4,4,4,0,0,0,0,4,0,0,0,0,0,4},
+    -- row 4
+    {4,0,0,0,0,0,0,4,0,0,0,0,4,0,0,0,0,4,0,0,0,0,0,4},
+    -- row 5
+    {4,0,0,0,0,0,0,4,0,0,0,0,4,0,0,0,0,4,0,0,0,0,0,4},
+    -- row 6 (internal stair between levels at col 10)
+    {4,4,4,4,4,4,4,4,4,5,4,4,4,4,4,4,4,4,0,0,0,0,0,4},
+    -- row 7 (lower level: entry / study)
+    {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4,0,0,0,0,0,4},
+    -- row 8 (Velthe's desk + chair area; desk at col 12)
+    {4,0,0,0,0,0,0,0,0,0,0,74,0,0,0,0,0,4,0,0,0,0,0,4},
+    -- row 9
+    {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4,0,0,0,0,0,4},
+    -- row 10 (library shelves west wall)
+    {4,72,72,72,72,0,0,0,0,0,0,0,0,0,0,0,0,4,0,0,0,0,0,4},
+    -- row 11 (crypt_stair tile at col 16; locked until flag.iolas_letter_received)
+    {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,77,0,4,0,0,0,0,0,4},
+    -- row 12
+    {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4,0,0,0,0,0,4},
+    -- row 13 (entry hall + exit tile to Northern Wilds at col 11)
+    {4,2,2,2,2,2,2,2,2,2,17,2,2,2,2,2,2,4,4,4,4,4,4,4},
+    -- row 14 (south wall)
+    {4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4},
   },
   observatory_npcs = {
     -- Orrery — interactable centerpiece. Each visit cycles through a
