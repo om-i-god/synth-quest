@@ -1704,31 +1704,41 @@ do
     },
   }
 
-  -- VELTHE'S OBSERVATORY (map 24): mathematical Lydian sequence. The
-  -- mage runs a 5-note climbing figure that resets on the 4 (a #11
-  -- coloration); the cleric holds a brilliant high pad; the warrior
-  -- pulses a clean major triad on every bar one; the bard accents
-  -- the offbeats. Bright and curious — the sound of someone doing
-  -- the math while the stars hold still.
+  -- VELTHE'S OBSERVATORY (map 24): cold, wide, expectant. Locrian-ish
+  -- drift with sustained drones and occasional bell tolls. ~56 BPM.
+  -- The cleric holds a single cavernous low pitch for the entire 128-step
+  -- loop, re-attacked once at bar 5 so it doesn't die. The bard is a
+  -- secondary drone a third above, wandering to a neighbour pitch at bar
+  -- 4 and back at bar 7 — barely perceptible motion. The mage rings a
+  -- single bell every other bar (8 strikes total). The warrior is near-
+  -- silent: two ghost taps, one near the midpoint and one near the end,
+  -- far from any beat-1 to avoid rhythmic anchoring.
+  -- Scale indices (Aeolian default): 1=A1, 6=A2, 8=D3, 9=E3, 11=A3,
+  --   12=B3, 13=C4, 14=D4, 15=E4, 16=F4, 22=A5.
   OW_THEMES.observatory = {
     pattern = {
-      mage    = mk{ {1, 11}, {5, 13}, {9, 15}, {13, 18}, {17, 19},
-                    {33, 11}, {37, 13}, {41, 15}, {45, 18}, {49, 19},
-                    {65, 11}, {69, 13}, {73, 15}, {77, 18}, {81, 19},
-                    {97, 11}, {101, 13}, {105, 15}, {109, 18}, {113, 19} },
-      cleric  = mk{ {1, 15}, {65, 15} },
-      warrior = mk{ {1, 1}, {33, 1}, {65, 1}, {97, 1} },
-      bard    = mk{ {7, 21}, {15, 22}, {23, 21},
-                    {39, 21}, {47, 22}, {55, 21},
-                    {71, 21}, {79, 22}, {87, 21},
-                    {103, 21}, {111, 22}, {119, 21} },
+      -- CLERIC (bass drone): A1 holds the room. Re-attack at bar 5
+      -- keeps the voice alive through the long loop.
+      cleric  = mk{ {1, 1}, {65, 1} },
+      -- BARD (secondary drone): E3 as a quiet fifth above cleric root.
+      -- Shifts to D3 (flattened third) at bar 4 for Locrian colour,
+      -- returns to E3 at bar 7 to close.
+      bard    = mk{ {1, 9}, {49, 8}, {97, 9} },
+      -- MAGE (bell toll): single strike every 2 bars (steps 1, 33, 65,
+      -- 97 span each half; additional strikes at the odd bars: 17, 49,
+      -- 81, 113). Low register (A3) to stay austere, not shimmery.
+      mage    = mk{ {1, 11}, {17, 11}, {33, 11}, {49, 11},
+                    {65, 11}, {81, 11}, {97, 11}, {113, 11} },
+      -- WARRIOR (near-silent): two ghost taps offset from all downbeats.
+      warrior = mk{ {44, 1}, {100, 1} },
     },
     artic = {
-      mage    = {vel=0.55, attack=0.005, release=0.40, wet=0.50},
-      cleric  = {vel=0.45, attack=0.40, release=8.00, wet=0.95},
-      warrior = {vel=0.55, attack=0.005, release=1.20, wet=0.45},
-      bard    = {vel=0.50, attack=0.002, release=0.30, wet=0.65},
+      cleric  = {vel=0.60, attack=0.80,  release=14.0, wet=0.98},  -- cavernous slow swell
+      bard    = {vel=0.35, attack=1.20,  release=16.0, wet=0.95},  -- distant secondary wash
+      mage    = {vel=0.50, attack=0.008, release=3.50, wet=0.90},  -- cold bell decay
+      warrior = {vel=0.20, attack=0.005, release=0.40, wet=0.30},  -- near-inaudible ghost
     },
+    bpm = 56,
   }
 
   -- REYA'S CAIRN (map 25): a single bell tone with a long reverb tail.
@@ -1750,30 +1760,61 @@ do
     },
   }
 
-  -- ACADEMY (map 19): scholarly contemplation. Students-at-work feel.
-  -- Mage: 4-note recurring study figure (D-F-A-G, climb-and-fall) — the
-  -- math being worked on the slate. Cleric: held high pedal — the
-  -- afternoon light through the high window. Warrior: deep bell on bar
-  -- 1 of every 4 — the chime that marks lecture rotation. Bard: soft
-  -- pizzicato dot on weak beats — the quill's tap. Dorian-leaning so it
-  -- sounds thoughtful rather than melancholy or triumphal.
+  -- ACADEMY (map 19): institutional daylight; busy, lightly polyphonic.
+  -- ~110 BPM. Bard = clave/wood-block: a repeating 8th-note cell on
+  -- beats 1-and and 3-and, with the "e" subdivisions accented for a
+  -- clave-like off-beat lean. Warrior = hand-drum bass: quarter-note
+  -- hit on step 1 of every bar plus a ghost tap on the following even
+  -- step — the library shuffle. Cleric = bowed bass: one sustained low
+  -- note per bar (re-attacks every 16 steps), very slow swell so the
+  -- tone blooms after the attack, anchoring the room. Mage = chime
+  -- sparkle: occasional high bell shimmer, roughly once every 2 bars,
+  -- avoiding the exact beat-1 positions for a floating quality.
+  -- Scale indices (Aeolian default): 1=A1, 6=A2, 8=D3, 9=E3, 11=A3,
+  --   13=C4, 14=D4, 15=E4, 16=F4, 21=A5, 22=C6, 23=D6.
   OW_THEMES.academy = {
     pattern = {
-      mage    = mk{ { 1, 11}, { 9, 13}, {17, 16}, {25, 14},
-                    {33, 11}, {41, 13}, {49, 16}, {57, 14},
-                    {65, 11}, {73, 13}, {81, 16}, {89, 14},
-                    {97, 11}, {105,13}, {113,16}, {121,14} },
-      cleric  = mk{ {1, 15}, {65, 15} },                     -- held high pad
-      warrior = mk{ {1, 1}, {65, 1} },                       -- deep bell every 4 bars
-      bard    = mk{ {7, 21}, {23, 21}, {39, 21}, {55, 21},   -- offbeat quill taps
-                    {71, 21}, {87, 21}, {103, 21}, {119, 21} },
+      -- BARD (clave cell): on-beat 8th (step 1) + off-beat 8th (step 3)
+      -- per quarter — the "3+3+2" clave feel across a 4/4 bar.
+      -- Steps 1,3,5,7,9,11,13,15 of each bar = every odd step (every
+      -- 8th), but accented at the off-beat pairs (3 and 7 per group).
+      -- Using high-register idx 21 (A5) for wood-block colour.
+      bard = {
+        -- bar 1: 1.3 | 5.7 | 9.11 | 13.15  (. = rest)
+        21, 0,21, 0, 21, 0,21, 0,  21, 0,21, 0, 21, 0,21, 0,
+        -- bar 2: same cell
+        21, 0,21, 0, 21, 0,21, 0,  21, 0,21, 0, 21, 0,21, 0,
+        -- bar 3
+        21, 0,21, 0, 21, 0,21, 0,  21, 0,21, 0, 21, 0,21, 0,
+        -- bar 4: rest bar — only step 1 and 9 (quarter accents)
+        21, 0, 0, 0,  0, 0, 0, 0,  21, 0, 0, 0,  0, 0, 0, 0,
+        -- bar 5-7: ostinato resumes
+        21, 0,21, 0, 21, 0,21, 0,  21, 0,21, 0, 21, 0,21, 0,
+        21, 0,21, 0, 21, 0,21, 0,  21, 0,21, 0, 21, 0,21, 0,
+        21, 0,21, 0, 21, 0,21, 0,  21, 0,21, 0, 21, 0,21, 0,
+        -- bar 8: rest bar again
+        21, 0, 0, 0,  0, 0, 0, 0,  21, 0, 0, 0,  0, 0, 0, 0,
+      },
+      -- WARRIOR (hand-drum bass): quarter hit on step 1 per bar + ghost
+      -- tap on step 2 (just after the downbeat). Low register (idx 1=A1).
+      warrior = mk{ { 1,1},{  2,1},{ 17,1},{ 18,1},{ 33,1},{ 34,1},
+                    {49,1},{ 50,1},{ 65,1},{ 66,1},{ 81,1},{ 82,1},
+                    {97,1},{ 98,1},{113,1},{114,1} },
+      -- CLERIC (bowed bass): one low note per bar, slow swell; idx 6=A2.
+      cleric  = mk{ { 1,6},{17,6},{33,6},{49,6},
+                    {65,6},{81,6},{97,6},{113,6} },
+      -- MAGE (chime sparkle): high bell shimmer roughly every 2 bars,
+      -- offset from beat 1. Indices 22=C6, 23=D6 for airy brightness.
+      mage    = mk{ {11,22},{27,23},{43,22},{59,23},
+                    {75,22},{91,23},{107,22},{123,23} },
     },
     artic = {
-      mage    = {vel=0.50, attack=0.05,  release=1.20, wet=0.55},
-      cleric  = {vel=0.40, attack=0.60,  release=8.00, wet=0.90},
-      warrior = {vel=0.55, attack=0.10,  release=4.00, wet=0.85},
-      bard    = {vel=0.40, attack=0.001, release=0.30, wet=0.40},
+      bard    = {vel=0.45, attack=0.001, release=0.12, wet=0.25},  -- dry clave tap
+      warrior = {vel=0.60, attack=0.002, release=0.20, wet=0.15},  -- punchy hand drum
+      cleric  = {vel=0.40, attack=0.50,  release=6.00, wet=0.80},  -- slow bowed swell
+      mage    = {vel=0.30, attack=0.010, release=2.00, wet=0.85},  -- airy bell shimmer
     },
+    bpm = 110,
   }
 end
 
