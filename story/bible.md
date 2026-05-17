@@ -215,6 +215,28 @@ proposals.
    FF reference: FF6 Figaro / FF7 Cosmo Canyon, with FF9 Cleyra's
    ritual edge.
 
+   ── PHRYGIAN NIGHT CITY (in code: map_id 36) ──
+
+   Walled high-desert city of sand-coloured towers and lantern-lit
+   night markets. Microtonal vocal music, drone-led. Lanterns are
+   the primary light source after dark. South gate opens onto the
+   Eastern Reaches caravan road; north gate gives onto the dunes
+   approach to the Glass Cavern (Cave 4).
+
+   Cultural anchors: the central bazaar (Mira sings drones there),
+   the temple quarter (prayer alcoves with microtonal vocal SFX),
+   the Sage Circle outpost (Tova keeps Velthe's last letters in
+   the Mainland, but a Phrygian outpost is referenced through
+   Dusk and the Veiled Mystic). Aram is the pivot point for
+   Strom's arc here.
+
+   The VEILED MYSTIC who walked east after Lirael fell speaks here.
+   Her dialogue with the party sets `flag.veiled_mystic_spoken`,
+   a precondition for Lirael's eventual unlock.
+
+   Status: established. Reachable via tile code 71 (the waypost
+   on the EASTERN_REACHES caravan road).
+
 
 -------- 5. AEOLIAN — LIRAEL & THE NORTHERN WILDS --------
 
@@ -1177,9 +1199,11 @@ present in the code.
       Role: a court page, given the name. STATUS: STUB. Possible
       thread: Lirael survivor, child who escaped the cathedral.
 
-   MIRA (location TBD)
-      Role: STUB. Possible thread: a Lydian-country wanderer or
-      a young singer auditioning for the Sage Circle.
+   MIRA (Phrygian Night City)
+      Role: Drone-singer in the central bazaar. Teaches Alder a
+      microtonal flat-2 motif that becomes a permanent addition
+      to his PLAY action.
+      STATUS: IN CODE.
 
    IOLEN (Sunward Coast)
       Role: Tide-watcher kid who idolizes Strom. Keeps a tide tally
@@ -1232,9 +1256,10 @@ present in the code.
    WENA (location TBD)
       Role: STUB.
 
-   SERGEI (location TBD)
-      Role: STUB. Name leans Eastern / Phrygian — possible glass-
-      cavern guide.
+   SERGEI (Phrygian Night City)
+      Role: Glass-cavern guide. Offers three-silver escort to the
+      dune-line approach to Cave 4. Trustworthy; knows the route.
+      STATUS: IN CODE.
 
    PAJ (location TBD)
       Role: STUB.
@@ -1245,8 +1270,41 @@ present in the code.
    WINNA (location TBD)
       Role: STUB.
 
-   BRANN (location TBD)
-      Role: STUB.
+   BRANN (Phrygian Night City)
+      Role: Caravan master; runs the Phrygian shop. Sells sand-
+      cured trinkets, water flasks, dried fig cake.
+      STATUS: IN CODE.
+
+   ARAM (Phrygian Night City)
+      Role: Phrygian war-veteran, formerly Strom's second-in-
+      command. Recognizes Strom on sight; forgives him after
+      a one-bar confrontation and gives him Aram's Token, a
+      passive accessory belonging to Aram's father.
+      STATUS: IN CODE.
+
+   VEILED MYSTIC (Phrygian Night City)
+      Role: Drone-speaker. Miel recognizes her as a former
+      Aeolian acolyte who walked east after Lirael fell. Her
+      dialogue with anyone in the party sets the flag that is
+      a precondition for Lirael's eventual unlock.
+      STATUS: IN CODE.
+
+   LAMPLIGHTER (Phrygian Night City)
+      Role: Small child who tends the night-market torches.
+      Hears about Sunward Coast from passing bards; idle and
+      curious.
+      STATUS: IN CODE.
+
+   SCOUT (Phrygian Night City)
+      Role: Young would-be follower; asks Strom about apprenticing
+      or asks Miel whether war ever stops.
+      STATUS: IN CODE.
+
+   DUSK (Phrygian Night City)
+      Role: Fortune-teller at the bazaar's edge. Substituted in
+      code for Tova (who lives in MAINLAND_NPCS with a sidequest);
+      both characters now coexist in canon.
+      STATUS: IN CODE.
 
    LUTIST (Village Clearing — likely)
       Role: a lutist NPC, possibly a tutor or rival to Alder.
