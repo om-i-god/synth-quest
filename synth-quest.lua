@@ -11469,6 +11469,166 @@ CONTENT.sunward_coast_npcs = {
   },
 }
 
+-- Phrygian City NPCs (map id 36). Loaded by travel_to() via
+-- CONTENT.phrygian_city_npcs. Eight characters: war-veterans, traders,
+-- mystics, and children of the desert bazaar.
+-- NOTE: Tova (the Sage Circle scribe) already exists as a full-quest NPC
+-- in MAINLAND_NPCS (line ~8135) with QUESTS.tova progression. A second
+-- Tova entry here would create a name collision, so she is intentionally
+-- omitted; her mage-branch dialogue pointing to Iola is already present in
+-- the main-world version. The 8th slot is filled by the scout NPC instead.
+CONTENT.phrygian_city_npcs = {
+  -- Aram — Phrygian war-veteran, Strom's former second-in-command
+  {
+    x = 22, y = 5, name = "Aram", kind = "npc",
+    dialogue = function()
+      local lead = party[active] and party[active].class
+      if lead == "warrior" then
+        return {
+          "(he steps out from behind the stall)",
+          "(his hand goes to where his blade used to be)",
+          "...You were my second. You ran.",
+        }
+      else
+        return {
+          "(an old soldier, marking something on a slate)",
+          "Phrygian doesn't forgive what it teaches.",
+          "I learned that twice.",
+        }
+      end
+    end,
+    -- scene = function() ... end  -- Phase 2.6 will add the Strom Confronted scene trigger here
+  },
+  -- Sergei — glass-cavern guide
+  {
+    x = 17, y = 4, name = "Sergei", kind = "npc",
+    dialogue = function()
+      return {
+        "Going to the Glass Cavern? Don't go alone.",
+        "Three silver and I'll walk you to the dune-line.",
+        "I lose people who go without me.",
+      }
+    end,
+  },
+  -- Mira — drone-singer
+  {
+    x = 23, y = 8, name = "Mira", kind = "npc",
+    dialogue = function()
+      local lead = party[active] and party[active].class
+      if lead == "bard" then
+        return {
+          "(she hears you and stops mid-note)",
+          "You shape your scale tempered. Try this.",
+          "(she sings a flat-second; you copy it)",
+          "Take it. Your PLAY can hold it now.",
+        }
+      else
+        return {
+          "(a drone-singer, holding one note for a long time)",
+          "(she nods when you pass)",
+        }
+      end
+    end,
+  },
+  -- Brann — caravan master / shop
+  {
+    x = 6, y = 5, name = "Brann", kind = "shop",
+    dialogue = function()
+      return {
+        "Phrygian goods, traveler. Sand-cured trinkets,",
+        "water flasks, dried fig cake. Take what you need.",
+      }
+    end,
+  },
+  -- The Veiled Mystic — sets flag.veiled_mystic_spoken (precondition for Lirael unlock Phase 4)
+  {
+    x = 12, y = 5, name = "Veiled Mystic", kind = "npc",
+    dialogue = function()
+      local lead = party[active] and party[active].class
+      flag.veiled_mystic_spoken = true   -- set on every talk
+      if lead == "cleric" then
+        return {
+          "(her veil shifts; Miel knows the eyes)",
+          "Princess. The cathedral fell while we walked east.",
+          "I did not turn back. You should not either.",
+        }
+      else
+        return {
+          "(she speaks in a sustained drone, words underneath)",
+          "The cathedral fell while we walked east.",
+          "What was held cannot be held twice.",
+        }
+      end
+    end,
+  },
+  -- Lantern-keeper child
+  {
+    x = 19, y = 5, name = "lamplighter", kind = "npc",
+    dialogue = function()
+      local lead = party[active] and party[active].class
+      if lead == "bard" then
+        return {
+          "(she lights a wick and smiles)",
+          "I heard there's a town by the sea where they",
+          "sing on a stage. Is it true?",
+        }
+      else
+        return {
+          "(a small child, tending a flame)",
+          "Night isn't dark when the lanterns are lit.",
+        }
+      end
+    end,
+  },
+  -- Young scout
+  {
+    x = 25, y = 9, name = "scout", kind = "npc",
+    dialogue = function()
+      local lead = party[active] and party[active].class
+      if lead == "warrior" then
+        return {
+          "Master. Are you taking apprentices?",
+          "I can hold a sword. I can hold a shield, too.",
+        }
+      elseif lead == "cleric" then
+        return {
+          "(young, asking carefully)",
+          "Princess. Does war ever stop? I want to know.",
+        }
+      else
+        return {
+          "(she watches the bazaar with hungry eyes)",
+        }
+      end
+    end,
+  },
+  -- Dusk — fortune-teller at the edge of the market
+  {
+    x = 9, y = 8, name = "Dusk", kind = "npc",
+    dialogue = function()
+      local lead = party[active] and party[active].class
+      if lead == "mage" then
+        return {
+          "(she reads the sand-patterns before you speak)",
+          "The academy taught you to ask. Good.",
+          "The desert teaches you to wait. Better.",
+        }
+      elseif lead == "warrior" then
+        return {
+          "A soldier's future is written in scars.",
+          "Yours has a chapter unfinished.",
+        }
+      else
+        return {
+          "(she turns a sand-card face-down)",
+          "Not yet. Come back when you've been to the cavern.",
+        }
+      end
+    end,
+    barks = {"(she watches the horizon)", "(turning sand-cards quietly)"},
+  },
+}
+
 local npcs = MAINLAND_NPCS  -- active NPC list (mutable; swaps on travel_to)
 
 -- ============================================================ HELPERS
