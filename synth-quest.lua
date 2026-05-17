@@ -8361,6 +8361,56 @@ function start_observatory_first_visit()
   SCENE.start(script)
 end
 
+-- start_observatory_caretaker_tour_scene() — first entry to the Observatory
+-- (map 24). The Caretaker greets any lead, speaks of Velthe's absence, then
+-- the camera pans to the broken roof aperture. Fires exactly once per save
+-- via CONTENT.scene_seen.observatory_tour.
+function start_observatory_caretaker_tour_scene()
+  local px, py = player.x, player.y
+  local script = {
+    {hide_player = true},
+    {set = function() SCENE.fade = 15 end},
+    {letterbox_in = true},
+    {focus = {x = px, y = py}, ticks = 1},
+    {fade_in = 36},
+    {wait = 6},
+    -- Low cleric tone: stone and cold starlight.
+    {sfx = {class = "cleric", note = 48, vel = 0.35, attack = 0.80, release = 3.00, wet = 0.80}},
+    -- Camera pans to the Caretaker at row 7, col 5.
+    {focus = {x = 5, y = 7}, ticks = 24},
+    {wait = 8},
+    {spawn = "caretaker_t", class = "cleric", name = "Caretaker", x = 5, y = 7, facing = "down"},
+    {wait = 4},
+    {dialogue = {
+      "[Caretaker]   Velthe kept this place herself. Twelve years.",
+      "[Caretaker]   Then she went down the stair and didn't come back.",
+    }, npc = {name = "Caretaker"}},
+    {wait = 8},
+    -- Camera pans up to the telescope roof aperture (row 1, cols 7-17 — pan to col 12).
+    {focus = {x = 12, y = 1}, ticks = 36},
+    {wait = 10},
+    {dialogue = {
+      "[Caretaker]   The roof's been open since the strut broke.",
+      "[Caretaker]   I never wanted to fix it.",
+      "[Caretaker]   She liked the stars.",
+    }, npc = {name = "Caretaker"}},
+    {wait = 8},
+    -- Return focus to player.
+    {focus = "player", ticks = 24},
+    {wait = 4},
+    {despawn = "caretaker_t"},
+    {teleport_player = {x = px, y = py, facing = "up"}},
+    {show_player = true},
+    {letterbox_out = true},
+    {set = function()
+      CONTENT.scene_seen = CONTENT.scene_seen or {}
+      CONTENT.scene_seen.observatory_tour = true
+      flag.observatory_tour_done = true
+    end},
+  }
+  SCENE.start(script)
+end
+
 -- start_lirael_first_visit() — Miel's first time inside her grandmother's
 -- ruined hall. Choreographed memory scene with optional party reactions
 -- if Strom / Diegues / Alder are present. Pure emotional beat — no
@@ -15822,6 +15872,11 @@ travel_to = function(map_id, x, y)
       CONTENT.scene_seen = CONTENT.scene_seen or {}
       CONTENT.scene_seen.observatory_first = true
       start_observatory_first_visit()
+    elseif not (CONTENT.scene_seen and CONTENT.scene_seen.observatory_tour)
+       and start_observatory_caretaker_tour_scene then
+      CONTENT.scene_seen = CONTENT.scene_seen or {}
+      CONTENT.scene_seen.observatory_tour = true
+      start_observatory_caretaker_tour_scene()
     end
   elseif not _scene_busy and map_id == 26 then
     -- First step into the Far Hills. A small text panel and a held
