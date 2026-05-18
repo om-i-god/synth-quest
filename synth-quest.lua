@@ -8072,6 +8072,51 @@ function ambient_observatory_desk_premature()
   }
 end
 
+-- =================================================================
+-- Lirael Ruins (map 23) ambient micro-scenes — 4 flavor moments.
+-- Throttled via CONTENT.last_lirael_ambient_t (600-tick cooldown).
+-- All globals to dodge the 200-main-chunk-locals cap.
+-- =================================================================
+
+-- Ash-covered child's toy on the ruins street. Tile (20, 12).
+function ambient_lirael_child_toy()
+  return {
+    {dialogue = {"(it still has Lirael blue paint on it)"}, npc = nil},
+  }
+end
+
+-- Broken window in the royal quarters, wind or cleric resonance. Tile (7, 3).
+function ambient_lirael_window()
+  local cleric_lead = party and party[active] and party[active].class == "cleric"
+  return {
+    {sfx = {class = "cleric", note = 57, vel = 0.3, attack = 1.0, release = 2.5, wet = 0.85}},
+    {dialogue = {
+      cleric_lead
+        and "(Miel hums along involuntarily)"
+        or "(wind through broken glass)"
+    }, npc = nil},
+  }
+end
+
+-- Cathedral nave pillar, ash falling, memory of the burning. Tile (13, 4).
+function ambient_lirael_pillar()
+  return {
+    {dialogue = {"(ash falls)", "(the cathedral was singing when it fell)"}, npc = nil},
+  }
+end
+
+-- Half-burned hymnal on a stand in the east chapel. Tile (33, 3).
+function ambient_lirael_hymnal()
+  local cleric_lead = party and party[active] and party[active].class == "cleric"
+  return {
+    {dialogue = {
+      cleric_lead
+        and "Miel: \"I taught my first verse from this page.\""
+        or "(a half-burned hymnal, open on a stand)"
+    }, npc = nil},
+  }
+end
+
 -- start_strom_dream_scene() — black-screen flashback, no actors
 -- visible. Pure SFX + dialogue. Reya's voice in Strom's memory of his
 -- last morning with her. Fires once on first inn-rest with Strom.
@@ -14841,6 +14886,27 @@ local function try_move(dx, dy)
         elseif nx == 12 and ny == 9 and not flag.velthes_entry_heard then
           SCENE.start(ambient_observatory_desk_premature())
           CONTENT.last_sage_hub_ambient_t = now
+        end
+      end
+    end
+    -- Lirael Ruins (map 23) tile micro-scenes.
+    -- Throttled to once per ~600 ticks via CONTENT.last_lirael_ambient_t.
+    if current_map_id == 23 then
+      local now = tick or 0
+      local last = CONTENT.last_lirael_ambient_t or 0
+      if not (SCENE and SCENE.active) and now - last > 600 then
+        if nx == 20 and ny == 12 then
+          SCENE.start(ambient_lirael_child_toy())
+          CONTENT.last_lirael_ambient_t = now
+        elseif nx == 7 and ny == 3 then
+          SCENE.start(ambient_lirael_window())
+          CONTENT.last_lirael_ambient_t = now
+        elseif nx == 13 and ny == 4 then
+          SCENE.start(ambient_lirael_pillar())
+          CONTENT.last_lirael_ambient_t = now
+        elseif nx == 33 and ny == 3 then
+          SCENE.start(ambient_lirael_hymnal())
+          CONTENT.last_lirael_ambient_t = now
         end
       end
     end
