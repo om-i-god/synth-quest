@@ -3527,6 +3527,146 @@ CONTENT = {
         }
       end,
     },
+    -- ── Cast NPCs (Task 4.4) ─────────────────────────────────────────────────
+    -- Bren — Lirael steward (renamed from bible stub "Brann" to avoid
+    -- collision with Brann the Phrygian caravan master placed in Phase 2.4).
+    {
+      x = 6, y = 11, name = "Bren", kind = "npc",
+      dialogue = function()
+        local lead = party[active] and party[active].class
+        if lead == "cleric" then
+          return {
+            "(he goes still when he sees Miel)",
+            "Princess. You have her face, exactly.",
+            "I served at her coronation. I never thought —",
+            "I never thought a Lirael would walk these",
+            "streets again.",
+          }
+        else
+          return {
+            "(an old steward, still in Lirael colors)",
+            "I stayed. Someone had to know where the",
+            "kitchen was, when whoever came back came back.",
+          }
+        end
+      end,
+    },
+    -- Page — surviving royal child, waiting in the royal quarters.
+    {
+      x = 4, y = 3, name = "Page", kind = "npc",
+      dialogue = function()
+        local lead = party[active] and party[active].class
+        if lead == "cleric" then
+          return {
+            "(a child, small in the royal quarters)",
+            "(she clings to Miel's sleeve)",
+            "Is the queen coming back? Are you the queen?",
+            "I waited where she told me to wait.",
+          }
+        else
+          return {
+            "(a child hiding in the corner)",
+            "(she will not look up)",
+          }
+        end
+      end,
+    },
+    -- Winna — court librarian, salvaging the cathedral library.
+    {
+      x = 35, y = 3, name = "Winna", kind = "npc",
+      dialogue = function()
+        return {
+          "(she's sorting half-burned papers)",
+          "I'm trying to recover the cathedral library.",
+          "Here — this was your mother's. Or grandmother's.",
+          "I can't tell anymore.",
+        }
+      end,
+    },
+    -- The broken chorister — sings one line, again and again.
+    -- Bard lead (Alder) can give her her colleagues' names back.
+    {
+      x = 18, y = 6, name = "chorister", kind = "npc",
+      dialogue = function()
+        local lead = party[active] and party[active].class
+        if lead == "bard" then
+          return {
+            "(she sings one line, again, again)",
+            "\"Hold the long note, hold the long note —\"",
+            "(Alder hums the second phrase; she stops)",
+            "(quietly) Lia. Velka. Mar.",
+            "They sang with me. I remember their names now.",
+          }
+        else
+          return {
+            "(she sings one line, again, again)",
+            "\"Hold the long note, hold the long note —\"",
+          }
+        end
+      end,
+    },
+    -- Lirael's Last Captain of the Guard — dying near the cathedral entrance.
+    -- Warrior lead (Strom) triggers a scene: receives the Lirael Captain's
+    -- Insignia (one-time, gated by flag.captain_insignia_given).
+    {
+      x = 25, y = 9, name = "captain", kind = "npc",
+      dialogue = function()
+        local lead = party[active] and party[active].class
+        if lead == "warrior" then
+          return {
+            "(wounded, dying)",
+            "Soldier. You wear no Lirael colors. I'm glad.",
+            "Take this insignia. It was my grandfather's.",
+            "It will not bring honor; only the weight of it.",
+          }
+        else
+          return {
+            "(a dying soldier in Lirael colors)",
+            "(he is past speaking)",
+          }
+        end
+      end,
+      scene = function()
+        local lead = party[active] and party[active].class
+        if lead == "warrior" and not flag.captain_insignia_given then
+          return {
+            {dialogue = {"(he presses an iron pin into Strom's hand)"}, npc = nil},
+            {sfx = {class = "warrior", note = 48, vel = 0.5, attack = 0.5, release = 1.2, wet = 0.3}},
+            {set = function()
+              flag.captain_insignia_given = true
+              if instruments_owned then
+                instruments_owned.lirael_captains_insignia = true
+              end
+            end},
+            {dialogue = {"Obtained Lirael Captain's Insignia."}, npc = nil},
+          }
+        end
+      end,
+    },
+    -- Sage Circle archivist — sent by Iola to salvage the cathedral library.
+    -- Mage lead (Diegues) gets a direct acknowledgement and a quest item hint.
+    {
+      x = 36, y = 3, name = "archivist", kind = "npc",
+      dialogue = function()
+        local lead = party[active] and party[active].class
+        if lead == "mage" then
+          return {
+            "(he looks up from a salvaged ledger)",
+            "Diegues. Iola sent me. We've recovered seven",
+            "books. We've lost three thousand.",
+            "Here — this was in Velthe's hand. Take it.",
+          }
+        else
+          return {
+            "Sage Circle. We're trying to salvage what we",
+            "can. The queen's correspondence, the cathedral",
+            "library, anything that survives.",
+          }
+        end
+      end,
+    },
+    -- Queen's Echo is NOT a standing NPC — she is spawned and despawned
+    -- during the Miel Walks Alone scene (Task 4.5).
   },
   -- Velthe's Observatory (map id 24) — a circular tower interior. The
   -- chronicler's apprentice (Iola) stands at a brass orrery in the
@@ -5207,6 +5347,19 @@ local SHOP = {
     arams_token    = { name="Aram's Token",   cost=0,   desc="iron disc; Strom's keep", is_instrument=true },
     -- Quest reward: Velthe's Letter (Academy, Iola's Letter scene)
     velthes_letter = { name="Velthe's Letter", cost=0,  desc="sealed letter, opened; Velthe's hand", is_instrument=true },
+    -- Lirael quest rewards (Task 4.4 / 4.6)
+    lirael_captains_insignia = {
+      name = "Lirael Captain's Insignia",
+      is_instrument = true,
+      cost = 0,
+      desc = "An iron pin in Lirael blue. Weight of a kingdom that no longer is.",
+    },
+    key_of_lirael = {
+      name = "Key of Lirael",
+      is_instrument = true,
+      cost = 0,
+      desc = "Unlocks the Ice Grotto in Northern Wilds. Cold to the touch.",
+    },
   },
   order = {"salve", "vial", "ether", "star", "tonic", "key",
            "field_lute", "bowed_psaltery", "tinker_fork", "field_recorder"},
@@ -12628,6 +12781,7 @@ flag.phrygian_arrival_done   = flag.phrygian_arrival_done   or false
 flag.observatory_tour_done   = flag.observatory_tour_done   or false
 flag.miel_walks_alone_done   = flag.miel_walks_alone_done   or false
 flag.lirael_theme_shifted    = flag.lirael_theme_shifted    or false
+flag.captain_insignia_given  = flag.captain_insignia_given  or false
 
 -- Unlock gate for Lirael Ruins (map_id 23).
 -- Requires 4+ shards AND the Veiled Mystic conversation, OR the debug
