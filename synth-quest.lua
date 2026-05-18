@@ -6713,6 +6713,53 @@ function finish_academy_arc()
   end)
 end
 
+-- start_broken_cadence_battle() / finish_broken_cadence() — Task 4.6.
+-- One-time scripted boss in Lirael's nave (map 23). Called directly by
+-- start_lirael_broken_cadence_scene(). On victory, sets flag +
+-- grants the Key of Lirael to instruments_owned.
+function start_broken_cadence_battle()
+  enemy = {
+    name    = "The Broken Cadence",
+    visual  = "broken_cadence",
+    hp      = 1300, hp_max = 1300,
+    atk     = 12,   def    = 4,
+    alive   = true,
+    last_attack  = -99,
+    pattern_idx  = 1,
+    attack_pattern = {20, 14, 10, 14, 18},  -- measured, one beat short each phrase
+    attack_sound   = {class="cleric", note=28, vel=0.65, attack=0.10, release=2.50, wet=0.85},
+    is_broken_cadence = true,
+  }
+  battle_outcome = nil
+  game_state = "BATTLE"
+  params:set("clock_tempo", BATTLE_BPM)
+  for _, p in ipairs(party) do
+    p.atb = 0; p.shield = false; p.buffed = false
+    p.blocking = false; p.reflect = false; p.reflect_ticks = 0
+  end
+  TITLE.battle_step = 0
+  redraw()
+end
+
+function finish_broken_cadence()
+  -- Set completion flag + grant the Key of Lirael.
+  flag.broken_cadence_done = true
+  flag.lirael_theme_shifted = true  -- Task 4.7: theme voice shift
+  if instruments_owned then
+    instruments_owned.key_of_lirael = true
+  end
+  -- Brief banner + award XP before dropping back to overworld.
+  if gain_xp then gain_xp(320) end
+  SHOP.gold = (SHOP.gold or 0) + 80
+  CONTENT.banner_text  = "* The Broken Cadence falls   +320 XP  +80g *"
+  CONTENT.banner_ticks = 48
+  enemy = nil
+  battle_outcome = nil
+  game_state = "OVERWORLD"
+  params:set("clock_tempo", OVERWORLD_BPM)
+  redraw()
+end
+
 -- start_academy_choir_scene() — Choir Hour. Diegues stands at the
 -- lectern conducting four young students arranged in a small semi-
 -- circle. They rise, sing a held four-part chord, sit. A whole-academy
@@ -7778,6 +7825,52 @@ function start_lirael_miel_walks_alone_scene()
     {fade_out = 30},
     {show_player = true},
     {letterbox_out = true},
+  }
+  return script
+end
+
+-- start_lirael_broken_cadence_scene() — Task 4.6. One-shot Act-3 boss
+-- fight in Lirael's nave (map 23). Fires when the player steps onto the
+-- broken_altar tile (84) at col 18 row 2 after flag.miel_walks_alone_done
+-- and before flag.broken_cadence_done. The Broken Cadence (a decaying
+-- chorister) rises, names Miel, then combat begins. On victory, sets
+-- flag.broken_cadence_done + grants the Key of Lirael.
+function start_lirael_broken_cadence_scene()
+  local script = {
+    {letterbox_in = true},
+    {hide_player = true},
+    -- Camera focuses on the broken altar
+    {focus = {x = 18, y = 2}, ticks = 24},
+    -- The Broken Cadence rises from the altar
+    {spawn = "broken_cadence_actor", class = "cleric", name = "The Broken Cadence",
+     x = 18, y = 2, facing = "down", bob = false},
+    {sfx = {class = "cleric", note = 28, vel = 0.65, attack = 1.0, release = 4.0, wet = 0.95}},
+    {wait = 20},
+    {dialogue = {
+      "The Broken Cadence:",
+      "\"...the queen's daughter.\"",
+      "\"You have her eyes.\"",
+    }, npc = {name = "The Broken Cadence"}},
+    {wait = 12},
+    {dialogue = {
+      "\"She would not let it end.\"",
+      "\"Sing with me. The last phrase.\"",
+    }, npc = {name = "The Broken Cadence"}},
+    {wait = 8},
+    {dialogue = {
+      "\"She would not let it end.\"",
+      "\"You must.\"",
+    }, npc = nil},
+    {wait = 10},
+    {despawn = "broken_cadence_actor"},
+    {letterbox_out = true},
+    {show_player = true},
+    -- Drop directly into the scripted boss battle.
+    {set = function()
+      if start_broken_cadence_battle then
+        start_broken_cadence_battle()
+      end
+    end},
   }
   return script
 end
@@ -14628,6 +14721,19 @@ local function try_move(dx, dy)
         return
       end
     end
+    -- Lirael: Broken Cadence boss — Task 4.6.
+    -- Fires when player steps onto the broken_altar tile (84) at col 18 row 2
+    -- in map 23, after Miel Walks Alone is done and before the boss is beaten.
+    if current_map_id == 23 and map[ny] and map[ny][nx] == 84
+       and nx == 18 and ny == 2
+       and flag.miel_walks_alone_done and not flag.broken_cadence_done
+       and not (SCENE and SCENE.active) then
+      if start_lirael_broken_cadence_scene then
+        SCENE.start(start_lirael_broken_cadence_scene())
+        redraw()
+        return
+      end
+    end
     -- Sunward Coast tile micro-scenes: fire on specific tiles in map 35.
     -- Throttled to once per ~600 ticks so re-stepping doesn't spam-fire.
     if current_map_id == 35 and not (SCENE and SCENE.active) then
@@ -15130,6 +15236,17 @@ local function damage_enemy(amount, is_crit)
       finish_prologue_cave_monster(enemy.cave_idx or 1)
       return
     end
+    -- Lirael Broken Cadence (Task 4.6): one-shot boss in the nave.
+    -- Bypass the standard victory/XP window; finish_broken_cadence
+    -- handles XP, flag, and Key of Lirael grant directly.
+    if enemy.is_broken_cadence then
+      enemy = nil
+      battle_outcome = nil
+      game_state = "OVERWORLD"
+      params:set("clock_tempo", OVERWORLD_BPM)
+      finish_broken_cadence()
+      return
+    end
     -- Snapshot per-class levels BEFORE awarding XP so the victory summary
     -- slide can display "Lv.3 → Lv.4" for any party member that levelled.
     local pre_levels = {}
@@ -15237,7 +15354,7 @@ local function damage_party(p, amount)
   -- apply a status effect to the hit character. Bosses use higher rates.
   if enemy and p.alive then
     local boss_visuals = {echo=true, sentinel=true, tide=true, dunerider=true,
-                          snowgaunt=true, locrius=true, suno=true}
+                          snowgaunt=true, locrius=true, suno=true, broken_cadence=true}
     local poison_chance = boss_visuals[enemy.visual] and 0.18 or 0.06
     local sleep_chance  = boss_visuals[enemy.visual] and 0.10 or 0.03
     if math.random() < poison_chance then
@@ -15770,7 +15887,7 @@ local function enemy_tick()
   -- Pass 51: boss phase 2. When a boss drops below 30% HP, it ENRAGES:
   -- attack gaps cut in half + atk +25%. One-shot banner on the trigger.
   local boss_visuals = {echo=true, sentinel=true, tide=true, dunerider=true,
-                        snowgaunt=true, locrius=true, suno=true}
+                        snowgaunt=true, locrius=true, suno=true, broken_cadence=true}
   if boss_visuals[enemy.visual] and not enemy.phase2
      and enemy.hp_max > 0 and enemy.hp <= enemy.hp_max * 0.30 then
     enemy.phase2 = true
@@ -16004,6 +16121,10 @@ local function check_battle_end()
       -- Nothing to roll back.
     elseif enemy and enemy.is_prologue_cave then
       -- Same idea — wisp stays alive on the map, retry by walking up.
+    elseif enemy and enemy.is_broken_cadence then
+      -- Broken Cadence defeat: roll back so stepping onto the altar
+      -- re-triggers the scene on next visit (flag stays false).
+      flag.broken_cadence_done = false
     end
   end
 end
@@ -16024,7 +16145,7 @@ function tick_battle_music()
   --   in enter_battle separates them sonically from real bosses.
   -- - everything else → BATTLE_THEMES.encounter (the standard random fight).
   local boss_visuals = {echo=true, sentinel=true, tide=true, dunerider=true,
-                        snowgaunt=true, locrius=true, suno=true}
+                        snowgaunt=true, locrius=true, suno=true, broken_cadence=true}
   local theme
   if boss_visuals[enemy.visual] then
     theme = BATTLE_THEMES.boss
@@ -16582,7 +16703,7 @@ exit_battle = function()
   -- other defeat is GAME OVER.
   if battle_outcome == "DEFEAT" then
     local tutorial_retry =
-      (enemy and (enemy.is_prologue_silencer or enemy.is_prologue_cave or enemy.is_strom_arc))
+      (enemy and (enemy.is_prologue_silencer or enemy.is_prologue_cave or enemy.is_strom_arc or enemy.is_broken_cadence))
     CONTENT.victory_quip = nil
     battle_outcome = nil
     enemy = nil
@@ -23765,6 +23886,40 @@ function DRAW_ENEMY.suno(cx, cy)
   screen.move(cx + 18, cy + 4); screen.line(cx + 22, cy + 14); screen.stroke()
 end
 
+function DRAW_ENEMY.broken_cadence(cx, cy)
+  -- A chorister in decaying vestments; one arm raised, one falling.
+  -- Flickers on odd phrase-beats to mirror the "ending one note short" motif.
+  local breathe = math.floor(math.sin((tick % 40) / 40 * math.pi * 2) * 1)
+  -- robed body
+  screen.level(6)
+  screen.move(cx, cy - 18); screen.line(cx - 12, cy + 14); screen.line(cx + 12, cy + 14); screen.close(); screen.fill()
+  -- hooded head
+  screen.level(9)
+  screen.circle(cx, cy - 20, 7); screen.fill()
+  -- raised arm (left — the unfinished gesture)
+  screen.level(11)
+  screen.move(cx - 10, cy - 8 + breathe)
+  screen.line(cx - 18, cy - 16 + breathe)
+  screen.stroke()
+  -- falling arm (right — half-lowered)
+  screen.level(7)
+  screen.move(cx + 10, cy - 6)
+  screen.line(cx + 16, cy + 2)
+  screen.stroke()
+  -- hollow eye sockets: flicker to imply the missing note
+  local show = (tick // 6) % 3 ~= 0
+  if show then
+    screen.level(15)
+    screen.pixel(cx - 3, cy - 20)
+    screen.pixel(cx + 3, cy - 20)
+  end
+  -- broken staff fragment floating to the side
+  local drift = (tick // 4) % 6
+  screen.level(8)
+  screen.move(cx + 14 + drift, cy - 12)
+  screen.line(cx + 20 + drift, cy - 4)
+  screen.stroke()
+end
 
 -- Per-action firing animation. Called from the HUD on the active sprite cell.
 -- (sx, sy) = top-left of 8x8 sprite. Animation lasts ~6 ticks (~0.7s @100bpm).
