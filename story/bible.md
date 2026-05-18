@@ -294,6 +294,50 @@ proposals.
    Note: the cathedral catastrophe and the Ice Grotto recovery are
    sequential, both Act 3. Miel's grief arc weaves through both.
 
+   ── LIRAEL MAP LAYOUT (in code: map_id 23, 40×18) ──
+
+   The ruin is a single large map with four visual zones:
+
+   1. THE BURNED STREETS (south, rows 9-14): cobble + ash +
+      rubble, broken merchant houses, a child's toy still painted
+      in Lirael blue. Sea cliff at the south edge with pale blue
+      water below.
+
+   2. THE RUINED NAVE (center-north, rows 4-8, cols 14-32):
+      cathedral interior. Broken pillars. Ash falling overhead.
+      The broken altar at row 2 col 18.
+
+   3. THE ROYAL QUARTERS (northwest, rows 4-8, cols 1-13):
+      Miel's childhood rooms. Lirael-blue brick walls still
+      intact, half a window broken open on a sea wind.
+
+   4. THE SIDE CHAPEL + LIBRARY (east, rows 3-9, cols 33-39):
+      smaller, intimate. A half-burned hymnal open on a stand.
+      The Sage Circle archivist works here.
+
+   GATE: Lirael is reachable only when the lirael_is_unlocked()
+   helper returns true — i.e., the party has at least four shards
+   AND has spoken with the Veiled Mystic in Phrygian Night City.
+   Until then, the entry tile in Western Region shows the mourning
+   banner: "The road west is closed in mourning. No one passes."
+
+   SIGNATURE SCENES:
+   - MIEL WALKS ALONE: triggered when the party first approaches
+     the cathedral door from the south. Miel separates from the
+     party and walks alone into the nave. The Queen's Echo
+     briefly manifests at the altar. Single line: "Mother. I'm
+     here." Long fade. Sets flag.miel_walks_alone_done.
+
+   - THE BROKEN CADENCE: boss encounter at the broken altar,
+     requires flag.miel_walks_alone_done. On defeat: drops the
+     KEY OF LIRAEL (unlocks the Ice Grotto / Cave 5 in Northern
+     Wilds) and triggers the lirael theme's returning voice
+     (bard voice activates after this fight).
+
+   SAFETY: streets, royal quarters, and side chapel are
+   encounter-free (pure narrative space). The cathedral nave has
+   sparse 2% encounters via Cave 5's Aeolian pool.
+
    FF reference: FF10 Bevelle / FF9 Alexandria for Lirael; FF6's
    Narshe for the Ice Grotto. Miel as Garnet/Yuna throughout.
 
@@ -1234,9 +1278,11 @@ present in the code.
       Possible threads: Strom-adjacent (former comrade), or
       Mixolydian coast captain who knew the Harbormaster.
 
-   PAGE (location TBD)
-      Role: a court page, given the name. STATUS: STUB. Possible
-      thread: Lirael survivor, child who escaped the cathedral.
+   PAGE (Lirael Ruins, Royal Quarters)
+      Role: Surviving royal child. Hides in the Royal Quarters,
+      clings to Miel and asks if the queen is coming back. The
+      living memory of the kingdom's fall.
+      STATUS: IN CODE.
 
    MIRA (Phrygian Night City)
       Role: Drone-singer in the central bazaar. Teaches Alder a
@@ -1321,12 +1367,65 @@ present in the code.
    NIKO (location TBD)
       Role: STUB.
 
-   WINNA (location TBD)
-      Role: STUB.
+   WINNA (Lirael Ruins, Side Chapel)
+      Role: Lirael's court librarian. Sorting half-burned papers
+      to recover the cathedral library. Gives the party a piece
+      of the queen's correspondence; can no longer tell which
+      queen wrote what.
+      STATUS: IN CODE.
+
+   THE BROKEN CHORISTER (Lirael Ruins, Ruined Nave)
+      Role: Surviving cathedral singer who repeats one line —
+      "Hold the long note, hold the long note —" — endlessly.
+      Bard-lead variant: Alder finishes the second phrase, briefly
+      restoring her; she names two dead choirmates (Lia, Velka, Mar).
+      Distinct from THE BROKEN CADENCE (the cathedral chorister
+      turned into Suno's instrument; see THE BROKEN CADENCE below).
+      STATUS: IN CODE.
+
+   LIRAEL'S LAST CAPTAIN OF THE GUARD (Lirael Ruins, near cathedral)
+      Role: Wounded, dying. Holds the line outside the nave.
+      Warrior-lead variant: Strom holds his hand while he passes;
+      he gives Strom the Lirael Captain's Insignia, an iron pin
+      in Lirael blue.
+      STATUS: IN CODE.
+
+   SAGE CIRCLE ARCHIVIST (Lirael Ruins, Side Chapel + Library)
+      Role: Sent by Iola from the Academy to salvage what remains
+      of the cathedral library. Mage-lead variant: Diegues
+      recognizes him from his Academy days; shares a sealed Velthe
+      note.
+      STATUS: IN CODE.
+
+   THE QUEEN'S ECHO (Lirael Ruins, Ruined Nave)
+      Role: Ghostly figure of Miel's mother. Manifests only
+      during the Miel Walks Alone signature scene; not a standing
+      NPC. Briefly appears behind Miel at the broken altar after
+      her "Mother. I'm here." line, then fades. No dialogue.
+      STATUS: IN CODE (scene-only).
+
+   THE BROKEN CADENCE (Lirael Ruins, broken altar, boss)
+      Role: Former cathedral chorister now playing Suno's
+      instrument. Rises from the broken altar when the party
+      approaches after Miel Walks Alone. Names Miel as the
+      queen's daughter; demands the last phrase. Boss fight (HP
+      ~1300, ATK ~12, cleric register). On defeat: drops the
+      KEY OF LIRAEL (unlocks the Ice Grotto in Northern Wilds /
+      Cave 5) and triggers the `lirael` theme's returning voice.
+      STATUS: IN CODE.
 
    BRANN (Phrygian Night City)
       Role: Caravan master; runs the Phrygian shop. Sells sand-
       cured trinkets, water flasks, dried fig cake.
+      STATUS: IN CODE.
+
+   BREN (Lirael Ruins steward)
+      Role: Lirael steward who refused to leave after the fall.
+      Still wears Lirael colors. Walks the party through the
+      cathedral; recognized Miel's mother by sight.
+      Note: renamed from the original stub "Brann" to avoid
+      collision with Phrygian Night City's Brann (caravan master).
+      Both characters now coexist in canon.
       STATUS: IN CODE.
 
    ARAM (Phrygian Night City)
