@@ -14046,9 +14046,21 @@ local function try_random_encounter()
     return true
   end
   -- Story / interior areas: no random encounters.
-  --   23 = Lirael Ruins (memory/exploration)
   --   25 = Reya's Cairn (memorial)
-  if current_map_id == 23 or current_map_id == 25 then
+  if current_map_id == 25 then
+    return false
+  end
+  -- Lirael Ruins (map 23): streets, Royal Quarters, and Side Chapel are pure
+  -- narrative space and always safe.  Only the cathedral nave (rows 4-7,
+  -- cols 14-32) carries a sparse encounter rate — mournful Aeolian remnants
+  -- from Cave 5's pool (Northern Wilds / Aeolian Shard), which matches
+  -- Lirael's Aeolian biome theme.
+  if current_map_id == 23 then
+    local in_nave = (player.y >= 4 and player.y <= 7 and player.x >= 14 and player.x <= 32)
+    if in_nave and math.random() < 0.02 then
+      enter_battle(5, true)   -- Cave 5 pool (Aeolian-themed)
+      return true
+    end
     return false
   end
   -- Academy interior (map 19): safe everywhere (also caught by the guard above).
@@ -27349,6 +27361,40 @@ ITEMS_INFO = {
   tonic = {name="Tonic", desc="+ATK 1 fight"},
   key   = {name="Key",   desc="Open lock"},
 }
+
+-- Trophy / key-item ledger. These all live in `instruments_owned` (or a
+-- bespoke flag) and are NOT class-equippable, so they don't surface in
+-- the EQUIP screen. Listed here so the KEY tab on the items menu can
+-- show them with sprite + flavor desc. Order is canonical (acquisition
+-- order through the story).
+TROPHY_ORDER = {
+  "tisa_bell",
+  "arams_token",
+  "velthes_letter",
+  "sightings_lens",
+  "lirael_captains_insignia",
+  "key_of_lirael",
+  "iolas_letter",
+}
+TROPHY_INFO = {
+  tisa_bell        = { name="Tisa's Bell",            desc="Cave 1 echo-chamber resonance" },
+  arams_token      = { name="Aram's Token",           desc="iron disc; Strom's keep" },
+  velthes_letter   = { name="Velthe's Letter",        desc="sealed letter, opened; Velthe's hand" },
+  sightings_lens   = { name="Sightings Lens",         desc="Velthe's brass scope" },
+  lirael_captains_insignia = { name="Captain's Insignia", desc="iron pin in Lirael blue" },
+  key_of_lirael    = { name="Key of Lirael",          desc="opens the Ice Grotto" },
+  iolas_letter     = { name="Iola's Letter",          desc="Iola's farewell, in her hand" },
+}
+-- Resolve whether the player currently has a given trophy id. Most live
+-- on `instruments_owned`; a few are pure flags.
+function has_trophy(id)
+  if id == "tisa_bell"    then return CONTENT.resonances and CONTENT.resonances.ring and CONTENT.resonances.ring.item or false end
+  if id == "iolas_letter" then return flag and flag.iolas_letter_received or false end
+  return instruments_owned and instruments_owned[id] or false
+end
+
+-- Items-menu tab labels. Index drives CONTENT.items_tab.
+ITEM_TABS = { "USE", "GEAR", "KEY", "SHARDS" }
 
 -- Tiny SFX layer for menu item use. Each item gets its own short chime
 -- trig'd on the bard or cleric voice; honors the live combat_reverb_mix.
