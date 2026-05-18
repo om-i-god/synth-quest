@@ -162,6 +162,22 @@ proposals.
 
    FF reference: FF5 Walse / FF9 Treno's gentler face.
 
+   ── SUNWARD COAST TOWN (in code: map_id 35) ──
+
+   Sun-bleached harbor town adjacent to the Tide Cavern. Layout:
+   sea cliff on the south edge, wood docks below the market square,
+   tavern + bandstand on the east side, small residential cluster
+   to the west, path east to the Tide Cavern entrance.
+
+   Cultural anchor: the bandstand, kept alive in the Harbormaster's
+   name by his widow Mara. Bards passing through perform there;
+   Sage Circle archivist Vesa records every singer who plays.
+   Coral, a twelve-year-old, watches from the stairs and learns
+   the songs.
+
+   Status: established. Reachable from MAINLAND east coast via
+   tile code 65 (the signpost above the coastal path).
+
 
 -------- 4. PHRYGIAN — THE EASTERN REACHES --------
 
@@ -198,6 +214,28 @@ proposals.
 
    FF reference: FF6 Figaro / FF7 Cosmo Canyon, with FF9 Cleyra's
    ritual edge.
+
+   ── PHRYGIAN NIGHT CITY (in code: map_id 36) ──
+
+   Walled high-desert city of sand-coloured towers and lantern-lit
+   night markets. Microtonal vocal music, drone-led. Lanterns are
+   the primary light source after dark. South gate opens onto the
+   Eastern Reaches caravan road; north gate gives onto the dunes
+   approach to the Glass Cavern (Cave 4).
+
+   Cultural anchors: the central bazaar (Mira sings drones there),
+   the temple quarter (prayer alcoves with microtonal vocal SFX),
+   the Sage Circle outpost (Tova keeps Velthe's last letters in
+   the Mainland, but a Phrygian outpost is referenced through
+   Dusk and the Veiled Mystic). Aram is the pivot point for
+   Strom's arc here.
+
+   The VEILED MYSTIC who walked east after Lirael fell speaks here.
+   Her dialogue with the party sets `flag.veiled_mystic_spoken`,
+   a precondition for Lirael's eventual unlock.
+
+   Status: established. Reachable via tile code 71 (the waypost
+   on the EASTERN_REACHES caravan road).
 
 
 -------- 5. AEOLIAN — LIRAEL & THE NORTHERN WILDS --------
@@ -255,6 +293,50 @@ proposals.
 
    Note: the cathedral catastrophe and the Ice Grotto recovery are
    sequential, both Act 3. Miel's grief arc weaves through both.
+
+   ── LIRAEL MAP LAYOUT (in code: map_id 23, 40×18) ──
+
+   The ruin is a single large map with four visual zones:
+
+   1. THE BURNED STREETS (south, rows 9-14): cobble + ash +
+      rubble, broken merchant houses, a child's toy still painted
+      in Lirael blue. Sea cliff at the south edge with pale blue
+      water below.
+
+   2. THE RUINED NAVE (center-north, rows 4-8, cols 14-32):
+      cathedral interior. Broken pillars. Ash falling overhead.
+      The broken altar at row 2 col 18.
+
+   3. THE ROYAL QUARTERS (northwest, rows 4-8, cols 1-13):
+      Miel's childhood rooms. Lirael-blue brick walls still
+      intact, half a window broken open on a sea wind.
+
+   4. THE SIDE CHAPEL + LIBRARY (east, rows 3-9, cols 33-39):
+      smaller, intimate. A half-burned hymnal open on a stand.
+      The Sage Circle archivist works here.
+
+   GATE: Lirael is reachable only when the lirael_is_unlocked()
+   helper returns true — i.e., the party has at least four shards
+   AND has spoken with the Veiled Mystic in Phrygian Night City.
+   Until then, the entry tile in Western Region shows the mourning
+   banner: "The road west is closed in mourning. No one passes."
+
+   SIGNATURE SCENES:
+   - MIEL WALKS ALONE: triggered when the party first approaches
+     the cathedral door from the south. Miel separates from the
+     party and walks alone into the nave. The Queen's Echo
+     briefly manifests at the altar. Single line: "Mother. I'm
+     here." Long fade. Sets flag.miel_walks_alone_done.
+
+   - THE BROKEN CADENCE: boss encounter at the broken altar,
+     requires flag.miel_walks_alone_done. On defeat: drops the
+     KEY OF LIRAEL (unlocks the Ice Grotto / Cave 5 in Northern
+     Wilds) and triggers the lirael theme's returning voice
+     (bard voice activates after this fight).
+
+   SAFETY: streets, royal quarters, and side chapel are
+   encounter-free (pure narrative space). The cathedral nave has
+   sparse 2% encounters via Cave 5's Aeolian pool.
 
    FF reference: FF10 Bevelle / FF9 Alexandria for Lirael; FF6's
    Narshe for the Ice Grotto. Miel as Garnet/Yuna throughout.
@@ -434,11 +516,50 @@ that grant lore beats to the player.
 
 IOLA is Velthe's last apprentice. She appears in the code as an
 NPC; in canon she is the living connection back to the Sage
-Circle's deepest lore. Diegues respects her.
+Circle's deepest lore. Diegues respects her. See IOLA entry in
+NAMED CAST for her full role and migration note.
 
 LOCRIUS (Cave 6 boss) was Velthe's contemporary. The Sage Circle
 lost him to the shard he tried to stabilize. This is part of why
 they stopped sending scholars to Locrian country.
+
+   ── ACADEMY (in code: map_id 19) ──
+
+   Expanded to a four-zone institution: north lecture hall
+   (with lecterns), central stone courtyard (the astrolabe at
+   its heart), east library wing (Paj keeps the late volumes),
+   west dormitory wing (Wena lives here). Iola's office sits
+   north-east of the lecture hall. Reached via the Western
+   Region road.
+
+   The Academy is the home from which Diegues left and the place
+   he must return to before the Locrian shard can be approached.
+   Echo, the astrolabe-bound figure, drops Velthe-fragments to
+   anyone who lingers near the device — clearer fragments to
+   Diegues himself.
+
+   ── VELTHE'S OBSERVATORY (in code: map_id 24) ──
+
+   A two-level structure: the upper telescope chamber (broken
+   roof open to the sky) and the lower study (Velthe's desk
+   still keeps her papers, drying as if she only just stood up).
+   A LOCKED CRYPT STAIR in the lower study descends to the
+   Locrian Crypt (Cave 6) — sealed until Velthe's Final Entry
+   scene fires at the desk.
+
+   The CARETAKER has kept the Observatory since Velthe vanished.
+   He remembers her last spoken words: "The third chord is not
+   a chord." Twelve years on, he still doesn't know what she
+   meant.
+
+   GATE-CHAIN for Cave 6 access:
+     1. Diegues (Mage lead) returns to Academy first time →
+        Diegues Returns scene.
+     2. Mage lead + 3+ shards + visit Iola → Iola's Letter
+        scene; Velthe's Letter added to inventory.
+     3. Step on Velthe's desk at the Observatory → Velthe's
+        Final Entry scene; Iola migrates here; crypt_stair
+        tile unlocks.
 
 
 -------- REGIONS OF MODALIA — THE LARGER MAP --------
@@ -1157,52 +1278,209 @@ present in the code.
       Possible threads: Strom-adjacent (former comrade), or
       Mixolydian coast captain who knew the Harbormaster.
 
-   PAGE (location TBD)
-      Role: a court page, given the name. STATUS: STUB. Possible
-      thread: Lirael survivor, child who escaped the cathedral.
+   PAGE (Lirael Ruins, Royal Quarters)
+      Role: Surviving royal child. Hides in the Royal Quarters,
+      clings to Miel and asks if the queen is coming back. The
+      living memory of the kingdom's fall.
+      STATUS: IN CODE.
 
-   MIRA (location TBD)
-      Role: STUB. Possible thread: a Lydian-country wanderer or
-      a young singer auditioning for the Sage Circle.
+   MIRA (Phrygian Night City)
+      Role: Drone-singer in the central bazaar. Teaches Alder a
+      microtonal flat-2 motif that becomes a permanent addition
+      to his PLAY action.
+      STATUS: IN CODE.
 
-   IOLEN (location TBD)
-      Role: STUB. Possibly Iola-adjacent (name echo) — sibling,
-      cousin, or former classmate at the Academy.
+   IOLEN (Sunward Coast)
+      Role: Tide-watcher kid who idolizes Strom. Keeps a tide tally
+      on a smooth stone — passes it to the warrior on first meeting
+      (the "Tide Stone" callout).
+      STATUS: IN CODE.
+
+   MARA (Sunward Coast)
+      Role: Widow of the Harbormaster. Runs the bandstand in his
+      memory. Invites Alder to perform; recognizes Miel's mother.
+      STATUS: IN CODE.
+
+   HASK (Sunward Coast)
+      Role: Tavern keeper, gossip-monger. Notices Strom's old
+      Suno-issued harness scar. Sells warm drinks.
+      STATUS: IN CODE.
+
+   CORAL (Sunward Coast)
+      Role: Twelve-year-old aspiring singer. Watches the bandstand
+      from the stair. Wants Alder to teach her.
+      STATUS: IN CODE.
+
+   BECK (Sunward Coast)
+      Role: Fisherman who knows where Tidewatch's cadence echoes
+      at low tide. Knows Strom-type laborers when he sees them.
+      STATUS: IN CODE.
+
+   WYNNE (Sunward Coast)
+      Role: Traveling bard, passing through. Came for the
+      Harbormaster's duels; trades Mixolydian phrases with Alder.
+      STATUS: IN CODE.
+
+   PELL (Sunward Coast)
+      Role: Market fishmonger. Shop NPC: salted fish, kelp tea,
+      healing draughts.
+      STATUS: IN CODE.
+
+   VESA (Sunward Coast)
+      Role: Sage Circle outpost archivist. Records every visiting
+      singer's name. Knows Iola; seeds the Sage Hub path.
+      STATUS: IN CODE.
+
+   IOLA (Academy → Observatory, migrates)
+      Role: Velthe's last apprentice. Senior Sage Circle scholar
+      and the living connection to the deepest pre-Shattering
+      lore. Holds Velthe's sealed letter for whoever finds the
+      Locrian shard.
+      MIGRATION: Present at the Academy until Velthe's Final
+      Entry scene fires at the Observatory. After that, she's
+      found at the Observatory's lower study.
+      STATUS: IN CODE.
 
    ISKA (location TBD)
       Role: STUB.
 
-   AURIN (location TBD)
-      Role: STUB. Name suggests Aeolian / Aurelian — possible
-      Lirael diaspora figure.
+   AURIN (Academy)
+      Role: Junior Sage Circle scholar. Eager but green. Writing
+      a treatise on troupe music; visibly afraid of Strom.
+      STATUS: IN CODE.
 
-   WENA (location TBD)
-      Role: STUB.
+   WENA (Academy dormitories)
+      Role: Dormitory student, midnight philosopher. Asks Miel
+      about Aeolian theology.
+      STATUS: IN CODE.
 
-   SERGEI (location TBD)
-      Role: STUB. Name leans Eastern / Phrygian — possible glass-
-      cavern guide.
+   SERGEI (Phrygian Night City)
+      Role: Glass-cavern guide. Offers three-silver escort to the
+      dune-line approach to Cave 4. Trustworthy; knows the route.
+      STATUS: IN CODE.
 
-   PAJ (location TBD)
-      Role: STUB.
+   PAJ (Academy library)
+      Role: Academy librarian. Shop NPC selling MP/MAG-boost
+      scrolls and bound parchments. Friendly to Diegues.
+      STATUS: IN CODE.
 
    NIKO (location TBD)
       Role: STUB.
 
-   WINNA (location TBD)
-      Role: STUB.
+   WINNA (Lirael Ruins, Side Chapel)
+      Role: Lirael's court librarian. Sorting half-burned papers
+      to recover the cathedral library. Gives the party a piece
+      of the queen's correspondence; can no longer tell which
+      queen wrote what.
+      STATUS: IN CODE.
 
-   BRANN (location TBD)
-      Role: STUB.
+   THE BROKEN CHORISTER (Lirael Ruins, Ruined Nave)
+      Role: Surviving cathedral singer who repeats one line —
+      "Hold the long note, hold the long note —" — endlessly.
+      Bard-lead variant: Alder finishes the second phrase, briefly
+      restoring her; she names two dead choirmates (Lia, Velka, Mar).
+      Distinct from THE BROKEN CADENCE (the cathedral chorister
+      turned into Suno's instrument; see THE BROKEN CADENCE below).
+      STATUS: IN CODE.
+
+   LIRAEL'S LAST CAPTAIN OF THE GUARD (Lirael Ruins, near cathedral)
+      Role: Wounded, dying. Holds the line outside the nave.
+      Warrior-lead variant: Strom holds his hand while he passes;
+      he gives Strom the Lirael Captain's Insignia, an iron pin
+      in Lirael blue.
+      STATUS: IN CODE.
+
+   SAGE CIRCLE ARCHIVIST (Lirael Ruins, Side Chapel + Library)
+      Role: Sent by Iola from the Academy to salvage what remains
+      of the cathedral library. Mage-lead variant: Diegues
+      recognizes him from his Academy days; shares a sealed Velthe
+      note.
+      STATUS: IN CODE.
+
+   THE QUEEN'S ECHO (Lirael Ruins, Ruined Nave)
+      Role: Ghostly figure of Miel's mother. Manifests only
+      during the Miel Walks Alone signature scene; not a standing
+      NPC. Briefly appears behind Miel at the broken altar after
+      her "Mother. I'm here." line, then fades. No dialogue.
+      STATUS: IN CODE (scene-only).
+
+   THE BROKEN CADENCE (Lirael Ruins, broken altar, boss)
+      Role: Former cathedral chorister now playing Suno's
+      instrument. Rises from the broken altar when the party
+      approaches after Miel Walks Alone. Names Miel as the
+      queen's daughter; demands the last phrase. Boss fight (HP
+      ~1300, ATK ~12, cleric register). On defeat: drops the
+      KEY OF LIRAEL (unlocks the Ice Grotto in Northern Wilds /
+      Cave 5) and triggers the `lirael` theme's returning voice.
+      STATUS: IN CODE.
+
+   BRANN (Phrygian Night City)
+      Role: Caravan master; runs the Phrygian shop. Sells sand-
+      cured trinkets, water flasks, dried fig cake.
+      STATUS: IN CODE.
+
+   BREN (Lirael Ruins steward)
+      Role: Lirael steward who refused to leave after the fall.
+      Still wears Lirael colors. Walks the party through the
+      cathedral; recognized Miel's mother by sight.
+      Note: renamed from the original stub "Brann" to avoid
+      collision with Phrygian Night City's Brann (caravan master).
+      Both characters now coexist in canon.
+      STATUS: IN CODE.
+
+   ARAM (Phrygian Night City)
+      Role: Phrygian war-veteran, formerly Strom's second-in-
+      command. Recognizes Strom on sight; forgives him after
+      a one-bar confrontation and gives him Aram's Token, a
+      passive accessory belonging to Aram's father.
+      STATUS: IN CODE.
+
+   VEILED MYSTIC (Phrygian Night City)
+      Role: Drone-speaker. Miel recognizes her as a former
+      Aeolian acolyte who walked east after Lirael fell. Her
+      dialogue with anyone in the party sets the flag that is
+      a precondition for Lirael's eventual unlock.
+      STATUS: IN CODE.
+
+   LAMPLIGHTER (Phrygian Night City)
+      Role: Small child who tends the night-market torches.
+      Hears about Sunward Coast from passing bards; idle and
+      curious.
+      STATUS: IN CODE.
+
+   SCOUT (Phrygian Night City)
+      Role: Young would-be follower; asks Strom about apprenticing
+      or asks Miel whether war ever stops.
+      STATUS: IN CODE.
+
+   DUSK (Phrygian Night City)
+      Role: Fortune-teller at the bazaar's edge. Substituted in
+      code for Tova (who lives in MAINLAND_NPCS with a sidequest);
+      both characters now coexist in canon.
+      STATUS: IN CODE.
 
    LUTIST (Village Clearing — likely)
       Role: a lutist NPC, possibly a tutor or rival to Alder.
       STATUS: STUB. Likely a Lydian-country troupe member.
 
-   ECHO (location TBD)
-      Role: STUB. The name suggests a Resonance-adjacent figure
-      — possibly a spirit, possibly an NPC who has lived too
-      close to a Resonance.
+   ECHO (Academy courtyard, astrolabe-bound)
+      Role: Semi-transparent figure manifest near the astrolabe.
+      Speaks only in fragments of Velthe's voice. Reveals a
+      clearer line to Diegues.
+      STATUS: IN CODE.
+
+   MASTER THERON (Academy)
+      Role: Academy headmaster. Recognizes Diegues' notation as
+      Velthe-school. Bows formally to Miel; pledges Academy's
+      standing with Lirael.
+      STATUS: IN CODE.
+
+   THE CARETAKER (Velthe's Observatory)
+      Role: Keeper of the Observatory since Velthe walked down
+      the stair and didn't come back. Remembers her last spoken
+      words: "The third chord is not a chord." Twelve years on,
+      still doesn't know what she meant.
+      STATUS: IN CODE.
 
    REYA (Reya's Cairn)
       Role: a remembered figure; the cairn is named for her. She

@@ -1715,3 +1715,26 @@ draw_scene_* functions, 21 new SCENE_DRAW entries. Cosmic + Dark
 prose preserved (Dark trimmed 4→3). Existing wake/breach/throne
 scripts untouched.
 
+
+## 2026-05-16 — Resonances acquisition (Miel vertical slice)
+
+Added the Resonances acquisition scaffold per
+docs/specs/2026-05-14-resonances-acquisition-design.md. Miel's
+full path lands: Tisa gives the bell on first cleric-lead
+interaction; walking onto the throne hall's tapestry alcove with
+the bell + Miel as lead fires the shared attunement scene; The
+Ring becomes callable on R2 in battle (6 MP, deducted at
+queue-time per existing MAG pattern). Banner + signature bell
+tone confirm the call landed; effect itself stubbed as a normal
+ATK pending a follow-on spec.
+
+Also: made `party` + `active` globals (matching the documented
+CONTENT pattern at line 2487) so the NPC dialogue closures inside
+the CONTENT table literal can read them — fixed a crash on Tisa
+that would have hit Maro/Tova/etc. eventually too. And: footstep
+dust puffs now apply interior_view_offset (small-map centering),
+mirroring the SCENE.draw fix from 2026-05-14.
+
+Other 7 Resonances stubbed in the data tables; their
+item/shrine/signature blocks fill in later passes. ECHO will be
+the 8th party member when designed.
