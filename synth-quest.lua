@@ -3412,7 +3412,7 @@ CONTENT = {
     {1,51,8,0,0,0,0,0,0,0, 0, 0, 0, 0,0,0,0,0,0,0,0,0,0,1},  -- Lirael Ruins arch (col 1 row 7)
     {1,0,8,8,0,0,0,0,0,0, 0, 0, 0,78,0,0,0,0,0,0,0,0,0,1},  -- academy_entry arch (col 14 row 8)
     {1,0,0,0,0,0,8,8,8,0, 0, 0, 0, 0,0,0,0,0,8,8,8,0,0,1},
-    {1,0,0,0,0,0,8,8,0,0, 0, 0, 0, 0,0,0,0,0,0,8,8,0,0,1},
+    {1,89,0,0,0,0,8,8,0,0, 0, 0, 0, 0,0,0,0,0,0,8,8,0,0,1},  -- lirael_entry (col 2 row 10; mourning road west)
     {1,1,1,1,1,1,1,1,1,1, 1, 1, 1, 1,1,1,1,1,1,1,1,1,47,1},   -- east-edge return tile
   },
   western_region_npcs = {
@@ -5399,6 +5399,7 @@ local cutscene_idx = 1
 -- 86 = child_toy          (walkable; Lirael blue paint memento)
 -- 87 = lirael_blue_brick  (impassable; intact wall)
 -- 88 = cathedral_door     (walkable threshold)
+-- 89 = lirael_entry       (gated; mourning road west from Western Region)
 -- Map data is per-continent; active map swaps via travel_to().
 -- MAINLAND (64x16): cols 1-32 = Village; 33-48 = Hollow Woods; 49-64 = Sunward Coast.
 -- Mountain pass (id 15) at row 1 col 13 → Northern Wilds (current_map_id 3).
@@ -12500,6 +12501,7 @@ local function is_walkable(tx, ty)
       or t == 80   -- ash (walkable; ash-covered ground)
       or t == 86   -- child_toy (walkable; Lirael blue paint memento)
       or t == 88   -- cathedral_door (walkable threshold)
+      or t == 89   -- lirael_entry (walkable; gate enforced in routing handler)
 end
 
 -- True when an NPC is currently rendered + interactable. NPCs may have
@@ -14189,6 +14191,20 @@ local function try_move(dx, dy)
     CONTENT.return_map = 3
     CONTENT.return_x = nx; CONTENT.return_y = ny
     travel_to(24, 11, 12)   -- spawn 1 tile above the south entry hall exit (row 13 col 11)
+    redraw()
+    return
+  end
+  if t == 89 and current_map_id == 22 then
+    -- Western Region → Lirael Ruins (gated by lirael_is_unlocked).
+    -- Tile 89 placed at row 10 col 2 of western_region_map (mourning road west).
+    if lirael_is_unlocked and lirael_is_unlocked() then
+      CONTENT.return_map = 22
+      CONTENT.return_x = nx; CONTENT.return_y = ny
+      travel_to(23, 14, 10)   -- enter at street entry, one tile above exit row 11 col 14
+    else
+      CONTENT.banner_text  = "* The road west is closed in mourning. No one passes. *"
+      CONTENT.banner_ticks = 48
+    end
     redraw()
     return
   end
@@ -19338,6 +19354,21 @@ TILE_DRAW[88] = function(px, py)
   screen.rect(px+1, py, 6, 8); screen.fill()
   screen.level(8)
   screen.rect(px+2, py+1, 4, 6); screen.fill()
+end
+
+TILE_DRAW[89] = function(px, py)
+  -- lirael_entry: mourning road west from Western Region (map 22 → 23).
+  -- Bright (level 8) when unlocked; dim (level 3) when locked.
+  if lirael_is_unlocked and lirael_is_unlocked() then
+    screen.level(8)
+  else
+    screen.level(3)
+  end
+  screen.rect(px, py, 8, 8); screen.fill()
+  screen.level(0)
+  -- X-shape mourning sigil
+  screen.move(px+2, py+2); screen.line(px+6, py+6); screen.stroke()
+  screen.move(px+6, py+2); screen.line(px+2, py+6); screen.stroke()
 end
 
 local SPRITE_BY_CLASS
