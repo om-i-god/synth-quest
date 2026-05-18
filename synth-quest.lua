@@ -5363,6 +5363,16 @@ local cutscene_idx = 1
 -- 77 = crypt_stair      (walkable; locked until flag.iolas_letter_received)
 -- 78 = academy_entry    (walkable; Western Region → Academy expanded interior, map 19)
 -- 79 = observatory_entry (walkable; Northern Wilds → Observatory expanded interior, map 24)
+-- New Lirael Ruins tiles (Phase 4)
+-- 80 = ash                (walkable; ash-covered ground)
+-- 81 = rubble             (impassable; broken stone)
+-- 82 = cathedral_pillar   (impassable; large broken column)
+-- 83 = sea_cliff_edge     (impassable; visual border with water below)
+-- 84 = broken_altar       (impassable interactable; animated ash fall)
+-- 85 = hymnal_stand       (impassable interactable)
+-- 86 = child_toy          (walkable; Lirael blue paint memento)
+-- 87 = lirael_blue_brick  (impassable; intact wall)
+-- 88 = cathedral_door     (walkable threshold)
 -- Map data is per-continent; active map swaps via travel_to().
 -- MAINLAND (64x16): cols 1-32 = Village; 33-48 = Hollow Woods; 49-64 = Sunward Coast.
 -- Mountain pass (id 15) at row 1 col 13 → Northern Wilds (current_map_id 3).
@@ -12461,6 +12471,9 @@ local function is_walkable(tx, ty)
       or t == 77   -- Sage Hub crypt_stair (walkable; lock enforced in routing handler)
       or t == 78   -- academy_entry (walkable; Western Region → Academy expanded interior)
       or t == 79   -- observatory_entry (walkable; Northern Wilds → Observatory expanded interior)
+      or t == 80   -- ash (walkable; ash-covered ground)
+      or t == 86   -- child_toy (walkable; Lirael blue paint memento)
+      or t == 88   -- cathedral_door (walkable threshold)
 end
 
 -- True when an NPC is currently rendered + interactable. NPCs may have
@@ -19223,6 +19236,84 @@ TILE_DRAW[79] = function(px, py)
   screen.move(px+5, py+1); screen.line(px+5, py+7); screen.stroke()
 end
 
+-- ── Lirael Ruins tiles (Phase 4) ───────────────────────────────────────────
+
+TILE_DRAW[80] = function(px, py)
+  -- ash-covered ground: dim gray with scattered lighter flecks
+  screen.level(3)
+  screen.rect(px, py, 8, 8); screen.fill()
+  screen.level(5)
+  screen.pixel(px+1, py+2); screen.pixel(px+4, py+5); screen.pixel(px+6, py+1); screen.pixel(px+3, py+7); screen.fill()
+end
+
+TILE_DRAW[81] = function(px, py)
+  -- rubble: irregular stacked broken-stone shapes
+  screen.level(6)
+  screen.rect(px+1, py+2, 3, 3); screen.fill()
+  screen.rect(px+4, py+1, 3, 4); screen.fill()
+  screen.rect(px+2, py+5, 4, 2); screen.fill()
+end
+
+TILE_DRAW[82] = function(px, py)
+  -- cathedral_pillar: pale stone column with horizontal cap
+  screen.level(10)
+  screen.rect(px+1, py, 6, 8); screen.fill()
+  screen.level(3)
+  screen.move(px+1, py+3); screen.line_rel(6, 0); screen.stroke()
+end
+
+TILE_DRAW[83] = function(px, py)
+  -- sea_cliff_edge: dark cliff atop pale water
+  screen.level(2)
+  screen.rect(px, py, 8, 4); screen.fill()
+  screen.level(7)
+  screen.rect(px, py+4, 8, 4); screen.fill()
+end
+
+TILE_DRAW[84] = function(px, py, t)
+  -- broken_altar: pale stone slab with crack + ash particle falling overhead
+  screen.level(9)
+  screen.rect(px, py+2, 8, 6); screen.fill()
+  screen.level(4)
+  screen.move(px+3, py+8); screen.line(px+5, py+2); screen.stroke()
+  -- ash particle drifting down
+  local f = (t % 30) / 30
+  screen.level(6)
+  screen.pixel(px+2, py + math.floor(f*3)); screen.fill()
+end
+
+TILE_DRAW[85] = function(px, py)
+  -- hymnal_stand: small dark stand with pale half-burned page on top
+  screen.level(6)
+  screen.rect(px+3, py+3, 2, 5); screen.fill()
+  screen.level(11)
+  screen.rect(px+1, py+1, 6, 3); screen.fill()
+end
+
+TILE_DRAW[86] = function(px, py)
+  -- child_toy: small object with Lirael-blue paint accent
+  screen.level(10)
+  screen.rect(px+2, py+5, 4, 2); screen.fill()
+  screen.level(2)
+  screen.pixel(px+2, py+4); screen.pixel(px+5, py+4); screen.fill()
+end
+
+TILE_DRAW[87] = function(px, py)
+  -- lirael_blue_brick: intact Lirael-blue wall with brick joints
+  screen.level(10)
+  screen.rect(px, py, 8, 8); screen.fill()
+  screen.level(7)
+  screen.move(px, py+4); screen.line_rel(8, 0); screen.move(px+4, py); screen.line_rel(0, 4); screen.move(px+3, py+4); screen.line_rel(0, 4); screen.stroke()
+end
+
+TILE_DRAW[88] = function(px, py)
+  -- cathedral_door: archway opening, slightly lighter than surrounding wall
+  screen.level(4)
+  screen.rect(px+1, py, 6, 8); screen.fill()
+  screen.level(8)
+  screen.rect(px+2, py+1, 4, 6); screen.fill()
+end
+
 local SPRITE_BY_CLASS
 do
 
@@ -22150,7 +22241,7 @@ local function draw_overworld()
         TILE_DRAW.cavefloor(sx, sy, tx + ty * MAP_W)
       else
         local fn = TILE_DRAW[t] or TILE_DRAW[0]
-        if t == 3 or t == 6 or t == 7 or t == 9 or t == 11 or t == 14 or t == 16 or t == 18 or t == 19 or t == 20 or t == 24 or t == 27 or t == 30 or t == 32 or t == 36 or t == 38 or t == 39 or t == 41 or t == 43 or t == 52 or t == 53 or t == 54 or t == 55 or t == 56 or t == 57 or t == 58 or t == 62 or t == 67 or t == 70 or t == 73 then fn(sx, sy, tick)
+        if t == 3 or t == 6 or t == 7 or t == 9 or t == 11 or t == 14 or t == 16 or t == 18 or t == 19 or t == 20 or t == 24 or t == 27 or t == 30 or t == 32 or t == 36 or t == 38 or t == 39 or t == 41 or t == 43 or t == 52 or t == 53 or t == 54 or t == 55 or t == 56 or t == 57 or t == 58 or t == 62 or t == 67 or t == 70 or t == 73 or t == 84 then fn(sx, sy, tick)
         elseif t == 0 or t == 8 then fn(sx, sy, tx + ty * MAP_W)
         else fn(sx, sy)
         end
