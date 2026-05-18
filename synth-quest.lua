@@ -1679,29 +1679,40 @@ do
     },
   }
 
-  -- LIRAEL RUINS (map 23): mournful Aeolian descent. The cleric breathes
-  -- a slow held A3 → G3 → F3 → E3 ladder; the mage answers with a tiny
-  -- minor-third figure; the warrior gives a single low pulse on the one;
-  -- the bard places a brittle high A every fourth bar (the bell). Long
-  -- attacks + heavy reverb so the chamber feels empty even with notes in it.
+  -- LIRAEL RUINS (map 23): Aeolian dirge. 48 BPM — slowest theme in the
+  -- game. No percussion. The cleric sings a mournful four-note descent
+  -- (A3->G3->F3->E3), one held note every two bars, each blooming
+  -- slowly into the reverb. The warrior anchors the room with a single
+  -- low A1 drone, re-attacked once at bar 5 so the tone survives the
+  -- full loop. The mage tolls like a distant bell: three sparse strikes
+  -- in the upper register (A4 at bars 2, 5, 7). The bard is silent by
+  -- default. After flag.lirael_theme_shifted is set (broken cadence
+  -- fight complete), a gentle returning voice fires from tick_overworld_music
+  -- directly — a soft A3/E3 figure that emerges like a presence remembered.
+  -- Scale indices (Aeolian): 1=A1, 8=A2, 12=E3, 13=F3, 14=G3, 15=A3, 22=A4.
   OW_THEMES.lirael = {
     pattern = {
-      -- A3 G3 F3 E3 descent. Positions resolve in the aeolian scale at
-      -- octave 2-3: scale[15]=A3, [14]=G3, [13]=F3, [12]=E3. The
-      -- previous pattern used 0/-1/-2 as indices which Lua looked up
-      -- as nil → "arithmetic on nil" crash on the first cleric pulse.
+      -- CLERIC (mourning vocal): A3->G3->F3->E3 descent across 8 bars.
+      -- One held note every 32 steps; long attack blooms into reverb tail.
       cleric  = mk{ {1, 15}, {33, 14}, {65, 13}, {97, 12} },
-      mage    = mk{ {17, 11}, {21, 12}, {49, 11}, {53, 12},
-                    {81, 11}, {85, 12}, {113, 11}, {117, 12} },
+      -- WARRIOR (low cello drone): A1 pedal tone, re-attacked at bar 5
+      -- so the voice stays alive through the full 128-step loop.
       warrior = mk{ {1, 1}, {65, 1} },
-      bard    = mk{ {1, 22}, {65, 22} },
+      -- MAGE (bell tolls): three sparse strikes in the upper register.
+      -- Bar 2 (step 17), bar 5 (step 81), bar 7 (step 113). A4.
+      mage    = mk{ {17, 22}, {81, 22}, {113, 22} },
+      -- BARD: empty pattern. The returning voice fires conditionally
+      -- from tick_overworld_music after flag.lirael_theme_shifted is true.
+      bard    = mk{},
     },
     artic = {
-      cleric  = {vel=0.55, attack=0.80, release=6.50, wet=0.95},
-      mage    = {vel=0.40, attack=0.05, release=2.50, wet=0.95},
-      warrior = {vel=0.50, attack=0.05, release=4.00, wet=0.85},
-      bard    = {vel=0.65, attack=0.001, release=4.50, wet=1.00},
+      cleric  = {vel=0.58, attack=1.20,  release=8.00, wet=0.97},
+      warrior = {vel=0.45, attack=0.60,  release=12.0, wet=0.92},
+      mage    = {vel=0.42, attack=0.005, release=4.50, wet=0.98},
+      -- bard artic used only by the conditional block in tick_overworld_music.
+      bard    = {vel=0.0,  attack=0.001, release=0.001, wet=0.0},
     },
+    bpm = 48,
   }
 
   -- VELTHE'S OBSERVATORY (map 24): cold, wide, expectant. Locrian-ish
@@ -10834,8 +10845,10 @@ local NORTHERN_NPCS = {
       local script = {
         {hide_player = true},
         {letterbox_in = true},
+        -- Spawn Miel at her tile and Strom one east of her so the two
+        -- sprites don't render stacked at the same pixel position.
         {spawn = "miel", class = "cleric", name = "Miel", x = sx, y = sy, facing = "right", bob = false},
-        {spawn = "strom", class = "warrior", name = "Strom", x = sx, y = sy, facing = "right", bob = false},
+        {spawn = "strom", class = "warrior", name = "Strom", x = sx + 1, y = sy, facing = "right", bob = false},
         -- Camera holds on the player + cairn so both are framed.
         {focus = {x = math.floor((sx + 24) / 2), y = math.floor((sy + 5) / 2)}, ticks = 30},
         {wait = 8},
@@ -13034,6 +13047,11 @@ save_game = function()
   save_flash_ticks = 24
   save_flash_text = "Game Saved"
 end
+-- Mirror to _ENV so closures created BEFORE the `local save_game`
+-- forward decl (e.g. start_new_game_plus's `if save_game then ...`)
+-- can resolve it at call time. Without this, NG+ silently skips its
+-- auto-save and the player can lose the reset state.
+_G.save_game = save_game
 
 local function load_game()
   local data = tab.load(SAVE_PATH())
@@ -13489,6 +13507,28 @@ local function tick_overworld_music()
     elseif (tick % 24) == 6 then
       -- a second softer hit on the off-beat for procession
       sq_trig("warrior", midi_to_freq(24), 0.55, 0.001, 0.30, 0.15)
+    end
+  end
+  -- Lirael returning voice (Task 4.7). After the broken cadence fight is
+  -- won, flag.lirael_theme_shifted is set and the bard voice "returns" —
+  -- a gentle A3/E3 figure that emerges like a presence remembered. Three
+  -- sparse notes across the loop, fired directly so they bypass the empty
+  -- bard pattern without modifying fire_ow_voice.
+  if current_theme == "lirael" and flag.lirael_theme_shifted then
+    local sc = active_scale()
+    local _crm = CONTENT.music_reverb_mix or 1.0
+    if overworld_step == 25 then
+      -- bar 2 beat 3: first breath — soft A3
+      local f = midi_to_freq((sc[15] or 69) + JAM.root)
+      sq_trig("bard", f, 0.38, 1.50, 7.0, math.min(1, 0.96 * _crm))
+    elseif overworld_step == 89 then
+      -- bar 6 beat 1: E3 response — a fifth below, tentative
+      local f = midi_to_freq((sc[12] or 64) + JAM.root)
+      sq_trig("bard", f, 0.30, 1.80, 6.5, math.min(1, 0.96 * _crm))
+    elseif overworld_step == 113 then
+      -- bar 7 beat 3: return to A3 — voice settling back in
+      local f = midi_to_freq((sc[15] or 69) + JAM.root)
+      sq_trig("bard", f, 0.35, 1.20, 8.0, math.min(1, 0.97 * _crm))
     end
   end
 end
@@ -15171,6 +15211,11 @@ ELEMENTAL_AFFINITY = {
 }
 
 local function damage_enemy(amount, is_crit)
+  -- Defensive: enemy can be nil if a kill earlier in the same tick
+  -- (Strom-arc / prologue-silencer / prologue-cave bypass paths set
+  -- `enemy = nil` synchronously). The LIMIT-break damage path used to
+  -- crash the clock thread here.
+  if not enemy then return end
   -- Damage popup x is moved to 60 (was 96) so the rising number doesn't
   -- pass through the enemy HP bar (x=76..126) or HP X/Y text on its way
   -- up. Lands in the free gap between the action popup (x=1..44) and
@@ -16603,6 +16648,13 @@ enter_battle = function(cave_id, force_random)
   TITLE.battle_step = 0  -- restart battle music ostinato cleanly
   redraw()
 end
+-- Mirror to _ENV so closures created BEFORE the `local enter_battle`
+-- forward decl (boss-approach SCENE.on_complete callbacks, finale
+-- on_complete, VoidEcho post_dialogue) can resolve it at call time.
+-- Without this, the boss-approach cutscene plays in full and then the
+-- battle silently never starts — the player is dropped on the arena
+-- tile with no enemy. pcall around the callback swallows the error.
+_G.enter_battle = enter_battle
 
 enter_jam_pad = function()
   unlock_achievement("first_jam", "First Jam")
@@ -20480,16 +20532,15 @@ SCENE.advance = function()
     -- look = id  +  toward = id   — turn `look` to face `toward` based on
     -- their current relative position. Pure facing change, no movement.
     if step.look and step.toward then
-      local a = SCENE.get(step.look)
-      local b = SCENE.get(step.toward)
+      local a = (step.look == "player") and {fx = player.x, fy = player.y, _is_player = true} or SCENE.get(step.look)
+      local b = (step.toward == "player") and {fx = player.x, fy = player.y} or SCENE.get(step.toward)
       if a and b then
         local dx = (b.fx - a.fx)
         local dy = (b.fy - a.fy)
-        if math.abs(dx) > math.abs(dy) then
-          a.facing = (dx >= 0) and "right" or "left"
-        else
-          a.facing = (dy >= 0) and "down" or "up"
-        end
+        local facing = (math.abs(dx) > math.abs(dy))
+                        and ((dx >= 0) and "right" or "left")
+                        or  ((dy >= 0) and "down" or "up")
+        if a._is_player then player.facing = facing else a.facing = facing end
       end
     end
     if step.despawn then SCENE.despawn(step.despawn) end
@@ -20545,10 +20596,13 @@ SCENE.advance = function()
     end
     -- focus = {x, y} — auto-pan camera to center on tile (clamped to map).
     -- focus = id — pan to keep that actor centered.
+    -- focus = "player" — pan to the player's current tile (not a SCENE actor).
     if step.focus then
       local tx, ty
       if type(step.focus) == "table" then
         tx, ty = step.focus.x, step.focus.y
+      elseif step.focus == "player" then
+        tx, ty = player.x, player.y
       else
         local a = SCENE.get(step.focus)
         if a then tx, ty = a.fx, a.fy end
@@ -27523,18 +27577,6 @@ function redraw()
   if (tick - (CONTENT.midi_active_t or -99)) < 6 then
     screen.level(15); screen.rect(125, 0, 3, 3); screen.fill()
     screen.level(8);  screen.pixel(124, 1); screen.fill()
-  end
-  -- DEBUG: bottom-left state tag so we can see whether BATTLE_END is
-  -- being entered at all, and what banner text is on screen. Remove
-  -- once the missing battle-summary issue is diagnosed.
-  do
-    screen.font_face(25); screen.font_size(6)
-    screen.level(15); screen.move(0, 64)
-    screen.text(tostring(game_state or "?") ..
-                " bt=" .. tostring(battle_end_ticks or 0) ..
-                " phB=" .. tostring(CONTENT.battle_end_phase or 0) ..
-                " bn=" .. tostring(CONTENT.banner_ticks or 0))
-    screen.font_face(1); screen.font_size(8)
   end
   -- (Pass 48 day/night stipple removed — the density math was inverted,
   --  flooding the screen with black pixels during transitions. If we
