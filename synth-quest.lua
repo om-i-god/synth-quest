@@ -7734,6 +7734,54 @@ function start_observatory_velthes_entry_scene()
   return script
 end
 
+-- start_lirael_miel_walks_alone_scene() — Task 4.5. One-shot cathedral
+-- scene in Lirael Ruins (map 23). Fires the first time the player steps
+-- onto the cathedral_door tile (88, row 8 cols 19-20) from the south,
+-- regardless of active lead. Miel separates from the party and walks into
+-- the nave alone. Quiet: long fades, music ducks, one line of dialogue.
+-- Queen's Echo briefly manifests behind her, no dialogue.
+-- Sets flag.miel_walks_alone_done = true on completion; gates Task 4.6's
+-- Broken Cadence and makes the Royal Quarters door accessible.
+function start_lirael_miel_walks_alone_scene()
+  local script = {
+    {letterbox_in = true},
+    -- Hide the rest of the party as Miel separates
+    {hide_player = true},
+    -- Spawn Miel at the cathedral door (row 8 col 19), facing into the nave
+    {spawn = "miel_alone", class = "cleric", name = "Miel", x = 19, y = 9, facing = "up", bob = false},
+    {focus = "miel_alone", ticks = 30},
+    -- Slow tracking pan as Miel walks into the nave
+    {move = "miel_alone", to = {x = 19, y = 7}, ticks = 40},
+    {wait = 8},
+    {move = "miel_alone", to = {x = 18, y = 4}, ticks = 50},
+    -- Music ducks to silence; sustained low cleric drone
+    {sfx = {class = "cleric", note = 36, vel = 0.2, attack = 2.0, release = 6.0, wet = 0.9}},
+    {wait = 16},
+    -- Miel arrives at the broken altar (row 3 col 18)
+    {move = "miel_alone", to = {x = 18, y = 3}, ticks = 24},
+    {face = "miel_alone", facing = "up"},
+    {wait = 16},
+    -- The single line
+    {dialogue = {"Miel:", "\"Mother. I'm here.\""}, npc = {name = "Miel"}},
+    {wait = 30},
+    -- Queen's Echo briefly manifests behind her, no dialogue
+    {spawn = "queens_echo", class = "cleric", name = "", x = 18, y = 4, facing = "down", bob = false},
+    {sfx = {class = "cleric", note = 60, vel = 0.3, attack = 1.5, release = 3.0, wet = 0.95}},
+    {wait = 36},
+    {despawn = "queens_echo"},
+    {wait = 16},
+    -- Long fade out, then restore
+    {fade_in = 60},
+    {wait = 30},
+    {despawn = "miel_alone"},
+    {set = function() flag.miel_walks_alone_done = true end},
+    {fade_out = 30},
+    {show_player = true},
+    {letterbox_out = true},
+  }
+  return script
+end
+
 -- start_phrygian_strom_confronted_scene() — Warrior-lead + Aram NPC in
 -- Phrygian City. Strom's former second-in-command faces him across the
 -- bazaar stall. One-way absolution: Aram lowers his hand, gives his
@@ -14564,6 +14612,18 @@ local function try_move(dx, dy)
        and not (SCENE and SCENE.active) then
       if start_observatory_velthes_entry_scene then
         SCENE.start(start_observatory_velthes_entry_scene())
+        redraw()
+        return
+      end
+    end
+    -- Lirael: Miel Walks Alone — one-shot cathedral scene (Task 4.5).
+    -- Fires when player first steps onto the cathedral_door tile (88) in
+    -- map 23 (row 8, cols 19-20 — double-wide entryway) from the south.
+    if current_map_id == 23 and map[ny] and map[ny][nx] == 88
+       and not flag.miel_walks_alone_done
+       and not (SCENE and SCENE.active) then
+      if start_lirael_miel_walks_alone_scene then
+        SCENE.start(start_lirael_miel_walks_alone_scene())
         redraw()
         return
       end
