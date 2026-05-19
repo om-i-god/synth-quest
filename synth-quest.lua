@@ -5448,6 +5448,17 @@ ANIM.dust_puff = function(cx, cy)
   ANIM.dust[#ANIM.dust + 1] = {x = cx, y = cy, t = tick}
 end
 
+ANIM.ghost_sprite = function(class, x, y, brightness, ticks)
+  ANIM.particles[#ANIM.particles + 1] = {
+    kind = "ghost_sprite",
+    class = class,
+    x = x, y = y,
+    bright = brightness or 8,
+    t = tick,
+    dur = ticks or 14,
+  }
+end
+
 -- true while in a random overworld encounter (not a cave fight)
 local random_battle = false
 -- chance per overworld step to spawn a random encounter (outside the village)
@@ -28405,9 +28416,15 @@ function redraw()
         local py = math.floor(pcl.y + pcl.vy * age + 0.5)
         screen.level(math.max(2, pcl.lev - age))
         screen.pixel(px, py); screen.fill()
+      elseif kind == "ghost_sprite" then
+        -- Norns has no per-sprite brightness override, so we render a
+        -- silhouette outline at the requested brightness — same shape as
+        -- the 8x8 character sprite, dimmer over time.
+        local b = math.max(2, (pcl.bright or 8) - math.floor(age / 2))
+        screen.level(b)
+        screen.rect(pcl.x, pcl.y, 8, 8); screen.stroke()
+      -- Other kinds (ring, mask_bar, spring_line, rotating_line) added in later tasks.
       end
-      -- Other kinds (ring, ghost_sprite, mask_bar, spring_line, rotating_line)
-      -- added in subsequent tasks.
     end
   end
   -- Footstep dust: 2 puff pixels behind player, fading. Lifespan ~10 ticks.
