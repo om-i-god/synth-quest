@@ -15618,6 +15618,58 @@ ANIM.party_hud_x = function(p)
   return 16
 end
 
+-- ── Resonance invocation animations ──────────────────────────────────
+-- Each function spawns particles attached to the casting character's
+-- combat sprite position. See docs/specs/2026-05-19-resonance-fluid-
+-- invocation-design.md for the per-Resonance vocabulary.
+-- Sprite position for party member p: (cx+1, 49) where cx = ANIM.party_hud_x(p).
+-- Animations target sprite center (cx+5, 53) unless otherwise noted.
+-- Functions and dispatcher are intentionally global (no `local`) because
+-- the main chunk has hit Lua's 200-local-variable limit.
+
+function play_ring_anim(p)
+  -- stub — implemented in RF.5
+end
+
+function play_long_echo_anim(p)
+  -- stub — implemented in RF.6
+end
+
+function play_threefold_anim(p)
+  -- stub — implemented in RF.7
+end
+
+function play_masked_voice_anim(p)
+  -- stub — implemented in RF.8
+end
+
+function play_spring_anim(p)
+  -- stub — implemented in RF.9
+end
+
+function play_heavy_hand_anim(p)
+  -- stub — implemented in RF.10
+end
+
+function play_scatter_anim(p)
+  -- stub — implemented in RF.11
+end
+
+function play_slow_wheel_anim(p)
+  -- stub — implemented in RF.12
+end
+
+RESO_ANIMS = {
+  ring         = play_ring_anim,
+  long_echo    = play_long_echo_anim,
+  threefold    = play_threefold_anim,
+  masked_voice = play_masked_voice_anim,
+  spring       = play_spring_anim,
+  heavy_hand   = play_heavy_hand_anim,
+  scatter      = play_scatter_anim,
+  slow_wheel   = play_slow_wheel_anim,
+}
+
 local function damage_party(p, amount)
   -- Party is invincible while in JAM mode (so jamming live during a battle
   -- can't accidentally KO anyone).
