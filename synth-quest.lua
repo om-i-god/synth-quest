@@ -15751,7 +15751,17 @@ function play_scatter_anim(p)
 end
 
 function play_slow_wheel_anim(p)
-  -- stub — implemented in RF.12
+  -- Analog phaser: a diameter line drawn through the character's sprite
+  -- center, rotating ~22.5° every tick (≈45° every 2 ticks). Fades after 16.
+  local cx = ANIM.party_hud_x(p) + 5
+  local cy = 53
+  ANIM.particles[#ANIM.particles + 1] = {
+    kind = "rotating_line",
+    x = cx, y = cy,
+    radius = 6,
+    lev = 13,
+    t = tick, dur = 16,
+  }
 end
 
 RESO_ANIMS = {
@@ -28594,7 +28604,17 @@ function redraw()
           screen.level(math.max(2, (pcl.lev or 13) - age))
           screen.pixel(x, y); screen.fill()
         end
-      -- Other kinds (rotating_line) added in later tasks.
+      elseif kind == "rotating_line" then
+        if age >= 0 then
+          local angle = age * (math.pi / 8)    -- ≈22.5° per tick
+          local r = pcl.radius or 6
+          local dx = math.cos(angle) * r
+          local dy = math.sin(angle) * r
+          screen.level(math.max(2, (pcl.lev or 13) - math.floor(age / 2)))
+          screen.move(pcl.x - dx, pcl.y - dy)
+          screen.line(pcl.x + dx, pcl.y + dy)
+          screen.stroke()
+        end
       end
     end
   end
