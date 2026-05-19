@@ -15712,7 +15712,22 @@ function play_spring_anim(p)
 end
 
 function play_heavy_hand_anim(p)
-  -- stub — implemented in RF.10
+  -- Sidechain compressor: 6 particles falling DOWNWARD from the character,
+  -- plus 1-tick screen shake (magnitude 2). Uses the existing "spark" kind
+  -- with downward-biased velocity. Lifespan 10 ticks.
+  local cx = ANIM.party_hud_x(p) + 5
+  local cy = 53
+  for i = 1, 6 do
+    local ang = (math.pi / 6) * (i - 3.5)   -- spread roughly downward
+    ANIM.particles[#ANIM.particles + 1] = {
+      kind = "spark",
+      x = cx, y = cy,
+      vx = math.sin(ang) * 0.6,
+      vy = math.abs(math.cos(ang)) * 1.4 + 0.4,    -- biased downward
+      t = tick, lev = 15, dur = 10,
+    }
+  end
+  ANIM.shake(2, 1)
 end
 
 function play_scatter_anim(p)
