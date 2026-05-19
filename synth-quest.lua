@@ -15668,7 +15668,29 @@ function play_threefold_anim(p)
 end
 
 function play_masked_voice_anim(p)
-  -- stub — implemented in RF.8
+  -- Vocoder: thin horizontal bar overlays the character's eyes for 4 ticks,
+  -- then dissipates upward as 3 small particles drifting straight up.
+  local cx = ANIM.party_hud_x(p) + 1
+  local sy = 49
+  -- The mask bar
+  ANIM.particles[#ANIM.particles + 1] = {
+    kind = "mask_bar",
+    x = cx + 1, y = sy + 2,
+    w = 6, h = 1,
+    lev = 13,
+    t = tick, dur = 4,
+  }
+  -- 3 upward-drifting sparks (start 4 ticks later)
+  for i = 1, 3 do
+    ANIM.particles[#ANIM.particles + 1] = {
+      kind = "spark",
+      x = cx + 1 + (i * 2),
+      y = sy + 2,
+      vx = 0,
+      vy = -0.4,
+      t = tick + 4, lev = 11,
+    }
+  end
 end
 
 function play_spring_anim(p)
@@ -28515,7 +28537,12 @@ function redraw()
           screen.level(math.max(2, (pcl.lev or 15) - age))
           screen.circle(pcl.x, pcl.y, r); screen.stroke()
         end
-      -- Other kinds (mask_bar, spring_line, rotating_line) added in later tasks.
+      elseif kind == "mask_bar" then
+        if age >= 0 then
+          screen.level(math.max(2, (pcl.lev or 13) - age * 2))
+          screen.rect(pcl.x, pcl.y, pcl.w or 6, pcl.h or 1); screen.fill()
+        end
+      -- Other kinds (spring_line, rotating_line) added in later tasks.
       end
     end
   end
