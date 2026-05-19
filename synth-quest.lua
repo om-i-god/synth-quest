@@ -13637,6 +13637,8 @@ local function reset_party_for_battle()
     p.shield = false
     p.buffed = false
     p.ring_armed = false   -- Resonance arm-flag is per-battle (matches p.buffed)
+    p.reso_cooldown_until = 0
+    p.reso_denied_t = -99
     p.blocking = false
     p.reflect = false
     p.reflect_ticks = 0
@@ -16154,15 +16156,14 @@ local function apply_player_action(p)
     p.reflect_ticks = 24
     p.mp = math.min(p.mp_max, p.mp + 1)
   elseif p.queued == "RESO" then
-    -- Resonance call. MP was deducted at queue-time (R2 handler), matching
-    -- the existing HEAL/MAG pattern. Fire the signature sound, flash a
-    -- banner, then ARM the per-Resonance buff. The actual effect lands
-    -- on the next compatible action (e.g. Ring is consumed by the next
-    -- ATK by this character). See docs/specs/2026-05-17-ring-effect-design.md.
+    -- Fluid invocation: SFX + animation + arm buff. Does NOT consume the
+    -- firing slot (no p.last_fire set). Sets a 6-tick per-character
+    -- Resonance cooldown to prevent re-invoke spam.
+    -- See docs/specs/2026-05-19-resonance-fluid-invocation-design.md.
     local rid = p.queued_resonance
     local r   = rid and RESONANCES[rid]
     if r then
-      -- Feedback: sound + banner so the player can tell the call landed.
+      -- Signature SFX
       local sig = RESONANCE_SITES[rid] and RESONANCE_SITES[rid].shrine and RESONANCE_SITES[rid].shrine.signature
       if sig and sig.sound then
         sq_trig(sig.sound.class, midi_to_freq(sig.sound.note),
@@ -16171,15 +16172,19 @@ local function apply_player_action(p)
                 sig.sound.release or 4.0,
                 math.min(1, (sig.sound.wet or 1.0) * (CONTENT.combat_reverb_mix or 1.0)))
       end
-      -- No "* The Ring *" banner: signature sound + bell glyph on the
-      -- HUD column are enough feedback. The banner blocks gameplay view.
-      -- Arm the per-Resonance buff. Other Resonances dispatch on rid
-      -- here as they are added in later passes.
+      -- Per-Resonance animation
+      if RESO_ANIMS and RESO_ANIMS[rid] then
+        RESO_ANIMS[rid](p)
+      end
+      -- Arm the per-Resonance buff (only Ring has a real effect this pass).
       if rid == "ring" then
         p.ring_armed = true
       end
+      -- Per-character 6-tick cooldown — separate from firing slot.
+      p.reso_cooldown_until = tick + 6
       p.queued_resonance = nil
-      p.last_fire = tick
+      -- NOTE: deliberately do NOT set p.last_fire. RESO is fluid; the
+      -- character can immediately queue another action in the same tick.
       p.last_action = "RESO"
     end
   end
@@ -17116,6 +17121,9 @@ exit_battle = function()
     p.sleep_ticks = 0
     p.reflect = false
     p.reflect_ticks = 0
+    p.reso_cooldown_until = 0
+    p.reso_denied_t = -99
+    p.ring_armed = false
   end
   -- DEFEAT branch: tutorial/scripted fights (prologue silencers, escape-cave
   -- wisps, the academy Strom duel) get a soft reset — full-HP revive +
