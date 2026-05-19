@@ -17979,6 +17979,8 @@ function gamepad.analog(sensor_axis, val, half_reso)
   if sensor_axis == "triggerright" then
     -- ONE-SHOT: rising-edge queues RESO action for the active character
     -- in battle. Same drift-resistant pattern as triggerleft.
+    -- ONE-SHOT: rising-edge queues RESO action for the active character
+    -- in battle. Same drift-resistant pattern as triggerleft.
     local now_pressed = (val / half_reso) > 0.2
     if now_pressed and not CONTENT._r2_prev then
       if game_state == "BATTLE" then
@@ -17992,17 +17994,35 @@ function gamepad.analog(sensor_axis, val, half_reso)
               rid = id; break
             end
           end
+          local denial = nil
           if not rid then
-            CONTENT.banner_text  = "* no resonance attuned *"
-            CONTENT.banner_ticks = 36
+            denial = "no_attune"
           elseif p.ring_armed then
-            -- Refuse re-arm silently. The bell glyph on the HUD already
-            -- tells the player they're armed; a banner is noise.
-            -- (MP intentionally not deducted — avoids double-MP-burn.)
+            denial = "already_armed"
           elseif p.mp < RESONANCES[rid].mp_cost then
-            CONTENT.banner_text  = "* not enough MP *"
-            CONTENT.banner_ticks = 36
+            denial = "low_mp"
+          elseif p.reso_cooldown_until and tick < p.reso_cooldown_until then
+            denial = "cooldown"
+          end
+          if denial then
+            p.reso_denied_t = tick
+            -- Cause-specific denial SFX (cleric class, short releases). Multi-
+            -- note variants fire as a brief chord (norns audio is non-blocking
+            -- and there's no built-in delay queue at this layer).
+            if denial == "no_attune" then
+              sq_trig("cleric", midi_to_freq(28), 0.4, 0.005, 0.15, 0)
+            elseif denial == "already_armed" then
+              sq_trig("cleric", midi_to_freq(36), 0.4, 0.005, 0.15, 0)
+              sq_trig("cleric", midi_to_freq(28), 0.35, 0.005, 0.15, 0)
+            elseif denial == "low_mp" then
+              sq_trig("cleric", midi_to_freq(36), 0.4, 0.005, 0.15, 0)
+              sq_trig("cleric", midi_to_freq(33), 0.35, 0.005, 0.15, 0)
+              sq_trig("cleric", midi_to_freq(28), 0.3, 0.005, 0.15, 0)
+            elseif denial == "cooldown" then
+              sq_trig("cleric", midi_to_freq(32), 0.3, 0.005, 0.12, 0)
+            end
           else
+            -- Success path: deduct MP and queue RESO
             p.queued = "RESO"
             p.queued_resonance = rid
             p.mp = p.mp - RESONANCES[rid].mp_cost
