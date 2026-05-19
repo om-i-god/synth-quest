@@ -15694,7 +15694,21 @@ function play_masked_voice_anim(p)
 end
 
 function play_spring_anim(p)
-  -- stub — implemented in RF.9
+  -- Spring reverb: 4 horizontal wavy pixel-lines emanate left and right
+  -- from the character, sinusoidally oscillating outward. Fades over 14.
+  local cx = ANIM.party_hud_x(p) + 5
+  local cy = 53
+  for i = 1, 4 do
+    local dir = (i % 2 == 0) and 1 or -1
+    local y_offset = (i <= 2) and -2 or 2
+    ANIM.particles[#ANIM.particles + 1] = {
+      kind = "spring_line",
+      x = cx, y = cy + y_offset,
+      vx = dir * 0.8,
+      lev = 13,
+      t = tick + (i - 1), dur = 14,
+    }
+  end
 end
 
 function play_heavy_hand_anim(p)
@@ -28542,7 +28556,14 @@ function redraw()
           screen.level(math.max(2, (pcl.lev or 13) - age * 2))
           screen.rect(pcl.x, pcl.y, pcl.w or 6, pcl.h or 1); screen.fill()
         end
-      -- Other kinds (spring_line, rotating_line) added in later tasks.
+      elseif kind == "spring_line" then
+        if age >= 0 then
+          local x = math.floor(pcl.x + pcl.vx * age + 0.5)
+          local y = math.floor(pcl.y + math.sin(age * 0.6) * 2 + 0.5)
+          screen.level(math.max(2, (pcl.lev or 13) - age))
+          screen.pixel(x, y); screen.fill()
+        end
+      -- Other kinds (rotating_line) added in later tasks.
       end
     end
   end
