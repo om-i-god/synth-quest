@@ -15658,7 +15658,13 @@ function play_long_echo_anim(p)
 end
 
 function play_threefold_anim(p)
-  -- stub — implemented in RF.7
+  -- Vintage chorus: two ghost-copies spawn at -1px and +1px simultaneously,
+  -- both held at brightness 7 for 16 ticks. Three sprites visible at once
+  -- during the held phase.
+  local cx = ANIM.party_hud_x(p) + 1
+  local sy = 49
+  ANIM.ghost_sprite(p.class, cx - 1, sy, 7, 16)
+  ANIM.ghost_sprite(p.class, cx + 1, sy, 7, 16)
 end
 
 function play_masked_voice_anim(p)
