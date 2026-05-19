@@ -15630,7 +15630,21 @@ end
 -- the main chunk has hit Lua's 200-local-variable limit.
 
 function play_ring_anim(p)
-  -- stub — implemented in RF.5
+  -- Ring modulator: 3 concentric expanding pixel rings from the character's
+  -- sprite center. Brightness 15, 13, 11; radii expand 1px/tick. Staggered
+  -- start so the rings ripple outward in sequence.
+  local cx = ANIM.party_hud_x(p) + 5   -- sprite center x
+  local cy = 53                         -- sprite center y
+  for i = 0, 2 do
+    ANIM.particles[#ANIM.particles + 1] = {
+      kind = "ring",
+      x = cx, y = cy,
+      r0 = 1 + i * 2,        -- starting radius for this ring
+      lev = 15 - i * 2,      -- 15, 13, 11
+      t = tick + i * 2,      -- staggered start (T0, T+2, T+4)
+      dur = 14,
+    }
+  end
 end
 
 function play_long_echo_anim(p)
@@ -28483,7 +28497,13 @@ function redraw()
         local b = math.max(2, (pcl.bright or 8) - math.floor(age / 2))
         screen.level(b)
         screen.rect(pcl.x, pcl.y, 8, 8); screen.stroke()
-      -- Other kinds (ring, mask_bar, spring_line, rotating_line) added in later tasks.
+      elseif kind == "ring" then
+        local r = (pcl.r0 or 1) + age
+        if age >= 0 and r > 0 then
+          screen.level(math.max(2, (pcl.lev or 15) - age))
+          screen.circle(pcl.x, pcl.y, r); screen.stroke()
+        end
+      -- Other kinds (mask_bar, spring_line, rotating_line) added in later tasks.
       end
     end
   end
