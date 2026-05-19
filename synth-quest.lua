@@ -5436,6 +5436,7 @@ ANIM.burst = function(cx, cy, n, lev)
   for i = 1, (n or 8) do
     local ang = (i / (n or 8)) * math.pi * 2 + math.random() * 0.4
     ANIM.particles[#ANIM.particles + 1] = {
+      kind = "spark",
       x = cx, y = cy,
       vx = math.cos(ang) * (1.2 + math.random() * 0.8),
       vy = math.sin(ang) * (1.2 + math.random() * 0.8),
@@ -5445,6 +5446,17 @@ ANIM.burst = function(cx, cy, n, lev)
 end
 ANIM.dust_puff = function(cx, cy)
   ANIM.dust[#ANIM.dust + 1] = {x = cx, y = cy, t = tick}
+end
+
+ANIM.ghost_sprite = function(class, x, y, brightness, ticks)
+  ANIM.particles[#ANIM.particles + 1] = {
+    kind = "ghost_sprite",
+    class = class,
+    x = x, y = y,
+    bright = brightness or 8,
+    t = tick,
+    dur = ticks or 14,
+  }
 end
 
 -- true while in a random overworld encounter (not a cave fight)
@@ -13625,6 +13637,8 @@ local function reset_party_for_battle()
     p.shield = false
     p.buffed = false
     p.ring_armed = false   -- Resonance arm-flag is per-battle (matches p.buffed)
+    p.reso_cooldown_until = 0
+    p.reso_denied_t = -99
     p.blocking = false
     p.reflect = false
     p.reflect_ticks = 0
@@ -15606,6 +15620,161 @@ ANIM.party_hud_x = function(p)
   return 16
 end
 
+-- ── Resonance invocation animations ──────────────────────────────────
+-- Each function spawns particles attached to the casting character's
+-- combat sprite position. See docs/specs/2026-05-19-resonance-fluid-
+-- invocation-design.md for the per-Resonance vocabulary.
+-- Sprite position for party member p: (cx+1, 49) where cx = ANIM.party_hud_x(p).
+-- Animations target sprite center (cx+5, 53) unless otherwise noted.
+-- Functions and dispatcher are intentionally global (no `local`) because
+-- the main chunk has hit Lua's 200-local-variable limit.
+
+function play_ring_anim(p)
+  -- Ring modulator: 3 concentric expanding pixel rings from the character's
+  -- sprite center. Brightness 15, 13, 11; radii expand 1px/tick. Staggered
+  -- start so the rings ripple outward in sequence.
+  local cx = ANIM.party_hud_x(p) + 5   -- sprite center x
+  local cy = 53                         -- sprite center y
+  for i = 0, 2 do
+    ANIM.particles[#ANIM.particles + 1] = {
+      kind = "ring",
+      x = cx, y = cy,
+      r0 = 1 + i * 2,        -- starting radius for this ring
+      lev = 15 - i * 2,      -- 15, 13, 11
+      t = tick + i * 2,      -- staggered start (T0, T+2, T+4)
+      dur = 14,
+    }
+  end
+end
+
+function play_long_echo_anim(p)
+  -- Tape echo two-head: two ghost-copies of the character spawn at +1px
+  -- and +2px to the right of the live sprite. The closer copy fades over
+  -- 6 ticks, the further copy over 10. Reads as the singer echoing.
+  local cx = ANIM.party_hud_x(p) + 1   -- sprite top-left x (matches draw_battle)
+  local sy = 49
+  ANIM.ghost_sprite(p.class, cx + 1, sy, 8, 6)
+  ANIM.ghost_sprite(p.class, cx + 2, sy, 4, 10)
+end
+
+function play_threefold_anim(p)
+  -- Vintage chorus: two ghost-copies spawn at -1px and +1px simultaneously,
+  -- both held at brightness 7 for 16 ticks. Three sprites visible at once
+  -- during the held phase.
+  local cx = ANIM.party_hud_x(p) + 1
+  local sy = 49
+  ANIM.ghost_sprite(p.class, cx - 1, sy, 7, 16)
+  ANIM.ghost_sprite(p.class, cx + 1, sy, 7, 16)
+end
+
+function play_masked_voice_anim(p)
+  -- Vocoder: thin horizontal bar overlays the character's eyes for 4 ticks,
+  -- then dissipates upward as 3 small particles drifting straight up.
+  local cx = ANIM.party_hud_x(p) + 1
+  local sy = 49
+  -- The mask bar
+  ANIM.particles[#ANIM.particles + 1] = {
+    kind = "mask_bar",
+    x = cx + 1, y = sy + 2,
+    w = 6, h = 1,
+    lev = 13,
+    t = tick, dur = 4,
+  }
+  -- 3 upward-drifting sparks (start 4 ticks later)
+  for i = 1, 3 do
+    ANIM.particles[#ANIM.particles + 1] = {
+      kind = "spark",
+      x = cx + 1 + (i * 2),
+      y = sy + 2,
+      vx = 0,
+      vy = -0.4,
+      t = tick + 4, lev = 11,
+    }
+  end
+end
+
+function play_spring_anim(p)
+  -- Spring reverb: 4 horizontal wavy pixel-lines emanate left and right
+  -- from the character, sinusoidally oscillating outward. Fades over 14.
+  local cx = ANIM.party_hud_x(p) + 5
+  local cy = 53
+  for i = 1, 4 do
+    local dir = (i % 2 == 0) and 1 or -1
+    local y_offset = (i <= 2) and -2 or 2
+    ANIM.particles[#ANIM.particles + 1] = {
+      kind = "spring_line",
+      x = cx, y = cy + y_offset,
+      vx = dir * 0.8,
+      lev = 13,
+      t = tick + (i - 1), dur = 14,
+    }
+  end
+end
+
+function play_heavy_hand_anim(p)
+  -- Sidechain compressor: 6 particles falling DOWNWARD from the character,
+  -- plus 1-tick screen shake (magnitude 2). Uses the existing "spark" kind
+  -- with downward-biased velocity. Lifespan 10 ticks.
+  local cx = ANIM.party_hud_x(p) + 5
+  local cy = 53
+  for i = 1, 6 do
+    local ang = (math.pi / 6) * (i - 3.5)   -- spread roughly downward
+    ANIM.particles[#ANIM.particles + 1] = {
+      kind = "spark",
+      x = cx, y = cy,
+      vx = math.sin(ang) * 0.6,
+      vy = math.abs(math.cos(ang)) * 1.4 + 0.4,    -- biased downward
+      t = tick, lev = 15, dur = 10,
+    }
+  end
+  ANIM.shake(2, 1)
+end
+
+function play_scatter_anim(p)
+  -- Granular cloud: 12 tiny particles flying outward in all directions,
+  -- with randomized brightness 7-13 each. Lifespan 18 ticks. Fragmentation feel.
+  local cx = ANIM.party_hud_x(p) + 5
+  local cy = 53
+  for i = 1, 12 do
+    local ang = math.random() * math.pi * 2
+    local speed = 0.6 + math.random() * 1.0
+    ANIM.particles[#ANIM.particles + 1] = {
+      kind = "spark",
+      x = cx, y = cy,
+      vx = math.cos(ang) * speed,
+      vy = math.sin(ang) * speed,
+      t = tick,
+      lev = 7 + math.random(0, 6),
+      dur = 18,
+    }
+  end
+end
+
+function play_slow_wheel_anim(p)
+  -- Analog phaser: a diameter line drawn through the character's sprite
+  -- center, rotating ~22.5° every tick (≈45° every 2 ticks). Fades after 16.
+  local cx = ANIM.party_hud_x(p) + 5
+  local cy = 53
+  ANIM.particles[#ANIM.particles + 1] = {
+    kind = "rotating_line",
+    x = cx, y = cy,
+    radius = 6,
+    lev = 13,
+    t = tick, dur = 16,
+  }
+end
+
+RESO_ANIMS = {
+  ring         = play_ring_anim,
+  long_echo    = play_long_echo_anim,
+  threefold    = play_threefold_anim,
+  masked_voice = play_masked_voice_anim,
+  spring       = play_spring_anim,
+  heavy_hand   = play_heavy_hand_anim,
+  scatter      = play_scatter_anim,
+  slow_wheel   = play_slow_wheel_anim,
+}
+
 local function damage_party(p, amount)
   -- Party is invincible while in JAM mode (so jamming live during a battle
   -- can't accidentally KO anyone).
@@ -16090,15 +16259,14 @@ local function apply_player_action(p)
     p.reflect_ticks = 24
     p.mp = math.min(p.mp_max, p.mp + 1)
   elseif p.queued == "RESO" then
-    -- Resonance call. MP was deducted at queue-time (R2 handler), matching
-    -- the existing HEAL/MAG pattern. Fire the signature sound, flash a
-    -- banner, then ARM the per-Resonance buff. The actual effect lands
-    -- on the next compatible action (e.g. Ring is consumed by the next
-    -- ATK by this character). See docs/specs/2026-05-17-ring-effect-design.md.
+    -- Fluid invocation: SFX + animation + arm buff. Does NOT consume the
+    -- firing slot (no p.last_fire set). Sets a 6-tick per-character
+    -- Resonance cooldown to prevent re-invoke spam.
+    -- See docs/specs/2026-05-19-resonance-fluid-invocation-design.md.
     local rid = p.queued_resonance
     local r   = rid and RESONANCES[rid]
     if r then
-      -- Feedback: sound + banner so the player can tell the call landed.
+      -- Signature SFX
       local sig = RESONANCE_SITES[rid] and RESONANCE_SITES[rid].shrine and RESONANCE_SITES[rid].shrine.signature
       if sig and sig.sound then
         sq_trig(sig.sound.class, midi_to_freq(sig.sound.note),
@@ -16107,15 +16275,19 @@ local function apply_player_action(p)
                 sig.sound.release or 4.0,
                 math.min(1, (sig.sound.wet or 1.0) * (CONTENT.combat_reverb_mix or 1.0)))
       end
-      -- No "* The Ring *" banner: signature sound + bell glyph on the
-      -- HUD column are enough feedback. The banner blocks gameplay view.
-      -- Arm the per-Resonance buff. Other Resonances dispatch on rid
-      -- here as they are added in later passes.
+      -- Per-Resonance animation
+      if RESO_ANIMS and RESO_ANIMS[rid] then
+        RESO_ANIMS[rid](p)
+      end
+      -- Arm the per-Resonance buff (only Ring has a real effect this pass).
       if rid == "ring" then
         p.ring_armed = true
       end
+      -- Per-character 6-tick cooldown — separate from firing slot.
+      p.reso_cooldown_until = tick + 6
       p.queued_resonance = nil
-      p.last_fire = tick
+      -- NOTE: deliberately do NOT set p.last_fire. RESO is fluid; the
+      -- character can immediately queue another action in the same tick.
       p.last_action = "RESO"
     end
   end
@@ -17052,6 +17224,9 @@ exit_battle = function()
     p.sleep_ticks = 0
     p.reflect = false
     p.reflect_ticks = 0
+    p.reso_cooldown_until = 0
+    p.reso_denied_t = -99
+    p.ring_armed = false
   end
   -- DEFEAT branch: tutorial/scripted fights (prologue silencers, escape-cave
   -- wisps, the academy Strom duel) get a soft reset — full-HP revive +
@@ -17804,6 +17979,8 @@ function gamepad.analog(sensor_axis, val, half_reso)
   if sensor_axis == "triggerright" then
     -- ONE-SHOT: rising-edge queues RESO action for the active character
     -- in battle. Same drift-resistant pattern as triggerleft.
+    -- ONE-SHOT: rising-edge queues RESO action for the active character
+    -- in battle. Same drift-resistant pattern as triggerleft.
     local now_pressed = (val / half_reso) > 0.2
     if now_pressed and not CONTENT._r2_prev then
       if game_state == "BATTLE" then
@@ -17817,17 +17994,35 @@ function gamepad.analog(sensor_axis, val, half_reso)
               rid = id; break
             end
           end
+          local denial = nil
           if not rid then
-            CONTENT.banner_text  = "* no resonance attuned *"
-            CONTENT.banner_ticks = 36
+            denial = "no_attune"
           elseif p.ring_armed then
-            -- Refuse re-arm silently. The bell glyph on the HUD already
-            -- tells the player they're armed; a banner is noise.
-            -- (MP intentionally not deducted — avoids double-MP-burn.)
+            denial = "already_armed"
           elseif p.mp < RESONANCES[rid].mp_cost then
-            CONTENT.banner_text  = "* not enough MP *"
-            CONTENT.banner_ticks = 36
+            denial = "low_mp"
+          elseif p.reso_cooldown_until and tick < p.reso_cooldown_until then
+            denial = "cooldown"
+          end
+          if denial then
+            p.reso_denied_t = tick
+            -- Cause-specific denial SFX (cleric class, short releases). Multi-
+            -- note variants fire as a brief chord (norns audio is non-blocking
+            -- and there's no built-in delay queue at this layer).
+            if denial == "no_attune" then
+              sq_trig("cleric", midi_to_freq(28), 0.4, 0.005, 0.15, 0)
+            elseif denial == "already_armed" then
+              sq_trig("cleric", midi_to_freq(36), 0.4, 0.005, 0.15, 0)
+              sq_trig("cleric", midi_to_freq(28), 0.35, 0.005, 0.15, 0)
+            elseif denial == "low_mp" then
+              sq_trig("cleric", midi_to_freq(36), 0.4, 0.005, 0.15, 0)
+              sq_trig("cleric", midi_to_freq(33), 0.35, 0.005, 0.15, 0)
+              sq_trig("cleric", midi_to_freq(28), 0.3, 0.005, 0.15, 0)
+            elseif denial == "cooldown" then
+              sq_trig("cleric", midi_to_freq(32), 0.3, 0.005, 0.12, 0)
+            end
           else
+            -- Success path: deduct MP and queue RESO
             p.queued = "RESO"
             p.queued_resonance = rid
             p.mp = p.mp - RESONANCES[rid].mp_cost
@@ -25011,6 +25206,20 @@ local function draw_battle()
       screen.pixel(cx + 28, 49); screen.pixel(cx + 28, 51)
       screen.pixel(cx + 29, 50); screen.fill()
     end
+    -- Denial feedback: brief dim flash on the bell glyph slot whenever
+    -- a Resonance invocation was rejected (any cause). Renders even when
+    -- no buff is armed, so the player gets a clear visual cue.
+    if p.reso_denied_t and (tick - p.reso_denied_t) < 4 and p.alive then
+      local bx, by = cx + 25, 49
+      screen.level(3)   -- norns is grayscale — level 3 reads as dim/wrong in context
+      screen.pixel(bx + 1, by);     screen.pixel(bx + 2, by);     screen.pixel(bx + 3, by)
+      for c = 0, 4 do
+        screen.pixel(bx + c, by + 1); screen.pixel(bx + c, by + 2)
+      end
+      screen.pixel(bx + 1, by + 3); screen.pixel(bx + 2, by + 3); screen.pixel(bx + 3, by + 3)
+      screen.pixel(bx + 2, by + 4)
+      screen.fill()
+    end
     -- The Ring armed indicator (Miel-specific). Bell silhouette in
     -- the top-right of the HUD column, slower pulse than the rhythm
     -- glyph so the two read as distinct when both are armed at once.
@@ -28394,13 +28603,53 @@ function redraw()
   for i = #ANIM.particles, 1, -1 do
     local pcl = ANIM.particles[i]
     local age = tick - pcl.t
-    if age >= 12 then
+    local kind = pcl.kind or "spark"
+    local dur  = pcl.dur or 12
+    if age >= dur then
       table.remove(ANIM.particles, i)
     else
-      local px = math.floor(pcl.x + pcl.vx * age + 0.5)
-      local py = math.floor(pcl.y + pcl.vy * age + 0.5)
-      screen.level(math.max(2, pcl.lev - age))
-      screen.pixel(px, py); screen.fill()
+      if kind == "spark" then
+        local px = math.floor(pcl.x + pcl.vx * age + 0.5)
+        local py = math.floor(pcl.y + pcl.vy * age + 0.5)
+        screen.level(math.max(2, pcl.lev - age))
+        screen.pixel(px, py); screen.fill()
+      elseif kind == "ghost_sprite" then
+        -- Norns has no per-sprite brightness override, so we render a
+        -- silhouette outline at the requested brightness — same shape as
+        -- the 8x8 character sprite, dimmer over time.
+        local b = math.max(2, (pcl.bright or 8) - math.floor(age / 2))
+        screen.level(b)
+        screen.rect(pcl.x, pcl.y, 8, 8); screen.stroke()
+      elseif kind == "ring" then
+        local r = (pcl.r0 or 1) + age
+        if age >= 0 and r > 0 then
+          screen.level(math.max(2, (pcl.lev or 15) - age))
+          screen.circle(pcl.x, pcl.y, r); screen.stroke()
+        end
+      elseif kind == "mask_bar" then
+        if age >= 0 then
+          screen.level(math.max(2, (pcl.lev or 13) - age * 2))
+          screen.rect(pcl.x, pcl.y, pcl.w or 6, pcl.h or 1); screen.fill()
+        end
+      elseif kind == "spring_line" then
+        if age >= 0 then
+          local x = math.floor(pcl.x + pcl.vx * age + 0.5)
+          local y = math.floor(pcl.y + math.sin(age * 0.6) * 2 + 0.5)
+          screen.level(math.max(2, (pcl.lev or 13) - age))
+          screen.pixel(x, y); screen.fill()
+        end
+      elseif kind == "rotating_line" then
+        if age >= 0 then
+          local angle = age * (math.pi / 8)    -- ≈22.5° per tick
+          local r = pcl.radius or 6
+          local dx = math.cos(angle) * r
+          local dy = math.sin(angle) * r
+          screen.level(math.max(2, (pcl.lev or 13) - math.floor(age / 2)))
+          screen.move(pcl.x - dx, pcl.y - dy)
+          screen.line(pcl.x + dx, pcl.y + dy)
+          screen.stroke()
+        end
+      end
     end
   end
   -- Footstep dust: 2 puff pixels behind player, fading. Lifespan ~10 ticks.
