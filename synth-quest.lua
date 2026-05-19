@@ -25206,6 +25206,20 @@ local function draw_battle()
       screen.pixel(cx + 28, 49); screen.pixel(cx + 28, 51)
       screen.pixel(cx + 29, 50); screen.fill()
     end
+    -- Denial feedback: brief dim flash on the bell glyph slot whenever
+    -- a Resonance invocation was rejected (any cause). Renders even when
+    -- no buff is armed, so the player gets a clear visual cue.
+    if p.reso_denied_t and (tick - p.reso_denied_t) < 4 and p.alive then
+      local bx, by = cx + 25, 49
+      screen.level(3)   -- norns is grayscale — level 3 reads as dim/wrong in context
+      screen.pixel(bx + 1, by);     screen.pixel(bx + 2, by);     screen.pixel(bx + 3, by)
+      for c = 0, 4 do
+        screen.pixel(bx + c, by + 1); screen.pixel(bx + c, by + 2)
+      end
+      screen.pixel(bx + 1, by + 3); screen.pixel(bx + 2, by + 3); screen.pixel(bx + 3, by + 3)
+      screen.pixel(bx + 2, by + 4)
+      screen.fill()
+    end
     -- The Ring armed indicator (Miel-specific). Bell silhouette in
     -- the top-right of the HUD column, slower pulse than the rhythm
     -- glyph so the two read as distinct when both are armed at once.
