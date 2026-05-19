@@ -1738,3 +1738,29 @@ mirroring the SCENE.draw fix from 2026-05-14.
 Other 7 Resonances stubbed in the data tables; their
 item/shrine/signature blocks fill in later passes. ECHO will be
 the 8th party member when designed.
+
+## 2026-05-19 — The Ring combat effect + UX polish
+
+Wired the Ring's actual combat behavior per
+docs/specs/2026-05-17-ring-effect-design.md. RESO branch no
+longer deals stub damage — it arms p.ring_armed; the next ATK
+fires the empowered hit (1.30x damage + dual-tone clangor [root
++ fifth] + larger burst + screen shake) and consumes the flag.
+Stacks multiplicatively with crit and buffed.
+
+Lifecycle: cleared in 5 reset sites (reset_party_for_battle + 4
+enter-battle per-party-loops) and on KO. R2 refuses to re-arm
+silently if already armed. HUD bell glyph (5x5) on the armed
+character's column, slower pulse than rhythm-crit '♪'.
+
+Polish during playthrough:
+- Removed "* The Ring *" and "* already armed *" banners — the
+  signature bell + HUD glyph carry the feedback; banners blocked
+  gameplay view.
+- Static Page NPC in the castle hallway now also gates on
+  `not SCENE.active`, fixing a visible double-Page during the
+  page_warning scene (one cinematic actor + one static NPC
+  overlapping).
+
+Effect dispatch still inlined into the ATK branch — extract when
+the second Resonance effect lands.

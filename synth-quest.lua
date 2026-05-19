@@ -1038,13 +1038,11 @@ local CUTSCENE_LINES = {
   {text = "In the great hall, a scribe scratches at parchment. A page yawns at his post.", scene = "lirael_hall"},
   {text = "Captain Ren walks the south wall and counts his guards by name.", scene = "lirael_southwall"},
   {text = "In her chamber, Queen Miel sets her crown on the dressing table.", scene = "lirael_chamber"},
-  {text = "She blows out two of the three candles. She does not blow out the third.", scene = "lirael_candles"},
   {text = "Outside, on the road from the west, a lamp goes out that should not.", scene = "lirael_road"},
   {text = "On the south wall, a sentry does not answer the next watchword.", scene = "lirael_sentry"},
   {text = "The captain stops walking. He waits one beat too long. He runs.", scene = "lirael_captain_run"},
   {text = "In the courtyard the bell sounds again — wrong, sharp, twice.", scene = "lirael_courtyard"},
   {text = "The south gate takes the first blow. The old stones remember.", scene = "lirael_gate"},
-  {text = "In her chamber, the queen has not yet woken. The third candle is guttering.", scene = "lirael_candles_dim"},
 }
 
 -- ENDING cutscene panels (run after defeating Suno). Long-form FF4-style
@@ -3077,7 +3075,17 @@ CONTENT = {
     -- the main north-south corridor so he isn't "hovering" between
     -- the queen and the throne-room doors.
     { x = 8, y = 8, name = "Page",
-      visible = function() return not CONTENT.courtyard_breached end,
+      -- Hidden until the page_warning scene has played AND the courtyard
+      -- hasn't yet been breached AND no scene is currently active. The
+      -- last clause matters because scene_seen.page_warning is set as the
+      -- trigger fires (before start_page_warning_scene returns), so
+      -- without the SCENE.active gate the static Page renders at (8, 8)
+      -- during the scene alongside the cinematic actor at (5, 1).
+      visible = function()
+        return (CONTENT.scene_seen and CONTENT.scene_seen.page_warning)
+               and not CONTENT.courtyard_breached
+               and not (SCENE and SCENE.active)
+      end,
       dialogue = function()
         return {
           "[Page]    The court is doing what it can. Get to the throne, my queen.",
@@ -3118,6 +3126,18 @@ CONTENT = {
   -- visible AFTER the prologue intro completes — it stays "asleep"
   -- during the wake-up scene).
   quarters_npcs = {
+    -- Crown on the dressing table at (5, 4). Miel set it down before bed
+    -- in the intro cutscene ("In her chamber, Queen Miel sets her crown
+    -- on the dressing table.") and chose not to put it back on when the
+    -- raid woke her. Always visible — the crown stays where she left it.
+    { x = 5, y = 4, name = "CrownOnTable", kind = "object",
+      dialogue = function()
+        return {
+          "(your circlet rests where you set it. cool, plain, waiting.)",
+          "(you do not pick it up. not tonight.)",
+        }
+      end,
+    },
     { x = 7, y = 4, name = "Tisa", kind = "pet",
       visible = function() return CONTENT.prologue_intro_done end,
       dialogue = function()
@@ -3321,7 +3341,12 @@ CONTENT = {
   -- Barracks NPCs. Sgt. Hova is the off-duty watch sergeant; Borin is
   -- a new recruit too young for what's about to happen.
   barracks_npcs = {
+    -- Hova + Borin disappear from the barracks AFTER the courtyard
+    -- breach scene plays. (They emerge from the barracks during the
+    -- scene, fight the silencers at the gate, and fall.) The same
+    -- `courtyard_breached` flag gates the rest of the courtyard cast.
     { x = 7, y = 3, name = "Sgt.Hova",
+      visible = function() return not CONTENT.courtyard_breached end,
       dialogue = function()
         return {
           "[Sgt.Hova] (lacing her boots; she's been on duty thirty-six hours)",
@@ -3332,6 +3357,7 @@ CONTENT = {
       end,
     },
     { x = 4, y = 4, name = "Borin",
+      visible = function() return not CONTENT.courtyard_breached end,
       dialogue = function()
         return {
           "[Borin]  (he is sixteen. his hands shake on the spear)",
@@ -3361,11 +3387,47 @@ CONTENT = {
   infirmary_npcs = {
     { x = 6, y = 3, name = "HealerYmra",
       dialogue = function()
+        flag.ymra_spoken = true
+        if flag.ymra_shelf_taken then
+          return {
+            "[Ymra]   (already wrapping a bandage) You've got the salve. Go.",
+            "[Ymra]   The hall is shorter than it looks when you're running.",
+          }
+        end
         return {
           "[Ymra]   (washing her hands; doesn't look up) My queen. Sit. No -- don't sit.",
           "[Ymra]   You're not staying. (looks at you) Of course you're not staying.",
-          "[Ymra]   Take a salve from the shelf. Don't argue. (sets it in your hand)",
+          "[Ymra]   Take a salve from the shelf -- east wall. Don't argue.",
           "[Ymra]   And go. The hall is shorter than it looks when you're running.",
+        }
+      end,
+    },
+    -- Remedy shelf at (9, 5). Tile 31 (shelves) renders underneath; this
+    -- "object" NPC is what the player actually `check`s with A. Once
+    -- Ymra has been spoken to it dispenses a single salve; otherwise it
+    -- just describes the bottles.
+    { x = 9, y = 5, name = "RemedyShelf", kind = "object",
+      dialogue = function()
+        if flag.ymra_shelf_taken then
+          return {
+            "(the shelf is bare. whoever follows you will be glad of the gap.)",
+          }
+        end
+        if not flag.ymra_spoken then
+          return {
+            "(neat rows of stoppered bottles. salves, tinctures, a few bandages.)",
+            "(none of it is yours to take -- not without Ymra's nod.)",
+          }
+        end
+        flag.ymra_shelf_taken = true
+        SHOP.inv.salve = (SHOP.inv.salve or 0) + 1
+        SHOP.last_item_drop = "salve"
+        CONTENT.banner_text  = "+ obtained: Salve"
+        CONTENT.banner_ticks = 60
+        if items_play_sfx then items_play_sfx("salve") end
+        return {
+          "(you lift a stoppered bottle from the shelf -- amber glass, warm in your hand)",
+          "(Ymra does not look up. the wounded man's breathing is a little easier.)",
         }
       end,
     },
@@ -6043,8 +6105,7 @@ function start_prologue_castle_intro()
     {spawn = "miel", class = "cleric", name = "Miel", x = 3, y = 2, facing = "down", bob = false},
     {wait = 14},
     {dialogue = {
-      "(Miel wakes. The candles in her chamber are wrong -- two are out, the third is guttering.)",
-      "(Beyond the walls: shouts in the courtyard. A bell rings once and is cut short.)",
+      "(Miel wakes. Beyond the walls: shouts in the courtyard. A bell rings once and is cut short.)",
       "(Then the muffled crack of something heavy striking the south gate.)",
     }, npc = nil},
     -- A second courtyard wave: more distant shouts + a sharp clash.
@@ -6161,7 +6222,60 @@ function start_courtyard_breach_script()
     {dialogue = {
       "(the line breaks. The silencers walk through it as if it were not there.)",
     }, npc = nil},
+    {wait = 6},
+    -- Hova + Borin burst out of the barracks west door (3, 5) to plug
+    -- the line. Borin is sixteen and frightened; Hova is the watch
+    -- sergeant who came in off a thirty-six-hour shift to suit up.
+    -- They emerge offset so their sprites don't stack on the door tile.
+    {focus = {x = 4, y = 6}, ticks = 14},
+    {spawn = "hova",  class = "warrior", name = "Sgt.Hova", x = 3, y = 5, facing = "right", bob = false},
+    {spawn = "borin", class = "warrior", name = "Borin",    x = 3, y = 6, facing = "right", bob = false},
+    {wait = 6},
+    {dialogue = {
+      "[Sgt.Hova] BORIN -- WITH ME -- THE QUEEN HOLDS WHILE WE CLOSE --",
+    }, npc = {name = "Sgt.Hova"}},
+    {wait = 4},
+    -- They run southeast toward the gate row, threading between the
+    -- silencer columns (5, 7, 8, 10) so their move arcs are visible.
+    {move = "hova",  to = {x = 6,  y = 11}, ticks = 40},
+    {move = "borin", to = {x = 9,  y = 11}, ticks = 40},
+    {focus = {x = 7, y = 11}, ticks = 30},
     {wait = 8},
+    -- Borin reaches the gate first; brittle and brave.
+    {dialogue = {
+      "[Borin]  (a high held breath) ...for Lirael.",
+    }, npc = {name = "Borin"}},
+    {wait = 6},
+    -- Engagement: silencers strike both reinforcements.
+    {sfx = {class = "warrior", note = 34, vel = 0.90, attack = 0.001, release = 0.25, wet = 0.15}},
+    {bump = "hova",  dir = "down", ticks = 4},
+    {bump = "s2",    dir = "up",   ticks = 4},
+    {wait = 8},
+    {sfx = {class = "warrior", note = 29, vel = 0.85, attack = 0.001, release = 0.25, wet = 0.15}},
+    {bump = "borin", dir = "down", ticks = 4},
+    {bump = "s3",    dir = "up",   ticks = 4},
+    {wait = 8},
+    -- Borin falls; Hova still standing for one more line.
+    {dialogue = {
+      "(Borin goes down without another word. The shop will not get its message.)",
+    }, npc = nil},
+    {despawn = "borin"},
+    {wait = 6},
+    {face = "hova", facing = "up"},
+    {dialogue = {
+      "[Sgt.Hova] (a hand on her side; she will not look down) ...my queen. RUN.",
+    }, npc = {name = "Sgt.Hova"}},
+    {wait = 6},
+    -- Hova falls.
+    {sfx = {class = "warrior", note = 27, vel = 0.90, attack = 0.001, release = 0.45, wet = 0.15}},
+    {shake = {mag = 2, ticks = 6}},
+    {bump = "hova", dir = "down", ticks = 6},
+    {wait = 10},
+    {despawn = "hova"},
+    {wait = 6},
+    -- Camera snaps back to the captain at center for the final exchange.
+    {focus = {x = 7, y = 8}, ticks = 18},
+    {wait = 6},
     -- The captain turns to Miel and shouts.
     {face = "cap", facing = "up"},
     {look = "miel", toward = "cap"},
@@ -6523,7 +6637,7 @@ function start_prologue_silencer(idx)
   game_state = "BATTLE"
   params:set("clock_tempo", BATTLE_BPM)
   for _, p in ipairs(party) do
-    p.atb = 0; p.shield = false; p.buffed = false; p.blocking = false; p.reflect = false; p.reflect_ticks = 0
+    p.atb = 0; p.shield = false; p.buffed = false; p.ring_armed = false; p.blocking = false; p.reflect = false; p.reflect_ticks = 0
   end
   TITLE.battle_step = 0
   redraw()
@@ -6566,7 +6680,7 @@ function start_prologue_cave_monster(idx)
   game_state = "BATTLE"
   params:set("clock_tempo", BATTLE_BPM)
   for _, p in ipairs(party) do
-    p.atb = 0; p.shield = false; p.buffed = false; p.blocking = false; p.reflect = false; p.reflect_ticks = 0
+    p.atb = 0; p.shield = false; p.buffed = false; p.ring_armed = false; p.blocking = false; p.reflect = false; p.reflect_ticks = 0
   end
   TITLE.battle_step = 0
   redraw()
@@ -6608,7 +6722,7 @@ function start_strom_battle()
   params:set("clock_tempo", BATTLE_BPM)
   -- reset everyone's ATB
   for _, p in ipairs(party) do
-    p.atb = 0; p.shield = false; p.buffed = false; p.blocking = false; p.reflect = false; p.reflect_ticks = 0
+    p.atb = 0; p.shield = false; p.buffed = false; p.ring_armed = false; p.blocking = false; p.reflect = false; p.reflect_ticks = 0
     if p.alive then p.hp = math.max(p.hp, math.floor(p.hp_max * 0.5)) end
   end
   TITLE.battle_step = 0
@@ -6745,7 +6859,7 @@ function start_broken_cadence_battle()
   game_state = "BATTLE"
   params:set("clock_tempo", BATTLE_BPM)
   for _, p in ipairs(party) do
-    p.atb = 0; p.shield = false; p.buffed = false
+    p.atb = 0; p.shield = false; p.buffed = false; p.ring_armed = false
     p.blocking = false; p.reflect = false; p.reflect_ticks = 0
   end
   TITLE.battle_step = 0
@@ -12973,6 +13087,9 @@ flag.broken_cadence_done   = flag.broken_cadence_done   or false
 flag.bandstand_done        = flag.bandstand_done        or false
 flag.strom_confronted      = flag.strom_confronted      or false
 flag.diegues_returned      = flag.diegues_returned      or false
+-- Prologue infirmary: Ymra-shelf hand-off.
+flag.ymra_spoken           = flag.ymra_spoken           or false
+flag.ymra_shelf_taken      = flag.ymra_shelf_taken      or false
 flag.unlock_all            = flag.unlock_all            or false  -- debug toggle
 -- Per-scene completion flags (added incrementally per phase, listed here for index)
 flag.sunward_arrival_done    = flag.sunward_arrival_done    or false
@@ -13446,6 +13563,7 @@ local function reset_party_for_battle()
     p.atb = 0
     p.shield = false
     p.buffed = false
+    p.ring_armed = false   -- Resonance arm-flag is per-battle (matches p.buffed)
     p.blocking = false
     p.reflect = false
     p.reflect_ticks = 0
@@ -13503,12 +13621,17 @@ local function active_theme_id()
   end
 end
 
-local function fire_ow_voice(class, scale_idx, artic_override)
+local function fire_ow_voice(class, scale_idx, artic_override, scale_override)
   if not scale_idx or scale_idx == 0 then return end
   -- Defensive: a malformed theme could ship a scale idx outside the
   -- 1..#scale range. active_scale()[-1] etc. is nil — guard rather
   -- than crash the clock thread with "arithmetic on a nil value".
-  local sc_val = active_scale()[scale_idx]
+  -- scale_override = a mode name ("aeolian", "phrygian", etc.). Lets a
+  -- theme lock itself to a fixed scale regardless of the player's
+  -- current JAM.mode — used by the castle siege theme so the raid
+  -- always plays minor even before any mode shards are collected.
+  local sc = scale_override and JAM.scales[scale_override] or active_scale()
+  local sc_val = sc[scale_idx]
   if not sc_val then return end
   local note = sc_val + JAM.root
   local freq = midi_to_freq(note)
@@ -13535,7 +13658,7 @@ local function tick_overworld_music()
   local theme = OW_THEMES[current_theme] or OW_THEMES.village
   overworld_step = (overworld_step % OW_PATTERN_LEN) + 1
   for class, pat in pairs(theme.pattern) do
-    fire_ow_voice(class, pat[overworld_step], theme.artic)
+    fire_ow_voice(class, pat[overworld_step], theme.artic, theme.scale)
   end
   -- Castle bashing ambient (Pass 62). After the courtyard gate has been
   -- breached and Miel has run back inside, silencers pound on the
@@ -15471,7 +15594,13 @@ local function damage_party(p, amount)
   end
   p.hp = math.max(0, p.hp - amount)
   p.last_hit = tick
-  if p.hp == 0 then p.alive = false end
+  if p.hp == 0 then
+    p.alive = false
+    -- Clear armed Resonance buffs on KO. (p.buffed intentionally
+    -- persists per existing behavior, but Ring's spec says the
+    -- bell goes silent when the bell-ringer falls.)
+    p.ring_armed = false
+  end
   ANIM.spawn_dmg(ANIM.party_hud_x(p), 47, amount, 15)
   -- Pass 50: enemy-inflicted status. Each attack has a small chance to
   -- apply a status effect to the hit character. Bosses use higher rates.
@@ -15637,7 +15766,35 @@ local function apply_player_action(p)
       end
       if crit then dmg = dmg * 2 end
       if p.buffed then dmg = math.floor(dmg * 1.5); p.buffed = false end
+      -- The Ring (Miel's Resonance): empowered next-attack. 1.30x damage
+      -- plus a clangor sound + larger burst + screen shake. Stacks
+      -- multiplicatively with crit/buffed (the bell amplifies what the
+      -- attack already is). Consumed regardless of whether the hit lands.
+      local ring_fx = false
+      if p.ring_armed then
+        dmg = math.floor(dmg * 1.30)
+        p.ring_armed = false
+        ring_fx = true
+      end
       damage_enemy(dmg, crit)
+      if ring_fx then
+        -- Clangor: root bell + a fifth above (same cleric voice as
+        -- the signature sound; the fifth is the "harmonics no one
+        -- could place" beat from the bible).
+        local sig = RESONANCE_SITES.ring and RESONANCE_SITES.ring.shrine
+                    and RESONANCE_SITES.ring.shrine.signature
+        if sig and sig.sound then
+          local s = sig.sound
+          sq_trig(s.class, midi_to_freq(s.note),
+                  s.vel or 0.7, s.attack or 0.05, s.release or 4.0,
+                  math.min(1, (s.wet or 1.0) * (CONTENT.combat_reverb_mix or 1.0)))
+          sq_trig(s.class, midi_to_freq(s.note + 7),
+                  0.55, 0.005, 2.0,
+                  math.min(1, (s.wet or 1.0) * (CONTENT.combat_reverb_mix or 1.0)))
+        end
+        ANIM.burst(96, 32, 10, 15)
+        ANIM.shake(2, 10)
+      end
     end
   elseif p.queued == "HEAL" then
     -- Miel's lyre: revive + heal + apply LONG HP/MP regen.
@@ -15867,7 +16024,9 @@ local function apply_player_action(p)
   elseif p.queued == "RESO" then
     -- Resonance call. MP was deducted at queue-time (R2 handler), matching
     -- the existing HEAL/MAG pattern. Fire the signature sound, flash a
-    -- banner, and stub the effect.
+    -- banner, then ARM the per-Resonance buff. The actual effect lands
+    -- on the next compatible action (e.g. Ring is consumed by the next
+    -- ATK by this character). See docs/specs/2026-05-17-ring-effect-design.md.
     local rid = p.queued_resonance
     local r   = rid and RESONANCES[rid]
     if r then
@@ -15880,15 +16039,14 @@ local function apply_player_action(p)
                 sig.sound.release or 4.0,
                 math.min(1, (sig.sound.wet or 1.0) * (CONTENT.combat_reverb_mix or 1.0)))
       end
-      CONTENT.banner_text  = "* " .. r.name .. " *"
-      CONTENT.banner_ticks = 36
-      -- TODO (separate spec): apply_resonance_effect(rid, p) per r.effect.kind.
-      -- For now: deal a normal-ATK as a placeholder so the action consumes
-      -- a turn and feels like SOMETHING happened.
-      if enemy and enemy.alive then
-        local dmg = INST.atk(p)
-        damage_enemy(dmg, false)
+      -- No "* The Ring *" banner: signature sound + bell glyph on the
+      -- HUD column are enough feedback. The banner blocks gameplay view.
+      -- Arm the per-Resonance buff. Other Resonances dispatch on rid
+      -- here as they are added in later passes.
+      if rid == "ring" then
+        p.ring_armed = true
       end
+      p.queued_resonance = nil
       p.last_fire = tick
       p.last_action = "RESO"
     end
@@ -17061,10 +17219,15 @@ function gamepad.dpad(axis, sign)
       redraw()
     end
   elseif game_state == "ITEMS" and axis == "Y" then
-    -- Scroll the cursor through the items list.
-    local n = #ITEMS_ORDER
+    local rows = items_rows_for_tab(CONTENT.items_tab or 1)
+    local n = math.max(1, #rows)
     CONTENT.items_idx = ((CONTENT.items_idx or 1) - 1 + sign) % n + 1
     if CONTENT.items_idx < 1 then CONTENT.items_idx = CONTENT.items_idx + n end
+    redraw()
+  elseif game_state == "ITEMS" and axis == "X" then
+    -- D-pad LR cycles tabs (mirrors L/R bumper).
+    CONTENT.items_tab = ((CONTENT.items_tab or 1) - 1 + sign) % #ITEM_TABS + 1
+    CONTENT.items_idx = 1
     redraw()
   elseif game_state == "EQUIP" then
     if axis == "Y" then
@@ -17383,9 +17546,21 @@ function gamepad.button(button, state)
     end
   elseif game_state == "ITEMS" then
     if button == "A" then
-      items_use_selected(); redraw()
+      -- Use is only meaningful on the USE tab. On other tabs, A is a no-op
+      -- (the trophy/gear/shard rows are review-only).
+      if (CONTENT.items_tab or 1) == 1 then
+        items_use_selected(); redraw()
+      end
     elseif button == "B" or button == "START" then
       game_state = "MENU"; redraw()
+    elseif button == "L1" or button == "L2" then
+      CONTENT.items_tab = ((CONTENT.items_tab or 1) - 2) % #ITEM_TABS + 1
+      CONTENT.items_idx = 1
+      redraw()
+    elseif button == "R1" or button == "R2" then
+      CONTENT.items_tab = (CONTENT.items_tab or 1) % #ITEM_TABS + 1
+      CONTENT.items_idx = 1
+      redraw()
     end
   elseif game_state == "CREDITS" then
     if button == "A" or button == "START" then
@@ -17577,6 +17752,10 @@ function gamepad.analog(sensor_axis, val, half_reso)
           if not rid then
             CONTENT.banner_text  = "* no resonance attuned *"
             CONTENT.banner_ticks = 36
+          elseif p.ring_armed then
+            -- Refuse re-arm silently. The bell glyph on the HUD already
+            -- tells the player they're armed; a banner is noise.
+            -- (MP intentionally not deducted — avoids double-MP-burn.)
           elseif p.mp < RESONANCES[rid].mp_cost then
             CONTENT.banner_text  = "* not enough MP *"
             CONTENT.banner_ticks = 36
@@ -18103,10 +18282,16 @@ function key(n, z)
       redraw()
     end
   elseif game_state == "ITEMS" then
-    -- K2 = use selected item, K3 = back to MENU. (Cursor scroll lives on
-    -- the encoder — see enc().) K1 unused here.
-    if n == 2 then
-      items_use_selected(); redraw()
+    -- K1 cycles the active tab, K2 uses the item (USE tab only), K3 backs
+    -- out to MENU. Cursor scroll lives on the encoder — see enc().
+    if n == 1 then
+      CONTENT.items_tab = (CONTENT.items_tab or 1) % #ITEM_TABS + 1
+      CONTENT.items_idx = 1
+      redraw()
+    elseif n == 2 then
+      if (CONTENT.items_tab or 1) == 1 then
+        items_use_selected(); redraw()
+      end
     elseif n == 3 then
       game_state = "MENU"; redraw()
     end
@@ -18192,8 +18377,16 @@ function enc(n, d)
     return
   end
   if game_state == "ITEMS" and n == 2 then
-    local n_items = #ITEMS_ORDER
+    local rows = items_rows_for_tab(CONTENT.items_tab or 1)
+    local n_items = math.max(1, #rows)
     CONTENT.items_idx = ((CONTENT.items_idx or 1) - 1 + d) % n_items + 1
+    redraw()
+    return
+  end
+  if game_state == "ITEMS" and n == 3 then
+    -- E3 cycles tabs (matches L/R bumper + D-pad LR on the gamepad).
+    CONTENT.items_tab = ((CONTENT.items_tab or 1) - 1 + d) % #ITEM_TABS + 1
+    CONTENT.items_idx = 1
     redraw()
     return
   end
@@ -19939,23 +20132,27 @@ local ALDER = {
 
 -- ── MIEL (Cleric / Princess) ───────────────────────────────────────────────
 -- Three-spike crown, flowing gown, healing gem
+-- Miel — Cleric / Princess. Redesigned: dark curly hair, no crown. The
+-- crown stays on the dressing table in her chamber (quarters_map). Hair
+-- uses level 3 for the dark base + level 5 highlight pixels to suggest
+-- curls without flattening the silhouette at 8x8.
 local MIEL = {
   down = {
     [0] = {
-       0,15, 0,15, 0,15, 0, 0,  -- crown spikes (asymmetric for elegance)
-       0,12,12,12,12,12, 0, 0,  -- crown band
-       9, 9, 0,13,13, 0, 9, 9,  -- hair sides + face
-       0, 9, 0,13,13, 0, 9, 0,  -- hair flowing down + face
+       0, 3, 5, 3, 5, 3, 0, 0,  -- curl tips on top
+       3, 3, 3, 5, 3, 3, 3, 0,  -- hair crown wraps full head
+       3, 5, 0,13,13, 0, 5, 3,  -- side curls + face
+       0, 3, 0,13,13, 0, 3, 0,  -- hair tail + face
        0,11,11,15,11,11, 0, 0,  -- gown + gem
        0,11,11,11,11,11, 0, 0,
       11,11,11,11,11,11,11, 0,  -- gown widens
        0, 8, 0, 0, 0, 8, 0, 0,
     },
     [1] = {
-       0,15, 0,15, 0,15, 0, 0,
-       0,12,12,12,12,12, 0, 0,
-       9, 9, 0,13,13, 0, 9, 9,
-       0, 9, 0,13,13, 0, 9, 0,
+       0, 3, 5, 3, 5, 3, 0, 0,
+       3, 3, 5, 3, 3, 5, 3, 0,
+       3, 5, 0,13,13, 0, 5, 3,
+       0, 3, 0,13,13, 0, 3, 0,
        0,11,11,15,11,11, 0, 0,
        0,11,11,11,11,11, 0, 0,
       11,11,11,11,11,11,11, 0,
@@ -19964,20 +20161,20 @@ local MIEL = {
   },
   up = {
     [0] = {
-       0,15, 0,15, 0,15, 0, 0,
-       0,12,12,12,12,12, 0, 0,
-       9, 9, 9, 9, 9, 9, 9, 0,  -- back hair full
-       0, 9, 9, 9, 9, 9, 0, 0,  -- hair
+       0, 3, 5, 3, 5, 3, 0, 0,
+       3, 3, 3, 5, 3, 3, 3, 0,
+       3, 3, 5, 3, 3, 5, 3, 0,  -- curly back of head, full
+       0, 3, 3, 5, 3, 3, 0, 0,  -- hair tail
        0,11,11,11,11,11, 0, 0,
        0,11,11,11,11,11, 0, 0,
       11,11,11,11,11,11,11, 0,
        0, 8, 0, 0, 0, 8, 0, 0,
     },
     [1] = {
-       0,15, 0,15, 0,15, 0, 0,
-       0,12,12,12,12,12, 0, 0,
-       9, 9, 9, 9, 9, 9, 9, 0,
-       0, 9, 9, 9, 9, 9, 0, 0,
+       0, 3, 5, 3, 5, 3, 0, 0,
+       3, 3, 5, 3, 5, 3, 3, 0,
+       3, 5, 3, 3, 5, 3, 3, 0,
+       0, 3, 5, 3, 3, 3, 0, 0,
        0,11,11,11,11,11, 0, 0,
        0,11,11,11,11,11, 0, 0,
       11,11,11,11,11,11,11, 0,
@@ -19986,20 +20183,20 @@ local MIEL = {
   },
   right = {
     [0] = {
-       0,15, 0,15, 0,15, 0, 0,
-       0,12,12,12,12,12, 0, 0,
-       0, 9, 0,13,13, 0, 9, 9,  -- profile face + hair trail
-       0, 0, 0,13,13, 0, 9, 0,
+       0, 3, 5, 3, 5, 3, 0, 0,
+       3, 3, 3, 3, 5, 3, 3, 0,
+       0, 3, 0,13,13, 0, 5, 3,  -- profile face + curly trail behind
+       0, 0, 0,13,13, 0, 3, 5,
        0,11,11,15,11,11,11, 0,
        0,11,11,11,11,11,11, 0,
        0, 0,11,11,11,11,11, 0,
        0, 0, 0, 0, 0, 8, 0, 0,
     },
     [1] = {
-       0,15, 0,15, 0,15, 0, 0,
-       0,12,12,12,12,12, 0, 0,
-       0, 9, 0,13,13, 0, 9, 9,
-       0, 0, 0,13,13, 0, 9, 0,
+       0, 3, 5, 3, 5, 3, 0, 0,
+       3, 3, 5, 3, 3, 5, 3, 0,
+       0, 3, 0,13,13, 0, 5, 3,
+       0, 0, 0,13,13, 0, 3, 5,
        0,11,11,15,11,11,11, 0,
        0,11,11,11,11,11,11, 0,
        0, 0,11,11,11,11,11, 0,
@@ -21956,6 +22153,322 @@ NPC_SPRITES.Wisp1 = function(sx, sy)
 end
 NPC_SPRITES.Wisp2 = NPC_SPRITES.Wisp1
 NPC_SPRITES.Wisp3 = NPC_SPRITES.Wisp1
+
+-- CrownOnTable: the circlet Miel sets aside before bed in her chamber.
+-- Three-spike gold band atop a small wooden table; the table is part
+-- of the sprite (no underlying tile for it in quarters_map).
+NPC_SPRITES.CrownOnTable = function(sx, sy)
+  -- table surface + stubby legs
+  screen.level(5);  screen.rect(sx + 1, sy + 5, 6, 1); screen.fill()         -- table top
+  screen.level(3);  screen.rect(sx + 2, sy + 6, 1, 2); screen.fill()         -- leg L
+  screen.level(3);  screen.rect(sx + 5, sy + 6, 1, 2); screen.fill()         -- leg R
+  -- crown band on top, with spikes
+  screen.level(11); screen.rect(sx + 1, sy + 4, 6, 1); screen.fill()         -- band
+  screen.level(15); screen.pixel(sx + 2, sy + 3); screen.pixel(sx + 4, sy + 3); screen.pixel(sx + 6, sy + 3); screen.fill()  -- spikes
+  -- center jewel pulse so the player notices it
+  if (tick % 20) < 12 then
+    screen.level(15); screen.pixel(sx + 4, sy + 4); screen.fill()
+  else
+    screen.level(13); screen.pixel(sx + 4, sy + 4); screen.fill()
+  end
+end
+
+-- RemedyShelf overlay. The shelf tile (31) underneath draws the shelves
+-- themselves; this NPC sprite only adds a tiny salve-bottle glint while
+-- the shelf is still stocked, then renders nothing once taken so the
+-- player can see at a glance whether they still have one to grab.
+NPC_SPRITES.RemedyShelf = function(sx, sy)
+  if flag and flag.ymra_shelf_taken then return end
+  if (tick % 16) < 10 then
+    screen.level(13); screen.pixel(sx + 2, sy + 4); screen.fill()   -- bottle 1
+    screen.level(15); screen.pixel(sx + 5, sy + 4); screen.fill()   -- bottle 2 (glint)
+  else
+    screen.level(11); screen.pixel(sx + 2, sy + 4); screen.fill()
+    screen.level(13); screen.pixel(sx + 5, sy + 4); screen.fill()
+  end
+end
+
+-- ── 21 NPCs who were previously falling back to the generic triangle-
+--    head draw_npc_at. Each gets a small distinguishing silhouette that
+--    matches their role in the world.
+-- Mews: small house cat curled on the inn rug, ears + tail tip
+NPC_SPRITES.Mews = function(sx, sy)
+  screen.level(3);  screen.rect(sx + 1, sy + 4, 6, 3); screen.fill()         -- body
+  screen.level(5);  screen.rect(sx + 5, sy + 3, 2, 2); screen.fill()         -- head
+  screen.level(3);  screen.pixel(sx + 5, sy + 2); screen.pixel(sx + 6, sy + 2); screen.fill()  -- ears
+  screen.level(15); screen.pixel(sx + 6, sy + 3); screen.fill()              -- eye glint
+  screen.level(5);  screen.move(sx + 1, sy + 5); screen.line(sx, sy + 3); screen.stroke()      -- tail
+  screen.level(11); screen.pixel(sx + 2, sy + 7); screen.pixel(sx + 5, sy + 7); screen.fill()  -- white paws
+end
+
+-- Pim: orange tabby sunning on the coast — broader, brighter than Mews
+NPC_SPRITES.Pim = function(sx, sy)
+  screen.level(9);  screen.rect(sx + 1, sy + 3, 6, 4); screen.fill()
+  screen.level(13); screen.rect(sx + 1, sy + 3, 6, 1); screen.fill()         -- back highlight
+  screen.level(5);  screen.move(sx + 2, sy + 4); screen.line(sx + 5, sy + 4); screen.stroke() -- stripe
+  screen.level(9);  screen.rect(sx + 5, sy + 2, 2, 2); screen.fill()         -- head
+  screen.level(5);  screen.pixel(sx + 5, sy + 1); screen.pixel(sx + 6, sy + 1); screen.fill() -- ears
+  screen.level(0);  screen.pixel(sx + 6, sy + 3); screen.fill()              -- eye (closed/squinting)
+  screen.level(7);  screen.pixel(sx, sy + 5); screen.fill()                   -- tail curl
+end
+
+-- Rook: corvid perched on the shop counter, hooked beak, dark plumage
+NPC_SPRITES.Rook = function(sx, sy)
+  screen.level(2);  screen.rect(sx + 2, sy + 2, 4, 5); screen.fill()         -- body
+  screen.level(4);  screen.rect(sx + 2, sy + 2, 4, 1); screen.fill()         -- back sheen
+  screen.level(2);  screen.rect(sx + 5, sy + 3, 2, 1); screen.fill()         -- beak base
+  screen.level(7);  screen.pixel(sx + 7, sy + 3); screen.fill()              -- beak tip
+  screen.level(15); screen.pixel(sx + 5, sy + 2); screen.fill()              -- bright eye
+  screen.level(2);  screen.pixel(sx + 3, sy + 7); screen.pixel(sx + 4, sy + 7); screen.fill()  -- feet
+end
+
+-- Mara: round innkeeper, apron + ladle, warm + motherly
+NPC_SPRITES.Mara = function(sx, sy)
+  screen.level(13); screen.rect(sx + 2, sy + 1, 4, 2); screen.fill()         -- face
+  screen.level(0);  screen.pixel(sx + 3, sy + 2); screen.pixel(sx + 4, sy + 2); screen.fill()  -- eyes
+  screen.level(5);  screen.rect(sx + 2, sy, 4, 1); screen.fill()             -- kerchief
+  screen.level(8);  screen.rect(sx + 1, sy + 3, 6, 4); screen.fill()         -- dress
+  screen.level(15); screen.rect(sx + 2, sy + 4, 4, 2); screen.fill()         -- apron
+  screen.level(11); screen.rect(sx, sy + 4, 1, 3); screen.fill()             -- ladle handle
+  screen.level(13); screen.pixel(sx, sy + 3); screen.fill()                  -- ladle bowl
+  screen.level(3);  screen.rect(sx + 2, sy + 7, 1, 1); screen.fill()
+  screen.level(3);  screen.rect(sx + 5, sy + 7, 1, 1); screen.fill()
+end
+
+-- Hens: mainland shopkeeper, hen-themed (feather hat, coin pouch)
+NPC_SPRITES.Hens = function(sx, sy)
+  screen.level(11); screen.rect(sx + 2, sy + 1, 4, 2); screen.fill()         -- face
+  screen.level(0);  screen.pixel(sx + 3, sy + 2); screen.pixel(sx + 4, sy + 2); screen.fill()  -- eyes
+  screen.level(13); screen.pixel(sx + 5, sy);     screen.fill()              -- single feather
+  screen.level(7);  screen.rect(sx + 2, sy, 3, 1); screen.fill()             -- hat band
+  screen.level(6);  screen.rect(sx + 1, sy + 3, 6, 3); screen.fill()         -- vest
+  screen.level(11); screen.pixel(sx + 6, sy + 4); screen.pixel(sx + 6, sy + 5); screen.fill()  -- coin pouch
+  screen.level(15); screen.pixel(sx + 6, sy + 4); screen.fill()              -- coin gleam
+  screen.level(13); screen.rect(sx + 2, sy + 6, 4, 1); screen.fill()         -- belt
+  screen.level(3);  screen.rect(sx + 2, sy + 7, 1, 1); screen.fill()
+  screen.level(3);  screen.rect(sx + 5, sy + 7, 1, 1); screen.fill()
+end
+
+-- Tova: traveling cartographer with rolled map under arm + walking stick
+NPC_SPRITES.Tova = function(sx, sy)
+  screen.level(7);  screen.rect(sx, sy, 1, 8); screen.fill()                 -- walking stick
+  screen.level(11); screen.pixel(sx, sy);     screen.fill()                  -- stick knob
+  screen.level(13); screen.rect(sx + 3, sy + 1, 2, 2); screen.fill()         -- face
+  screen.level(3);  screen.rect(sx + 3, sy, 3, 1); screen.fill()             -- wide hat
+  screen.level(0);  screen.pixel(sx + 3, sy + 2); screen.fill()
+  screen.level(6);  screen.rect(sx + 2, sy + 3, 4, 4); screen.fill()         -- cloak
+  screen.level(11); screen.rect(sx + 5, sy + 4, 2, 1); screen.fill()         -- rolled map
+  screen.level(13); screen.pixel(sx + 6, sy + 4); screen.fill()
+  screen.level(3);  screen.rect(sx + 2, sy + 7, 1, 1); screen.fill()
+  screen.level(3);  screen.rect(sx + 5, sy + 7, 1, 1); screen.fill()
+end
+
+-- Theron: academy scholar — beard, monocle gleam, book under arm
+NPC_SPRITES.Theron = function(sx, sy)
+  screen.level(13); screen.rect(sx + 2, sy + 1, 4, 2); screen.fill()         -- face
+  screen.level(2);  screen.rect(sx + 1, sy, 6, 1); screen.fill()             -- hairline
+  screen.level(15); screen.pixel(sx + 5, sy + 2); screen.fill()              -- monocle gleam
+  screen.level(0);  screen.pixel(sx + 3, sy + 2); screen.fill()              -- other eye
+  screen.level(5);  screen.rect(sx + 2, sy + 3, 4, 1); screen.fill()         -- beard
+  screen.level(7);  screen.rect(sx + 1, sy + 4, 6, 3); screen.fill()         -- robe
+  screen.level(11); screen.rect(sx + 5, sy + 5, 2, 2); screen.fill()         -- book cover
+  screen.level(15); screen.pixel(sx + 6, sy + 5); screen.fill()
+  screen.level(3);  screen.rect(sx + 2, sy + 7, 1, 1); screen.fill()
+  screen.level(3);  screen.rect(sx + 5, sy + 7, 1, 1); screen.fill()
+end
+
+-- Aurin: young student, quill behind ear, scroll across torso
+NPC_SPRITES.Aurin = function(sx, sy)
+  screen.level(13); screen.rect(sx + 2, sy + 1, 4, 2); screen.fill()         -- face
+  screen.level(9);  screen.rect(sx + 2, sy, 4, 1); screen.fill()             -- light hair
+  screen.level(0);  screen.pixel(sx + 3, sy + 2); screen.pixel(sx + 4, sy + 2); screen.fill()
+  screen.level(15); screen.pixel(sx + 1, sy + 1); screen.fill()              -- quill tip
+  screen.level(7);  screen.pixel(sx + 1, sy + 2); screen.fill()              -- quill shaft
+  screen.level(11); screen.rect(sx + 2, sy + 3, 4, 3); screen.fill()         -- tunic
+  screen.level(13); screen.move(sx + 1, sy + 4); screen.line(sx + 6, sy + 6); screen.stroke() -- scroll strap
+  screen.level(15); screen.rect(sx, sy + 5, 1, 2); screen.fill()             -- scroll end
+  screen.level(3);  screen.rect(sx + 2, sy + 7, 1, 1); screen.fill()
+  screen.level(3);  screen.rect(sx + 5, sy + 7, 1, 1); screen.fill()
+end
+
+-- Paj: mathwiz student, round glasses, ledger book held flat in front
+NPC_SPRITES.Paj = function(sx, sy)
+  screen.level(13); screen.rect(sx + 2, sy + 1, 4, 2); screen.fill()         -- face
+  screen.level(3);  screen.rect(sx + 2, sy, 4, 1); screen.fill()             -- dark hair
+  screen.level(15); screen.pixel(sx + 2, sy + 2); screen.pixel(sx + 5, sy + 2); screen.fill()  -- glasses
+  screen.level(0);  screen.pixel(sx + 3, sy + 2); screen.pixel(sx + 4, sy + 2); screen.fill()  -- lens shadows
+  screen.level(7);  screen.rect(sx + 2, sy + 3, 4, 2); screen.fill()         -- tunic
+  screen.level(11); screen.rect(sx + 1, sy + 5, 6, 2); screen.fill()         -- ledger book
+  screen.level(15); screen.move(sx + 1, sy + 5); screen.line(sx + 6, sy + 5); screen.stroke() -- spine
+  screen.level(0);  screen.move(sx + 2, sy + 6); screen.line(sx + 5, sy + 6); screen.stroke() -- ruled line
+  screen.level(3);  screen.rect(sx + 2, sy + 7, 1, 1); screen.fill()
+  screen.level(3);  screen.rect(sx + 5, sy + 7, 1, 1); screen.fill()
+end
+
+-- Wena: student with sheet music; smaller frame
+NPC_SPRITES.Wena = function(sx, sy)
+  screen.level(13); screen.rect(sx + 2, sy + 1, 4, 2); screen.fill()         -- face
+  screen.level(11); screen.rect(sx + 2, sy, 4, 1); screen.fill()             -- pale hair
+  screen.level(0);  screen.pixel(sx + 3, sy + 2); screen.pixel(sx + 4, sy + 2); screen.fill()
+  screen.level(9);  screen.rect(sx + 2, sy + 3, 4, 3); screen.fill()         -- pinafore
+  screen.level(15); screen.rect(sx + 1, sy + 4, 6, 2); screen.fill()         -- sheet music
+  screen.level(0);  screen.pixel(sx + 2, sy + 4); screen.pixel(sx + 4, sy + 4); screen.fill() -- notes
+  screen.level(0);  screen.pixel(sx + 3, sy + 5); screen.pixel(sx + 5, sy + 5); screen.fill()
+  screen.level(3);  screen.rect(sx + 2, sy + 7, 1, 1); screen.fill()
+  screen.level(3);  screen.rect(sx + 5, sy + 7, 1, 1); screen.fill()
+end
+
+-- Wren: wanderer-singer with a small lap-harp slung across her chest
+NPC_SPRITES.Wren = function(sx, sy)
+  screen.level(13); screen.rect(sx + 2, sy + 1, 4, 2); screen.fill()         -- face
+  screen.level(5);  screen.rect(sx + 1, sy, 6, 1); screen.fill()             -- cropped hair
+  screen.level(0);  screen.pixel(sx + 3, sy + 2); screen.pixel(sx + 4, sy + 2); screen.fill()
+  screen.level(7);  screen.rect(sx + 1, sy + 3, 6, 4); screen.fill()         -- traveler cloak
+  screen.level(11); screen.move(sx + 1, sy + 4); screen.line(sx + 6, sy + 6); screen.stroke() -- harp frame
+  screen.level(13); screen.pixel(sx + 2, sy + 5); screen.pixel(sx + 4, sy + 6); screen.fill() -- harp strings
+  screen.level(13); screen.pixel(sx + 3, sy + 5); screen.pixel(sx + 5, sy + 6); screen.fill()
+  screen.level(3);  screen.rect(sx + 2, sy + 7, 1, 1); screen.fill()
+  screen.level(3);  screen.rect(sx + 5, sy + 7, 1, 1); screen.fill()
+end
+
+-- Vesa: far-reaches villager — shawl wrap, basket of herbs
+NPC_SPRITES.Vesa = function(sx, sy)
+  screen.level(13); screen.rect(sx + 2, sy + 1, 4, 2); screen.fill()         -- face
+  screen.level(0);  screen.pixel(sx + 3, sy + 2); screen.pixel(sx + 4, sy + 2); screen.fill()
+  screen.level(6);  screen.rect(sx + 1, sy, 6, 1); screen.fill()             -- shawl crown
+  screen.level(6);  screen.rect(sx + 1, sy + 3, 6, 3); screen.fill()         -- shawl body
+  screen.level(8);  screen.rect(sx + 1, sy + 3, 6, 1); screen.fill()         -- shawl trim
+  screen.level(7);  screen.rect(sx + 5, sy + 5, 2, 2); screen.fill()         -- basket
+  screen.level(11); screen.pixel(sx + 5, sy + 4); screen.pixel(sx + 6, sy + 4); screen.fill()  -- herbs
+  screen.level(3);  screen.rect(sx + 2, sy + 7, 1, 1); screen.fill()
+  screen.level(3);  screen.rect(sx + 5, sy + 7, 1, 1); screen.fill()
+end
+
+-- Wynne: far-reaches midwife, white headwrap, hands clasped
+NPC_SPRITES.Wynne = function(sx, sy)
+  screen.level(15); screen.rect(sx + 1, sy, 6, 2); screen.fill()             -- white headwrap
+  screen.level(13); screen.rect(sx + 2, sy + 2, 4, 2); screen.fill()         -- face
+  screen.level(0);  screen.pixel(sx + 3, sy + 3); screen.pixel(sx + 4, sy + 3); screen.fill()
+  screen.level(7);  screen.rect(sx + 1, sy + 4, 6, 3); screen.fill()         -- pale robe
+  screen.level(13); screen.rect(sx + 3, sy + 5, 2, 2); screen.fill()         -- clasped hands
+  screen.level(3);  screen.rect(sx + 2, sy + 7, 1, 1); screen.fill()
+  screen.level(3);  screen.rect(sx + 5, sy + 7, 1, 1); screen.fill()
+end
+
+-- Bonk: brooding coast NPC, hood up, hands in pockets — small body
+NPC_SPRITES.Bonk = function(sx, sy)
+  screen.level(4);  screen.rect(sx + 2, sy + 1, 4, 2); screen.fill()         -- hood crown
+  screen.level(5);  screen.rect(sx + 1, sy + 2, 6, 2); screen.fill()         -- hood sides
+  screen.level(8);  screen.rect(sx + 3, sy + 3, 2, 1); screen.fill()         -- face in shadow
+  screen.level(0);  screen.pixel(sx + 3, sy + 3); screen.pixel(sx + 4, sy + 3); screen.fill()
+  screen.level(5);  screen.rect(sx + 1, sy + 4, 6, 3); screen.fill()         -- robe
+  screen.level(3);  screen.rect(sx + 2, sy + 5, 4, 1); screen.fill()         -- arm fold
+  screen.level(3);  screen.rect(sx + 2, sy + 7, 1, 1); screen.fill()
+  screen.level(3);  screen.rect(sx + 5, sy + 7, 1, 1); screen.fill()
+end
+
+-- Brann: coast smith — leather apron, hammer at right hip
+NPC_SPRITES.Brann = function(sx, sy)
+  screen.level(11); screen.rect(sx + 6, sy + 1, 2, 2); screen.fill()         -- hammer head
+  screen.level(7);  screen.rect(sx + 6, sy + 3, 1, 4); screen.fill()         -- hammer shaft
+  screen.level(13); screen.rect(sx + 2, sy + 1, 4, 2); screen.fill()         -- face
+  screen.level(3);  screen.rect(sx + 1, sy, 5, 1); screen.fill()             -- short hair
+  screen.level(5);  screen.rect(sx + 2, sy + 3, 3, 1); screen.fill()         -- beard
+  screen.level(0);  screen.pixel(sx + 3, sy + 2); screen.pixel(sx + 4, sy + 2); screen.fill()
+  screen.level(5);  screen.rect(sx + 1, sy + 4, 5, 3); screen.fill()         -- leather apron
+  screen.level(7);  screen.rect(sx + 1, sy + 4, 5, 1); screen.fill()         -- apron top edge
+  screen.level(13); screen.pixel(sx + 3, sy + 5); screen.fill()              -- buckle
+  screen.level(3);  screen.rect(sx + 2, sy + 7, 1, 1); screen.fill()
+  screen.level(3);  screen.rect(sx + 5, sy + 7, 1, 1); screen.fill()
+end
+
+-- Calder: weathered fisherman — cap, net coiled on shoulder, pipe
+NPC_SPRITES.Calder = function(sx, sy)
+  screen.level(7);  screen.rect(sx + 1, sy, 6, 2); screen.fill()             -- flat cap
+  screen.level(11); screen.rect(sx + 1, sy + 1, 6, 1); screen.fill()         -- cap band
+  screen.level(13); screen.rect(sx + 2, sy + 2, 4, 2); screen.fill()         -- face
+  screen.level(0);  screen.pixel(sx + 3, sy + 3); screen.pixel(sx + 4, sy + 3); screen.fill()
+  screen.level(15); screen.pixel(sx + 6, sy + 3); screen.fill()              -- pipe ember
+  screen.level(7);  screen.pixel(sx + 7, sy + 3); screen.fill()              -- pipe stem
+  screen.level(5);  screen.rect(sx + 1, sy + 4, 6, 3); screen.fill()         -- coat
+  screen.level(2);  screen.move(sx + 1, sy + 4); screen.line(sx + 6, sy + 5); screen.stroke() -- net coil
+  screen.level(2);  screen.move(sx + 1, sy + 5); screen.line(sx + 6, sy + 6); screen.stroke()
+  screen.level(3);  screen.rect(sx + 2, sy + 7, 1, 1); screen.fill()
+  screen.level(3);  screen.rect(sx + 5, sy + 7, 1, 1); screen.fill()
+end
+
+-- Lyssa: pale figure with a single lit candle, dark robe
+NPC_SPRITES.Lyssa = function(sx, sy)
+  screen.level(13); screen.rect(sx + 2, sy + 1, 4, 2); screen.fill()         -- pale face
+  screen.level(11); screen.rect(sx + 2, sy, 4, 1); screen.fill()             -- pale hair
+  screen.level(0);  screen.pixel(sx + 3, sy + 2); screen.pixel(sx + 4, sy + 2); screen.fill()
+  screen.level(2);  screen.rect(sx + 1, sy + 3, 6, 4); screen.fill()         -- dark robe
+  screen.level(15); screen.pixel(sx, sy + 3); screen.fill()                  -- candle flame
+  screen.level(11); screen.pixel(sx, sy + 4); screen.fill()                  -- wax
+  screen.level(7);  screen.pixel(sx, sy + 5); screen.pixel(sx, sy + 6); screen.fill()  -- candle stick
+  screen.level(3);  screen.rect(sx + 2, sy + 7, 1, 1); screen.fill()
+  screen.level(3);  screen.rect(sx + 5, sy + 7, 1, 1); screen.fill()
+end
+
+-- Maren: coast healer — braid down one side, herb pouch on belt
+NPC_SPRITES.Maren = function(sx, sy)
+  screen.level(13); screen.rect(sx + 2, sy + 1, 4, 2); screen.fill()         -- face
+  screen.level(0);  screen.pixel(sx + 3, sy + 2); screen.pixel(sx + 4, sy + 2); screen.fill()
+  screen.level(5);  screen.rect(sx + 2, sy, 4, 1); screen.fill()             -- dark hair
+  screen.level(5);  screen.rect(sx, sy + 1, 2, 5); screen.fill()             -- side braid
+  screen.level(3);  screen.pixel(sx + 1, sy + 6); screen.fill()              -- braid tip
+  screen.level(9);  screen.rect(sx + 2, sy + 3, 4, 4); screen.fill()         -- dress
+  screen.level(7);  screen.rect(sx + 2, sy + 5, 4, 1); screen.fill()         -- belt
+  screen.level(13); screen.pixel(sx + 5, sy + 6); screen.fill()              -- pouch
+  screen.level(11); screen.pixel(sx + 5, sy + 5); screen.fill()              -- pouch tie
+  screen.level(3);  screen.rect(sx + 2, sy + 7, 1, 1); screen.fill()
+  screen.level(3);  screen.rect(sx + 5, sy + 7, 1, 1); screen.fill()
+end
+
+-- Pip: tiny child by the water — short, oversized hat
+NPC_SPRITES.Pip = function(sx, sy)
+  screen.level(7);  screen.rect(sx + 1, sy + 1, 6, 2); screen.fill()         -- oversize hat
+  screen.level(11); screen.rect(sx + 1, sy + 2, 6, 1); screen.fill()         -- hat band
+  screen.level(13); screen.rect(sx + 3, sy + 3, 2, 2); screen.fill()         -- small face
+  screen.level(0);  screen.pixel(sx + 3, sy + 4); screen.fill()              -- eye
+  screen.level(9);  screen.rect(sx + 3, sy + 5, 2, 2); screen.fill()         -- tiny body
+  screen.level(3);  screen.rect(sx + 3, sy + 7, 1, 1); screen.fill()
+  screen.level(3);  screen.rect(sx + 4, sy + 7, 1, 1); screen.fill()
+end
+
+-- Sergei: engineer — workshop apron, patch cable looped at his side
+NPC_SPRITES.Sergei = function(sx, sy)
+  screen.level(13); screen.rect(sx + 2, sy + 1, 4, 2); screen.fill()         -- face
+  screen.level(3);  screen.rect(sx + 1, sy, 6, 1); screen.fill()             -- short hair
+  screen.level(0);  screen.pixel(sx + 3, sy + 2); screen.pixel(sx + 4, sy + 2); screen.fill()
+  screen.level(7);  screen.rect(sx + 2, sy + 3, 4, 4); screen.fill()         -- shop apron
+  screen.level(11); screen.move(sx + 2, sy + 3); screen.line(sx + 5, sy + 5); screen.stroke() -- strap
+  screen.level(15); screen.pixel(sx + 4, sy + 4); screen.fill()              -- buckle gleam
+  -- patch cable loops to the right
+  screen.level(13); screen.move(sx + 6, sy + 4); screen.line(sx + 7, sy + 5); screen.stroke()
+  screen.level(13); screen.move(sx + 7, sy + 5); screen.line(sx + 6, sy + 6); screen.stroke()
+  screen.level(11); screen.pixel(sx + 7, sy + 6); screen.fill()              -- cable plug
+  screen.level(3);  screen.rect(sx + 2, sy + 7, 1, 1); screen.fill()
+  screen.level(3);  screen.rect(sx + 5, sy + 7, 1, 1); screen.fill()
+end
+
+-- Iolen: lamp-bearer / stargazer — small held lantern that flickers
+NPC_SPRITES.Iolen = function(sx, sy)
+  screen.level(13); screen.rect(sx + 2, sy + 1, 4, 2); screen.fill()         -- face
+  screen.level(0);  screen.pixel(sx + 3, sy + 2); screen.pixel(sx + 4, sy + 2); screen.fill()
+  screen.level(5);  screen.rect(sx + 1, sy, 6, 1); screen.fill()             -- night cap brim
+  screen.level(8);  screen.rect(sx + 2, sy + 3, 4, 4); screen.fill()         -- robe
+  -- held lantern at left side
+  screen.level(7);  screen.pixel(sx, sy + 3); screen.fill()                  -- handle top
+  screen.level(11); screen.rect(sx, sy + 4, 2, 2); screen.fill()             -- lamp body
+  if (tick % 12) < 7 then
+    screen.level(15); screen.pixel(sx, sy + 4); screen.pixel(sx + 1, sy + 4); screen.fill()  -- flame
+  else
+    screen.level(13); screen.pixel(sx, sy + 5); screen.fill()
+  end
+  screen.level(3);  screen.rect(sx + 2, sy + 7, 1, 1); screen.fill()
+  screen.level(3);  screen.rect(sx + 5, sy + 7, 1, 1); screen.fill()
+end
 
 -- Alder/Diegues/Strom NPC sprites — alias to their party-class sprites.
 -- These trigger when the player encounters them as NPCs before they
@@ -24430,6 +24943,25 @@ local function draw_battle()
       screen.pixel(cx + 28, 49); screen.pixel(cx + 28, 51)
       screen.pixel(cx + 29, 50); screen.fill()
     end
+    -- The Ring armed indicator (Miel-specific). Bell silhouette in
+    -- the top-right of the HUD column, slower pulse than the rhythm
+    -- glyph so the two read as distinct when both are armed at once.
+    if p.ring_armed and p.alive then
+      local bx, by = cx + 25, 49
+      local lev = ((tick % 24) < 12) and 13 or 15
+      screen.level(lev)
+      -- row 0 (bell crown): 3 wide, centered
+      screen.pixel(bx + 1, by);     screen.pixel(bx + 2, by);     screen.pixel(bx + 3, by)
+      -- row 1-2 (body): full 5 wide
+      for c = 0, 4 do
+        screen.pixel(bx + c, by + 1); screen.pixel(bx + c, by + 2)
+      end
+      -- row 3 (mouth narrows): 3 wide centered
+      screen.pixel(bx + 1, by + 3); screen.pixel(bx + 2, by + 3); screen.pixel(bx + 3, by + 3)
+      -- row 4 (clapper): single center pixel
+      screen.pixel(bx + 2, by + 4)
+      screen.fill()
+    end
     -- character sprite (left of column at row 49) — battle animations land here.
     -- FF-style shock-jump: when recently hit (last 6 ticks), the sprite
     -- bumps 1-2 px back and to the side, easing back to neutral. Reads
@@ -24971,19 +25503,30 @@ local function draw_portrait_alder(px, py)
 end
 
 local function draw_portrait_miel(px, py)
-  -- Cleric princess — softer, beautiful look. Long flowing hair, gentle eyes,
-  -- subtle blush, small smile, delicate tiara. Less harsh contrast than v1.
+  -- Cleric princess — redesign: dark curly hair, NO tiara/crown (the
+  -- crown sits on the dressing table in her chamber). Curls are
+  -- suggested by uneven level-3/level-5 stippling at the hair edges.
   portrait_bg(px, py, 2)
-  -- Long flowing hair (filled backdrop with feather edges)
-  screen.level(8)
-  screen.rect(px + 4, py + 8, 20, 30); screen.fill()
-  -- hair side wisps (lighter at extremes for flow)
+  -- Hair: dark mass behind + crowning the head
+  screen.level(3)
+  screen.rect(px + 4, py + 8, 20, 24); screen.fill()
+  -- curl highlights (level 5 dappling on top + sides)
   screen.level(5)
-  screen.rect(px + 2, py + 14, 2, 22); screen.fill()
-  screen.rect(px + 24, py + 14, 2, 22); screen.fill()
-  -- hair part on top
-  screen.level(11)
-  screen.move(px + 14, py + 8); screen.line(px + 14, py + 12); screen.stroke()
+  screen.pixel(px + 6, py + 8);  screen.pixel(px + 10, py + 7)
+  screen.pixel(px + 14, py + 8); screen.pixel(px + 18, py + 7)
+  screen.pixel(px + 22, py + 8); screen.fill()
+  screen.level(5)
+  screen.pixel(px + 5, py + 14); screen.pixel(px + 23, py + 14)
+  screen.pixel(px + 4, py + 20); screen.pixel(px + 24, py + 20)
+  screen.pixel(px + 5, py + 26); screen.pixel(px + 23, py + 26); screen.fill()
+  -- jaw-length curls trailing down each side
+  screen.level(3)
+  screen.rect(px + 3, py + 14, 3, 14); screen.fill()
+  screen.rect(px + 23, py + 14, 3, 14); screen.fill()
+  -- ragged curl ends
+  screen.level(5)
+  screen.pixel(px + 3, py + 27); screen.pixel(px + 5, py + 28)
+  screen.pixel(px + 24, py + 28); screen.pixel(px + 26, py + 27); screen.fill()
   -- Robe shoulders (cream)
   screen.level(13)
   screen.rect(px + 2, py + 28, 24, 12); screen.fill()
@@ -24994,7 +25537,7 @@ local function draw_portrait_miel(px, py)
   screen.level(8)
   screen.move(px + 14, py + 30); screen.line(px + 11, py + 36); screen.stroke()
   screen.move(px + 14, py + 30); screen.line(px + 17, py + 36); screen.stroke()
-  -- Pendant (gold gem)
+  -- Pendant (gold gem) — kept; it's a pendant, not a crown
   screen.level(15)
   screen.rect(px + 13, py + 34, 2, 2); screen.fill()
   screen.level(11)
@@ -25002,23 +25545,17 @@ local function draw_portrait_miel(px, py)
   -- Neck (slim)
   screen.level(14)
   screen.rect(px + 12, py + 26, 4, 4); screen.fill()
-  -- Face (heart-shaped: rectangular center + soft cheek pixels)
+  -- Face
   screen.level(14)
   screen.rect(px + 9, py + 14, 10, 13); screen.fill()
   screen.level(13)
   -- jaw softening (chin)
   screen.pixel(px + 10, py + 26); screen.pixel(px + 17, py + 26); screen.fill()
-  -- Bangs (hair across forehead — gentler line, 1 px tall)
-  screen.level(8)
+  -- Bangs / forehead curls (gentle stipple — was a flat line)
+  screen.level(3)
   screen.move(px + 9, py + 13); screen.line(px + 18, py + 13); screen.stroke()
-  -- Tiara (delicate single band + small jewel)
-  screen.level(15)
-  screen.move(px + 10, py + 12); screen.line(px + 18, py + 12); screen.stroke()
-  screen.level(11)
-  screen.pixel(px + 14, py + 11); screen.pixel(px + 14, py + 10); screen.fill()
-  -- center jewel (bright)
-  screen.level(15)
-  screen.pixel(px + 14, py + 12); screen.fill()
+  screen.level(5)
+  screen.pixel(px + 11, py + 12); screen.pixel(px + 14, py + 11); screen.pixel(px + 17, py + 12); screen.fill()
   -- Eyes — large, gentle, with eyelashes (2 px wide, lashes above)
   screen.level(2)
   screen.move(px + 10, py + 18); screen.line(px + 12, py + 18); screen.stroke()  -- left lash
@@ -25879,31 +26416,6 @@ function draw_scene_lirael_chamber()
   end
 end
 
-function draw_scene_lirael_candles()
-  screen.level(2); screen.rect(0, 0, 128, 64); screen.fill()
-  screen.level(5); screen.rect(0, 50, 128, 14); screen.fill()
-  for i = 0, 2 do
-    local cx = 32 + i * 32
-    screen.level(7); screen.rect(cx - 3, 46, 6, 4); screen.fill()
-    screen.level(11); screen.rect(cx - 1, 30, 2, 16); screen.fill()
-  end
-  screen.level(7)
-  for i = 0, 4 do screen.pixel(32 + (i % 2), 28 - i * 3) end
-  screen.fill()
-  screen.level(5)
-  for i = 0, 3 do screen.pixel(64 + ((i + 1) % 2), 28 - i * 3) end
-  screen.fill()
-  if (tick % 10) < 7 then
-    screen.level(15); screen.pixel(96, 28); screen.pixel(96, 27); screen.pixel(95, 28); screen.pixel(97, 28); screen.fill()
-    screen.level(11); screen.pixel(96, 26); screen.fill()
-  else
-    screen.level(13); screen.pixel(96, 28); screen.pixel(96, 27); screen.fill()
-    screen.level(8); screen.pixel(95, 28); screen.pixel(97, 28); screen.fill()
-  end
-  screen.level(5); screen.circle(96, 36, 10); screen.stroke()
-  screen.level(3); screen.circle(96, 36, 14); screen.stroke()
-end
-
 function draw_scene_lirael_road()
   screen.level(0); screen.rect(0, 0, 128, 64); screen.fill()
   screen.level(1)
@@ -26080,38 +26592,6 @@ function draw_scene_lirael_bell_alcove()
   end
 end
 
-function draw_scene_lirael_candles_dim()
-  screen.level(1); screen.rect(0, 0, 128, 64); screen.fill()
-  screen.level(4); screen.rect(0, 50, 128, 14); screen.fill()
-  for i = 0, 2 do
-    local cx = 32 + i * 32
-    screen.level(5); screen.rect(cx - 3, 46, 6, 4); screen.fill()
-    screen.level(7); screen.rect(cx - 1, 30, 2, 16); screen.fill()
-  end
-  -- candles 1+2: long-snuffed, smoke nearly gone
-  screen.level(3)
-  for i = 0, 6 do
-    screen.pixel(32 + (i % 2), 28 - i * 4)
-    screen.pixel(64 + (i % 2), 28 - i * 4)
-  end
-  screen.fill()
-  -- candle 3: guttering — small flame, intermittent
-  local phase = tick % 14
-  if phase < 4 then
-    screen.level(13); screen.pixel(96, 28); screen.pixel(96, 27); screen.fill()
-    screen.level(7); screen.pixel(95, 28); screen.pixel(97, 28); screen.fill()
-  elseif phase < 10 then
-    screen.level(7); screen.pixel(96, 28); screen.fill()
-  else
-    screen.level(2); screen.pixel(96, 28); screen.fill()
-  end
-  -- long smoke trail rising from the guttering wick
-  screen.level(5)
-  for i = 1, 8 do screen.pixel(96 + ((i + tick // 2) % 3), 27 - i * 3) end
-  screen.fill()
-  -- much smaller pool of light
-  screen.level(2); screen.circle(96, 36, 6); screen.stroke()
-end
 
 SCENE_DRAW = {
   cosmic  = draw_scene_cosmic,
@@ -26136,13 +26616,11 @@ SCENE_DRAW = {
   lirael_hall         = draw_scene_lirael_hall,
   lirael_southwall    = draw_scene_lirael_southwall,
   lirael_chamber      = draw_scene_lirael_chamber,
-  lirael_candles      = draw_scene_lirael_candles,
   lirael_road         = draw_scene_lirael_road,
   lirael_sentry       = draw_scene_lirael_sentry,
   lirael_captain_run  = draw_scene_lirael_captain_run,
   lirael_courtyard    = draw_scene_lirael_courtyard,
   lirael_gate         = draw_scene_lirael_gate,
-  lirael_candles_dim  = draw_scene_lirael_candles_dim,
   lirael_bell_alcove  = draw_scene_lirael_bell_alcove,
 }
 end  -- scene draws
@@ -26686,6 +27164,78 @@ SHOP.sprites.field_recorder = function(sx, sy)
   screen.level(0); screen.pixel(sx + 2, sy + 3); screen.pixel(sx + 5, sy + 3); screen.fill()   -- reel holes
   screen.level(13); screen.rect(sx + 2, sy + 5, 4, 1); screen.fill()           -- VU strip
   screen.level(15); screen.pixel(sx + 4, sy + 5); screen.fill()                -- meter pointer
+end
+
+-- ── KEY ITEM SPRITES ───────────────────────────────────────────────────
+-- Trophy / quest-item sprites for the KEY tab of the items menu. 8×8 each,
+-- (sx, sy) is top-left of the cell. Table is global (no `local`) to dodge
+-- the 200-main-chunk-locals cap.
+KEY_SPRITES = {}
+KEY_SPRITES.tisa_bell = function(sx, sy)
+  -- small handbell: bright brass body, dark mouth, hanging clapper
+  screen.level(11); screen.rect(sx + 2, sy + 1, 4, 4); screen.fill()
+  screen.level(13); screen.rect(sx + 3, sy + 1, 2, 1); screen.fill()           -- crown highlight
+  screen.level(7);  screen.pixel(sx + 3, sy); screen.pixel(sx + 4, sy); screen.fill()  -- handle
+  screen.level(0);  screen.rect(sx + 2, sy + 5, 4, 1); screen.fill()           -- mouth
+  screen.level(15); screen.pixel(sx + 4, sy + 6); screen.fill()                -- clapper
+  screen.level(8);  screen.pixel(sx + 1, sy + 6); screen.pixel(sx + 6, sy + 6); screen.fill()
+end
+KEY_SPRITES.arams_token = function(sx, sy)
+  -- iron disc with deep-stamped sigil; a leather thong notched in the rim
+  screen.level(5);  screen.rect(sx + 1, sy + 1, 6, 6); screen.fill()           -- disc rim shadow
+  screen.level(8);  screen.rect(sx + 2, sy + 2, 4, 4); screen.fill()           -- iron face
+  screen.level(11); screen.pixel(sx + 3, sy + 2); screen.pixel(sx + 4, sy + 2); screen.fill()  -- top sheen
+  screen.level(0);  screen.move(sx + 3, sy + 3); screen.line(sx + 4, sy + 5); screen.stroke()  -- sigil left
+  screen.level(0);  screen.move(sx + 4, sy + 3); screen.line(sx + 3, sy + 5); screen.stroke()  -- sigil right
+  screen.level(3);  screen.pixel(sx + 1, sy); screen.pixel(sx + 7, sy + 1); screen.fill()      -- thong knot
+end
+KEY_SPRITES.velthes_letter = function(sx, sy)
+  -- folded paper letter: cream body, wax seal in the middle, broken edge
+  screen.level(13); screen.rect(sx + 1, sy + 1, 6, 6); screen.fill()           -- paper
+  screen.level(15); screen.rect(sx + 1, sy + 1, 6, 1); screen.fill()           -- top edge highlight
+  screen.level(11); screen.rect(sx + 2, sy + 3, 4, 1); screen.fill()           -- fold crease
+  screen.level(7);  screen.rect(sx + 2, sy + 4, 4, 1); screen.fill()           -- second fold
+  -- broken wax seal (red dot with cracks)
+  screen.level(8);  screen.rect(sx + 3, sy + 5, 2, 2); screen.fill()
+  screen.level(0);  screen.pixel(sx + 3, sy + 6); screen.fill()                -- crack
+end
+KEY_SPRITES.sightings_lens = function(sx, sy)
+  -- pocket telescope: brass tube collapsed; lens glints
+  screen.level(7);  screen.rect(sx + 1, sy + 3, 6, 2); screen.fill()           -- main tube
+  screen.level(11); screen.rect(sx + 5, sy + 2, 2, 4); screen.fill()           -- eyepiece bulge
+  screen.level(13); screen.pixel(sx + 6, sy + 3); screen.fill()                -- lens glint
+  screen.level(5);  screen.rect(sx, sy + 3, 1, 2); screen.fill()               -- objective rim
+  screen.level(15); screen.pixel(sx + 1, sy + 3); screen.fill()                -- objective gleam
+end
+KEY_SPRITES.lirael_captains_insignia = function(sx, sy)
+  -- pin in Lirael blue: 4-pointed star shape on a backing
+  screen.level(8);  screen.rect(sx + 1, sy + 2, 6, 4); screen.fill()           -- backing
+  -- 4-point star (Lirael blue)
+  screen.level(13); screen.pixel(sx + 3, sy + 1); screen.pixel(sx + 4, sy + 1); screen.fill()  -- top
+  screen.level(15); screen.rect(sx + 2, sy + 3, 4, 2); screen.fill()           -- center
+  screen.level(13); screen.pixel(sx + 3, sy + 6); screen.pixel(sx + 4, sy + 6); screen.fill()  -- bottom
+  screen.level(13); screen.pixel(sx + 1, sy + 3); screen.pixel(sx + 6, sy + 4); screen.fill()  -- sides
+  screen.level(0);  screen.pixel(sx + 3, sy + 4); screen.fill()                -- punch hole
+end
+KEY_SPRITES.key_of_lirael = function(sx, sy)
+  -- ornate key: round bow at top, complex bit at bottom
+  screen.level(11); screen.rect(sx + 2, sy + 1, 4, 1); screen.fill()           -- bow top
+  screen.level(13); screen.rect(sx + 1, sy + 2, 6, 1); screen.fill()           -- bow body
+  screen.level(11); screen.rect(sx + 2, sy + 3, 4, 1); screen.fill()           -- bow bottom
+  screen.level(0);  screen.pixel(sx + 3, sy + 2); screen.pixel(sx + 4, sy + 2); screen.fill()  -- bow eye
+  screen.level(11); screen.rect(sx + 3, sy + 4, 2, 3); screen.fill()           -- shaft
+  screen.level(13); screen.pixel(sx + 5, sy + 6); screen.pixel(sx + 5, sy + 7); screen.fill()  -- bit tooth 1
+  screen.level(13); screen.pixel(sx + 4, sy + 7); screen.fill()                -- bit tooth 2
+end
+KEY_SPRITES.iolas_letter = function(sx, sy)
+  -- rolled scroll, ribbon-tied. Distinct from the folded letter by shape.
+  screen.level(11); screen.rect(sx + 1, sy + 2, 6, 4); screen.fill()           -- scroll body
+  screen.level(13); screen.rect(sx + 1, sy + 2, 6, 1); screen.fill()           -- top edge
+  screen.level(7);  screen.rect(sx + 1, sy + 5, 6, 1); screen.fill()           -- bottom edge shadow
+  screen.level(5);  screen.rect(sx, sy + 3, 1, 2); screen.fill()               -- end cap left
+  screen.level(5);  screen.rect(sx + 7, sy + 3, 1, 2); screen.fill()           -- end cap right
+  screen.level(15); screen.rect(sx + 3, sy + 1, 2, 1); screen.fill()           -- ribbon top
+  screen.level(15); screen.rect(sx + 3, sy + 6, 2, 1); screen.fill()           -- ribbon bottom
 end
 
 -- Shop visible items: hide already-owned one-shot instruments. Eastern
@@ -27495,43 +28045,120 @@ function items_use_selected()
   CONTENT.items_flash_ticks = 30
 end
 
+-- Build the row list for the currently active tab. Returns an array of
+-- {id, name, sprite, count_str, desc, dim} so the draw loop is uniform
+-- across categories. `dim` is true for entries not yet acquired.
+function items_rows_for_tab(tab_idx)
+  local rows = {}
+  if tab_idx == 1 then
+    for _, id in ipairs(ITEMS_ORDER) do
+      local info = ITEMS_INFO[id]
+      local count = SHOP.inv[id] or 0
+      rows[#rows + 1] = {
+        id = id, name = info.name, desc = info.desc,
+        count_str = "x" .. count,
+        sprite = (SHOP.sprites and SHOP.sprites[id]) or nil,
+        dim = (count <= 0),
+      }
+    end
+  elseif tab_idx == 2 then
+    local CLASS_ABBR  = {bard="BRD", cleric="CLR", warrior="WAR", mage="MAG"}
+    local CLASS_ORDER = {"bard", "cleric", "warrior", "mage"}
+    for _, cls in ipairs(CLASS_ORDER) do
+      for id, inst in pairs(INSTRUMENTS) do
+        if inst.class == cls and instruments_owned[id] then
+          local equipped_mark = (equipped[cls] == id) and "*" or " "
+          rows[#rows + 1] = {
+            id = id, name = inst.name,
+            desc = string.format("A%d D%d M%d S%d", inst.atk, inst.def, inst.mag, inst.spd),
+            count_str = equipped_mark .. (CLASS_ABBR[cls] or "?"),
+            sprite = INST.sprites and INST.sprites[id] or nil,
+            dim = false,
+          }
+        end
+      end
+    end
+  elseif tab_idx == 3 then
+    for _, id in ipairs(TROPHY_ORDER) do
+      local info = TROPHY_INFO[id]
+      local owned = has_trophy(id)
+      rows[#rows + 1] = {
+        id = id, name = info.name, desc = info.desc,
+        count_str = owned and " *" or " -",
+        sprite = (KEY_SPRITES and KEY_SPRITES[id]) or (INST.sprites and INST.sprites[id]) or nil,
+        dim = not owned,
+      }
+    end
+  else
+    for _, name in ipairs(SHARD_ORDER) do
+      local owned = shards[name] or false
+      rows[#rows + 1] = {
+        id = name, name = SHARD_DISPLAY[name] or name,
+        desc = owned and "obtained" or "(not yet)",
+        count_str = owned and " *" or " -",
+        sprite = nil, dim = not owned,
+      }
+    end
+  end
+  return rows
+end
+
 UI.draw_items = function()
   screen.font_face(25); screen.font_size(6)
-  screen.level(15); screen.move(64, 7); screen.text_center("ITEMS")
-  screen.level(3); screen.move(0, 9); screen.line(128, 9); screen.stroke()
+  -- Tabs row (y=0..9). Each tab is 32 px wide so 4 fit in 128 px.
+  CONTENT.items_tab = math.max(1, math.min(#ITEM_TABS, CONTENT.items_tab or 1))
+  local tab = CONTENT.items_tab
+  for i, label in ipairs(ITEM_TABS) do
+    local tx = (i - 1) * 32
+    local sel = (i == tab)
+    if sel then
+      screen.level(15); screen.rect(tx, 0, 32, 9); screen.stroke()
+      screen.level(15)
+    else
+      screen.level(6)
+    end
+    screen.move(tx + 16, 6); screen.text_center(label)
+  end
+  screen.level(3); screen.move(0, 10); screen.line(128, 10); screen.stroke()
 
-  CONTENT.items_idx = math.max(1, math.min(#ITEMS_ORDER, CONTENT.items_idx or 1))
-  for i, id in ipairs(ITEMS_ORDER) do
-    local info = ITEMS_INFO[id]
-    local y = 14 + (i - 1) * 7
-    local is_sel = (i == CONTENT.items_idx)
-    local count = SHOP.inv[id] or 0
-    local has = count > 0
-    -- caret
+  local rows = items_rows_for_tab(tab)
+  CONTENT.items_idx = math.max(1, math.min(math.max(1, #rows), CONTENT.items_idx or 1))
+
+  -- Scroll window: 6 rows visible, 8 px each.
+  local PAGE = 6
+  local cur = CONTENT.items_idx
+  local top = math.max(1, math.min(math.max(1, #rows - PAGE + 1), cur - math.floor(PAGE / 2)))
+  for vis = 0, PAGE - 1 do
+    local i = top + vis
+    local r = rows[i]
+    if not r then break end
+    local y = 14 + vis * 8
+    local is_sel = (i == cur)
+    local lev_name = is_sel and 15 or (r.dim and 4 or 11)
+    local lev_meta = is_sel and 13 or (r.dim and 4 or 7)
     screen.level(is_sel and 15 or 0)
     screen.move(2, y); screen.text(is_sel and ">" or " ")
-    -- name (dim if zero count)
-    screen.level(is_sel and 15 or (has and 11 or 4))
-    screen.move(8, y); screen.text(info.name)
-    -- count
-    screen.level(is_sel and 13 or (has and 7 or 4))
-    screen.move(44, y); screen.text("x" .. count)
-    -- description
-    screen.level(is_sel and 13 or (has and 6 or 4))
-    screen.move(64, y); screen.text(info.desc)
+    if r.sprite then r.sprite(8, y - 6) end
+    screen.level(lev_name); screen.move(18, y); screen.text(r.name or "")
+    screen.level(lev_meta); screen.move(64, y); screen.text(r.count_str or "")
+    screen.level(lev_meta); screen.move(78, y); screen.text(r.desc or "")
+  end
+  if #rows == 0 then
+    screen.level(6); screen.move(64, 36); screen.text_center("(nothing yet)")
   end
 
-  -- Footer: gold (left) + persistent hint (right). The use-result message
-  -- now lives in a centered modal box (drawn below) instead of competing
-  -- for footer space with the gold readout.
+  -- Footer.
   screen.level(11); screen.move(2, 62); screen.text("Gold:")
   screen.level(15); screen.move(28, 62); screen.text(SHOP.gold .. "g")
-  screen.level(6); screen.move(126, 62); screen.text_right("A use  B back")
+  if #rows > PAGE then
+    screen.level(6); screen.move(64, 62); screen.text_center(cur .. "/" .. #rows)
+  end
+  if tab == 1 then
+    screen.level(6); screen.move(126, 62); screen.text_right("A use  B back")
+  else
+    screen.level(6); screen.move(126, 62); screen.text_right("LR tab  B back")
+  end
 
-  -- Use-result modal: center-screen rectangular box, black fill + bright
-  -- border, message centered inside. Sized 110x16 so the longest string
-  -- ("ATK boost set for next fight" ~84 px wide at 6px font) fits with
-  -- generous side padding and never overlaps the border.
   if (CONTENT.items_flash_ticks or 0) > 0 then
     local bw, bh = 110, 16
     local bx, by = (128 - bw) / 2, (64 - bh) / 2
