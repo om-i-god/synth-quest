@@ -1619,44 +1619,105 @@ do
   -- climbs and falls, brittle bard accents on the offbeats. Builds
   -- tension as Miel walks toward Suno; doesn't relent until she's out
   -- through the tapestry.
+  -- CASTLE — "your castle is being raided" theme. FF-style siege score:
+  -- locked to A aeolian (minor, regardless of player JAM.mode), pushed
+  -- to 130 BPM, four-on-the-floor warrior battering-ram bass, escalating
+  -- mage brass stabs on the offbeats, descending bard alarm motif that
+  -- rises one step in each repetition. Pattern is 8 bars (128 / 16):
+  --   bars 1-2 = establish the dread (A pedal)
+  --   bars 3-4 = first push (F pad, mage climbs to C/F)
+  --   bars 5-6 = stakes raise (E dom7 pad, mage climbs to D/G)
+  --   bars 7-8 = peak + release (E alarm bass / A return)
   OW_THEMES.castle = {
+    scale = "aeolian",
+    bpm   = 130,
     pattern = {
-      -- Warrior: insistent dotted-quarter pulse on A1, with G1/E1 stabs
-      -- dragging the chord downward (the floor giving way).
+      -- WARRIOR — battering-ram pulse. Quarter-note A1 with bar-end
+      -- variations climbing to E2 (idx 5) / dropping to D2 (idx 4)
+      -- to feel like the gate is taking blows.
       warrior = mk{
-        {1, 1}, {7, 1}, {13, 5}, {19, 1}, {25, 4}, {31, 1},
-        {33, 1}, {39, 1}, {45, 5}, {51, 1}, {57, 4}, {63, 1},
-        {65, 1}, {71, 1}, {77, 5}, {83, 1}, {89, 4}, {95, 1},
-        {97, 1}, {103, 1}, {109, 5}, {115, 1}, {121, 4}, {127, 1},
+        -- bar 1: A1 A1 A1 A1
+        {1, 1}, {5, 1}, {9, 1}, {13, 1},
+        -- bar 2: A1 A1 A1 E2
+        {17, 1}, {21, 1}, {25, 1}, {29, 5},
+        -- bar 3: A1 A1 A1 A1
+        {33, 1}, {37, 1}, {41, 1}, {45, 1},
+        -- bar 4: A1 A1 E2 E2  (line tightening)
+        {49, 1}, {53, 1}, {57, 5}, {61, 5},
+        -- bar 5: A1 A1 A1 A1
+        {65, 1}, {69, 1}, {73, 1}, {77, 1},
+        -- bar 6: A1 A1 A1 D2  (descent)
+        {81, 1}, {85, 1}, {89, 1}, {93, 4},
+        -- bar 7: E2 E2 E2 E2  (siren bass)
+        {97, 5}, {101, 5}, {105, 5}, {109, 5},
+        -- bar 8: A1 A1 A1 A1  (return + brace)
+        {113, 1}, {117, 1}, {121, 1}, {125, 1},
       },
-      -- Cleric: held A3 with a brief minor-2nd C4 stab to twist the harmony.
+      -- CLERIC — sustained chord pad changing every two bars. Long
+      -- attack + long release so each pad bleeds into the next.
+      --   bars 1-2: A2  (tonic dread)
+      --   bars 3-4: F2  (chromatic descent to bVI)
+      --   bars 5-6: E2  (V — they're at the door)
+      --   bars 7-8: A2  (resolution that doesn't release tension)
       cleric = mk{
-        {1, 11}, {25, 12},
-        {33, 11}, {57, 12},
-        {65, 11}, {89, 12},
-        {97, 11}, {121, 12},
+        {1, 8},
+        {33, 6},
+        {65, 5},
+        {97, 8},
       },
-      -- Mage: urgent 8th-note climb-and-fall A4 → C5 → D5 → E5 → D5 → C5
-      -- (mirrors a heart racing).
+      -- MAGE — 8th-note brass-stab chord on the offbeats, climbing two
+      -- voicings per pair of bars to build the "wall closing in" feel.
+      --   bars 1-2: B3 / E4   (i + v)
+      --   bars 3-4: C4 / F4   (iii + bVI)
+      --   bars 5-6: D4 / G4   (iv + bVII)
+      --   bars 7:   E4 / A4   (V + i' — peak)
+      --   bar 8:    A3 sustained release
       mage = mk{
-        {1, 16}, {5, 17}, {9, 18}, {13, 19}, {17, 18}, {21, 17}, {25, 16}, {29, 14},
-        {33, 16}, {37, 17}, {41, 18}, {45, 19}, {49, 18}, {53, 17}, {57, 16}, {61, 14},
-        {65, 16}, {69, 17}, {73, 18}, {77, 19}, {81, 18}, {85, 17}, {89, 16}, {93, 14},
-        {97, 16}, {101, 17}, {105, 18}, {109, 19}, {113, 18}, {117, 17}, {121, 16}, {125, 14},
+        -- bar 1
+        {3, 16}, {7, 19}, {11, 16}, {15, 19},
+        -- bar 2
+        {19, 16}, {23, 19}, {27, 16}, {31, 19},
+        -- bar 3
+        {35, 17}, {39, 20}, {43, 17}, {47, 20},
+        -- bar 4
+        {51, 17}, {55, 20}, {59, 17}, {63, 20},
+        -- bar 5
+        {67, 18}, {71, 21}, {75, 18}, {79, 21},
+        -- bar 6
+        {83, 18}, {87, 21}, {91, 18}, {95, 21},
+        -- bar 7  (climax)
+        {99, 19}, {103, 22}, {107, 19}, {111, 22},
+        -- bar 8 release
+        {115, 15}, {123, 15},
       },
-      -- Bard: brittle high accents on offbeats, A5 / G5 alternating.
+      -- BARD — descending alarm horn. 4-note minor descents on the
+      -- downbeats, climbing one scale step every two repetitions:
+      --   bar 1: A4 → G4 → F4 → E4
+      --   bar 3: A4 → G4 → F4 → E4   (repeated; the alarm doesn't stop)
+      --   bar 4: B4 → A4 → G4 → F4   (escalates)
+      --   bar 6: D5 → C5 → A4 → G4   (top of the descent — peak panic)
+      --   bar 8: single high A4 hit, then a low resolve to A3
       bard = mk{
-        {3, 21}, {11, 20}, {19, 21}, {27, 20},
-        {35, 21}, {43, 20}, {51, 21}, {59, 20},
-        {67, 21}, {75, 20}, {83, 21}, {91, 20},
-        {99, 21}, {107, 20}, {115, 21}, {123, 20},
+        {1, 22}, {5, 21}, {9, 20}, {13, 19},
+        {33, 22}, {37, 21}, {41, 20}, {45, 19},
+        {49, 23}, {53, 22}, {57, 21}, {61, 20},
+        {81, 25}, {85, 24}, {89, 22}, {93, 21},
+        {113, 22}, {125, 15},
       },
     },
     artic = {
-      warrior = {vel=0.95, attack=0.003, release=0.18, wet=0.20},
-      cleric  = {vel=0.55, attack=0.10,  release=4.50, wet=0.85},
-      mage    = {vel=0.75, attack=0.005, release=0.30, wet=0.40},
-      bard    = {vel=0.65, attack=0.002, release=0.20, wet=0.55},
+      -- Warrior = timpani / low piano left-hand. Hard attack, very
+      -- short release so each hit is a discrete blow, not a drone.
+      warrior = {vel=1.00, attack=0.001, release=0.14, wet=0.18},
+      -- Cleric = orchestral pad. Slow attack + long release so the
+      -- chord changes feel inevitable rather than stabbed.
+      cleric  = {vel=0.50, attack=0.45,  release=5.20, wet=0.92},
+      -- Mage = brass section. Crisp attack + short release for
+      -- staccato chord stabs.
+      mage    = {vel=0.78, attack=0.003, release=0.22, wet=0.35},
+      -- Bard = solo horn / alarm trumpet. Sharp + slightly wetter than
+      -- the mage so the alarm carries over the stabs.
+      bard    = {vel=0.72, attack=0.002, release=0.28, wet=0.55},
     },
   }
 
@@ -13654,6 +13715,13 @@ local function tick_overworld_music()
   if id ~= current_theme then
     current_theme = id
     overworld_step = 0
+    -- Theme-specific clock tempo override. Castle pushes the BPM up so
+    -- the raid feels urgent; everything else uses the global OW BPM.
+    if game_state ~= "BATTLE" then
+      local theme = OW_THEMES[current_theme]
+      local target = (theme and theme.bpm) or OVERWORLD_BPM
+      params:set("clock_tempo", target)
+    end
   end
   local theme = OW_THEMES[current_theme] or OW_THEMES.village
   overworld_step = (overworld_step % OW_PATTERN_LEN) + 1
