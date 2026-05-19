@@ -15731,7 +15731,23 @@ function play_heavy_hand_anim(p)
 end
 
 function play_scatter_anim(p)
-  -- stub — implemented in RF.11
+  -- Granular cloud: 12 tiny particles flying outward in all directions,
+  -- with randomized brightness 7-13 each. Lifespan 18 ticks. Fragmentation feel.
+  local cx = ANIM.party_hud_x(p) + 5
+  local cy = 53
+  for i = 1, 12 do
+    local ang = math.random() * math.pi * 2
+    local speed = 0.6 + math.random() * 1.0
+    ANIM.particles[#ANIM.particles + 1] = {
+      kind = "spark",
+      x = cx, y = cy,
+      vx = math.cos(ang) * speed,
+      vy = math.sin(ang) * speed,
+      t = tick,
+      lev = 7 + math.random(0, 6),
+      dur = 18,
+    }
+  end
 end
 
 function play_slow_wheel_anim(p)
