@@ -15648,7 +15648,13 @@ function play_ring_anim(p)
 end
 
 function play_long_echo_anim(p)
-  -- stub — implemented in RF.6
+  -- Tape echo two-head: two ghost-copies of the character spawn at +1px
+  -- and +2px to the right of the live sprite. The closer copy fades over
+  -- 6 ticks, the further copy over 10. Reads as the singer echoing.
+  local cx = ANIM.party_hud_x(p) + 1   -- sprite top-left x (matches draw_battle)
+  local sy = 49
+  ANIM.ghost_sprite(p.class, cx + 1, sy, 8, 6)
+  ANIM.ghost_sprite(p.class, cx + 2, sy, 4, 10)
 end
 
 function play_threefold_anim(p)
