@@ -5436,6 +5436,7 @@ ANIM.burst = function(cx, cy, n, lev)
   for i = 1, (n or 8) do
     local ang = (i / (n or 8)) * math.pi * 2 + math.random() * 0.4
     ANIM.particles[#ANIM.particles + 1] = {
+      kind = "spark",
       x = cx, y = cy,
       vx = math.cos(ang) * (1.2 + math.random() * 0.8),
       vy = math.sin(ang) * (1.2 + math.random() * 0.8),
@@ -20200,75 +20201,77 @@ local ALDER = {
 
 -- ── MIEL (Cleric / Princess) ───────────────────────────────────────────────
 -- Three-spike crown, flowing gown, healing gem
--- Miel — Cleric / Princess. Redesigned: dark curly hair, no crown. The
--- crown stays on the dressing table in her chamber (quarters_map). Hair
--- uses level 3 for the dark base + level 5 highlight pixels to suggest
--- curls without flattening the silhouette at 8x8.
+-- Miel — Cleric / Princess. Galadriel-leaning silhouette: tall, slender,
+-- dark hair that flows past the shoulders, slim hourglass gown with
+-- a soft 5-3-5 collar/waist/skirt taper instead of the old 7-wide
+-- block. Hair uses level 3 dark base + level 5 highlight pixels to
+-- suggest curl/wave without flattening at 8x8. The crown was removed
+-- in the previous pass and stays on the dressing table in her chamber.
 local MIEL = {
   down = {
     [0] = {
-       0, 3, 5, 3, 5, 3, 0, 0,  -- curl tips on top
-       3, 3, 3, 5, 3, 3, 3, 0,  -- hair crown wraps full head
-       3, 5, 0,13,13, 0, 5, 3,  -- side curls + face
-       0, 3, 0,13,13, 0, 3, 0,  -- hair tail + face
-       0,11,11,15,11,11, 0, 0,  -- gown + gem
-       0,11,11,11,11,11, 0, 0,
-      11,11,11,11,11,11,11, 0,  -- gown widens
-       0, 8, 0, 0, 0, 8, 0, 0,
+       0, 0, 3, 5, 3, 0, 0, 0,  -- small curl crown (narrow head)
+       0, 3, 3, 3, 3, 3, 0, 0,  -- hair top
+       0, 3, 0,14,14, 0, 3, 0,  -- forehead + side hair, pale face
+       3, 3, 0,14,14, 0, 3, 3,  -- hair sweeps wide + face mid
+       3, 5, 0, 0, 0, 0, 5, 3,  -- hair past shoulder, slim neck
+       0,11,11,15,11,11, 0, 0,  -- gown collar + gem
+       0, 0,11,11,11, 0, 0, 0,  -- slim waist
+       0,11,11,11,11,11, 0, 0,  -- skirt flares
     },
     [1] = {
-       0, 3, 5, 3, 5, 3, 0, 0,
-       3, 3, 5, 3, 3, 5, 3, 0,
-       3, 5, 0,13,13, 0, 5, 3,
-       0, 3, 0,13,13, 0, 3, 0,
+       0, 0, 3, 5, 3, 0, 0, 0,
+       0, 3, 5, 3, 5, 3, 0, 0,  -- curl highlights shifted (walk bob)
+       0, 3, 0,14,14, 0, 3, 0,
+       3, 3, 0,14,14, 0, 3, 3,
+       3, 0, 0, 0, 0, 0, 0, 3,  -- one less highlight this frame
        0,11,11,15,11,11, 0, 0,
-       0,11,11,11,11,11, 0, 0,
-      11,11,11,11,11,11,11, 0,
-       0, 0, 8, 0, 8, 0, 0, 0,
+       0, 0,11,11,11, 0, 0, 0,
+       0, 0,11,11,11, 0, 0, 0,  -- step-shift (skirt narrows briefly)
     },
   },
   up = {
     [0] = {
-       0, 3, 5, 3, 5, 3, 0, 0,
-       3, 3, 3, 5, 3, 3, 3, 0,
-       3, 3, 5, 3, 3, 5, 3, 0,  -- curly back of head, full
-       0, 3, 3, 5, 3, 3, 0, 0,  -- hair tail
+       0, 0, 3, 5, 3, 0, 0, 0,
+       0, 3, 3, 3, 3, 3, 0, 0,
+       0, 3, 5, 3, 3, 5, 3, 0,  -- back of head, curl highlights
+       3, 3, 3, 5, 3, 3, 3, 3,  -- hair fans out
+       3, 5, 0, 0, 0, 0, 5, 3,  -- past shoulder
+       0,11,11,11,11,11, 0, 0,  -- gown back (no gem from this side)
+       0, 0,11,11,11, 0, 0, 0,
        0,11,11,11,11,11, 0, 0,
-       0,11,11,11,11,11, 0, 0,
-      11,11,11,11,11,11,11, 0,
-       0, 8, 0, 0, 0, 8, 0, 0,
     },
     [1] = {
+       0, 0, 3, 5, 3, 0, 0, 0,
        0, 3, 5, 3, 5, 3, 0, 0,
-       3, 3, 5, 3, 5, 3, 3, 0,
-       3, 5, 3, 3, 5, 3, 3, 0,
-       0, 3, 5, 3, 3, 3, 0, 0,
+       0, 3, 3, 5, 3, 3, 3, 0,
+       3, 5, 3, 3, 3, 5, 3, 3,
+       3, 0, 0, 0, 0, 0, 0, 3,
        0,11,11,11,11,11, 0, 0,
-       0,11,11,11,11,11, 0, 0,
-      11,11,11,11,11,11,11, 0,
-       0, 0, 8, 0, 8, 0, 0, 0,
+       0, 0,11,11,11, 0, 0, 0,
+       0, 0,11,11,11, 0, 0, 0,
     },
   },
   right = {
     [0] = {
-       0, 3, 5, 3, 5, 3, 0, 0,
-       3, 3, 3, 3, 5, 3, 3, 0,
-       0, 3, 0,13,13, 0, 5, 3,  -- profile face + curly trail behind
-       0, 0, 0,13,13, 0, 3, 5,
-       0,11,11,15,11,11,11, 0,
-       0,11,11,11,11,11,11, 0,
-       0, 0,11,11,11,11,11, 0,
-       0, 0, 0, 0, 0, 8, 0, 0,
+       0, 0, 0, 3, 5, 3, 0, 0,  -- crown shifted right (head facing R)
+       0, 0, 3, 3, 3, 3, 3, 0,
+       0, 0, 3, 0,14,14, 0, 3,  -- profile face + hair behind
+       0, 0, 0, 0,14,14, 3, 3,  -- hair trail
+       0, 0, 0, 0, 0, 0, 3, 5,  -- hair past shoulder behind
+       0, 0,11,11,15,11,11, 0,  -- gown collar shifted right + gem
+       0, 0, 0,11,11,11, 0, 0,
+       0, 0,11,11,11,11, 0, 0,
     },
     [1] = {
-       0, 3, 5, 3, 5, 3, 0, 0,
-       3, 3, 5, 3, 3, 5, 3, 0,
-       0, 3, 0,13,13, 0, 5, 3,
-       0, 0, 0,13,13, 0, 3, 5,
-       0,11,11,15,11,11,11, 0,
-       0,11,11,11,11,11,11, 0,
-       0, 0,11,11,11,11,11, 0,
-       0, 0, 0, 8, 0, 0, 0, 0,
+       0, 0, 0, 3, 5, 3, 0, 0,
+       0, 0, 3, 5, 3, 3, 3, 0,
+       0, 0, 3, 0,14,14, 0, 3,
+       0, 0, 0, 0,14,14, 3, 5,
+       0, 0, 0, 0, 0, 0, 3, 3,
+       0, 0,11,11,15,11,11, 0,
+       0, 0, 0,11,11,11, 0, 0,
+       0, 0, 0,11,11,11, 0, 0,
     },
   },
 }
@@ -28394,13 +28397,19 @@ function redraw()
   for i = #ANIM.particles, 1, -1 do
     local pcl = ANIM.particles[i]
     local age = tick - pcl.t
-    if age >= 12 then
+    local kind = pcl.kind or "spark"
+    local dur  = pcl.dur or 12
+    if age >= dur then
       table.remove(ANIM.particles, i)
     else
-      local px = math.floor(pcl.x + pcl.vx * age + 0.5)
-      local py = math.floor(pcl.y + pcl.vy * age + 0.5)
-      screen.level(math.max(2, pcl.lev - age))
-      screen.pixel(px, py); screen.fill()
+      if kind == "spark" then
+        local px = math.floor(pcl.x + pcl.vx * age + 0.5)
+        local py = math.floor(pcl.y + pcl.vy * age + 0.5)
+        screen.level(math.max(2, pcl.lev - age))
+        screen.pixel(px, py); screen.fill()
+      end
+      -- Other kinds (ring, ghost_sprite, mask_bar, spring_line, rotating_line)
+      -- added in subsequent tasks.
     end
   end
   -- Footstep dust: 2 puff pixels behind player, fading. Lifespan ~10 ticks.
