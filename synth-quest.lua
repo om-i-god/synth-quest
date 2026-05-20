@@ -22907,6 +22907,125 @@ end
 -- (Iolen uses its purpose-built draw_npc sprite via the alias above;
 --  the duplicate 21-NPC-pass override was removed.)
 
+-- ── Genuinely sprite-less static NPCs (verified: each is placed via a
+--    *_npcs table, has no draw_npc_* alias, and identity confirmed from
+--    its dialogue). Added so they stop rendering as the generic
+--    triangle-head fallback.
+
+-- Aram: grizzled Phrygian ex-commander. Empty scabbard at his hip, a
+-- slate tablet in hand. No weapon (he gave it up).
+NPC_SPRITES.Aram = function(sx, sy)
+  screen.level(11); screen.rect(sx + 2, sy + 1, 4, 2); screen.fill()         -- weathered face
+  screen.level(5);  screen.rect(sx + 2, sy, 4, 1); screen.fill()             -- close-cropped gray hair
+  screen.level(0);  screen.pixel(sx + 3, sy + 2); screen.pixel(sx + 4, sy + 2); screen.fill()
+  screen.level(8);  screen.pixel(sx + 5, sy + 1); screen.fill()              -- cheek scar
+  screen.level(6);  screen.rect(sx + 2, sy + 3, 4, 4); screen.fill()         -- worn coat
+  screen.level(3);  screen.rect(sx + 1, sy + 5, 1, 2); screen.fill()         -- empty scabbard (hangs, no blade)
+  screen.level(9);  screen.rect(sx + 5, sy + 4, 2, 2); screen.fill()         -- slate tablet held
+  screen.level(13); screen.pixel(sx + 6, sy + 5); screen.fill()             -- chalk mark
+  screen.level(3);  screen.rect(sx + 2, sy + 7, 1, 1); screen.fill()
+  screen.level(3);  screen.rect(sx + 5, sy + 7, 1, 1); screen.fill()
+end
+
+-- Beck: coast fisherman. Knit cap, rolled sleeves, a net over one
+-- shoulder. Distinct from Calder (who has a flat cap + pipe).
+NPC_SPRITES.Beck = function(sx, sy)
+  screen.level(8);  screen.rect(sx + 2, sy, 4, 2); screen.fill()             -- knit cap
+  screen.level(13); screen.rect(sx + 2, sy + 2, 4, 2); screen.fill()         -- face
+  screen.level(0);  screen.pixel(sx + 3, sy + 3); screen.pixel(sx + 4, sy + 3); screen.fill()
+  screen.level(9);  screen.rect(sx + 2, sy + 4, 4, 3); screen.fill()         -- rolled-sleeve shirt
+  screen.level(5);  screen.move(sx + 1, sy + 4); screen.line(sx + 6, sy + 6); screen.stroke() -- net over shoulder
+  screen.level(5);  screen.move(sx + 1, sy + 5); screen.line(sx + 6, sy + 7); screen.stroke()
+  screen.level(3);  screen.rect(sx + 2, sy + 7, 1, 1); screen.fill()
+  screen.level(3);  screen.rect(sx + 5, sy + 7, 1, 1); screen.fill()
+end
+
+-- Coral: small girl on the bandstand stairs, mid-song. Tiny frame, a
+-- single bright note floating from her mouth.
+NPC_SPRITES.Coral = function(sx, sy)
+  screen.level(9);  screen.rect(sx + 2, sy + 1, 4, 1); screen.fill()         -- hair
+  screen.level(13); screen.rect(sx + 3, sy + 2, 2, 2); screen.fill()         -- small face
+  screen.level(0);  screen.pixel(sx + 3, sy + 2); screen.fill()             -- eye
+  screen.level(15); screen.pixel(sx + 5, sy + 1); screen.fill()             -- floating note
+  screen.level(11); screen.pixel(sx + 6, sy);     screen.fill()             -- note tail
+  screen.level(11); screen.rect(sx + 3, sy + 4, 2, 3); screen.fill()         -- little dress
+  screen.level(3);  screen.rect(sx + 3, sy + 7, 1, 1); screen.fill()
+  screen.level(3);  screen.rect(sx + 4, sy + 7, 1, 1); screen.fill()
+end
+
+-- Winna: cathedral archivist, kneeling over salvaged papers. Robe,
+-- ink-stained hands, a loose half-burned page in front of her.
+NPC_SPRITES.Winna = function(sx, sy)
+  screen.level(13); screen.rect(sx + 2, sy + 1, 4, 2); screen.fill()         -- face
+  screen.level(5);  screen.rect(sx + 2, sy, 4, 1); screen.fill()             -- tied-back hair
+  screen.level(0);  screen.pixel(sx + 3, sy + 2); screen.pixel(sx + 4, sy + 2); screen.fill()
+  screen.level(7);  screen.rect(sx + 1, sy + 3, 6, 3); screen.fill()         -- robe
+  screen.level(13); screen.rect(sx + 2, sy + 6, 4, 1); screen.fill()         -- salvaged page (pale)
+  screen.level(8);  screen.pixel(sx + 3, sy + 6); screen.fill()              -- scorch mark
+  screen.level(8);  screen.pixel(sx + 5, sy + 6); screen.fill()
+  screen.level(3);  screen.rect(sx + 2, sy + 7, 1, 1); screen.fill()
+  screen.level(3);  screen.rect(sx + 5, sy + 7, 1, 1); screen.fill()
+end
+
+-- Dusk: desert seer. Hooded shawl, reads patterns in spread sand at
+-- her feet. A faint third-eye glint on the brow.
+NPC_SPRITES.Dusk = function(sx, sy)
+  screen.level(4);  screen.rect(sx + 1, sy, 6, 2); screen.fill()             -- deep hood
+  screen.level(11); screen.rect(sx + 2, sy + 2, 4, 2); screen.fill()         -- face in hood
+  screen.level(0);  screen.pixel(sx + 3, sy + 3); screen.pixel(sx + 4, sy + 3); screen.fill()
+  if (tick % 18) < 9 then
+    screen.level(15); screen.pixel(sx + 4, sy + 2); screen.fill()           -- third-eye glint
+  end
+  screen.level(5);  screen.rect(sx + 1, sy + 4, 6, 3); screen.fill()         -- shawl body
+  screen.level(7);  screen.rect(sx + 1, sy + 7, 6, 1); screen.fill()        -- spread sand at feet
+  screen.level(13); screen.pixel(sx + 2, sy + 7); screen.pixel(sx + 5, sy + 7); screen.fill()  -- pattern motes
+end
+
+-- Veiled Mystic: tall, fully veiled figure that speaks in a drone.
+-- Featureless pale veil, long robe. Eerie, near-symmetrical.
+NPC_SPRITES["Veiled Mystic"] = function(sx, sy)
+  screen.level(11); screen.rect(sx + 2, sy, 4, 4); screen.fill()             -- long veil over head
+  screen.level(7);  screen.rect(sx + 2, sy + 1, 4, 1); screen.fill()         -- veil seam
+  if (tick % 20) < 10 then
+    screen.level(3); screen.pixel(sx + 3, sy + 2); screen.pixel(sx + 4, sy + 2); screen.fill()  -- faint eyes through veil
+  end
+  screen.level(6);  screen.rect(sx + 1, sy + 4, 6, 3); screen.fill()         -- robe
+  screen.level(8);  screen.rect(sx + 3, sy + 4, 2, 3); screen.fill()         -- center drape (lighter)
+  screen.level(3);  screen.rect(sx + 2, sy + 7, 1, 1); screen.fill()
+  screen.level(3);  screen.rect(sx + 5, sy + 7, 1, 1); screen.fill()
+end
+
+-- Owlflute: village stargazer (night-only). Looks up; a small flute
+-- raised to the lips; a feather in a soft cap.
+NPC_SPRITES.Owlflute = function(sx, sy)
+  screen.level(6);  screen.rect(sx + 2, sy, 4, 1); screen.fill()             -- soft cap
+  screen.level(13); screen.pixel(sx + 6, sy); screen.fill()                  -- cap feather
+  screen.level(13); screen.rect(sx + 2, sy + 1, 4, 2); screen.fill()         -- face tilted up
+  screen.level(0);  screen.pixel(sx + 3, sy + 1); screen.pixel(sx + 4, sy + 1); screen.fill()  -- eyes (looking up)
+  screen.level(11); screen.rect(sx + 5, sy + 3, 3, 1); screen.fill()         -- flute raised
+  screen.level(15); screen.pixel(sx + 7, sy + 3); screen.fill()             -- flute end glint
+  screen.level(7);  screen.rect(sx + 2, sy + 3, 4, 4); screen.fill()         -- robe
+  screen.level(3);  screen.rect(sx + 2, sy + 7, 1, 1); screen.fill()
+  screen.level(3);  screen.rect(sx + 5, sy + 7, 1, 1); screen.fill()
+end
+
+-- VoidEcho: post-endgame eldritch summoner. A shape that doesn't lie
+-- still — flickering near-formless silhouette, no face, void-dark with
+-- a single wrong-note shimmer.
+NPC_SPRITES.VoidEcho = function(sx, sy)
+  local j = (tick % 6) < 3 and 0 or 1   -- 1px jitter — "does not lie still"
+  screen.level(1);  screen.rect(sx + 2 + j, sy, 4, 3); screen.fill()         -- head void
+  screen.level(2);  screen.rect(sx + 1, sy + 2, 6, 3); screen.fill()         -- shoulders void
+  screen.level(0);  screen.rect(sx + 2 + j, sy + 1, 4, 1); screen.fill()     -- face cavity (nothing)
+  if (tick % 8) < 4 then
+    screen.level(15); screen.pixel(sx + 3 + j, sy + 1); screen.fill()        -- single wrong-note shimmer
+  end
+  screen.level(2);  screen.rect(sx + 1, sy + 5, 6, 2); screen.fill()         -- lower void
+  -- ragged dissolving hem
+  screen.level(1)
+  screen.pixel(sx + 1, sy + 7); screen.pixel(sx + 3, sy + 7); screen.pixel(sx + 6, sy + 7); screen.fill()
+end
+
 -- Alder/Diegues/Strom NPC sprites — alias to their party-class sprites.
 -- These trigger when the player encounters them as NPCs before they
 -- have joined the active party. SPRITE_BY_CLASS draws using player.facing,
