@@ -13223,7 +13223,11 @@ local function alive_party()
   return out
 end
 
-local function count_shards()
+-- Global (not local): an NPC scene closure inside the CONTENT literal
+-- (Iola, ~line 3004) references count_shards before this point in source
+-- order. A local would bind there as a nil global; promoting it to a true
+-- global lets that early closure resolve it at call time.
+function count_shards()
   local n = 0
   for _, has in pairs(shards) do if has then n = n + 1 end end
   return n
