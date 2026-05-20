@@ -27886,25 +27886,40 @@ end
 -- in draw_shop. Each takes (sx, sy) and renders inside an 8×8 cell.
 SHOP.sprites = {}
 SHOP.sprites.salve = function(sx, sy)
-  -- round amber bottle with cap
-  screen.level(7); screen.rect(sx + 2, sy + 1, 4, 1); screen.fill()    -- cap
-  screen.level(11); screen.rect(sx + 1, sy + 2, 6, 5); screen.fill()    -- body (bright)
-  screen.level(13); screen.pixel(sx + 2, sy + 3); screen.fill()         -- highlight
-  screen.level(5); screen.rect(sx + 1, sy + 7, 6, 1); screen.fill()     -- bottom shadow
+  -- round amber healing bottle: corked neck, amber liquid w/ a darker
+  -- settled layer, a paper label band, and a glass highlight streak.
+  screen.level(6);  screen.rect(sx + 3, sy, 2, 1); screen.fill()        -- cork top
+  screen.level(8);  screen.rect(sx + 3, sy + 1, 2, 1); screen.fill()    -- neck
+  screen.level(11); screen.rect(sx + 1, sy + 2, 6, 5); screen.fill()    -- amber body
+  screen.level(8);  screen.rect(sx + 1, sy + 5, 6, 2); screen.fill()    -- denser liquid (bottom)
+  screen.level(14); screen.rect(sx + 2, sy + 4, 4, 1); screen.fill()    -- paper label band
+  screen.level(15); screen.pixel(sx + 2, sy + 2); screen.pixel(sx + 2, sy + 3); screen.fill()  -- glass highlight
+  screen.level(4);  screen.rect(sx + 1, sy + 7, 6, 1); screen.fill()    -- base shadow
 end
 SHOP.sprites.vial = function(sx, sy)
-  -- tall thin flask with stopper, blue
-  screen.level(7); screen.pixel(sx + 3, sy); screen.pixel(sx + 4, sy); screen.fill()  -- stopper
-  screen.level(11); screen.rect(sx + 3, sy + 1, 2, 2); screen.fill()                   -- neck
-  screen.level(8); screen.rect(sx + 2, sy + 3, 4, 4); screen.fill()                    -- bulb
-  screen.level(13); screen.pixel(sx + 3, sy + 4); screen.fill()                        -- shine
+  -- tall thin blue flask: cork, slim neck, round bulb w/ a meniscus
+  -- fill-line and a vertical glass shine.
+  screen.level(6);  screen.pixel(sx + 3, sy); screen.pixel(sx + 4, sy); screen.fill()  -- cork
+  screen.level(7);  screen.rect(sx + 3, sy + 1, 2, 2); screen.fill()                   -- neck
+  screen.level(8);  screen.rect(sx + 2, sy + 3, 4, 4); screen.fill()                   -- bulb glass
+  screen.level(11); screen.rect(sx + 2, sy + 5, 4, 2); screen.fill()                   -- blue liquid (settled low)
+  screen.level(13); screen.rect(sx + 2, sy + 4, 4, 1); screen.fill()                   -- meniscus line (bright)
+  screen.level(15); screen.pixel(sx + 2, sy + 3); screen.pixel(sx + 2, sy + 4); screen.fill()  -- glass shine
+  screen.level(4);  screen.rect(sx + 2, sy + 7, 4, 1); screen.fill()                   -- base shadow
 end
 SHOP.sprites.ether = function(sx, sy)
-  -- glowing square bottle, mage purple-bright
-  screen.level(7); screen.rect(sx + 3, sy, 2, 1); screen.fill()                        -- cap
-  screen.level(13); screen.rect(sx + 1, sy + 1, 6, 6); screen.fill()                   -- glowing body
-  screen.level(15); screen.pixel(sx + 3, sy + 3); screen.pixel(sx + 4, sy + 4); screen.fill()  -- spark
-  screen.level(5); screen.rect(sx + 1, sy + 7, 6, 1); screen.fill()
+  -- square arcane bottle: glowing violet liquid with a drifting inner
+  -- spark, faceted glass highlight, dark base.
+  screen.level(6);  screen.rect(sx + 3, sy, 2, 1); screen.fill()                       -- stopper
+  screen.level(10); screen.rect(sx + 1, sy + 1, 6, 6); screen.fill()                   -- glass body
+  screen.level(13); screen.rect(sx + 2, sy + 2, 4, 4); screen.fill()                   -- glowing core
+  local s = (tick % 16) < 8
+  screen.level(15)
+  if s then screen.pixel(sx + 3, sy + 3); screen.pixel(sx + 4, sy + 4)
+  else      screen.pixel(sx + 4, sy + 3); screen.pixel(sx + 3, sy + 4) end
+  screen.fill()                                                                        -- drifting spark
+  screen.level(15); screen.pixel(sx + 2, sy + 1); screen.fill()                        -- facet glint
+  screen.level(4);  screen.rect(sx + 1, sy + 7, 6, 1); screen.fill()                   -- base shadow
 end
 SHOP.sprites.star = function(sx, sy)
   -- 5-point star
@@ -27920,11 +27935,18 @@ SHOP.sprites.star = function(sx, sy)
   screen.fill()
 end
 SHOP.sprites.tonic = function(sx, sy)
-  -- round flask with bubbles + cap
-  screen.level(7); screen.rect(sx + 3, sy, 2, 1); screen.fill()
-  screen.level(11); screen.rect(sx + 2, sy + 2, 4, 5); screen.fill()
-  screen.level(15); screen.pixel(sx + 3, sy + 4); screen.pixel(sx + 5, sy + 5); screen.fill()  -- bubbles
-  screen.level(5); screen.rect(sx + 2, sy + 7, 4, 1); screen.fill()
+  -- round fizzing flask: cork, ruddy liquid with rising bubbles that
+  -- shift each frame, glass shine, dark base.
+  screen.level(6);  screen.rect(sx + 3, sy, 2, 1); screen.fill()                  -- cork
+  screen.level(8);  screen.rect(sx + 3, sy + 1, 2, 1); screen.fill()              -- neck
+  screen.level(11); screen.rect(sx + 2, sy + 2, 4, 5); screen.fill()              -- ruddy liquid
+  screen.level(9);  screen.rect(sx + 2, sy + 5, 4, 2); screen.fill()             -- denser base
+  -- rising bubbles (animated)
+  local b = (tick % 12) // 4   -- 0,1,2
+  screen.level(15)
+  screen.pixel(sx + 3, sy + 6 - b); screen.pixel(sx + 5, sy + 5 - b); screen.fill()
+  screen.level(13); screen.pixel(sx + 2, sy + 3); screen.fill()                   -- glass shine
+  screen.level(4);  screen.rect(sx + 2, sy + 7, 4, 1); screen.fill()
 end
 SHOP.sprites.key = function(sx, sy)
   -- classic key: bow + shaft + bit
