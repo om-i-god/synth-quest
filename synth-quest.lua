@@ -15815,7 +15815,13 @@ ELEMENTAL_AFFINITY = {
   mutewarden = {weak = "ionian",     resist = "locrian"},
   locrius    = {weak = "ionian",     resist = "locrian"},
   suno       = {weak = "ionian",     resist = "locrian"},
-  -- Strom (story battle) and dummy: no affinity, neutral damage.
+  -- The Broken Cadence: a song that won't resolve. Ionian is the cadence
+  -- home (resolution) so it's the weakness; Locrian (the unresolved
+  -- tritone) is what it's already made of, so it resists.
+  broken_cadence = {weak = "ionian", resist = "locrian"},
+  -- Strom (story battle), the Silencer (pre-modes prologue), the First
+  -- Chord (post-game; "all voices", beyond any one mode) and the dummy:
+  -- no affinity, neutral damage.
 }
 
 local function damage_enemy(amount, is_crit)
