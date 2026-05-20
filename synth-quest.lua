@@ -202,7 +202,9 @@ RESONANCES = {
   masked_voice = { name = "The Masked Voice", character = "mage", mp_cost = 6,
                    mythos = "A courtier who could sing in any other person's voice; the apparatus took it.",
                    effect = { kind = "mode_stack", duration_bars = 1, dmg_mult = 1.25 } },
-  spring       = { name = "The Spring",       character = nil, mp_cost = 4, mythos = "TBD", effect = {} },
+  spring       = { name = "The Spring",       character = "bard", mp_cost = 4,
+                   mythos = "A hermit in a tin shack who turned any sound into a long shimmering wash; he left one morning and the wash kept going.",
+                   effect = { kind = "heal_echo", repeats = 2, heal_pct = 0.25 } },
   scatter      = { name = "The Scatter",      character = "engineer", mp_cost = 4,
                    mythos = "A singer crushed in a bell-mine; the mine echoed her in tiny shards for a year.",
                    effect = { kind = "confuse_enemy", duration_bars = 4 } },
@@ -15970,6 +15972,10 @@ function apply_resonance_effect(rid, p)
     reso_fx_add("masked_voice", 1 * RESO_BAR, {mult = 1.25})
   elseif rid == "threefold" then
     p.threefold_until = (tick or 0) + 1 * RESO_BAR
+  elseif rid == "spring" then
+    -- Spring reverb: arm the heal-echo. The next party heal repeats twice
+    -- more at 25% each, one bar apart (consumed in heal_party).
+    CONTENT.spring_echo = true
   end
 end
 
@@ -16277,6 +16283,14 @@ local function heal_party(hp_frac, mp_frac)
       end
       q.last_hit = tick   -- reuse the hit-flash to show heal landing
     end
+  end
+  -- The Spring (bard Resonance): if armed, this heal echoes twice more at
+  -- 25% per bar. Cleared up front so the scheduled echoes don't re-arm.
+  if CONTENT.spring_echo and hp_frac and hp_frac > 0 then
+    CONTENT.spring_echo = false
+    local echo = hp_frac * 0.25
+    reso_schedule(RESO_BAR,     function() heal_party(echo, 0) end)
+    reso_schedule(2 * RESO_BAR, function() heal_party(echo, 0) end)
   end
 end
 
@@ -16764,6 +16778,7 @@ end
 function reso_clear_all()
   RESO_FX = {}
   RESO_QUEUE = {}
+  CONTENT.spring_echo = false
 end
 
 -- Score a single interval (semitones, mod 12) for consonance:
