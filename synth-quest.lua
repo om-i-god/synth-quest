@@ -17060,11 +17060,13 @@ local function tick_battle()
     enemy.atk_debuff_ticks = enemy.atk_debuff_ticks - 1
   end
   if CONTENT.banner_ticks > 0 then CONTENT.banner_ticks = CONTENT.banner_ticks - 1 end
+  local sw = reso_fx_active("slow_wheel")
   for _, p in ipairs(party) do
     if p.alive then
       -- Sleep freezes the ATB. Poison still ticks (it's a damage-over-time).
       if (p.sleep_ticks or 0) == 0 then
-        p.atb = p.atb + INST.spd(p)
+        local eff_spd = INST.spd(p) + (sw and sw.spd or 0)
+        p.atb = p.atb + eff_spd
         if p.atb >= 16 then
           p.atb = p.atb - 16
           fire(p)
