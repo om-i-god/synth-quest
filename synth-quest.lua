@@ -28725,8 +28725,19 @@ UI.draw_bestiary = function()
     screen.level(3); screen.move(0, 44); screen.line(128, 44); screen.stroke()
     screen.level(11); screen.move(2, 50);  screen.text("HP " .. (cur.hp_max or 0))
     screen.level(11); screen.move(36, 50); screen.text("AT " .. (cur.atk or 0))
-    -- voice / sound-design note (right side of stats row)
-    screen.level(7); screen.move(126, 50); screen.text_right(lore[3] or "")
+    -- elemental weak/resist mode (right side) — tactical reference for
+    -- which JAM mode to play against this foe. 3-letter mode abbrevs.
+    do
+      local ABBR = {lydian="Lyd", dorian="Dor", mixolydian="Mix", phrygian="Phr",
+                    aeolian="Aeo", locrian="Loc", ionian="Ion"}
+      local aff = ELEMENTAL_AFFINITY[cur.visual or ""]
+      if aff then
+        screen.level(13); screen.move(126, 50)
+        screen.text_right("WK:" .. (ABBR[aff.weak] or "?") .. " RS:" .. (ABBR[aff.resist] or "?"))
+      else
+        screen.level(7); screen.move(126, 50); screen.text_right(lore[3] or "")
+      end
+    end
     -- lore (2 compact lines)
     screen.level(13); screen.move(2, 56); screen.text(lore[1] or "")
     screen.level(13); screen.move(2, 62); screen.text(lore[2] or "")
