@@ -6816,11 +6816,12 @@ function start_prologue_silencer(idx)
     is_prologue_silencer = true,
     silencer_idx = idx,
   }
+  enemy.confused_until = -99
   battle_outcome = nil
   game_state = "BATTLE"
   params:set("clock_tempo", BATTLE_BPM)
   for _, p in ipairs(party) do
-    p.atb = 0; p.shield = false; p.buffed = false; p.ring_armed = false; p.blocking = false; p.reflect = false; p.reflect_ticks = 0
+    p.atb = 0; p.shield = false; p.buffed = false; p.ring_armed = false; p.blocking = false; p.reflect = false; p.reflect_ticks = 0; p.long_echo_charges = 0; p.threefold_until = -99
   end
   TITLE.battle_step = 0
   redraw()
@@ -6859,11 +6860,12 @@ function start_prologue_cave_monster(idx)
     is_prologue_cave = true,
     cave_idx = idx,
   }
+  enemy.confused_until = -99
   battle_outcome = nil
   game_state = "BATTLE"
   params:set("clock_tempo", BATTLE_BPM)
   for _, p in ipairs(party) do
-    p.atb = 0; p.shield = false; p.buffed = false; p.ring_armed = false; p.blocking = false; p.reflect = false; p.reflect_ticks = 0
+    p.atb = 0; p.shield = false; p.buffed = false; p.ring_armed = false; p.blocking = false; p.reflect = false; p.reflect_ticks = 0; p.long_echo_charges = 0; p.threefold_until = -99
   end
   TITLE.battle_step = 0
   redraw()
@@ -6900,12 +6902,13 @@ function start_strom_battle()
     -- instead of the standard cave/boss loot logic.
     is_strom_arc = true,
   }
+  enemy.confused_until = -99
   battle_outcome = nil
   game_state = "BATTLE"
   params:set("clock_tempo", BATTLE_BPM)
   -- reset everyone's ATB
   for _, p in ipairs(party) do
-    p.atb = 0; p.shield = false; p.buffed = false; p.ring_armed = false; p.blocking = false; p.reflect = false; p.reflect_ticks = 0
+    p.atb = 0; p.shield = false; p.buffed = false; p.ring_armed = false; p.blocking = false; p.reflect = false; p.reflect_ticks = 0; p.long_echo_charges = 0; p.threefold_until = -99
     if p.alive then p.hp = math.max(p.hp, math.floor(p.hp_max * 0.5)) end
   end
   TITLE.battle_step = 0
@@ -7038,12 +7041,13 @@ function start_broken_cadence_battle()
     attack_sound   = {class="cleric", note=28, vel=0.65, attack=0.10, release=2.50, wet=0.85},
     is_broken_cadence = true,
   }
+  enemy.confused_until = -99
   battle_outcome = nil
   game_state = "BATTLE"
   params:set("clock_tempo", BATTLE_BPM)
   for _, p in ipairs(party) do
     p.atb = 0; p.shield = false; p.buffed = false; p.ring_armed = false
-    p.blocking = false; p.reflect = false; p.reflect_ticks = 0
+    p.blocking = false; p.reflect = false; p.reflect_ticks = 0; p.long_echo_charges = 0; p.threefold_until = -99
   end
   TITLE.battle_step = 0
   redraw()
@@ -13834,6 +13838,8 @@ local function reset_party_for_battle()
     p.shield = false
     p.buffed = false
     p.ring_armed = false   -- Resonance arm-flag is per-battle (matches p.buffed)
+    p.long_echo_charges = 0
+    p.threefold_until = -99
     p.reso_cooldown_until = 0
     p.reso_denied_t = -99
     p.blocking = false
@@ -16553,6 +16559,48 @@ local COMBO_WINDOW = 6
 -- Mutated by fire() and trigger_combo_check(); cleared in enter_battle/exit_battle.
 combo_window = {}
 
+-- ── Resonance FX runtime ──────────────────────────────────────────────
+-- Per-battle. RESO_BAR ≈ 4 beats at 85 BPM (COMBO_WINDOW=6 ticks ≈ 1 beat).
+RESO_BAR = 24
+RESO_FX = {}      -- active timed effects: {kind, expires, ...params}
+RESO_QUEUE = {}   -- scheduled events: {at, fn}
+
+function reso_fx_add(kind, ticks, params)
+  local e = {kind = kind, expires = (tick or 0) + ticks}
+  if params then for k, v in pairs(params) do e[k] = v end end
+  RESO_FX[#RESO_FX + 1] = e
+  return e
+end
+
+function reso_fx_active(kind)
+  for _, e in ipairs(RESO_FX) do
+    if e.kind == kind and (tick or 0) < e.expires then return e end
+  end
+  return nil
+end
+
+function reso_schedule(delay, fn)
+  RESO_QUEUE[#RESO_QUEUE + 1] = {at = (tick or 0) + delay, fn = fn}
+end
+
+function reso_fx_tick()
+  for i = #RESO_FX, 1, -1 do
+    if (tick or 0) >= RESO_FX[i].expires then table.remove(RESO_FX, i) end
+  end
+  for i = #RESO_QUEUE, 1, -1 do
+    if (tick or 0) >= RESO_QUEUE[i].at then
+      local fn = RESO_QUEUE[i].fn
+      table.remove(RESO_QUEUE, i)
+      if fn then fn() end
+    end
+  end
+end
+
+function reso_clear_all()
+  RESO_FX = {}
+  RESO_QUEUE = {}
+end
+
 -- Score a single interval (semitones, mod 12) for consonance:
 --   3 = perfect (unison/4th/5th/octave)
 --   2 = consonant (3rds/6ths)
@@ -16993,6 +17041,7 @@ local function tick_battle()
     end
   end
   enemy_tick()
+  reso_fx_tick()
   check_battle_end()
 end
 
@@ -17269,6 +17318,7 @@ CAVE_RARES = {
 }
 
 enter_battle = function(cave_id, force_random)
+  reso_clear_all()
   -- Pre-battle visual: brief screen shake + flash + small SFX so the
   -- transition into combat lands. FF-style "encounter ! " sting.
   -- Skip when SCENE.active (the boss-approach/finale scenes already
@@ -17366,6 +17416,7 @@ enter_battle = function(cave_id, force_random)
     last_attack = tick,
     alive = true, visual = e.visual,
   }
+  enemy.confused_until = -99
   reset_party_for_battle()
   combo_window = {}     -- clear chord-attack window on battle entry
   -- Wipe any in-flight overworld banner (ambient events leave a 48-60
@@ -17413,6 +17464,7 @@ enter_jam_pad = function()
     invincible = true,
     is_jam = true,
   }
+  enemy.confused_until = -99
   reset_party_for_battle()
   battle_outcome = nil
   game_state = "BATTLE"
@@ -17422,6 +17474,7 @@ enter_jam_pad = function()
 end
 
 exit_battle = function()
+  reso_clear_all()
   if battle_outcome == "VICTORY" then
     for _, p in ipairs(party) do
       if p.alive then
@@ -17493,6 +17546,8 @@ exit_battle = function()
     p.reso_cooldown_until = 0
     p.reso_denied_t = -99
     p.ring_armed = false
+    p.long_echo_charges = 0
+    p.threefold_until = -99
   end
   -- DEFEAT branch: tutorial/scripted fights (prologue silencers, escape-cave
   -- wisps, the academy Strom duel) get a soft reset — full-HP revive +
