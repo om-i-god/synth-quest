@@ -24819,46 +24819,42 @@ function DRAW_ENEMY.sentinel(cx, cy)
 end
 
 function DRAW_ENEMY.crab(cx, cy)
-  -- low oval body + 2 claws + skitter offset
+  -- shelled body w/ rim shading, eye-stalks, pincer claws, little legs.
   local skitter = (tick % 4) < 2 and -1 or 1
+  local sx0 = cx + skitter
+  screen.level(10); screen.rect(sx0 - 4, cy, 8, 4); screen.fill()              -- shell
+  screen.level(13); screen.rect(sx0 - 4, cy, 8, 1); screen.fill()             -- shell top highlight
+  screen.level(6);  screen.rect(sx0 - 4, cy + 3, 8, 1); screen.fill()         -- underside shade
+  -- claws (pincer triangles) + darker pincer gap
   screen.level(10)
-  screen.rect(cx - 4 + skitter, cy, 8, 4)
-  screen.fill()
-  -- claws (small triangles to either side)
-  screen.move(cx - 6 + skitter, cy + 2)
-  screen.line(cx - 8 + skitter, cy)
-  screen.line(cx - 4 + skitter, cy)
-  screen.close()
-  screen.fill()
-  screen.move(cx + 6 + skitter, cy + 2)
-  screen.line(cx + 8 + skitter, cy)
-  screen.line(cx + 4 + skitter, cy)
-  screen.close()
-  screen.fill()
-  -- eyes
-  screen.level(0)
-  screen.pixel(cx - 1 + skitter, cy + 1)
-  screen.pixel(cx + 2 + skitter, cy + 1)
+  screen.move(sx0 - 6, cy + 2); screen.line(sx0 - 8, cy); screen.line(sx0 - 4, cy); screen.close(); screen.fill()
+  screen.move(sx0 + 6, cy + 2); screen.line(sx0 + 8, cy); screen.line(sx0 + 4, cy); screen.close(); screen.fill()
+  screen.level(6); screen.pixel(sx0 - 7, cy + 1); screen.pixel(sx0 + 7, cy + 1); screen.fill()
+  -- legs poking under the shell
+  screen.level(8); screen.pixel(sx0 - 3, cy + 4); screen.pixel(sx0 + 3, cy + 4); screen.fill()
+  -- eye-stalks with bright eyes
+  screen.level(8);  screen.pixel(sx0 - 1, cy - 1); screen.pixel(sx0 + 2, cy - 1); screen.fill()
+  screen.level(15); screen.pixel(sx0 - 1, cy - 2); screen.pixel(sx0 + 2, cy - 2); screen.fill()
 end
 
 function DRAW_ENEMY.manta(cx, cy)
-  -- diamond/triangle gliding shape, slow swoop
+  -- gliding ray: shaded wings w/ bright leading edges, cephalic fins,
+  -- a whip tail tipped with a barb. Slow swoop.
   local sw = math.floor(math.sin((tick % 12) / 12 * math.pi * 2) * 2)
   screen.level(8)
-  screen.move(cx, cy - 4)
-  screen.line(cx - 7, cy + sw)
-  screen.line(cx, cy + 4)
-  screen.line(cx + 7, cy + sw)
-  screen.close()
-  screen.fill()
-  -- tail
-  screen.move(cx, cy + 4)
-  screen.line(cx, cy + 7)
-  screen.stroke()
+  screen.move(cx, cy - 4); screen.line(cx - 7, cy + sw); screen.line(cx, cy + 4); screen.line(cx + 7, cy + sw); screen.close(); screen.fill()
+  -- bright leading edges (top of each wing)
+  screen.level(11)
+  screen.move(cx, cy - 4); screen.line(cx - 7, cy + sw); screen.stroke()
+  screen.move(cx, cy - 4); screen.line(cx + 7, cy + sw); screen.stroke()
+  screen.level(5); screen.pixel(cx, cy + 2); screen.fill()                    -- underbelly shade
+  -- cephalic fins (the little head "horns")
+  screen.level(8); screen.pixel(cx - 1, cy - 5); screen.pixel(cx + 1, cy - 5); screen.fill()
+  -- whip tail with a barb
+  screen.level(8); screen.move(cx, cy + 4); screen.line(cx, cy + 7); screen.stroke()
+  screen.level(13); screen.pixel(cx, cy + 7); screen.fill()
   -- eyespots
-  screen.level(0)
-  screen.pixel(cx - 2, cy)
-  screen.pixel(cx + 2, cy)
+  screen.level(0); screen.pixel(cx - 2, cy); screen.pixel(cx + 2, cy); screen.fill()
 end
 
 function DRAW_ENEMY.tide(cx, cy)
@@ -24908,25 +24904,28 @@ function DRAW_ENEMY.scorpion(cx, cy)
 end
 
 function DRAW_ENEMY.spectre(cx, cy)
-  -- ghostly tall figure with wavy bottom
+  -- ghostly figure: dim outer shroud, brighter translucent inner core,
+  -- a darker hooded crown, a gaping mouth, trailing wisps. Wavy drift.
   local sw = math.floor(math.sin((tick % 16) / 16 * math.pi * 2) * 1)
-  screen.level(7)
-  -- body
-  screen.move(cx - 4 + sw, cy - 6)
-  screen.line(cx + 4 + sw, cy - 6)
-  screen.line(cx + 5 + sw, cy + 5)
-  screen.line(cx + 2 + sw, cy + 6)
-  screen.line(cx + sw,     cy + 5)
-  screen.line(cx - 2 + sw, cy + 6)
-  screen.line(cx - 5 + sw, cy + 5)
-  screen.close()
-  screen.fill()
+  -- outer shroud (dim)
+  screen.level(5)
+  screen.move(cx - 4 + sw, cy - 6); screen.line(cx + 4 + sw, cy - 6)
+  screen.line(cx + 5 + sw, cy + 5); screen.line(cx + 2 + sw, cy + 6)
+  screen.line(cx + sw, cy + 5);     screen.line(cx - 2 + sw, cy + 6)
+  screen.line(cx - 5 + sw, cy + 5); screen.close(); screen.fill()
+  -- translucent inner core (brighter)
+  screen.level(9); screen.rect(cx - 2 + sw, cy - 4, 4, 6); screen.fill()
+  -- hooded crown (dark fade at the top)
+  screen.level(3); screen.rect(cx - 3 + sw, cy - 6, 7, 1); screen.fill()
+  -- gaping mouth
+  screen.level(0); screen.rect(cx - 1 + sw, cy, 2, 2); screen.fill()
   -- glowing eyes
   if (tick % 12) < 8 then
     screen.level(15)
-    screen.pixel(cx - 2 + sw, cy - 3)
-    screen.pixel(cx + 2 + sw, cy - 3)
+    screen.pixel(cx - 2 + sw, cy - 3); screen.pixel(cx + 2 + sw, cy - 3); screen.fill()
   end
+  -- trailing wisps
+  screen.level(3); screen.pixel(cx - 3 + sw, cy + 7); screen.pixel(cx + 1 + sw, cy + 7); screen.fill()
 end
 
 function DRAW_ENEMY.dunerider(cx, cy)
