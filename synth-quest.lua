@@ -16219,6 +16219,8 @@ local function apply_player_action(p)
       -- off MAG (her ATK is negligible). Guaranteed-crit single hit +
       -- 5 staggered ghost-bursts across the enemy column.
       local dmg = math.floor(INST.mag(p) * 4)
+      local mv_lim_mag = reso_fx_active("masked_voice")
+      if mv_lim_mag then dmg = math.floor(dmg * (mv_lim_mag.mult or 1.25)) end
       damage_enemy(dmg, true)
       CONTENT.banner_text  = "* ECHO: DISPERSE *"
       CONTENT.banner_ticks = 60
@@ -16235,6 +16237,8 @@ local function apply_player_action(p)
       -- Damage variant: 4-5x base atk, guaranteed crit, splash burst.
       local mult = (cls == "warrior") and 5 or (cls == "bard") and 4 or 4
       local dmg = math.floor(INST.atk(p) * mult)
+      local mv_lim_atk = reso_fx_active("masked_voice")
+      if mv_lim_atk then dmg = math.floor(dmg * (mv_lim_atk.mult or 1.25)) end
       damage_enemy(dmg, true)
       ANIM.burst(96, 32, 14, 15)
       ANIM.shake(3, 18)
@@ -16280,6 +16284,8 @@ local function apply_player_action(p)
         p.ring_armed = false
         ring_fx = true
       end
+      local mv_atk = reso_fx_active("masked_voice")
+      if mv_atk then dmg = math.floor(dmg * (mv_atk.mult or 1.25)) end
       damage_enemy(dmg, crit)
       if ring_fx then
         -- Clangor: root bell + a fifth above (same cleric voice as
@@ -16343,6 +16349,8 @@ local function apply_player_action(p)
       local dmg = math.floor(INST.mag(p) * 1.4)
       local crit = math.random() < ANIM.crit
       if crit then dmg = dmg * 2 end
+      local mv_mix = reso_fx_active("masked_voice")
+      if mv_mix then dmg = math.floor(dmg * (mv_mix.mult or 1.25)) end
       damage_enemy(dmg, crit)
       if enemy then
         enemy.atk_debuff_ticks = math.max(enemy.atk_debuff_ticks or 0, 24)
@@ -16365,6 +16373,8 @@ local function apply_player_action(p)
       local dmg = math.floor(INST.mag(p) * (1.0 + pct * 1.5))
       local crit = math.random() < ANIM.crit
       if crit then dmg = dmg * 2 end
+      local mv_code = reso_fx_active("masked_voice")
+      if mv_code then dmg = math.floor(dmg * (mv_code.mult or 1.25)) end
       damage_enemy(dmg, crit)
     end
     p.hp = math.min(p.hp_max, p.hp + math.floor(p.hp_max * 0.15))
@@ -16389,6 +16399,8 @@ local function apply_player_action(p)
       local dmg = math.floor(INST.mag(p) * 2.0)
       local crit = math.random() < ANIM.crit
       if crit then dmg = dmg * 2 end
+      local mv_smpl = reso_fx_active("masked_voice")
+      if mv_smpl then dmg = math.floor(dmg * (mv_smpl.mult or 1.25)) end
       damage_enemy(dmg, crit)
       if enemy then
         enemy.atk_debuff_ticks = math.max(enemy.atk_debuff_ticks or 0, 20)
@@ -16427,6 +16439,8 @@ local function apply_player_action(p)
       end
       if enemy and enemy.alive then
         local dmg = math.floor(INST.mag(p) * 1.6)
+        local mv_stir = reso_fx_active("masked_voice")
+        if mv_stir then dmg = math.floor(dmg * (mv_stir.mult or 1.25)) end
         damage_enemy(dmg, false)
         ANIM.burst(96, 32, 6, 11)
       end
