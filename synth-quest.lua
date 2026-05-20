@@ -20568,9 +20568,13 @@ end
 
 -- Tile 75 — Lectern (impassable; Academy lecture hall).
 TILE_DRAW[75] = function(px, py)
-  -- lectern: triangular silhouette
-  screen.level(6)
-  screen.move(px+2, py+7); screen.line(px+4, py+1); screen.line(px+6, py+7); screen.stroke()
+  -- reading lectern: angled desk surface with a sheet of music, a
+  -- central post, and a wide base.
+  screen.level(7);  screen.move(px+1, py+3); screen.line(px+6, py+1); screen.stroke()  -- angled desk top
+  screen.level(5);  screen.move(px+1, py+4); screen.line(px+6, py+2); screen.stroke()  -- desk underside
+  screen.level(15); screen.pixel(px+3, py+1); screen.pixel(px+4, py+1); screen.fill()  -- sheet on the desk
+  screen.level(6);  screen.rect(px+3, py+4, 2, 3); screen.fill()                        -- post
+  screen.level(8);  screen.rect(px+2, py+7, 4, 1); screen.fill()                        -- base
 end
 
 -- Tile 76 — Telescope broken (impassable; Observatory upper-level broken-roof aperture).
@@ -20627,11 +20631,16 @@ TILE_DRAW[80] = function(px, py)
 end
 
 TILE_DRAW[81] = function(px, py)
-  -- rubble: irregular stacked broken-stone shapes
+  -- broken-stone rubble: stacked blocks with top-lit edges + shadowed
+  -- crevices + a couple of cracks for a chiselled, weathered look.
   screen.level(6)
   screen.rect(px+1, py+2, 3, 3); screen.fill()
   screen.rect(px+4, py+1, 3, 4); screen.fill()
   screen.rect(px+2, py+5, 4, 2); screen.fill()
+  -- top-lit edges
+  screen.level(9); screen.rect(px+1, py+2, 3, 1); screen.rect(px+4, py+1, 3, 1); screen.fill()
+  -- shadowed crevices / cracks
+  screen.level(2); screen.pixel(px+3, py+4); screen.pixel(px+5, py+3); screen.pixel(px+4, py+6); screen.fill()
 end
 
 TILE_DRAW[82] = function(px, py)
