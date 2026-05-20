@@ -23117,6 +23117,22 @@ NPC_SPRITES.scout = function(sx, sy)
   screen.level(3);  screen.rect(sx + 4, sy + 7, 1, 1); screen.fill()
 end
 
+-- Caretaker: aging observatory keeper (kept the place 12 years since
+-- Velthe left). Gray hair, long keeper's robe, a ring of keys at the
+-- belt. Shared by the static NPC and the scene-actor of the same name.
+NPC_SPRITES.Caretaker = function(sx, sy)
+  screen.level(15); screen.rect(sx + 2, sy, 4, 1); screen.fill()             -- white hair
+  screen.level(13); screen.rect(sx + 2, sy + 1, 4, 2); screen.fill()         -- lined face
+  screen.level(0);  screen.pixel(sx + 3, sy + 2); screen.pixel(sx + 4, sy + 2); screen.fill()
+  screen.level(11); screen.rect(sx + 2, sy + 3, 4, 1); screen.fill()         -- gray beard
+  screen.level(6);  screen.rect(sx + 1, sy + 4, 6, 3); screen.fill()         -- keeper's robe
+  screen.level(8);  screen.rect(sx + 3, sy + 4, 2, 3); screen.fill()         -- robe placket (lighter)
+  screen.level(13); screen.pixel(sx + 6, sy + 5); screen.fill()              -- key ring at belt
+  screen.level(11); screen.pixel(sx + 6, sy + 6); screen.fill()
+  screen.level(3);  screen.rect(sx + 2, sy + 7, 1, 1); screen.fill()
+  screen.level(3);  screen.rect(sx + 5, sy + 7, 1, 1); screen.fill()
+end
+
 -- Alder/Diegues/Strom NPC sprites — alias to their party-class sprites.
 -- These trigger when the player encounters them as NPCs before they
 -- have joined the active party. SPRITE_BY_CLASS draws using player.facing,
