@@ -25084,42 +25084,33 @@ function DRAW_ENEMY.spectre(cx, cy)
 end
 
 function DRAW_ENEMY.dunerider(cx, cy)
-  -- large mounted figure: body of sand-mount + rider above
+  -- desert raider on a low sand-mount: sun-lit back + shadowed belly on
+  -- the mount, a cloaked rider with a wrapped head and a thrusting spear
+  -- that bobs with the gait.
   local phase = (tick % 16) / 16 * math.pi * 2
-  -- mount body (low broad)
+  -- mount body (low broad) w/ top-light + belly shadow
+  screen.level(11); screen.rect(cx - 9, cy + 2, 18, 5); screen.fill()
+  screen.level(13); screen.rect(cx - 9, cy + 2, 18, 1); screen.fill()
+  screen.level(8);  screen.rect(cx - 9, cy + 6, 18, 1); screen.fill()
+  -- mount head + dark eye
   screen.level(11)
-  screen.rect(cx - 9, cy + 2, 18, 5)
-  screen.fill()
-  -- mount head
-  screen.move(cx + 9, cy + 2)
-  screen.line(cx + 12, cy + 4)
-  screen.line(cx + 9, cy + 6)
-  screen.close()
-  screen.fill()
-  -- legs (two pairs)
-  screen.rect(cx - 6, cy + 7, 1, 2); screen.fill()
-  screen.rect(cx - 2, cy + 7, 1, 2); screen.fill()
-  screen.rect(cx + 4, cy + 7, 1, 2); screen.fill()
-  screen.rect(cx + 7, cy + 7, 1, 2); screen.fill()
-  -- rider on top
-  screen.level(5)
-  screen.rect(cx - 1, cy - 4, 4, 6)
-  screen.fill()
-  -- rider head
-  screen.level(13)
-  screen.rect(cx, cy - 6, 2, 2)
-  screen.fill()
-  -- spear with phase
+  screen.move(cx + 9, cy + 2); screen.line(cx + 12, cy + 4); screen.line(cx + 9, cy + 6)
+  screen.close(); screen.fill()
+  if (tick % 8) < 6 then screen.level(0); screen.pixel(cx + 10, cy + 4); screen.fill() end
+  -- legs (shadowed, two pairs)
+  screen.level(8)
+  screen.rect(cx - 6, cy + 7, 1, 2); screen.rect(cx - 2, cy + 7, 1, 2)
+  screen.rect(cx + 4, cy + 7, 1, 2); screen.rect(cx + 7, cy + 7, 1, 2); screen.fill()
+  -- cloaked rider w/ lit edge
+  screen.level(5); screen.rect(cx - 1, cy - 4, 4, 6); screen.fill()
+  screen.level(8); screen.rect(cx - 1, cy - 4, 1, 6); screen.fill()
+  -- rider head + wrap
+  screen.level(13); screen.rect(cx, cy - 6, 2, 2); screen.fill()
+  screen.level(9);  screen.rect(cx, cy - 6, 2, 1); screen.fill()
+  -- thrusting spear (bobs with gait)
   screen.level(15)
-  screen.move(cx + 3, cy - 4)
-  screen.line(cx + 7 + math.floor(math.sin(phase) * 1), cy - 8)
+  screen.move(cx + 3, cy - 4); screen.line(cx + 7 + math.floor(math.sin(phase) * 1), cy - 8)
   screen.stroke()
-  -- eyes
-  if (tick % 8) < 6 then
-    screen.level(0)
-    screen.pixel(cx - 4, cy + 4)
-    screen.pixel(cx + 1, cy + 4)
-  end
 end
 
 -- Cave 5 enemies (Northern Wilds)
