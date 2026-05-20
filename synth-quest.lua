@@ -28626,12 +28626,31 @@ UI.draw_shards = function()
     screen.move(math.floor(lx), math.floor(ly))
     screen.text_center(name:sub(1, 3):upper())
   end
+  -- Highlight the currently-tuned JAM mode: a pulsing ring around its
+  -- shard so the player can see which mode they're playing in (it drives
+  -- battle weak/resist). Only when that mode is actually collected.
+  for i, name in ipairs(order) do
+    if name == JAM.mode and shards[name] then
+      local ang = -math.pi / 2 + (i - 1) * (2 * math.pi / 7)
+      local sx = cx + math.cos(ang) * r
+      local sy = cy + math.sin(ang) * r
+      screen.level((tick % 16) < 8 and 15 or 9)
+      screen.circle(math.floor(sx), math.floor(sy), 5); screen.stroke()
+    end
+  end
   -- centre core (brightens with progress)
   screen.level(math.min(15, 2 + n * 2))
   screen.rect(cx - 1, cy - 1, 3, 3); screen.fill()
-  -- count + hint
+  -- count + currently-tuned mode
   screen.level(11)
-  screen.move(64, 56); screen.text_center(n .. " / 7 shards collected")
+  screen.move(64, 54); screen.text_center(n .. " / 7 shards collected")
+  do
+    local MODE_LBL = {pentatonic="Pentatonic", lydian="Lydian", dorian="Dorian",
+                      mixolydian="Mixolydian", phrygian="Phrygian", aeolian="Aeolian",
+                      locrian="Locrian", ionian="Ionian"}
+    screen.level(7); screen.move(64, 61)
+    screen.text_center("tuned: " .. (MODE_LBL[JAM.mode] or JAM.mode or "?"))
+  end
   screen.level(6); screen.move(126, 62); screen.text_right("B back")
   screen.font_face(1); screen.font_size(8)
 end
