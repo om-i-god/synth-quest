@@ -19251,12 +19251,12 @@ local function draw_wall(px, py)
 end
 
 local function draw_door(px, py)
-  screen.level(10)
-  screen.rect(px, py, 8, 8)
-  screen.fill()
-  screen.level(2)
-  screen.rect(px + 2, py + 2, 4, 5)
-  screen.fill()
+  screen.level(10); screen.rect(px, py, 8, 8); screen.fill()                 -- stone frame
+  screen.level(13); screen.rect(px, py, 8, 1); screen.fill()                 -- top lintel highlight
+  screen.level(6);  screen.rect(px + 1, py + 1, 6, 6); screen.fill()         -- wooden door slab
+  screen.level(2);  screen.move(px + 4, py + 1); screen.line(px + 4, py + 6); screen.stroke()  -- center panel split
+  screen.level(2);  screen.rect(px + 1, py + 3, 6, 1); screen.fill()         -- cross rail
+  screen.level(15); screen.pixel(px + 5, py + 4); screen.fill()              -- brass knob
 end
 
 local function draw_cave(px, py, t)
