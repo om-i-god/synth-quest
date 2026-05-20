@@ -15845,6 +15845,35 @@ end
 -- Functions and dispatcher are intentionally global (no `local`) because
 -- the main chunk has hit Lua's 200-local-variable limit.
 
+-- Dispatch a Resonance's combat effect at invoke time. Ring arms a
+-- consumed-on-next-ATK buff; others push RESO_FX timed effects, set
+-- counters, or mark the enemy. See docs/specs/2026-05-20-resonance-effects-design.md.
+function apply_resonance_effect(rid, p)
+  if rid == "ring" then
+    p.ring_armed = true
+  elseif rid == "heavy_hand" then
+    reso_fx_add("duck_enemies", 2 * RESO_BAR, {mult = 0.50})
+  elseif rid == "long_echo" then
+    p.long_echo_charges = 2
+  elseif rid == "scatter" then
+    if enemy and enemy.attack_pattern then
+      enemy.confused_until = (tick or 0) + 4 * RESO_BAR
+      local ap = enemy.attack_pattern
+      for i = #ap, 2, -1 do
+        local j = math.random(i)
+        ap[i], ap[j] = ap[j], ap[i]
+      end
+      enemy.pattern_idx = 1
+    end
+  elseif rid == "slow_wheel" then
+    reso_fx_add("slow_wheel", 4 * RESO_BAR, {spd = 1})
+  elseif rid == "masked_voice" then
+    reso_fx_add("masked_voice", 1 * RESO_BAR, {mult = 1.25})
+  elseif rid == "threefold" then
+    p.threefold_until = (tick or 0) + 1 * RESO_BAR
+  end
+end
+
 function play_ring_anim(p)
   -- Ring modulator: 3 concentric expanding pixel rings from the character's
   -- sprite center. Brightness 15, 13, 11; radii expand 1px/tick. Staggered
@@ -16536,10 +16565,8 @@ local function apply_player_action(p)
       if RESO_ANIMS and RESO_ANIMS[rid] then
         RESO_ANIMS[rid](p)
       end
-      -- Arm the per-Resonance buff (only Ring has a real effect this pass).
-      if rid == "ring" then
-        p.ring_armed = true
-      end
+      -- Arm the per-Resonance buff / dispatch the effect.
+      apply_resonance_effect(rid, p)
       -- Per-character 6-tick cooldown — separate from firing slot.
       p.reso_cooldown_until = tick + 6
       p.queued_resonance = nil
