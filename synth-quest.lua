@@ -24939,28 +24939,33 @@ function DRAW_ENEMY.treant(cx, cy)
 end
 
 function DRAW_ENEMY.sentinel(cx, cy)
-  -- tall guardian with antlers, slowly swaying
+  -- tall antlered guardian: shaded body with a lit leading edge + a
+  -- shadowed flank, a banded chest plate, a narrower head with glowing
+  -- eyes, a four-tine antler crown, and two stout legs. Slow sway.
   local sway = math.floor(math.sin((tick % 32) / 32 * math.pi * 2) * 1.5)
-  -- body
-  screen.level(8)
-  screen.rect(cx - 4 + sway, cy - 4, 8, 12)
-  screen.fill()
-  -- antlers
+  local x = cx + sway
+  -- body w/ lit edge + shadow flank
+  screen.level(8);  screen.rect(x - 4, cy - 4, 8, 12); screen.fill()
+  screen.level(11); screen.rect(x - 4, cy - 4, 1, 12); screen.fill()
+  screen.level(5);  screen.rect(x + 3, cy - 4, 1, 12); screen.fill()
+  -- banded chest plate
+  screen.level(12); screen.rect(x - 3, cy + 1, 6, 1); screen.fill()
+  screen.level(6);  screen.rect(x - 3, cy + 3, 6, 1); screen.fill()
+  -- narrower head
+  screen.level(10); screen.rect(x - 2, cy - 6, 4, 3); screen.fill()
+  -- antler crown (four tines)
   screen.level(11)
-  screen.move(cx - 5 + sway, cy - 4)
-  screen.line(cx - 7 + sway, cy - 8)
-  screen.move(cx - 5 + sway, cy - 4)
-  screen.line(cx - 4 + sway, cy - 7)
-  screen.move(cx + 4 + sway, cy - 4)
-  screen.line(cx + 6 + sway, cy - 8)
-  screen.move(cx + 4 + sway, cy - 4)
-  screen.line(cx + 3 + sway, cy - 7)
-  screen.stroke()
+  screen.move(x - 2, cy - 6); screen.line(x - 5, cy - 10); screen.stroke()
+  screen.move(x - 4, cy - 8); screen.line(x - 6, cy - 8); screen.stroke()
+  screen.move(x + 2, cy - 6); screen.line(x + 5, cy - 10); screen.stroke()
+  screen.move(x + 4, cy - 8); screen.line(x + 6, cy - 8); screen.stroke()
   -- glowing eyes (2-phase)
   local lit = (tick % 16) < 12
   screen.level(lit and 15 or 4)
-  screen.pixel(cx - 2 + sway, cy - 1)
-  screen.pixel(cx + 2 + sway, cy - 1)
+  screen.pixel(x - 1, cy - 5); screen.pixel(x + 1, cy - 5); screen.fill()
+  -- two stout legs
+  screen.level(6)
+  screen.rect(x - 3, cy + 8, 2, 2); screen.rect(x + 1, cy + 8, 2, 2); screen.fill()
 end
 
 function DRAW_ENEMY.crab(cx, cy)
