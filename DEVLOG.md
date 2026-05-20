@@ -1799,3 +1799,18 @@ This commit also carries pre-existing uncommitted working-tree
 fixes from a parallel session (SHOP/shards _G-mirror closure
 fixes, Senna/Pell repositioning) that were intermingled in
 synth-quest.lua and could not be cleanly separated.
+
+## 2026-05-20 — Niko / The Heavy Hand acquisition (Ruined Drum-Hall)
+
+New map 37 (Ruined Drum-Hall) off Phrygian Night City. Niko takes
+the legendary drummer's iron hand-guard from a plinth (tile 90),
+then strikes the great war-drum (tile 91) to attune The Heavy
+Hand. New transition tile (92) at Phrygian (35,12), gated on
+recruits[3].joined (rubble-blocked before Niko joins). Two-step
+find->attune via the existing start_resonance_attunement scaffold;
+new "tile" item kind; signature warrior-voice thud +
+phrygian_drumhall_resonant shockwave-ring scene draw. Bible NIKO
+stub + Ruined Drum-Hall canonized. Device-verified (9/9 ACs).
+
+Acquisition only — the Heavy Hand combat effect (duck_enemies) is
+the parallel resonance-effects pass's job.

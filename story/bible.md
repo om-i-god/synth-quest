@@ -1414,8 +1414,25 @@ present in the code.
       scrolls and bound parchments. Friendly to Diegues.
       STATUS: IN CODE.
 
-   NIKO (location TBD)
-      Role: STUB.
+   NIKO (drummer; recruit slot 3)
+      Role: Ex-Suno house-band drummer (3 years) who quit "when
+      they took the snare apart." Joins the party late-game; bonds
+      with Strom (both percussionists). Carries THE HEAVY HAND
+      Resonance, attuned at the Ruined Drum-Hall (see below) by
+      taking up the legendary drummer's iron hand-guard and
+      striking the great war-drum.
+      STATUS: IN CODE.
+
+   THE RUINED DRUM-HALL (off Phrygian Night City, map 37)
+      A collapsed hall on the city's edge where a legendary
+      Phrygian war-drummer — the Heavy Hand, "whose strikes were
+      so heavy that every other voice ducked out of his way" —
+      played until his hands broke. His iron hand-guard rests on a
+      plinth; his great war-drum stands at the back wall. Niko
+      acquires THE HEAVY HAND here. Empty of NPCs; the war-drum
+      carries the weight. Entrance is rubble-blocked until Niko
+      joins.
+      STATUS: IN CODE.
 
    WINNA (Lirael Ruins, Side Chapel)
       Role: Lirael's court librarian. Sorting half-burned papers

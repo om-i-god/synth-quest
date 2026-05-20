@@ -242,7 +242,27 @@ RESONANCE_SITES = {
       },
     },
   },
-  heavy_hand   = { item = nil, shrine = nil },
+  heavy_hand   = {
+    item = {
+      kind  = "tile",
+      label = "Iron Hand-Guard",
+      hint  = "strike the great war-drum",
+    },
+    shrine = {
+      map  = 37,
+      x    = 7, y = 2,
+      lead = "drummer",
+      signature = {
+        visual = "phrygian_drumhall_resonant",
+        sound  = { class = "warrior", note = 31, vel = 0.95, attack = 0.001, release = 1.4, wet = 0.5 },
+        dialogue = {
+          "(Niko sets the iron guard against the great drum's skin and waits for the room to go quiet.)",
+          "[Niko]    He hit so hard the others stopped playing. They called it rude. He called it the one.",
+          "(she strikes once. The drum answers from somewhere under the floor, and the dust jumps.)",
+        },
+      },
+    },
+  },
   long_echo    = {
     item = {
       kind  = "auto",
@@ -5906,8 +5926,8 @@ PHRYGIAN_CITY_MAP = {
   {66,0,0,0,0,64,64,64,0,0,0,0,0,0,0,0,69,0,0,0,0,64,64,64,0,0,0,0,0,0,0,0,0,0,0,66},
   -- row 11
   {66,67,0,0,0,0,0,0,0,0,68,0,68,0,0,0,69,0,0,0,0,0,0,0,0,0,0,0,67,0,67,0,0,0,0,66},
-  -- row 12
-  {66,67,67,0,0,0,0,0,0,0,68,68,68,0,0,0,69,0,0,0,0,0,0,0,0,0,0,0,67,67,67,0,0,0,0,66},
+  -- row 12 (drumhall archway at col 35 — collapsed entrance on the city's east edge)
+  {66,67,67,0,0,0,0,0,0,0,68,68,68,0,0,0,69,0,0,0,0,0,0,0,0,0,0,0,67,67,67,0,0,0,92,66},
   -- row 13 (south gate exit to EASTERN_REACHES)
   {66,66,66,66,66,66,66,66,66,66,66,66,66,66,66,66,69,66,66,66,66,66,66,66,66,66,66,66,66,66,66,66,66,66,66,66},
   -- rows 14-16 padding (no walkable area beyond gate)
@@ -5915,6 +5935,23 @@ PHRYGIAN_CITY_MAP = {
   {66,66,66,66,66,66,66,66,66,66,66,66,66,66,66,66,66,66,66,66,66,66,66,66,66,66,66,66,66,66,66,66,66,66,66,66},
   {66,66,66,66,66,66,66,66,66,66,66,66,66,66,66,66,66,66,66,66,66,66,66,66,66,66,66,66,66,66,66,66,66,66,66,66},
 }
+
+-- Map 37 — Ruined Drum-Hall (off Phrygian Night City, map 36). The
+-- legendary Heavy Hand drummer's hall. His iron hand-guard rests on a
+-- plinth (tile 90); the great war-drum (tile 91) is the Resonance
+-- shrine. Empty of NPCs. Reached via the drumhall-door (tile 92).
+DRUMHALL_MAP = {
+  {4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4},
+  {4, 0, 0, 0, 0, 0,91, 0, 0, 0, 0, 0, 0, 4},
+  {4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4},
+  {4, 0, 0,90, 0, 0, 0, 0, 0, 0,81, 0, 0, 4},
+  {4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4},
+  {4,81, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,81, 4},
+  {4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4},
+  {4, 4, 4, 4, 4, 4,92, 4, 4, 4, 4, 4, 4, 4},
+  {4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4},
+}
+DRUMHALL_NPCS = {}
 
 local map = MAINLAND   -- active map (mutable; swaps on travel_to)
 local MAP_W = #map[1]
@@ -13161,6 +13198,7 @@ local function is_walkable(tx, ty)
       or t == 86   -- child_toy (walkable; Lirael blue paint memento)
       or t == 88   -- cathedral_door (walkable threshold)
       or t == 89   -- lirael_entry (walkable; gate enforced in routing handler)
+      or t == 92   -- drumhall door (Phrygian 36 <-> Ruined Drum-Hall 37)
 end
 
 -- True when an NPC is currently rendered + interactable. NPCs may have
@@ -13883,6 +13921,7 @@ local function active_theme_id()
   -- Region expansion (2026-05-14) — placeholders, theme strings replaced per phase
   if current_map_id == 35 then return "sunward_coast" end
   if current_map_id == 36 then return "phrygian_city" end
+  if current_map_id == 37 then return "phrygian_city" end  -- Ruined Drum-Hall: same Phrygian theme
   -- Note: id 19 (academy), id 23 (lirael), id 24 (observatory) already return their
   -- own placeholder strings; those themes get composed and replaced in later phases.
   if current_map_id == 7 then return "echoes" end
@@ -14501,6 +14540,8 @@ local function try_random_encounter()
     enter_battle(4, true)   -- cave 4 = Glass Cavern pool (Scorpion, Sand Manta, Dune Wolf)
     return true
   end
+  -- Ruined Drum-Hall (map 37): interior only, no random encounters.
+  if current_map_id == 37 then return false end
   if math.random() >= ENCOUNTER_CHANCE then return false end
   local cave_id
   if current_map_id == 1 then
@@ -14907,6 +14948,43 @@ local function try_move(dx, dy)
     end
     return
   end
+  if t == 90 then
+    -- Plinth holding the Heavy Hand drummer's iron hand-guard. First time
+    -- with Niko (drummer) as lead on map 37, grant the guard. Impassable
+    -- otherwise.
+    local p = party[active]
+    if current_map_id == 37 and p and p.class == "drummer"
+       and not CONTENT.resonances.heavy_hand.item then
+      CONTENT.resonances.heavy_hand.item = true
+      CONTENT.banner_text  = "* obtained: the Iron Hand-Guard *"
+      CONTENT.banner_ticks = 60
+      dlg.lines = pack_dialogue_lines({
+        "(Niko lifts the iron guard off the plinth. Heavier than it looks.)",
+        "[Niko]    He wore this until his hands quit. Then he kept going.",
+        "(she fits it over her own knuckles. It settles like it was waiting.)",
+      }, nil)
+      dlg.line = 1; dlg.npc = nil
+      game_state = "DIALOGUE"
+      redraw()
+      return
+    end
+    return   -- impassable; non-Niko leads + post-pickup just don't move
+  end
+  if t == 91 then
+    -- Great war-drum (Heavy Hand shrine). Niko + hand-guard held + not yet
+    -- attuned -> fire the attunement. Impassable otherwise.
+    local p = party[active]
+    if current_map_id == 37
+       and p and p.class == "drummer"
+       and CONTENT.resonances.heavy_hand.item
+       and not CONTENT.resonances.heavy_hand.attuned
+       and start_resonance_attunement then
+      start_resonance_attunement("heavy_hand")
+      redraw()
+      return
+    end
+    return
+  end
   if t == 58 then
     -- Castle interior door. Routes by current_map_id + (nx, ny) of
     -- the door tile the player just stepped onto. All bidirectional —
@@ -15022,6 +15100,26 @@ local function try_move(dx, dy)
     else
       CONTENT.banner_text  = "* The road west is closed in mourning. No one passes. *"
       CONTENT.banner_ticks = 48
+    end
+    redraw()
+    return
+  end
+  if t == 92 then
+    -- Drumhall door. Bidirectional: Phrygian Night City (36) <-> Ruined Drum-Hall (37).
+    -- Door on map 36: col 35, row 12 (southeast edge of the city).
+    -- Door on map 37: col 7, row 8 (south wall of the drum-hall).
+    if current_map_id == 36 then
+      -- Entering: gated on Niko (recruits[3]) having joined.
+      if not (CONTENT.recruits and CONTENT.recruits[3] and CONTENT.recruits[3].joined) then
+        CONTENT.banner_text  = "* the archway is choked with rubble *"
+        CONTENT.banner_ticks = 48
+        redraw()
+        return
+      end
+      travel_to(37, 7, 7)   -- spawn inside the hall, one tile north of the door
+    elseif current_map_id == 37 then
+      -- Leaving: return to Phrygian, one tile west of the door so we don't re-enter.
+      travel_to(36, 34, 12)
     end
     redraw()
     return
@@ -17193,6 +17291,8 @@ travel_to = function(map_id, x, y)
     map = SUNWARD_COAST_MAP; npcs = CONTENT.sunward_coast_npcs or {}
   elseif map_id == 36 then
     map = PHRYGIAN_CITY_MAP; npcs = CONTENT.phrygian_city_npcs or {}
+  elseif map_id == 37 then
+    map = DRUMHALL_MAP; npcs = DRUMHALL_NPCS
   else
     map = SUNOS_DOMAIN; npcs = SUNOS_NPCS
   end
@@ -20716,6 +20816,34 @@ TILE_DRAW[89] = function(px, py)
   -- X-shape mourning sigil
   screen.move(px+2, py+2); screen.line(px+6, py+6); screen.stroke()
   screen.move(px+6, py+2); screen.line(px+2, py+6); screen.stroke()
+end
+
+TILE_DRAW[90] = function(px, py)
+  -- Plinth holding the iron hand-guard. Low stone block + metallic glint
+  -- on top (the guard). Once collected, CONTENT.resonances.heavy_hand.item
+  -- is true and the glint is dropped.
+  screen.level(4); screen.rect(px + 1, py + 4, 6, 4); screen.fill()   -- stone block
+  screen.level(2); screen.rect(px + 1, py + 7, 6, 1); screen.fill()   -- base shadow
+  if not (CONTENT.resonances and CONTENT.resonances.heavy_hand and CONTENT.resonances.heavy_hand.item) then
+    screen.level(13); screen.rect(px + 2, py + 2, 4, 2); screen.fill()  -- iron guard
+    screen.level(15); screen.pixel(px + 3, py + 2); screen.fill()       -- glint
+  end
+end
+
+TILE_DRAW[91] = function(px, py)
+  -- Great war-drum: tall barrel + taut skin + iron rim.
+  screen.level(5); screen.rect(px + 1, py, 6, 8); screen.fill()       -- barrel body
+  screen.level(8); screen.rect(px + 1, py + 1, 6, 5); screen.fill()   -- skin
+  screen.level(3); screen.rect(px + 1, py, 6, 1); screen.fill()       -- top rim
+  screen.level(3); screen.rect(px + 1, py + 6, 6, 1); screen.fill()   -- bottom rim
+  screen.level(11); screen.pixel(px + 3, py + 3); screen.pixel(px + 4, py + 3); screen.fill()  -- center boss
+end
+
+TILE_DRAW[92] = function(px, py)
+  -- Drumhall door: dark archway in the wall.
+  screen.level(2); screen.rect(px, py, 8, 8); screen.fill()
+  screen.level(0); screen.rect(px + 2, py + 1, 4, 7); screen.fill()   -- opening
+  screen.level(5); screen.rect(px + 1, py, 6, 1); screen.fill()       -- lintel
 end
 
 local SPRITE_BY_CLASS
@@ -27444,6 +27572,33 @@ function draw_scene_academy_astrolabe_resonant()
 end
 
 
+function draw_scene_phrygian_drumhall_resonant()
+  -- The great war-drum centered; on the strike beat, concentric shockwave
+  -- rings punch outward and the floor jumps (handled by ANIM.shake at the
+  -- scene's sfx beat). Sand-stone Phrygian palette. Niko stands beside it.
+  screen.level(1); screen.rect(0, 0, 128, 64); screen.fill()
+  -- sand-stone floor stripes
+  screen.level(3)
+  for y = 40, 60, 4 do screen.move(0, y); screen.line(128, y); screen.stroke() end
+  -- the war-drum: large barrel + skin + rim
+  screen.level(5); screen.rect(54, 16, 20, 32); screen.fill()
+  screen.level(8); screen.rect(56, 18, 16, 24); screen.fill()
+  screen.level(3); screen.rect(54, 16, 20, 2); screen.fill()
+  screen.level(3); screen.rect(54, 46, 20, 2); screen.fill()
+  -- center boss
+  screen.level(11); screen.rect(62, 30, 4, 4); screen.fill()
+  -- expanding shockwave rings from the drum center
+  for k = 0, 2 do
+    local r = ((tick + k * 7) % 22) + 4
+    if r < 20 then
+      screen.level(math.max(2, 10 - k * 2)); screen.circle(64, 32, r + 8); screen.stroke()
+    end
+  end
+  -- Niko silhouette to the left, solid
+  screen.level(11); screen.rect(40, 30, 4, 4); screen.fill()  -- head
+  screen.level(11); screen.rect(39, 34, 6, 8); screen.fill()  -- body
+end
+
 SCENE_DRAW = {
   cosmic  = draw_scene_cosmic,
   dark    = draw_scene_dark,
@@ -27474,6 +27629,7 @@ SCENE_DRAW = {
   lirael_gate         = draw_scene_lirael_gate,
   lirael_bell_alcove  = draw_scene_lirael_bell_alcove,
   academy_astrolabe_resonant = draw_scene_academy_astrolabe_resonant,
+  phrygian_drumhall_resonant = draw_scene_phrygian_drumhall_resonant,
 }
 end  -- scene draws
 
