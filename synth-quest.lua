@@ -13416,6 +13416,20 @@ save_game = function()
   for k, v in pairs(CONTENT.scene_seen or {}) do data.scene_seen[k] = v end
   data.silencer_defeated = CONTENT.silencer_defeated
   data.cave_monster_defeated = CONTENT.cave_monster_defeated
+  -- Gameplay-gating CONTENT flags that previously weren't persisted, so
+  -- they reset on Continue (e.g. courtyard reverted to pre-breach, the
+  -- post-game VoidEcho vanished, first-cave-entry scenes replayed).
+  data.courtyard_breached    = CONTENT.courtyard_breached or false
+  data.courtyard_breach_done = CONTENT.courtyard_breach_done or false
+  data.pell_seen             = CONTENT.pell_seen or false
+  data.senna_seen            = CONTENT.senna_seen or false
+  data.endgame_done          = CONTENT.endgame_done or false
+  data.total_wins            = CONTENT.total_wins or 0
+  data.cave_entered = {}
+  for k, v in pairs(CONTENT.cave_entered or {}) do data.cave_entered[k] = v end
+  data.events_seen = {}
+  for k, v in pairs(CONTENT.events_seen or {}) do data.events_seen[k] = v end
+  data.fire_seen = CONTENT.fire_seen or false
   -- Resonances state (per-Resonance item-collected + attuned flags).
   data.resonances = {}
   for id, r in pairs(CONTENT.resonances or {}) do
@@ -13654,6 +13668,24 @@ local function load_game()
   end
   if data.cave_monster_defeated then
     CONTENT.cave_monster_defeated = data.cave_monster_defeated
+  end
+  -- Gameplay-gating CONTENT flags (added 2026-05-20). `~= nil` guards so
+  -- a `false` saved value still loads; older saves without these keys
+  -- keep the module-load defaults.
+  if data.courtyard_breached    ~= nil then CONTENT.courtyard_breached    = data.courtyard_breached end
+  if data.courtyard_breach_done ~= nil then CONTENT.courtyard_breach_done = data.courtyard_breach_done end
+  if data.pell_seen             ~= nil then CONTENT.pell_seen             = data.pell_seen end
+  if data.senna_seen            ~= nil then CONTENT.senna_seen            = data.senna_seen end
+  if data.endgame_done          ~= nil then CONTENT.endgame_done          = data.endgame_done end
+  if data.total_wins            ~= nil then CONTENT.total_wins            = data.total_wins end
+  if data.fire_seen             ~= nil then CONTENT.fire_seen             = data.fire_seen end
+  if data.cave_entered then
+    CONTENT.cave_entered = {}
+    for k, v in pairs(data.cave_entered) do CONTENT.cave_entered[k] = v end
+  end
+  if data.events_seen then
+    CONTENT.events_seen = {}
+    for k, v in pairs(data.events_seen) do CONTENT.events_seen[k] = v end
   end
   -- Resonances state — restore if present, initialize if missing (older saves).
   if data.resonances then
