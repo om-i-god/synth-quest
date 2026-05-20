@@ -25119,28 +25119,45 @@ end
 
 -- Cave 5 enemies (Northern Wilds)
 function DRAW_ENEMY.yeti(cx, cy)
-  -- huge furred shape, two arms
-  screen.level(15)
-  screen.rect(cx - 14, cy - 16, 28, 28)  -- white furred body
-  screen.fill()
-  screen.level(11)
-  -- arms
-  screen.rect(cx - 18, cy - 8, 4, 14)
-  screen.fill()
-  screen.rect(cx + 14, cy - 8, 4, 14)
-  screen.fill()
-  -- darker face hollow
-  screen.level(2)
-  screen.rect(cx - 6, cy - 10, 12, 6)
-  screen.fill()
-  -- glowing eyes
-  screen.level(15)
-  screen.pixel(cx - 3, cy - 7)
-  screen.pixel(cx + 2, cy - 7)
-  -- horn tusks
+  -- hulking furred brute: lit shaggy crown, shadowed underbelly + right
+  -- flank, recessed brow over deep-socket eyes, snarling tusked maw,
+  -- heavy shaded arms ending in dark claws. Slow breathing bob.
+  local breath = (tick % 28 < 14) and 0 or 1
+  local top = cy - 16 + breath
+  -- off-white fur body
+  screen.level(13); screen.rect(cx - 14, top, 28, 28); screen.fill()
+  -- lit crown (top catches the light)
+  screen.level(15); screen.rect(cx - 14, top, 28, 4); screen.fill()
+  -- shadowed underbelly + right flank give it volume
+  screen.level(8);  screen.rect(cx - 14, top + 22, 28, 6); screen.fill()
+  screen.level(10); screen.rect(cx + 10, top + 4, 4, 18); screen.fill()
+  -- shaggy fur notches along the lower edge
+  screen.level(9)
+  for i = -12, 12, 4 do screen.rect(cx + i, top + 26, 2, 2); screen.fill() end
+  -- arms with inner shadow
+  screen.level(12); screen.rect(cx - 18, top + 8, 4, 14); screen.fill()
+  screen.level(12); screen.rect(cx + 14, top + 8, 4, 14); screen.fill()
+  screen.level(8);  screen.rect(cx - 18, top + 8, 1, 14); screen.fill()
+  screen.level(8);  screen.rect(cx + 17, top + 8, 1, 14); screen.fill()
+  -- dark claws
+  screen.level(3)
+  screen.pixel(cx - 18, top + 22); screen.pixel(cx - 16, top + 22)
+  screen.pixel(cx + 15, top + 22); screen.pixel(cx + 17, top + 22); screen.fill()
+  -- recessed face hollow + heavy brow ridge
+  screen.level(2); screen.rect(cx - 6, top + 6, 12, 8); screen.fill()
+  screen.level(5); screen.rect(cx - 6, top + 6, 12, 2); screen.fill()
+  -- glowing deep-socket eyes (slow flicker)
+  local eye = (tick % 40 < 34) and 15 or 6
+  screen.level(eye)
+  screen.rect(cx - 4, top + 9, 2, 2); screen.rect(cx + 2, top + 9, 2, 2); screen.fill()
+  -- snarling maw with a few teeth
+  screen.level(0); screen.rect(cx - 4, top + 12, 8, 2); screen.fill()
   screen.level(13)
-  screen.move(cx - 4, cy - 4); screen.line(cx - 6, cy); screen.stroke()
-  screen.move(cx + 3, cy - 4); screen.line(cx + 5, cy); screen.stroke()
+  screen.pixel(cx - 3, top + 12); screen.pixel(cx, top + 13); screen.pixel(cx + 3, top + 12); screen.fill()
+  -- upward tusks from the maw corners
+  screen.level(14)
+  screen.move(cx - 4, top + 13); screen.line(cx - 6, top + 10); screen.stroke()
+  screen.move(cx + 4, top + 13); screen.line(cx + 6, top + 10); screen.stroke()
 end
 
 function DRAW_ENEMY.frostwisp(cx, cy)
