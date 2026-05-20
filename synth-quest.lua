@@ -28955,6 +28955,10 @@ BESTIARY_LORE = {
                 "cleric @ MIDI 36 — choir"},
   strom      = {"Ex-Lirael garrison. Now wields", "the same hammer for the wrong king.",
                 "warrior @ MIDI 28 — anvil ring"},
+  broken_cadence = {"Lirael's last chorister, now",  "Suno's. Her song won't resolve.",
+                "cleric @ MIDI 28 — faltering hymn"},
+  firstchord = {"The Held Chord before it broke,", "given shape. The music tests you.",
+                "cleric @ MIDI 12 — primordial drone"},
 }
 
 UI.draw_bestiary = function()
