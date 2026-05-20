@@ -26625,8 +26625,13 @@ local function draw_status()
   screen.move(rx, 49); screen.text(stat_str("MAG", p.mag or 0, inst and inst.mag))
   screen.move(rx + 32, 49); screen.text(stat_str("SPD", p.spd or 0, inst and inst.spd))
 
-  -- Equipped instrument label.
-  screen.level(11); screen.move(rx, 55); screen.text((inst and inst.name) or "(no instrument)")
+  -- Equipped instrument: 8x8 sprite + name (own band below the stat
+  -- grid, above the footer — y=51..58 is clear).
+  local eq_id = equipped[p.class]
+  if eq_id and INST.sprites[eq_id] then
+    INST.sprites[eq_id](rx, 51)
+  end
+  screen.level(11); screen.move(rx + 11, 57); screen.text((inst and inst.name) or "(no instrument)")
 
   -- ── FOOTER ──
   -- Page dots removed from this band — they live in the top-right header
