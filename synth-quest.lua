@@ -611,27 +611,39 @@ INST.spd = function(p) local i = INST.of(p); return p.spd + (i and i.spd or 0) e
 INST.sprites = {}
 
 INST.sprites.wandering_lute = function(sx, sy)
-  -- Plain rounded lute body + slim neck
-  screen.level(7); screen.circle(sx + 3, sy + 5, 3); screen.fill()      -- body
-  screen.level(3); screen.circle(sx + 3, sy + 5, 1); screen.stroke()    -- soundhole
-  screen.level(11); screen.move(sx + 4, sy + 4); screen.line(sx + 7, sy + 1); screen.stroke()  -- neck
-  screen.level(13); screen.pixel(sx + 7, sy); screen.fill()             -- pegs
+  -- Pear-bodied wooden lute: rounded bowl, soundhole, fretted neck up
+  -- to a peg-head, two visible strings. Plain warm wood.
+  screen.level(7);  screen.circle(sx + 3, sy + 5, 3); screen.fill()                            -- bowl body
+  screen.level(5);  screen.rect(sx + 1, sy + 6, 5, 1); screen.fill()                           -- lower-body shade
+  screen.level(0);  screen.pixel(sx + 3, sy + 5); screen.fill()                                -- soundhole
+  screen.level(9);  screen.pixel(sx + 2, sy + 3); screen.fill()                                -- top sheen
+  screen.level(8);  screen.move(sx + 4, sy + 4); screen.line(sx + 7, sy + 1); screen.stroke()  -- neck
+  screen.level(13); screen.move(sx + 4, sy + 4); screen.line(sx + 6, sy + 2); screen.stroke()  -- string 1
+  screen.level(11); screen.pixel(sx + 6, sy + 1); screen.pixel(sx + 7, sy); screen.fill()      -- peg-head + pegs
 end
 
 INST.sprites.crystal_lute = function(sx, sy)
-  -- Faceted body + bright core + neck
-  screen.level(11); screen.circle(sx + 3, sy + 5, 3); screen.fill()     -- body
-  screen.level(15); screen.pixel(sx + 3, sy + 4); screen.pixel(sx + 4, sy + 5); screen.fill()  -- crystal facet shine
-  screen.level(2); screen.move(sx + 1, sy + 3); screen.line(sx + 5, sy + 7); screen.stroke()   -- facet line
+  -- Faceted glass lute: bright bowl with a hard facet line + core
+  -- shine, silver neck, pale strings.
+  screen.level(11); screen.circle(sx + 3, sy + 5, 3); screen.fill()                            -- glass bowl
+  screen.level(2);  screen.move(sx + 1, sy + 4); screen.line(sx + 5, sy + 7); screen.stroke()  -- facet line
+  screen.level(15); screen.pixel(sx + 3, sy + 4); screen.pixel(sx + 4, sy + 5); screen.fill()  -- core shine
+  screen.level(0);  screen.pixel(sx + 3, sy + 6); screen.fill()                                -- soundhole
   screen.level(13); screen.move(sx + 4, sy + 4); screen.line(sx + 7, sy + 1); screen.stroke()  -- silver neck
+  screen.level(15); screen.move(sx + 4, sy + 4); screen.line(sx + 6, sy + 2); screen.stroke()  -- bright string
+  screen.level(13); screen.pixel(sx + 7, sy); screen.fill()                                    -- pegs
 end
 
 INST.sprites.aeolian_lute = function(sx, sy)
-  -- Cold-blue body + frost rim + heavier neck
-  screen.level(8); screen.circle(sx + 3, sy + 5, 3); screen.fill()      -- darker body
-  screen.level(15); screen.pixel(sx + 1, sy + 4); screen.pixel(sx + 5, sy + 6); screen.fill()  -- frost flecks
+  -- Cold northern lute: dark bowl rimmed with frost flecks, pale neck,
+  -- a faint shiver of frost on the strings.
+  screen.level(8);  screen.circle(sx + 3, sy + 5, 3); screen.fill()                            -- dark bowl
+  screen.level(3);  screen.rect(sx + 1, sy + 6, 5, 1); screen.fill()                           -- shaded base
+  screen.level(0);  screen.pixel(sx + 3, sy + 5); screen.fill()                                -- soundhole
+  screen.level(15); screen.pixel(sx + 1, sy + 4); screen.pixel(sx + 5, sy + 6); screen.pixel(sx + 4, sy + 3); screen.fill()  -- frost flecks
   screen.level(11); screen.move(sx + 4, sy + 4); screen.line(sx + 7, sy + 1); screen.stroke()  -- pale neck
-  screen.level(13); screen.pixel(sx + 7, sy); screen.fill()             -- pegs
+  screen.level(13); screen.move(sx + 4, sy + 4); screen.line(sx + 6, sy + 2); screen.stroke()  -- string
+  screen.level(13); screen.pixel(sx + 7, sy); screen.fill()                                    -- pegs
 end
 
 -- ── Miel's instruments (cleric) ────────────────────────────────────────
