@@ -199,11 +199,19 @@ RESONANCES = {
   long_echo    = { name = "The Long Echo",    character = "wraith", mp_cost = 4,
                    mythos = "A wandering singer who repeated any phrase she was taught -- each repetition softer, slightly behind.",
                    effect = { kind = "delay_double", repeats = 2, dmg_mult = 0.50 } },
-  masked_voice = { name = "The Masked Voice", character = nil, mp_cost = 6, mythos = "TBD", effect = {} },
+  masked_voice = { name = "The Masked Voice", character = "mage", mp_cost = 6,
+                   mythos = "A courtier who could sing in any other person's voice; the apparatus took it.",
+                   effect = { kind = "mode_stack", duration_bars = 1, dmg_mult = 1.25 } },
   spring       = { name = "The Spring",       character = nil, mp_cost = 4, mythos = "TBD", effect = {} },
-  scatter      = { name = "The Scatter",      character = nil, mp_cost = 4, mythos = "TBD", effect = {} },
-  slow_wheel   = { name = "The Slow Wheel",   character = nil, mp_cost = 4, mythos = "TBD", effect = {} },
-  threefold    = { name = "The Threefold",    character = nil, mp_cost = 8, mythos = "TBD", effect = {} },
+  scatter      = { name = "The Scatter",      character = "engineer", mp_cost = 4,
+                   mythos = "A singer crushed in a bell-mine; the mine echoed her in tiny shards for a year.",
+                   effect = { kind = "confuse_enemy", duration_bars = 4 } },
+  slow_wheel   = { name = "The Slow Wheel",   character = "warrior", mp_cost = 4,
+                   mythos = "A millwright who tuned her wheel to a slow phase; it never stopped turning.",
+                   effect = { kind = "party_spd", duration_bars = 4, spd = 1 } },
+  threefold    = { name = "The Threefold",    character = "mathwiz", mp_cost = 8,
+                   mythos = "Three sisters who sang so closely no one knew which was which. One died; two kept singing for three.",
+                   effect = { kind = "heal_on_action", duration_bars = 1, heal_pct = 0.05 } },
 }
 
 -- World data — where each Resonance's item lives + where its shrine is.
