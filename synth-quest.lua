@@ -24611,26 +24611,37 @@ end
 function DRAW_ENEMY.slime(cx, cy)
   local pulse = (tick % 4) / 4
   local r = 6 + math.floor(math.sin(pulse * math.pi * 2) * 1.5)
-  screen.level(8)
-  screen.circle(cx, cy, r)
-  screen.fill()
+  -- gel body
+  screen.level(8); screen.circle(cx, cy, r); screen.fill()
+  -- domed top sheen + a bright glint (gives it a wet, gel look)
+  screen.level(11); screen.circle(cx, cy - 1, r - 2); screen.stroke()
+  screen.level(13); screen.pixel(cx - 2, cy - r + 2); screen.fill()
+  -- two eyes + a little mouth
   screen.level(0)
-  screen.circle(cx - 1, cy - 1, 1)
-  screen.fill()
+  screen.rect(cx - 3, cy - 1, 1, 2); screen.rect(cx + 2, cy - 1, 1, 2); screen.fill()
+  screen.level(15); screen.pixel(cx - 3, cy - 1); screen.pixel(cx + 2, cy - 1); screen.fill()  -- eye glints
+  screen.level(0); screen.move(cx - 1, cy + 2); screen.line(cx + 1, cy + 2); screen.stroke()    -- mouth
+  -- flat base meniscus
+  screen.level(5); screen.move(cx - r + 1, cy + r - 1); screen.line(cx + r - 1, cy + r - 1); screen.stroke()
 end
 
 function DRAW_ENEMY.bat(cx, cy)
   local wing = math.sin((tick % 2) / 2 * math.pi * 2) * 3
-  screen.level(12)
-  screen.circle(cx, cy, 2)
-  screen.fill()
+  -- fuzzy body
+  screen.level(10); screen.circle(cx, cy, 2); screen.fill()
+  screen.level(6);  screen.circle(cx, cy + 1, 2); screen.stroke()   -- belly fuzz
+  -- pointed ears
+  screen.level(10); screen.pixel(cx - 2, cy - 3); screen.pixel(cx + 2, cy - 3); screen.fill()
+  -- glowing eyes
+  screen.level(15); screen.pixel(cx - 1, cy - 1); screen.pixel(cx + 1, cy - 1); screen.fill()
+  -- membrane wings with a finger-strut, flapping
   screen.level(8)
-  screen.move(cx - 9, cy - wing)
-  screen.line(cx - 4, cy - 1)
-  screen.line(cx - 1, cy + 1)
-  screen.line(cx + 2, cy - 1)
-  screen.line(cx + 6, cy - wing)
-  screen.stroke()
+  screen.move(cx - 9, cy - wing); screen.line(cx - 4, cy - 1)
+  screen.line(cx - 2, cy + 1);    screen.line(cx + 2, cy + 1)
+  screen.line(cx + 4, cy - 1);    screen.line(cx + 9, cy - wing); screen.stroke()
+  screen.level(5)  -- wing struts
+  screen.move(cx - 4, cy - 1); screen.line(cx - 6, cy - wing + 1); screen.stroke()
+  screen.move(cx + 4, cy - 1); screen.line(cx + 6, cy - wing + 1); screen.stroke()
 end
 
 function DRAW_ENEMY.mushroom(cx, cy)
