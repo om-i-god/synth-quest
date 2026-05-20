@@ -18201,11 +18201,8 @@ function gamepad.button(button, state)
     end
   elseif game_state == "ITEMS" then
     if button == "A" then
-      -- Use is only meaningful on the USE tab. On other tabs, A is a no-op
-      -- (the trophy/gear/shard rows are review-only).
-      if (CONTENT.items_tab or 1) == 1 then
-        items_use_selected(); redraw()
-      end
+      -- USE tab consumes; GEAR tab equips; KEY/SHARDS are review-only.
+      items_action_selected(); redraw()
     elseif button == "B" or button == "START" then
       game_state = "MENU"; redraw()
     elseif button == "L1" or button == "L2" then
@@ -18967,16 +18964,14 @@ function key(n, z)
       redraw()
     end
   elseif game_state == "ITEMS" then
-    -- K1 cycles the active tab, K2 uses the item (USE tab only), K3 backs
+    -- K1 cycles the active tab, K2 acts (USE=use / GEAR=equip), K3 backs
     -- out to MENU. Cursor scroll lives on the encoder — see enc().
     if n == 1 then
       CONTENT.items_tab = (CONTENT.items_tab or 1) % #ITEM_TABS + 1
       CONTENT.items_idx = 1
       redraw()
     elseif n == 2 then
-      if (CONTENT.items_tab or 1) == 1 then
-        items_use_selected(); redraw()
-      end
+      items_action_selected(); redraw()
     elseif n == 3 then
       game_state = "MENU"; redraw()
     end
@@ -28897,6 +28892,32 @@ function items_use_selected()
   CONTENT.items_flash_ticks = 30
 end
 
+-- A-button dispatcher for the items menu. USE tab consumes; GEAR tab
+-- equips the highlighted instrument onto its class; KEY/SHARDS are
+-- review-only. Global so the early-defined input handlers can reach it.
+function items_action_selected()
+  local tab = CONTENT.items_tab or 1
+  if tab == 1 then
+    items_use_selected()
+  elseif tab == 2 then
+    local rows = items_rows_for_tab(2)
+    local r = rows[CONTENT.items_idx or 1]
+    if not r then return end
+    local inst = INSTRUMENTS[r.id]
+    if not inst then return end
+    if equipped[inst.class] == r.id then
+      CONTENT.items_flash = "already equipped"
+      CONTENT.items_flash_ticks = 24
+    else
+      equipped[inst.class] = r.id
+      CONTENT.items_flash = "equipped " .. (inst.name or "")
+      CONTENT.items_flash_ticks = 30
+      if items_play_sfx then items_play_sfx("tonic") end
+    end
+  end
+  -- KEY / SHARDS: A is a no-op (review only).
+end
+
 -- Build the row list for the currently active tab. Returns an array of
 -- {id, name, sprite, count_str, desc, dim} so the draw loop is uniform
 -- across categories. `dim` is true for entries not yet acquired.
@@ -29021,10 +29042,13 @@ UI.draw_items = function()
   if #rows > PAGE then
     screen.level(6); screen.move(64, 64); screen.text_center(cur .. "/" .. #rows)
   end
+  screen.level(6); screen.move(126, 64)
   if tab == 1 then
-    screen.level(6); screen.move(126, 64); screen.text_right("A use  B back")
+    screen.text_right("A use  B back")
+  elseif tab == 2 then
+    screen.text_right("A equip  LR tab")
   else
-    screen.level(6); screen.move(126, 64); screen.text_right("LR tab  B back")
+    screen.text_right("LR tab  B back")
   end
 
   if (CONTENT.items_flash_ticks or 0) > 0 then
