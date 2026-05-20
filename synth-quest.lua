@@ -16037,6 +16037,11 @@ local function damage_party(p, amount)
     local scale = PARTY_SCALE[alive] or 1.0
     amount = math.max(1, math.floor(amount * scale))
   end
+  -- Heavy Hand (Resonance): enemy output ducked for the effect's duration.
+  do
+    local hh = reso_fx_active("duck_enemies")
+    if hh then amount = math.max(1, math.floor(amount * (hh.mult or 0.5))) end
+  end
   -- Strom's BLK: redirect to blocking warrior at 10% damage
   local blocker = nil
   for _, q in ipairs(party) do
