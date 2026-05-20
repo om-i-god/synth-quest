@@ -16769,6 +16769,15 @@ local function enemy_tick()
     CONTENT.banner_ticks = 42
     ANIM.shake(2, 5); ANIM.burst(96, 32, 8, 15)
   end
+  if enemy.confused_until and (tick or 0) < enemy.confused_until then
+    local ap = enemy.attack_pattern
+    if ap and #ap > 1 then
+      for i = #ap, 2, -1 do
+        local j = math.random(i)
+        ap[i], ap[j] = ap[j], ap[i]
+      end
+    end
+  end
   local next_gap = enemy.attack_pattern[enemy.pattern_idx] or 8
   if (tick - enemy.last_attack) < next_gap then return end
   enemy.last_attack = tick
@@ -28711,7 +28720,7 @@ TROPHY_ORDER = {
 TROPHY_INFO = {
   tisa_bell        = { name="Tisa's Bell",            desc="Cave 1 echo-chamber resonance" },
   arams_token      = { name="Aram's Token",           desc="iron disc; Strom's keep" },
-  velthes_letter   = { name="Velthe's Letter",        desc="sealed letter, opened; Velthe's hand" },
+  velthes_letter   = { name="Velthe's Letter",        desc="opened letter, Velthe's hand" },
   sightings_lens   = { name="Sightings Lens",         desc="Velthe's brass scope" },
   lirael_captains_insignia = { name="Captain's Insignia", desc="iron pin in Lirael blue" },
   key_of_lirael    = { name="Key of Lirael",          desc="opens the Ice Grotto" },
@@ -28906,8 +28915,12 @@ UI.draw_items = function()
   local rows = items_rows_for_tab(tab)
   CONTENT.items_idx = math.max(1, math.min(math.max(1, #rows), CONTENT.items_idx or 1))
 
-  -- Scroll window: 6 rows visible, 8 px each.
-  local PAGE = 6
+  -- Scroll window: 5 rows visible (8 px each), then a full-width detail
+  -- line for the selected row's description, then the footer. Names and
+  -- trophy descriptions are too long to share a row, so the row shows
+  -- only name + a right-aligned status marker; the desc lives on its
+  -- own line where it has the full 128 px.
+  local PAGE = 5
   local cur = CONTENT.items_idx
   local top = math.max(1, math.min(math.max(1, #rows - PAGE + 1), cur - math.floor(PAGE / 2)))
   for vis = 0, PAGE - 1 do
@@ -28917,28 +28930,40 @@ UI.draw_items = function()
     local y = 14 + vis * 8
     local is_sel = (i == cur)
     local lev_name = is_sel and 15 or (r.dim and 4 or 11)
-    local lev_meta = is_sel and 13 or (r.dim and 4 or 7)
+    local lev_meta = is_sel and 13 or (r.dim and 4 or 6)
     screen.level(is_sel and 15 or 0)
     screen.move(2, y); screen.text(is_sel and ">" or " ")
     if r.sprite then r.sprite(8, y - 6) end
     screen.level(lev_name); screen.move(18, y); screen.text(r.name or "")
-    screen.level(lev_meta); screen.move(64, y); screen.text(r.count_str or "")
-    screen.level(lev_meta); screen.move(78, y); screen.text(r.desc or "")
+    -- status marker (count for USE, equip/owned mark elsewhere), right-aligned
+    screen.level(lev_meta); screen.move(126, y); screen.text_right(r.count_str or "")
   end
   if #rows == 0 then
     screen.level(6); screen.move(64, 36); screen.text_center("(nothing yet)")
   end
 
+  -- Detail line: full description of the selected row, full width at y=56.
+  -- Truncated defensively so an over-long string can't run off-screen.
+  do
+    local sel = rows[cur]
+    if sel and sel.desc and #sel.desc > 0 then
+      local d = sel.desc
+      if #d > 30 then d = d:sub(1, 29) .. "\xE2\x80\xA6" end
+      screen.level(9); screen.move(2, 56); screen.text(d)
+    end
+  end
+
   -- Footer.
-  screen.level(11); screen.move(2, 62); screen.text("Gold:")
-  screen.level(15); screen.move(28, 62); screen.text(SHOP.gold .. "g")
+  screen.level(3); screen.move(0, 58); screen.line(128, 58); screen.stroke()
+  screen.level(11); screen.move(2, 64); screen.text("Gold:")
+  screen.level(15); screen.move(28, 64); screen.text(SHOP.gold .. "g")
   if #rows > PAGE then
-    screen.level(6); screen.move(64, 62); screen.text_center(cur .. "/" .. #rows)
+    screen.level(6); screen.move(64, 64); screen.text_center(cur .. "/" .. #rows)
   end
   if tab == 1 then
-    screen.level(6); screen.move(126, 62); screen.text_right("A use  B back")
+    screen.level(6); screen.move(126, 64); screen.text_right("A use  B back")
   else
-    screen.level(6); screen.move(126, 62); screen.text_right("LR tab  B back")
+    screen.level(6); screen.move(126, 64); screen.text_right("LR tab  B back")
   end
 
   if (CONTENT.items_flash_ticks or 0) > 0 then
