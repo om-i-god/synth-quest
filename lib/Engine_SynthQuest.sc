@@ -3,7 +3,7 @@
 // v0.2 — adds per-voice extra_wet (left stick Y) and delay_amt (left stick X)
 
 Engine_SynthQuest : CroneEngine {
-	var <sq_mage, <sq_cleric, <sq_warrior, <sq_bard, <sq_drone;
+	var <sq_mage, <sq_cleric, <sq_warrior, <sq_bard, <sq_drone, <sq_wraith;
 
 	*new { arg context, doneCallback;
 		^super.new(context, doneCallback);
@@ -120,6 +120,42 @@ Engine_SynthQuest : CroneEngine {
 			Out.ar(out, sig.dup);
 		}).add;
 
+		// WRAITH — high-register sawtooth grain w/ CombC stutter trail.
+		// Uses the same persistent-node + t_trig pattern as the other voices.
+		// The grain envelope fires on t_trig; the overall perc envelope shapes
+		// the full decay. BPF narrows to metallic high-register; BHiShelf
+		// trims harsh top end. doneAction:0 keeps the node alive for per-voice
+		// param control (cutoff/res/dly/room/damp) between triggers.
+		SynthDef(\sq_wraith, {
+			arg out=0, freq=440, vel=0.7, attack=0.005, release=2.5, wet=0.8,
+			    cutoff=2400, resonance=0.15,
+			    delay_amt=0, delay_time=0.07,
+			    extra_wet=0, room=0.88, damp=0.35,
+			    t_trig=0;
+			var env, grain_env, saw, grain, filt, stutter, shelf, sig, dry, rev, extra_rev, rclip, dclip;
+			// overall perc envelope — shapes the full stutter trail
+			env = EnvGen.kr(Env.perc(attack, release, 1, -3), t_trig);
+			// short grain burst (~60ms) seeding the CombC stutter
+			grain_env = EnvGen.kr(Env.perc(0.001, 0.06), t_trig);
+			saw   = Saw.ar(freq * 2.0);
+			grain = saw * grain_env;
+			// narrow bandpass for metallic high-register colour
+			filt = BPF.ar(grain, (freq * 3.5).clip(40, 18000), resonance.clip(0.05, 0.95));
+			// CombC stutter trail (~14 Hz stutter, ~1.2s decay)
+			stutter = CombC.ar(filt, 0.3, delay_time.clip(0.001, 0.3), 1.2);
+			sig = filt + (stutter * delay_amt.clip(0, 1));
+			// high-shelf -3dB cut at 4kHz to tame harshness (BHiShelf per BEQSuite naming)
+			shelf = BHiShelf.ar(sig, 4000, 1.0, -3);
+			// apply overall envelope + velocity
+			sig = shelf * env * vel;
+			rclip = room.clip(0, 0.99);
+			dclip = damp.clip(0, 1);
+			dry = sig;
+			sig = (dry * (1 - wet)) + (FreeVerb.ar(sig, 1, rclip, dclip) * wet);
+			sig = sig + (FreeVerb.ar(sig, 1, (rclip + 0.04).clip(0, 0.99), (dclip + 0.05).clip(0, 1)) * extra_wet * 1.6);
+			Out.ar(out, sig.dup);
+		}).add;
+
 		// DRONE — slow detuned saws + sub
 		SynthDef(\sq_drone, {
 			arg out=0, freq=110, amp=0,
@@ -143,6 +179,7 @@ Engine_SynthQuest : CroneEngine {
 		sq_warrior = Synth.new(\sq_warrior, [\out, context.out_b], context.server);
 		sq_bard    = Synth.new(\sq_bard,    [\out, context.out_b], context.server);
 		sq_drone   = Synth.new(\sq_drone,   [\out, context.out_b], context.server);
+		sq_wraith  = Synth.new(\sq_wraith,  [\out, context.out_b], context.server);
 
 		// trigger commands: freq, vel, attack, release, wet
 		this.addCommand("trig_mage", "fffff", { arg msg;
@@ -165,47 +202,59 @@ Engine_SynthQuest : CroneEngine {
 				\env_attack, msg[3], \env_release, msg[4],
 				\wet, msg[5], \t_trig, 1);
 		});
+		this.addCommand("trig_wraith", "fffff", { arg msg;
+			sq_wraith.set(\freq, msg[1], \vel, msg[2],
+				\attack, msg[3], \release, msg[4],
+				\wet, msg[5], \t_trig, 1);
+		});
 
 		// per-voice cutoff
 		this.addCommand("mage_cutoff",    "f", { arg msg; sq_mage.set(\cutoff, msg[1]); });
 		this.addCommand("cleric_cutoff",  "f", { arg msg; sq_cleric.set(\cutoff, msg[1]); });
 		this.addCommand("warrior_cutoff", "f", { arg msg; sq_warrior.set(\cutoff, msg[1]); });
 		this.addCommand("bard_cutoff",    "f", { arg msg; sq_bard.set(\cutoff, msg[1]); });
+		this.addCommand("wraith_cutoff",  "f", { arg msg; sq_wraith.set(\cutoff, msg[1]); });
 
 		// per-voice resonance
 		this.addCommand("mage_res",    "f", { arg msg; sq_mage.set(\resonance, msg[1]); });
 		this.addCommand("cleric_res",  "f", { arg msg; sq_cleric.set(\resonance, msg[1]); });
 		this.addCommand("warrior_res", "f", { arg msg; sq_warrior.set(\resonance, msg[1]); });
 		this.addCommand("bard_res",    "f", { arg msg; sq_bard.set(\resonance, msg[1]); });
+		this.addCommand("wraith_res",  "f", { arg msg; sq_wraith.set(\resonance, msg[1]); });
 
 		// per-voice extra reverb (left stick Y)
 		this.addCommand("mage_xwet",    "f", { arg msg; sq_mage.set(\extra_wet, msg[1]); });
 		this.addCommand("cleric_xwet",  "f", { arg msg; sq_cleric.set(\extra_wet, msg[1]); });
 		this.addCommand("warrior_xwet", "f", { arg msg; sq_warrior.set(\extra_wet, msg[1]); });
 		this.addCommand("bard_xwet",    "f", { arg msg; sq_bard.set(\extra_wet, msg[1]); });
+		this.addCommand("wraith_xwet",  "f", { arg msg; sq_wraith.set(\extra_wet, msg[1]); });
 
 		// per-voice delay mix (left stick X)
 		this.addCommand("mage_dly",    "f", { arg msg; sq_mage.set(\delay_amt, msg[1]); });
 		this.addCommand("cleric_dly",  "f", { arg msg; sq_cleric.set(\delay_amt, msg[1]); });
 		this.addCommand("warrior_dly", "f", { arg msg; sq_warrior.set(\delay_amt, msg[1]); });
 		this.addCommand("bard_dly",    "f", { arg msg; sq_bard.set(\delay_amt, msg[1]); });
+		this.addCommand("wraith_dly",  "f", { arg msg; sq_wraith.set(\delay_amt, msg[1]); });
 
 		// per-voice delay time (seconds; clamped to 2.0 in the SynthDef)
 		this.addCommand("mage_dly_time",    "f", { arg msg; sq_mage.set(\delay_time, msg[1]); });
 		this.addCommand("cleric_dly_time",  "f", { arg msg; sq_cleric.set(\delay_time, msg[1]); });
 		this.addCommand("warrior_dly_time", "f", { arg msg; sq_warrior.set(\delay_time, msg[1]); });
 		this.addCommand("bard_dly_time",    "f", { arg msg; sq_bard.set(\delay_time, msg[1]); });
+		this.addCommand("wraith_dly_time",  "f", { arg msg; sq_wraith.set(\delay_time, msg[1]); });
 
 		// per-voice reverb size (FreeVerb room) and damping
 		this.addCommand("mage_room",    "f", { arg msg; sq_mage.set(\room, msg[1]); });
 		this.addCommand("cleric_room",  "f", { arg msg; sq_cleric.set(\room, msg[1]); });
 		this.addCommand("warrior_room", "f", { arg msg; sq_warrior.set(\room, msg[1]); });
 		this.addCommand("bard_room",    "f", { arg msg; sq_bard.set(\room, msg[1]); });
+		this.addCommand("wraith_room",  "f", { arg msg; sq_wraith.set(\room, msg[1]); });
 
 		this.addCommand("mage_damp",    "f", { arg msg; sq_mage.set(\damp, msg[1]); });
 		this.addCommand("cleric_damp",  "f", { arg msg; sq_cleric.set(\damp, msg[1]); });
 		this.addCommand("warrior_damp", "f", { arg msg; sq_warrior.set(\damp, msg[1]); });
 		this.addCommand("bard_damp",    "f", { arg msg; sq_bard.set(\damp, msg[1]); });
+		this.addCommand("wraith_damp",  "f", { arg msg; sq_wraith.set(\damp, msg[1]); });
 
 		// drone control
 		this.addCommand("drone_amp",    "f", { arg msg; sq_drone.set(\amp, msg[1]); });
@@ -219,5 +268,6 @@ Engine_SynthQuest : CroneEngine {
 		sq_warrior.free;
 		sq_bard.free;
 		sq_drone.free;
+		sq_wraith.free;
 	}
 }

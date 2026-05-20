@@ -131,6 +131,7 @@ local CUTOFF_RANGE = {
   engineer= {min=400, max=10000},   -- shares mage voice
   mathwiz = {min=400, max=8000},    -- shares bard voice
   drummer = {min=300, max=3500},    -- shares warrior voice (low percussion-y)
+  wraith  = {min=1600, max=6000},   -- high-register BPF sweep
 }
 
 -- Pass 35: reduced velocity headroom across the board so multiple voices
@@ -167,11 +168,13 @@ local CLASS_ACTIONS = {
   engineer = {A="ATK", B="DEF", X="MIX",  Y="ITM"},   -- Sergei: remix
   mathwiz  = {A="ATK", B="DEF", X="CODE", Y="ITM"},   -- Paj: function call
   drummer  = {A="ATK", B="BLK", X="DRUM", Y="ITM"},   -- Niko: drum hit (uses warrior voice)
+  wraith   = {A="ATK", B="DEF", X="STIR", Y="ITM"},   -- ECHO: fragmented chord
 }
 
 -- Each class's "instrument" action label.
 local CLASS_INSTRUMENT = {bard="LUTE", cleric="HEAL", warrior="TUNE", mage="SMPL",
-                          engineer="MIX", mathwiz="CODE", drummer="DRUM"}
+                          engineer="MIX", mathwiz="CODE", drummer="DRUM",
+                          wraith="STIR"}
 
 -- ── RESONANCES ──────────────────────────────────────────────────────────
 -- Catalog of all 8 Resonances per docs/specs/2026-05-14-resonances-acquisition-design.md.
@@ -193,7 +196,9 @@ RESONANCES = {
     mythos    = "A drummer whose strikes were so heavy that every other voice in the room ducked out of his way.",
     effect    = { kind = "duck_enemies", duration_bars = 2, dmg_mult = 0.50 },
   },
-  long_echo    = { name = "The Long Echo",    character = nil, mp_cost = 4, mythos = "TBD", effect = {} },
+  long_echo    = { name = "The Long Echo",    character = "wraith", mp_cost = 4,
+                   mythos = "A wandering singer who repeated any phrase she was taught -- each repetition softer, slightly behind.",
+                   effect = { kind = "delay_double", repeats = 2, dmg_mult = 0.50 } },
   masked_voice = { name = "The Masked Voice", character = nil, mp_cost = 6, mythos = "TBD", effect = {} },
   spring       = { name = "The Spring",       character = nil, mp_cost = 4, mythos = "TBD", effect = {} },
   scatter      = { name = "The Scatter",      character = nil, mp_cost = 4, mythos = "TBD", effect = {} },
@@ -230,7 +235,27 @@ RESONANCE_SITES = {
     },
   },
   heavy_hand   = { item = nil, shrine = nil },
-  long_echo    = { item = nil, shrine = nil },
+  long_echo    = {
+    item = {
+      kind  = "auto",
+      label = "ECHO's First Note",
+      hint  = "the empty astrolabe",
+    },
+    shrine = {
+      map  = 19,
+      x    = 13, y = 6,
+      lead = "wraith",
+      signature = {
+        visual = "academy_astrolabe_resonant",
+        sound  = { class = "wraith", note = 79, vel = 0.7, attack = 0.05, release = 5.0, wet = 1.0 },
+        dialogue = {
+          "(ECHO sets her hand on the astrolabe. It rings -- once, faintly, on its own.)",
+          "[ECHO]    This was where I waited. For years. Repeating what I could not finish.",
+          "(her outline steadies. The astrolabe answers her tone, half a beat behind, then again, fainter.)",
+        },
+      },
+    },
+  },
   masked_voice = { item = nil, shrine = nil },
   spring       = { item = nil, shrine = nil },
   scatter      = { item = nil, shrine = nil },
@@ -428,6 +453,7 @@ local BOSS_THRESHOLD = 3
 local function enemy_xp(name)
   local xp = {
     Slime=8, Bat=6, Mushroom=12, Wisp=5, Wolf=14,
+    Silencer=28, ["Cave Wisp"]=18,  -- prologue tutorial enemies
     Sprite=7, Treant=18, ["Hollow Wisp"]=12, ["Wood Wolf"]=22,
     Crab=11, Manta=20, ["Tide Sprite"]=18, ["Sea Wisp"]=16,
     Scorpion=22, Spectre=24, ["Sand Manta"]=30, ["Dune Wolf"]=28,
@@ -443,6 +469,7 @@ end
 local function enemy_gold(name)
   local g = {
     Slime=4, Bat=3, Mushroom=6, Wisp=3, Wolf=8,
+    Silencer=0, ["Cave Wisp"]=5,  -- prologue tutorial enemies
     Sprite=4, Treant=10, ["Hollow Wisp"]=7, ["Wood Wolf"]=12,
     Crab=8, Manta=12, ["Tide Sprite"]=10, ["Sea Wisp"]=9,
     Scorpion=14, Spectre=14, ["Sand Manta"]=18, ["Dune Wolf"]=16,
@@ -811,6 +838,7 @@ local CLASS_GROWTH = {
   engineer = { hp=5, mp=3, atk=2, def=2, mag=3, spd_every=5 },
   mathwiz  = { hp=3, mp=5, atk=1, def=1, mag=4, spd_every=5 },
   drummer  = { hp=7, mp=2, atk=3, def=1, mag=0, spd_every=3 },  -- high HP + fast SPD
+  wraith   = { hp=3, mp=4, atk=0, def=1, mag=2, spd_every=8 },  -- fragile, MAG-growth focused
 }
 
 -- XP curve: cost to advance FROM level L is xp_for_level(L).
@@ -2755,6 +2783,9 @@ CONTENT = {
     {class="drummer",  spd=5, hp_max=30, mp_max=8,  atk=4, def=2, mag=0,
      blurb="Drummer. Keeps the band on the one.",
      joined=false},
+    {class="wraith",   spd=5, hp_max=60, mp_max=70, atk=2, def=2, mag=7,
+     blurb="Wraith. A song-being anchored in the party's chord.",
+     joined=false},
   },
   sergei_intervened = false,    -- one-shot Tidewatch rescue
   banner_ticks = 0,             -- generic story-event banner countdown
@@ -3021,9 +3052,16 @@ CONTENT = {
         end
       end,
     },
-    -- Echo — semi-transparent figure near astrolabe (from bible stub)
+    -- Echo — semi-transparent figure near astrolabe (from bible stub).
+    -- Hidden after the recruitment scene fires (she's in the party then),
+    -- and while any SCENE is active so the static NPC doesn't overlap the
+    -- scene's spawned actor (same pattern as the Page warning fix).
     {
       x = 13, y = 6, name = "Echo", kind = "npc",
+      visible = function()
+        return not (CONTENT.scene_seen and CONTENT.scene_seen.echo_recruit)
+               and not (SCENE and SCENE.active)
+      end,
       dialogue = function()
         local lead = party[active] and party[active].class
         if lead == "mage" then
@@ -5510,6 +5548,13 @@ local SHOP = {
   order = {"salve", "vial", "ether", "star", "tonic", "key",
            "field_lute", "bowed_psaltery", "tinker_fork", "field_recorder"},
 }
+-- Mirror SHOP into _ENV so closures created BEFORE the `local SHOP`
+-- decl above can resolve it at call time. Without this, NPC dialogue
+-- closures defined earlier in the file (e.g. RemedyShelf at line ~3470)
+-- look up SHOP globally, find nil, and crash with "attempt to index a
+-- nil value" when they touch SHOP.inv. Same forward-decl-shadowing
+-- pattern as travel_to / enter_battle / save_game.
+_G.SHOP = SHOP
 
 -- ──────────────────────────────────────────────────────────────────────────
 -- SCENE — a lightweight choreography system for FF-style cutscenes that
@@ -5653,6 +5698,12 @@ local victory_step = 0
 
 -- shards collected
 local shards = {lydian=false, dorian=false, mixolydian=false, phrygian=false, aeolian=false, locrian=false, ionian=false}
+-- Mirror to _ENV so closures created BEFORE this line (STORY trig blocks,
+-- CONTENT dialogue lines for Maro/Iola, recent_shard / shard_react_line /
+-- with_shard_react helpers, etc.) can resolve `shards` at call time.
+-- Without this mirror, leaving any inn after any shard was collected
+-- crashes the STORY iterator on `pairs(shards)` / `shards.lydian` etc.
+_G.shards = shards
 local last_obtained_shard = nil
 
 -- inn rest banner timer (ticks)
@@ -6441,6 +6492,65 @@ function start_page_warning_scene()
   SCENE.start(script)
 end
 
+-- start_echo_recruit_scene() -- Act 3 "World of Silence" beat at the
+-- Academy courtyard astrolabe (map 19, tile 13, 6). ECHO's tenuous
+-- existence is dissolving with Modalia's silence; she asks to anchor
+-- in the party's chord. They consent; she joins (recruits slot 4) and
+-- the Long Echo sacred item auto-grants.
+function start_echo_recruit_scene()
+  local px, py = player.x, player.y
+  local ax, ay = 13, 6
+  local script = {
+    {hide_player = true},
+    {letterbox_in = true},
+    {focus = {x = ax, y = ay - 1}, ticks = 14},
+    {spawn = "alder",   class = "bard",    name = "Alder",   x = px - 1, y = py, facing = "right", bob = false},
+    {spawn = "miel",    class = "cleric",  name = "Miel",    x = px,     y = py, facing = "right", bob = false},
+    {spawn = "diegues", class = "mage",    name = "Diegues", x = px - 2, y = py, facing = "right", bob = false},
+    {spawn = "echo",    class = "wraith",  name = "ECHO",    x = ax,     y = ay, facing = "left",  bob = false},
+    {wait = 12},
+    {sfx = {class = "wraith", note = 79, vel = 0.4, attack = 0.005, release = 1.2, wet = 1.0}},
+    {dialogue = {
+      "(ECHO's outline shudders. Half a syllable, then nothing. Then again.)",
+      "[ECHO]    ...the chord. You still carry...",
+      "[ECHO]    I cannot hold here without it. The silence eats my edges.",
+    }, npc = {name = "ECHO"}},
+    {wait = 8},
+    {look = "diegues", toward = "echo"},
+    {dialogue = {
+      "[Diegues] (quietly) She was never quite real. The astrolabe held her shape.",
+      "[Diegues] The astrolabe is going quiet too. She has hours, maybe.",
+    }, npc = {name = "Diegues"}},
+    {wait = 6},
+    {dialogue = {
+      "[ECHO]    Let me walk with you. (a flicker; she nearly vanishes, returns)",
+      "[ECHO]    Your chord is the loudest thing left.",
+    }, npc = {name = "ECHO"}},
+    {wait = 8},
+    {dialogue = {
+      "[Miel]    (steps forward; offers her hand)",
+      "[Miel]    We will not let the silence have you.",
+    }, npc = {name = "Miel"}},
+    {wait = 10},
+    {sfx = {class = "wraith", note = 72, vel = 0.7, attack = 0.05, release = 4.0, wet = 0.9}},
+    {wait = 14},
+    {set = function()
+      CONTENT.scene_seen = CONTENT.scene_seen or {}
+      CONTENT.scene_seen.echo_recruit = true
+      if CONTENT.recruits[4] then CONTENT.recruits[4].joined = true end
+      CONTENT.resonances.long_echo.item = true
+      CONTENT.banner_text  = "* ECHO joins the party *"
+      CONTENT.banner_ticks = 90
+    end},
+    {wait = 24},
+    {despawn = "alder"}, {despawn = "miel"}, {despawn = "diegues"}, {despawn = "echo"},
+    {teleport_player = {x = px, y = py, facing = "left"}},
+    {show_player = true},
+    {letterbox_out = true},
+  }
+  SCENE.start(script)
+end
+
 -- start_resonance_attunement(id) -- shared scaffold for all Resonance
 -- attunement scenes. Reads RESONANCE_SITES[id].shrine.signature for the
 -- per-Resonance overrides (visual scene-id, sound spec, dialogue lines).
@@ -7069,8 +7179,10 @@ end
 -- flags, sidequest counters). Drops the party back at the village
 -- post-cave exit so the journey can replay at higher base power.
 function start_new_game_plus()
-  -- Reset progression state.
-  shards = {}
+  -- Reset progression state. Mutate `shards` in-place rather than
+  -- replacing the table, so the _G.shards mirror (set after the decl)
+  -- continues pointing at the same table the early closures see.
+  for k in pairs(shards) do shards[k] = false end
   for i = 1, 7 do
     if cave_state[i] then
       cave_state[i].victories = 0
@@ -12161,7 +12273,9 @@ CONTENT.castle_npcs = {
   -- chamber doors. Visible BEFORE the throne scene fires, gives a
   -- panicked one-shot line, then vanishes (assumed she ran to the
   -- kitchens). Has her own sprite (not the generic NPC triangle).
-  { x = 8, y = 9, name = "Senna",
+  -- Position is one tile NORTH of the doors so she isn't blocking the
+  -- doorway tile (row 9 cols 8-9 are tile 58 — the doorway itself).
+  { x = 8, y = 8, name = "Senna",
     barks = {"(trembles)", "my lady...", "we must hide.", "(glances back)", "they're close."},
     visible = function()
       return not CONTENT.prologue_scene_done
@@ -12178,9 +12292,10 @@ CONTENT.castle_npcs = {
       }
     end,
   },
-  -- A second servant — Pell, the old steward. Pinned in the corridor
-  -- by a fallen beam. Won't make it. He gives Miel the cellar key
-  -- (lore item, not a real key) and tells her to use the tapestry.
+  -- Pell, the old steward. Caught between the doors while the keep
+  -- was being shaken; he hasn't the legs to keep up with the queen but
+  -- he has the breath for one more piece of advice. Gives Miel the
+  -- tapestry hint and waves her on.
   { x = 11, y = 8, name = "Pell",
     visible = function()
       return not CONTENT.prologue_scene_done
@@ -12189,11 +12304,11 @@ CONTENT.castle_npcs = {
     dialogue = function()
       CONTENT.pell_seen = true
       return {
-        "[Pell]     (an old man, half-pinned by a beam; he waves you off)",
+        "[Pell]     (an old man, leaning against the wall; he waves you off)",
         "[Pell]     My queen -- do not stop. The throne room.",
         "[Pell]     The tapestry your grandmother put in. She told me once.",
         "[Pell]     'The seam in the NORTH wall, behind the throne. The passage opens for the line.'",
-        "[Pell]     (he closes his eyes) ...go.",
+        "[Pell]     (he closes his eyes a moment) ...go. I'll be along.",
       }
     end,
   },
@@ -13191,9 +13306,39 @@ end
 -- defined scene functions can capture it as an upvalue.)
 local travel_to       -- forward decl (defined later)
 
+-- ── SAVE FORMAT VERSIONING ─────────────────────────────────────────────
+-- Bump SAVE_VERSION every time a scene/script/flag-shape change makes an
+-- older save load into stale content. Add a corresponding entry to
+-- SAVE_MIGRATIONS that mutates `data` (the raw loaded table) to bring
+-- it forward. Each migration runs once, in order, from the saved
+-- version + 1 up to SAVE_VERSION.
+--
+-- Example pattern for a future migration:
+--   SAVE_MIGRATIONS[2] = function(data)
+--     -- chamber-wake scene was rewritten -- let it replay
+--     if data.scene_seen then data.scene_seen.chamber_wake = nil end
+--   end
+SAVE_VERSION = 1
+SAVE_MIGRATIONS = {
+  -- v0 -> v1: page_warning scene was rewritten (Page now ends at his
+  -- static post at (8,8) instead of running back to the door), and the
+  -- courtyard breach scene was rewritten (Hova + Borin emerge from the
+  -- barracks). Both are gated by `scene_seen.page_warning` and the
+  -- one-shot `CONTENT.courtyard_breach_done` flag respectively. Clear
+  -- them so old saves get the new versions on next playthrough.
+  [1] = function(data)
+    if data.scene_seen then
+      data.scene_seen.page_warning = nil
+    end
+    -- (CONTENT.courtyard_breach_done isn't currently saved, so the
+    -- breach already replays on load — no migration needed for it.)
+  end,
+}
+
 save_game = function()
   os.execute("mkdir -p " .. _path.data .. "synth-quest/")
   local data = {
+    version = SAVE_VERSION,
     player = {x=player.x, y=player.y, facing=player.facing},
     party = {},
     shards = shards,
@@ -13257,7 +13402,8 @@ save_game = function()
   for k, v in pairs(CONTENT.opened) do data.chests_opened[k] = v end
   -- recruits joined-flags + Sergei intervention one-shot
   data.recruits_joined = {CONTENT.recruits[1].joined, CONTENT.recruits[2].joined,
-                          CONTENT.recruits[3] and CONTENT.recruits[3].joined or false}
+                          CONTENT.recruits[3] and CONTENT.recruits[3].joined or false,
+                          CONTENT.recruits[4] and CONTENT.recruits[4].joined or false}
   -- Pass 52: persist unlocked achievements.
   data.achievements = {}
   for k, v in pairs(CONTENT.achievements or {}) do data.achievements[k] = v end
@@ -13294,6 +13440,24 @@ local function load_game()
     save_flash_ticks = 24
     save_flash_text = "No save found"
     return false
+  end
+  -- Apply save-format migrations. Saves written before SAVE_VERSION was
+  -- introduced carry no `version` key — treat as 0. Each migration
+  -- runs once, in order, with a pcall so a broken migration can't soft-
+  -- lock the load. After running we stamp `data.version = SAVE_VERSION`
+  -- so the next save writes the current schema.
+  do
+    local v = tonumber(data.version) or 0
+    for ver = v + 1, (SAVE_VERSION or 0) do
+      local mig = SAVE_MIGRATIONS and SAVE_MIGRATIONS[ver]
+      if type(mig) == "function" then
+        local ok, err = pcall(mig, data)
+        if not ok then
+          print("synth-quest: save migration v" .. ver .. " err: " .. tostring(err))
+        end
+      end
+    end
+    data.version = SAVE_VERSION
   end
   -- Wipe any in-progress scene state so a load mid-cutscene doesn't leave
   -- stale actors/fades on screen. PARTICLES pool is similarly cleared.
@@ -13454,6 +13618,7 @@ local function load_game()
     if CONTENT.recruits[1] then CONTENT.recruits[1].joined = data.recruits_joined[1] or false end
     if CONTENT.recruits[2] then CONTENT.recruits[2].joined = data.recruits_joined[2] or false end
     if CONTENT.recruits[3] then CONTENT.recruits[3].joined = data.recruits_joined[3] or false end
+    if CONTENT.recruits[4] then CONTENT.recruits[4].joined = data.recruits_joined[4] or false end
     -- Ensure each joined recruit has a CHARACTERS record (so they can be
     -- swapped in even if the save predates the per-class persistence layer).
     for _, r in ipairs(CONTENT.recruits) do
@@ -14686,6 +14851,23 @@ local function try_move(dx, dy)
     redraw()
     return
   end
+  if t == 73 then
+    -- Astrolabe (Academy courtyard, map 19). Resonance shrine intercept
+    -- for ECHO's Long Echo: when ECHO is lead with the sacred item and
+    -- it's not yet attuned, fire the attunement scene. Otherwise tile 73
+    -- is impassable (per its tile definition) — we just don't move into it.
+    local p = party[active]
+    if current_map_id == 19
+       and p and p.class == "wraith"
+       and CONTENT.resonances.long_echo.item
+       and not CONTENT.resonances.long_echo.attuned
+       and start_resonance_attunement then
+      start_resonance_attunement("long_echo")
+      redraw()
+      return
+    end
+    return
+  end
   if t == 58 then
     -- Castle interior door. Routes by current_map_id + (nx, ny) of
     -- the door tile the player just stepped onto. All bidirectional —
@@ -15555,15 +15737,11 @@ local function damage_enemy(amount, is_crit)
       return
     end
     -- Prologue silencers / cave monsters: scripted tutorial enemies.
-    -- Skip the victory window, just drop back to overworld with a flag.
-    if enemy.is_prologue_silencer then
-      finish_prologue_silencer(enemy.silencer_idx or 1)
-      return
-    end
-    if enemy.is_prologue_cave then
-      finish_prologue_cave_monster(enemy.cave_idx or 1)
-      return
-    end
+    -- Previously these bypassed BATTLE_END entirely; now they route
+    -- through the standard XP-summary screen like every other kill so
+    -- the player sees the +XP / level-up panel. The post-fight
+    -- bookkeeping (silencer_defeated / cave_monster_defeated flags)
+    -- happens in exit_battle below when A dismisses the panel.
     -- Lirael Broken Cadence (Task 4.6): one-shot boss in the nave.
     -- Bypass the standard victory/XP window; finish_broken_cadence
     -- handles XP, flag, and Key of Lirael grant directly.
@@ -15964,6 +16142,23 @@ local function apply_player_action(p)
       CONTENT.banner_ticks = 60
       sq_trig("cleric", midi_to_freq(72), 0.85, 0.001, 6.0,
               math.min(1, 1.0 * (CONTENT.combat_reverb_mix or 1.0)))
+    elseif cls == "wraith" then
+      -- ECHO: DISPERSE. Splits into 5 ghost-copies for one beat. Scales
+      -- off MAG (her ATK is negligible). Guaranteed-crit single hit +
+      -- 5 staggered ghost-bursts across the enemy column.
+      local dmg = math.floor(INST.mag(p) * 4)
+      damage_enemy(dmg, true)
+      CONTENT.banner_text  = "* ECHO: DISPERSE *"
+      CONTENT.banner_ticks = 60
+      ANIM.shake(2, 12)
+      for k = 1, 5 do
+        clock.run(function()
+          clock.sleep((k - 1) * 0.04)
+          ANIM.burst(90 + k * 3, 28 + (k % 2) * 6, 4, 13)
+          sq_trig("wraith", midi_to_freq(67 + k), 0.55, 0.005, 0.6,
+                  math.min(1, 0.7 * (CONTENT.combat_reverb_mix or 1.0)))
+        end)
+      end
     else
       -- Damage variant: 4-5x base atk, guaranteed crit, splash burst.
       local mult = (cls == "warrior") and 5 or (cls == "bard") and 4 or 4
@@ -16140,6 +16335,30 @@ local function apply_player_action(p)
       end
     end
     trigger_party_jam(p)
+  elseif p.queued == "STIR" then
+    -- ECHO's STIR: a fragmented 3-grain chord across the active mode on
+    -- the wraith voice. MAG-scaled single-target damage. Costs 6 MP --
+    -- unlike the other instrument actions (which are free), STIR draws
+    -- on ECHO's large MP pool. Revisit in playtest if the asymmetry
+    -- feels off.
+    if p.mp >= 6 then
+      p.mp = p.mp - 6
+      local sc = (JAM and JAM.scales and JAM.scales[JAM.mode]) or {0, 2, 4, 5, 7, 9, 11}
+      local root = (JAM and JAM.root) or 0
+      for k, deg in ipairs({1, 4, 6}) do
+        local note = (sc[deg] or sc[1]) + root + 60
+        clock.run(function()
+          clock.sleep((k - 1) * 0.06)
+          sq_trig("wraith", midi_to_freq(note), 0.65, 0.005, 1.2,
+                  math.min(1, 0.85 * (CONTENT.combat_reverb_mix or 1.0)))
+        end)
+      end
+      if enemy and enemy.alive then
+        local dmg = math.floor(INST.mag(p) * 1.6)
+        damage_enemy(dmg, false)
+        ANIM.burst(96, 32, 6, 11)
+      end
+    end
   elseif p.queued == "PLAY" then
     -- Alder's bard play: heal all 10% HP + buff next attack of all alive. Now also jams.
     for _, q in ipairs(party) do
@@ -16575,6 +16794,12 @@ local function check_battle_end()
       unlock_achievement("first_chord_silenced", "First Chord Silenced")
       CONTENT.banner_text  = "* THE FIRST CHORD IS SILENCED *"
       CONTENT.banner_ticks = 90
+    elseif enemy.is_prologue_silencer or enemy.is_prologue_cave then
+      -- Prologue tutorial kills: no cave-progress increment, no item
+      -- drop, no boss-progress, no quest counters. The XP-summary
+      -- builder above already credited Miel; exit_battle will set the
+      -- silencer_defeated / cave_monster_defeated flags.
+      SHOP.last_item_drop = nil
     elseif random_battle then
       -- random encounters give XP/loot but don't count toward boss progress
       -- — they DO count toward Hens & Brann sidequests though.
@@ -16829,6 +17054,15 @@ travel_to = function(map_id, x, y)
   local _scene_busy = (SCENE and SCENE.active) and true or false
   if not _scene_busy and map_id == 19 and CONTENT and CONTENT.academy_state == "untriggered" then
     if start_academy_intro then start_academy_intro() end
+  end
+  -- ECHO recruitment: Act 3 "World of Silence" beat at the Academy
+  -- courtyard. Fires once when the player enters map 19 with the silence
+  -- flag set. Until Act 3 systems land, CONTENT.debug_force_echo_recruit
+  -- bypasses the act3_silence check for testing.
+  if not _scene_busy and map_id == 19 and CONTENT
+     and (CONTENT.act3_silence or CONTENT.debug_force_echo_recruit)
+     and not (CONTENT.scene_seen and CONTENT.scene_seen.echo_recruit) then
+    if start_echo_recruit_scene then start_echo_recruit_scene() end
   end
   -- Castle prologue: on first map entry, play a brief INTRO beat
   -- (raid sounds + opening line) then hand control to Miel in her
@@ -17265,6 +17499,19 @@ exit_battle = function()
     if game_over_step then game_over_step = 0 end
     redraw()
     return
+  end
+  -- Prologue tutorial kills: now that the player has dismissed the
+  -- BATTLE_END / XP screen, record which silencer / cave wisp was
+  -- defeated so subsequent spawns advance the prologue. Captured here
+  -- (BEFORE enemy = nil) so the indices survive the clear below.
+  if enemy and enemy.is_prologue_silencer then
+    local idx = enemy.silencer_idx or 1
+    CONTENT.silencer_defeated = CONTENT.silencer_defeated or {false, false}
+    CONTENT.silencer_defeated[idx] = true
+  elseif enemy and enemy.is_prologue_cave then
+    local idx = enemy.cave_idx or 1
+    CONTENT.cave_monster_defeated = CONTENT.cave_monster_defeated or {false, false, false}
+    CONTENT.cave_monster_defeated[idx] = true
   end
   CONTENT.victory_quip = nil
   battle_outcome = nil
@@ -18103,6 +18350,16 @@ function init()
   engine.drone_freq(DRONE_FREQ_HZ)
   engine.drone_cutoff(700)
   engine.drone_amp(0)
+
+  -- ── wraith voice defaults (guarded: safe to load before SYSTEM > RESTART) ──
+  if engine.wraith_cutoff   then engine.wraith_cutoff(2400)   end
+  if engine.wraith_res      then engine.wraith_res(0.15)      end
+  if engine.wraith_dly      then engine.wraith_dly(0.4)       end
+  if engine.wraith_dly_time then engine.wraith_dly_time(0.07) end
+  if engine.wraith_xwet     then engine.wraith_xwet(0.3)      end
+  if engine.wraith_damp     then engine.wraith_damp(0.35)     end
+  if engine.wraith_room     then engine.wraith_room(0.88)     end
+
   init_party()
 
   -- ── Pass 47: per-voice synth params for the norns PARAMS menu ──
@@ -20394,76 +20651,78 @@ local ALDER = {
 }
 
 -- ── MIEL (Cleric / Princess) ───────────────────────────────────────────────
--- Three-spike crown, flowing gown, healing gem
--- Miel — Cleric / Princess. Redesigned: dark curly hair, no crown. The
--- crown stays on the dressing table in her chamber (quarters_map). Hair
--- uses level 3 for the dark base + level 5 highlight pixels to suggest
--- curls without flattening the silhouette at 8x8.
+-- Sophisticated slim silhouette. Three hair tones (3 dark / 5 mid / 7
+-- bright) give curl definition without widening. Pale face on level 14
+-- with implicit eye sockets (a dark column flanked by face pixels).
+-- Gown gets fold-line shading: level 11 fabric base + a level 9 center
+-- shadow that reads as a vertical sash/fold + a bright level-15 gem
+-- at the throat. The crown remains on the dressing table in her
+-- chamber; this is Miel after she's set it down.
 local MIEL = {
   down = {
     [0] = {
-       0, 3, 5, 3, 5, 3, 0, 0,  -- curl tips on top
-       3, 3, 3, 5, 3, 3, 3, 0,  -- hair crown wraps full head
-       3, 5, 0,13,13, 0, 5, 3,  -- side curls + face
-       0, 3, 0,13,13, 0, 3, 0,  -- hair tail + face
-       0,11,11,15,11,11, 0, 0,  -- gown + gem
-       0,11,11,11,11,11, 0, 0,
-      11,11,11,11,11,11,11, 0,  -- gown widens
-       0, 8, 0, 0, 0, 8, 0, 0,
+       0, 0, 3, 5, 3, 0, 0, 0,  -- crown of head (3 px with center curl highlight)
+       0, 0, 3, 3, 3, 3, 0, 0,  -- hair top
+       0, 3, 5,14,14, 5, 3, 0,  -- forehead curls, pale face
+       0, 3, 0,14,14, 0, 3, 0,  -- hair frames face, implied eye sockets
+       0, 3, 0, 0, 0, 0, 3, 0,  -- hair past shoulder, slim neck
+       0, 0, 9,15, 9, 0, 0, 0,  -- gown collar shadow + center gem
+       0, 0,11, 9,11, 0, 0, 0,  -- bodice with vertical fold-line shadow
+       0, 0,11,11,11, 0, 0, 0,  -- skirt (3 px column)
     },
     [1] = {
-       0, 3, 5, 3, 5, 3, 0, 0,
-       3, 3, 5, 3, 3, 5, 3, 0,
-       3, 5, 0,13,13, 0, 5, 3,
-       0, 3, 0,13,13, 0, 3, 0,
-       0,11,11,15,11,11, 0, 0,
-       0,11,11,11,11,11, 0, 0,
-      11,11,11,11,11,11,11, 0,
-       0, 0, 8, 0, 8, 0, 0, 0,
+       0, 0, 3, 5, 3, 0, 0, 0,
+       0, 0, 3, 5, 3, 5, 0, 0,  -- curl highlights shifted for walk bob
+       0, 3, 5,14,14, 5, 3, 0,
+       0, 3, 0,14,14, 0, 3, 0,
+       0, 3, 0, 0, 0, 0, 3, 0,
+       0, 0, 9,15, 9, 0, 0, 0,
+       0, 0,11, 9,11, 0, 0, 0,
+       0, 0, 0,11,11, 0, 0, 0,  -- hem leans (step)
     },
   },
   up = {
     [0] = {
-       0, 3, 5, 3, 5, 3, 0, 0,
-       3, 3, 3, 5, 3, 3, 3, 0,
-       3, 3, 5, 3, 3, 5, 3, 0,  -- curly back of head, full
-       0, 3, 3, 5, 3, 3, 0, 0,  -- hair tail
-       0,11,11,11,11,11, 0, 0,
-       0,11,11,11,11,11, 0, 0,
-      11,11,11,11,11,11,11, 0,
-       0, 8, 0, 0, 0, 8, 0, 0,
+       0, 0, 3, 5, 3, 0, 0, 0,
+       0, 0, 3, 3, 3, 3, 0, 0,
+       0, 3, 5, 3, 3, 5, 3, 0,  -- back of head with curl highlights
+       0, 3, 3, 3, 3, 3, 3, 0,  -- hair full but tight
+       0, 3, 0, 0, 0, 0, 3, 0,  -- past shoulder
+       0, 0,11,11,11, 0, 0, 0,  -- gown back (no gem from this side)
+       0, 0,11, 9,11, 0, 0, 0,  -- vertical fold-line shadow
+       0, 0,11,11,11, 0, 0, 0,
     },
     [1] = {
-       0, 3, 5, 3, 5, 3, 0, 0,
-       3, 3, 5, 3, 5, 3, 3, 0,
-       3, 5, 3, 3, 5, 3, 3, 0,
-       0, 3, 5, 3, 3, 3, 0, 0,
-       0,11,11,11,11,11, 0, 0,
-       0,11,11,11,11,11, 0, 0,
-      11,11,11,11,11,11,11, 0,
-       0, 0, 8, 0, 8, 0, 0, 0,
+       0, 0, 3, 5, 3, 0, 0, 0,
+       0, 0, 3, 5, 3, 3, 0, 0,
+       0, 3, 3, 5, 3, 3, 3, 0,
+       0, 3, 3, 3, 3, 3, 3, 0,
+       0, 3, 0, 0, 0, 0, 3, 0,
+       0, 0,11,11,11, 0, 0, 0,
+       0, 0,11, 9,11, 0, 0, 0,
+       0, 0, 0,11,11, 0, 0, 0,
     },
   },
   right = {
     [0] = {
-       0, 3, 5, 3, 5, 3, 0, 0,
-       3, 3, 3, 3, 5, 3, 3, 0,
-       0, 3, 0,13,13, 0, 5, 3,  -- profile face + curly trail behind
-       0, 0, 0,13,13, 0, 3, 5,
-       0,11,11,15,11,11,11, 0,
-       0,11,11,11,11,11,11, 0,
-       0, 0,11,11,11,11,11, 0,
-       0, 0, 0, 0, 0, 8, 0, 0,
+       0, 0, 0, 3, 5, 3, 0, 0,  -- crown shifted right (head facing R)
+       0, 0, 3, 3, 3, 3, 0, 0,
+       0, 0, 3, 5,14,14, 0, 0,  -- profile face + curl behind
+       0, 0, 0, 3,14,14, 0, 0,  -- face
+       0, 0, 0, 3, 0, 0, 0, 0,  -- hair past shoulder (behind only)
+       0, 0, 9,11,15,11, 0, 0,  -- gown collar + gem (shaded left edge)
+       0, 0,11, 9,11, 0, 0, 0,
+       0, 0,11,11,11, 0, 0, 0,
     },
     [1] = {
-       0, 3, 5, 3, 5, 3, 0, 0,
-       3, 3, 5, 3, 3, 5, 3, 0,
-       0, 3, 0,13,13, 0, 5, 3,
-       0, 0, 0,13,13, 0, 3, 5,
-       0,11,11,15,11,11,11, 0,
-       0,11,11,11,11,11,11, 0,
-       0, 0,11,11,11,11,11, 0,
-       0, 0, 0, 8, 0, 0, 0, 0,
+       0, 0, 0, 3, 5, 3, 0, 0,
+       0, 0, 3, 5, 3, 3, 0, 0,
+       0, 0, 3, 5,14,14, 0, 0,
+       0, 0, 0, 3,14,14, 0, 0,
+       0, 0, 0, 3, 0, 0, 0, 0,
+       0, 0, 9,11,15,11, 0, 0,
+       0, 0,11, 9,11, 0, 0, 0,
+       0, 0, 0,11,11, 0, 0, 0,
     },
   },
 }
@@ -20857,17 +21116,94 @@ local PAJ = {
   },
 }
 
+-- ── ECHO (Wraith) ───────────────────────────────────────────────────────────
+-- Sparse, translucent-feeling sprite: max brightness 9 (vs 13-15 elsewhere).
+-- Wispy halo of fragmented arcs for hair; no solid body fill — just outline.
+-- Left facing is the right sprite mirrored (dirframe returns flip=true).
+local ECHO = {
+  down = {
+    [0] = {
+       0, 0, 9, 9, 9, 0, 0, 0,
+       0, 9, 0, 7, 7, 0, 9, 0,
+       0, 0, 0, 5, 5, 0, 0, 0,
+       0, 0, 0, 5, 5, 0, 0, 0,
+       0, 0, 7, 7, 7, 7, 0, 0,
+       0, 0, 3, 7, 7, 3, 0, 0,
+       0, 0, 3, 3, 3, 3, 0, 0,
+       0, 0, 5, 0, 0, 5, 0, 0,
+    },
+    [1] = {
+       0, 0, 9, 9, 9, 0, 0, 0,
+       0, 9, 0, 7, 7, 0, 9, 0,
+       0, 0, 0, 5, 5, 0, 0, 0,
+       0, 0, 0, 5, 5, 0, 0, 0,
+       0, 0, 7, 7, 7, 7, 0, 0,
+       0, 0, 3, 7, 7, 3, 0, 0,
+       0, 0, 3, 3, 3, 3, 0, 0,
+       0, 0, 5, 0, 0, 0, 5, 0,    -- foot stride
+    },
+  },
+  up = {
+    [0] = {
+       0, 0, 9, 9, 9, 0, 0, 0,
+       0, 9, 9, 9, 9, 9, 9, 0,    -- back of head, no eyes
+       0, 0, 0, 5, 5, 0, 0, 0,
+       0, 0, 0, 5, 5, 0, 0, 0,
+       0, 0, 7, 7, 7, 7, 0, 0,
+       0, 0, 3, 7, 7, 3, 0, 0,
+       0, 0, 3, 3, 3, 3, 0, 0,
+       0, 0, 5, 0, 0, 5, 0, 0,
+    },
+    [1] = {
+       0, 0, 9, 9, 9, 0, 0, 0,
+       0, 9, 9, 9, 9, 9, 9, 0,
+       0, 0, 0, 5, 5, 0, 0, 0,
+       0, 0, 0, 5, 5, 0, 0, 0,
+       0, 0, 7, 7, 7, 7, 0, 0,
+       0, 0, 3, 7, 7, 3, 0, 0,
+       0, 0, 3, 3, 3, 3, 0, 0,
+       0, 0, 5, 0, 0, 0, 5, 0,
+    },
+  },
+  right = {
+    [0] = {
+       0, 0, 9, 9, 9, 0, 0, 0,
+       0, 0, 9, 9, 7, 0, 0, 0,    -- profile: halo arc + single eye
+       0, 0, 0, 5, 5, 0, 0, 0,
+       0, 0, 0, 5, 5, 0, 0, 0,
+       0, 0, 0, 7, 7, 7, 0, 0,
+       0, 0, 3, 7, 7, 3, 0, 0,
+       0, 0, 3, 3, 3, 3, 0, 0,
+       0, 0, 5, 0, 0, 0, 0, 0,
+    },
+    [1] = {
+       0, 0, 9, 9, 9, 0, 0, 0,
+       0, 0, 9, 9, 7, 0, 0, 0,
+       0, 0, 0, 5, 5, 0, 0, 0,
+       0, 0, 0, 5, 5, 0, 0, 0,
+       0, 0, 0, 7, 7, 7, 0, 0,
+       0, 0, 3, 7, 7, 3, 0, 0,
+       0, 0, 3, 3, 3, 3, 0, 0,
+       0, 0, 0, 0, 0, 5, 0, 0,    -- foot stride
+    },
+  },
+}
+
 local function draw_engineer_sprite(sx, sy)
   local data, flip = dirframe(SERGEI); draw_sprite(sx, sy, data, flip)
 end
 local function draw_mathwiz_sprite(sx, sy)
   local data, flip = dirframe(PAJ); draw_sprite(sx, sy, data, flip)
 end
+local function draw_wraith_sprite(sx, sy)
+  local data, flip = dirframe(ECHO); draw_sprite(sx, sy, data, flip)
+end
 
 -- Scaled sprite (used by the status screen as a "portrait" of the actual
 -- in-game sprite). Always faces down; bobs gently per tick.
 local SETS_BY_CLASS = {mage=DIEGUES, cleric=MIEL, warrior=STROM, bard=ALDER,
-                        engineer=SERGEI, mathwiz=PAJ, drummer=NIKO}
+                        engineer=SERGEI, mathwiz=PAJ, drummer=NIKO,
+                        wraith=ECHO}
 local function draw_sprite_scaled(class, sx, sy, scale)
   local SET = SETS_BY_CLASS[class]
   if not SET then return end
@@ -20896,6 +21232,7 @@ SPRITE_BY_CLASS = {
   mathwiz  = draw_mathwiz_sprite,
   drummer  = draw_drummer_sprite,
   drummer_npc = draw_drummer_npc,
+  wraith   = draw_wraith_sprite,
   scaled   = draw_sprite_scaled,
 }
 end  -- class sprites
@@ -22313,21 +22650,28 @@ NPC_SPRITES.Senna = function(sx, sy, t)
   screen.level(13); screen.pixel(sx + 4 + sway, sy + 6); screen.fill()
 end
 
--- Pell — old palace steward, silver-haired, stooped. Shown half-pinned
--- by a fallen beam (dark horizontal slab over his lower body).
+-- Pell — old palace steward, silver-haired, stooped. Leans on a staff
+-- in the corridor; too winded to keep up with the queen but still has
+-- breath for the tapestry hint.
 NPC_SPRITES.Pell = function(sx, sy)
+  -- Old steward, weary but upright (leaning against the wall). No beam.
   -- silver hair (top)
   screen.level(13); screen.rect(sx + 2, sy + 1, 4, 1); screen.fill()
   screen.level(15); screen.pixel(sx + 3, sy); screen.pixel(sx + 4, sy); screen.fill()
-  -- face (lined, dim)
+  -- face (lined, dim) + closed/tired eyes
   screen.level(11); screen.rect(sx + 2, sy + 2, 4, 2); screen.fill()
-  screen.level(0); screen.pixel(sx + 3, sy + 3); screen.pixel(sx + 4, sy + 3); screen.fill()  -- closed eyes
-  -- robe (steward dark)
-  screen.level(3); screen.rect(sx + 2, sy + 4, 4, 4); screen.fill()
-  screen.level(5); screen.rect(sx + 2, sy + 4, 4, 1); screen.fill()
-  -- fallen beam pinning lower body (dark horizontal slab)
-  screen.level(2); screen.rect(sx, sy + 6, 8, 1); screen.fill()
-  screen.level(0); screen.rect(sx, sy + 7, 8, 1); screen.fill()
+  screen.level(0);  screen.pixel(sx + 3, sy + 3); screen.pixel(sx + 4, sy + 3); screen.fill()
+  -- thin beard
+  screen.level(13); screen.pixel(sx + 3, sy + 4); screen.pixel(sx + 4, sy + 4); screen.fill()
+  -- steward robe (dark) with paler collar trim
+  screen.level(3);  screen.rect(sx + 2, sy + 4, 4, 4); screen.fill()
+  screen.level(5);  screen.rect(sx + 2, sy + 4, 4, 1); screen.fill()
+  -- staff in his right hand for support (vertical bar)
+  screen.level(7);  screen.rect(sx + 6, sy + 3, 1, 5); screen.fill()
+  screen.level(11); screen.pixel(sx + 6, sy + 2); screen.fill()  -- staff knob
+  -- boots (slightly drooping, weary stance)
+  screen.level(3);  screen.rect(sx + 2, sy + 7, 1, 1); screen.fill()
+  screen.level(3);  screen.rect(sx + 5, sy + 7, 1, 1); screen.fill()
 end
 
 -- FallenGuard — palace guardsman slumped against a bookshelf. Plate
@@ -22454,77 +22798,24 @@ end
 -- ── 21 NPCs who were previously falling back to the generic triangle-
 --    head draw_npc_at. Each gets a small distinguishing silhouette that
 --    matches their role in the world.
--- Mews: small house cat curled on the inn rug, ears + tail tip
-NPC_SPRITES.Mews = function(sx, sy)
-  screen.level(3);  screen.rect(sx + 1, sy + 4, 6, 3); screen.fill()         -- body
-  screen.level(5);  screen.rect(sx + 5, sy + 3, 2, 2); screen.fill()         -- head
-  screen.level(3);  screen.pixel(sx + 5, sy + 2); screen.pixel(sx + 6, sy + 2); screen.fill()  -- ears
-  screen.level(15); screen.pixel(sx + 6, sy + 3); screen.fill()              -- eye glint
-  screen.level(5);  screen.move(sx + 1, sy + 5); screen.line(sx, sy + 3); screen.stroke()      -- tail
-  screen.level(11); screen.pixel(sx + 2, sy + 7); screen.pixel(sx + 5, sy + 7); screen.fill()  -- white paws
-end
+-- (Mews uses its purpose-built draw_npc sprite via the alias above;
+--  the duplicate 21-NPC-pass override was removed.)
 
--- Pim: orange tabby sunning on the coast — broader, brighter than Mews
-NPC_SPRITES.Pim = function(sx, sy)
-  screen.level(9);  screen.rect(sx + 1, sy + 3, 6, 4); screen.fill()
-  screen.level(13); screen.rect(sx + 1, sy + 3, 6, 1); screen.fill()         -- back highlight
-  screen.level(5);  screen.move(sx + 2, sy + 4); screen.line(sx + 5, sy + 4); screen.stroke() -- stripe
-  screen.level(9);  screen.rect(sx + 5, sy + 2, 2, 2); screen.fill()         -- head
-  screen.level(5);  screen.pixel(sx + 5, sy + 1); screen.pixel(sx + 6, sy + 1); screen.fill() -- ears
-  screen.level(0);  screen.pixel(sx + 6, sy + 3); screen.fill()              -- eye (closed/squinting)
-  screen.level(7);  screen.pixel(sx, sy + 5); screen.fill()                   -- tail curl
-end
+-- (Pim uses its purpose-built draw_npc sprite via the alias above;
+--  the duplicate 21-NPC-pass override was removed.)
 
--- Rook: corvid perched on the shop counter, hooked beak, dark plumage
-NPC_SPRITES.Rook = function(sx, sy)
-  screen.level(2);  screen.rect(sx + 2, sy + 2, 4, 5); screen.fill()         -- body
-  screen.level(4);  screen.rect(sx + 2, sy + 2, 4, 1); screen.fill()         -- back sheen
-  screen.level(2);  screen.rect(sx + 5, sy + 3, 2, 1); screen.fill()         -- beak base
-  screen.level(7);  screen.pixel(sx + 7, sy + 3); screen.fill()              -- beak tip
-  screen.level(15); screen.pixel(sx + 5, sy + 2); screen.fill()              -- bright eye
-  screen.level(2);  screen.pixel(sx + 3, sy + 7); screen.pixel(sx + 4, sy + 7); screen.fill()  -- feet
-end
+-- (Rook is a dog, not a bird — dialogue is all wags / drops a pebble /
+-- belly scritches. Uses the shared dog sprite via the Rook =
+-- draw_npc_rook alias above; the corvid placeholder was a name misread.)
 
--- Mara: round innkeeper, apron + ladle, warm + motherly
-NPC_SPRITES.Mara = function(sx, sy)
-  screen.level(13); screen.rect(sx + 2, sy + 1, 4, 2); screen.fill()         -- face
-  screen.level(0);  screen.pixel(sx + 3, sy + 2); screen.pixel(sx + 4, sy + 2); screen.fill()  -- eyes
-  screen.level(5);  screen.rect(sx + 2, sy, 4, 1); screen.fill()             -- kerchief
-  screen.level(8);  screen.rect(sx + 1, sy + 3, 6, 4); screen.fill()         -- dress
-  screen.level(15); screen.rect(sx + 2, sy + 4, 4, 2); screen.fill()         -- apron
-  screen.level(11); screen.rect(sx, sy + 4, 1, 3); screen.fill()             -- ladle handle
-  screen.level(13); screen.pixel(sx, sy + 3); screen.fill()                  -- ladle bowl
-  screen.level(3);  screen.rect(sx + 2, sy + 7, 1, 1); screen.fill()
-  screen.level(3);  screen.rect(sx + 5, sy + 7, 1, 1); screen.fill()
-end
+-- (Mara uses its purpose-built draw_npc sprite via the alias above;
+--  the duplicate 21-NPC-pass override was removed.)
 
--- Hens: mainland shopkeeper, hen-themed (feather hat, coin pouch)
-NPC_SPRITES.Hens = function(sx, sy)
-  screen.level(11); screen.rect(sx + 2, sy + 1, 4, 2); screen.fill()         -- face
-  screen.level(0);  screen.pixel(sx + 3, sy + 2); screen.pixel(sx + 4, sy + 2); screen.fill()  -- eyes
-  screen.level(13); screen.pixel(sx + 5, sy);     screen.fill()              -- single feather
-  screen.level(7);  screen.rect(sx + 2, sy, 3, 1); screen.fill()             -- hat band
-  screen.level(6);  screen.rect(sx + 1, sy + 3, 6, 3); screen.fill()         -- vest
-  screen.level(11); screen.pixel(sx + 6, sy + 4); screen.pixel(sx + 6, sy + 5); screen.fill()  -- coin pouch
-  screen.level(15); screen.pixel(sx + 6, sy + 4); screen.fill()              -- coin gleam
-  screen.level(13); screen.rect(sx + 2, sy + 6, 4, 1); screen.fill()         -- belt
-  screen.level(3);  screen.rect(sx + 2, sy + 7, 1, 1); screen.fill()
-  screen.level(3);  screen.rect(sx + 5, sy + 7, 1, 1); screen.fill()
-end
+-- (Hens uses its purpose-built draw_npc sprite via the alias above;
+--  the duplicate 21-NPC-pass override was removed.)
 
--- Tova: traveling cartographer with rolled map under arm + walking stick
-NPC_SPRITES.Tova = function(sx, sy)
-  screen.level(7);  screen.rect(sx, sy, 1, 8); screen.fill()                 -- walking stick
-  screen.level(11); screen.pixel(sx, sy);     screen.fill()                  -- stick knob
-  screen.level(13); screen.rect(sx + 3, sy + 1, 2, 2); screen.fill()         -- face
-  screen.level(3);  screen.rect(sx + 3, sy, 3, 1); screen.fill()             -- wide hat
-  screen.level(0);  screen.pixel(sx + 3, sy + 2); screen.fill()
-  screen.level(6);  screen.rect(sx + 2, sy + 3, 4, 4); screen.fill()         -- cloak
-  screen.level(11); screen.rect(sx + 5, sy + 4, 2, 1); screen.fill()         -- rolled map
-  screen.level(13); screen.pixel(sx + 6, sy + 4); screen.fill()
-  screen.level(3);  screen.rect(sx + 2, sy + 7, 1, 1); screen.fill()
-  screen.level(3);  screen.rect(sx + 5, sy + 7, 1, 1); screen.fill()
-end
+-- (Tova uses its purpose-built draw_npc sprite via the alias above;
+--  the duplicate 21-NPC-pass override was removed.)
 
 -- Theron: academy scholar — beard, monocle gleam, book under arm
 NPC_SPRITES.Theron = function(sx, sy)
@@ -22540,33 +22831,13 @@ NPC_SPRITES.Theron = function(sx, sy)
   screen.level(3);  screen.rect(sx + 5, sy + 7, 1, 1); screen.fill()
 end
 
--- Aurin: young student, quill behind ear, scroll across torso
-NPC_SPRITES.Aurin = function(sx, sy)
-  screen.level(13); screen.rect(sx + 2, sy + 1, 4, 2); screen.fill()         -- face
-  screen.level(9);  screen.rect(sx + 2, sy, 4, 1); screen.fill()             -- light hair
-  screen.level(0);  screen.pixel(sx + 3, sy + 2); screen.pixel(sx + 4, sy + 2); screen.fill()
-  screen.level(15); screen.pixel(sx + 1, sy + 1); screen.fill()              -- quill tip
-  screen.level(7);  screen.pixel(sx + 1, sy + 2); screen.fill()              -- quill shaft
-  screen.level(11); screen.rect(sx + 2, sy + 3, 4, 3); screen.fill()         -- tunic
-  screen.level(13); screen.move(sx + 1, sy + 4); screen.line(sx + 6, sy + 6); screen.stroke() -- scroll strap
-  screen.level(15); screen.rect(sx, sy + 5, 1, 2); screen.fill()             -- scroll end
-  screen.level(3);  screen.rect(sx + 2, sy + 7, 1, 1); screen.fill()
-  screen.level(3);  screen.rect(sx + 5, sy + 7, 1, 1); screen.fill()
-end
+-- (Aurin uses its purpose-built draw_npc sprite via the alias above;
+--  the duplicate 21-NPC-pass override was removed.)
 
--- Paj: mathwiz student, round glasses, ledger book held flat in front
-NPC_SPRITES.Paj = function(sx, sy)
-  screen.level(13); screen.rect(sx + 2, sy + 1, 4, 2); screen.fill()         -- face
-  screen.level(3);  screen.rect(sx + 2, sy, 4, 1); screen.fill()             -- dark hair
-  screen.level(15); screen.pixel(sx + 2, sy + 2); screen.pixel(sx + 5, sy + 2); screen.fill()  -- glasses
-  screen.level(0);  screen.pixel(sx + 3, sy + 2); screen.pixel(sx + 4, sy + 2); screen.fill()  -- lens shadows
-  screen.level(7);  screen.rect(sx + 2, sy + 3, 4, 2); screen.fill()         -- tunic
-  screen.level(11); screen.rect(sx + 1, sy + 5, 6, 2); screen.fill()         -- ledger book
-  screen.level(15); screen.move(sx + 1, sy + 5); screen.line(sx + 6, sy + 5); screen.stroke() -- spine
-  screen.level(0);  screen.move(sx + 2, sy + 6); screen.line(sx + 5, sy + 6); screen.stroke() -- ruled line
-  screen.level(3);  screen.rect(sx + 2, sy + 7, 1, 1); screen.fill()
-  screen.level(3);  screen.rect(sx + 5, sy + 7, 1, 1); screen.fill()
-end
+-- (Paj's overworld sprite is the canonical mathwiz party-class sprite —
+-- aliased above as `NPC_SPRITES.Paj = SPRITE_BY_CLASS.mathwiz`. The
+-- earlier "round glasses + ledger" placeholder added in the 21-NPC
+-- sprite pass was removed because it didn't match the in-party look.)
 
 -- Wena: student with sheet music; smaller frame
 NPC_SPRITES.Wena = function(sx, sy)
@@ -22581,18 +22852,8 @@ NPC_SPRITES.Wena = function(sx, sy)
   screen.level(3);  screen.rect(sx + 5, sy + 7, 1, 1); screen.fill()
 end
 
--- Wren: wanderer-singer with a small lap-harp slung across her chest
-NPC_SPRITES.Wren = function(sx, sy)
-  screen.level(13); screen.rect(sx + 2, sy + 1, 4, 2); screen.fill()         -- face
-  screen.level(5);  screen.rect(sx + 1, sy, 6, 1); screen.fill()             -- cropped hair
-  screen.level(0);  screen.pixel(sx + 3, sy + 2); screen.pixel(sx + 4, sy + 2); screen.fill()
-  screen.level(7);  screen.rect(sx + 1, sy + 3, 6, 4); screen.fill()         -- traveler cloak
-  screen.level(11); screen.move(sx + 1, sy + 4); screen.line(sx + 6, sy + 6); screen.stroke() -- harp frame
-  screen.level(13); screen.pixel(sx + 2, sy + 5); screen.pixel(sx + 4, sy + 6); screen.fill() -- harp strings
-  screen.level(13); screen.pixel(sx + 3, sy + 5); screen.pixel(sx + 5, sy + 6); screen.fill()
-  screen.level(3);  screen.rect(sx + 2, sy + 7, 1, 1); screen.fill()
-  screen.level(3);  screen.rect(sx + 5, sy + 7, 1, 1); screen.fill()
-end
+-- (Wren uses its purpose-built draw_npc sprite via the alias above;
+--  the duplicate 21-NPC-pass override was removed.)
 
 -- Vesa: far-reaches villager — shawl wrap, basket of herbs
 NPC_SPRITES.Vesa = function(sx, sy)
@@ -22618,120 +22879,33 @@ NPC_SPRITES.Wynne = function(sx, sy)
   screen.level(3);  screen.rect(sx + 5, sy + 7, 1, 1); screen.fill()
 end
 
--- Bonk: brooding coast NPC, hood up, hands in pockets — small body
-NPC_SPRITES.Bonk = function(sx, sy)
-  screen.level(4);  screen.rect(sx + 2, sy + 1, 4, 2); screen.fill()         -- hood crown
-  screen.level(5);  screen.rect(sx + 1, sy + 2, 6, 2); screen.fill()         -- hood sides
-  screen.level(8);  screen.rect(sx + 3, sy + 3, 2, 1); screen.fill()         -- face in shadow
-  screen.level(0);  screen.pixel(sx + 3, sy + 3); screen.pixel(sx + 4, sy + 3); screen.fill()
-  screen.level(5);  screen.rect(sx + 1, sy + 4, 6, 3); screen.fill()         -- robe
-  screen.level(3);  screen.rect(sx + 2, sy + 5, 4, 1); screen.fill()         -- arm fold
-  screen.level(3);  screen.rect(sx + 2, sy + 7, 1, 1); screen.fill()
-  screen.level(3);  screen.rect(sx + 5, sy + 7, 1, 1); screen.fill()
-end
+-- (Bonk is a dog, not a person — dialogue is all wags / drops a pebble
+-- that "The Pebble Demands" you throw. Uses the shared dog sprite via
+-- the Bonk = draw_npc_rook alias above; the hooded-figure placeholder
+-- was wrong and has been removed.)
 
--- Brann: coast smith — leather apron, hammer at right hip
-NPC_SPRITES.Brann = function(sx, sy)
-  screen.level(11); screen.rect(sx + 6, sy + 1, 2, 2); screen.fill()         -- hammer head
-  screen.level(7);  screen.rect(sx + 6, sy + 3, 1, 4); screen.fill()         -- hammer shaft
-  screen.level(13); screen.rect(sx + 2, sy + 1, 4, 2); screen.fill()         -- face
-  screen.level(3);  screen.rect(sx + 1, sy, 5, 1); screen.fill()             -- short hair
-  screen.level(5);  screen.rect(sx + 2, sy + 3, 3, 1); screen.fill()         -- beard
-  screen.level(0);  screen.pixel(sx + 3, sy + 2); screen.pixel(sx + 4, sy + 2); screen.fill()
-  screen.level(5);  screen.rect(sx + 1, sy + 4, 5, 3); screen.fill()         -- leather apron
-  screen.level(7);  screen.rect(sx + 1, sy + 4, 5, 1); screen.fill()         -- apron top edge
-  screen.level(13); screen.pixel(sx + 3, sy + 5); screen.fill()              -- buckle
-  screen.level(3);  screen.rect(sx + 2, sy + 7, 1, 1); screen.fill()
-  screen.level(3);  screen.rect(sx + 5, sy + 7, 1, 1); screen.fill()
-end
+-- (Brann uses its purpose-built draw_npc sprite via the alias above;
+--  the duplicate 21-NPC-pass override was removed.)
 
--- Calder: weathered fisherman — cap, net coiled on shoulder, pipe
-NPC_SPRITES.Calder = function(sx, sy)
-  screen.level(7);  screen.rect(sx + 1, sy, 6, 2); screen.fill()             -- flat cap
-  screen.level(11); screen.rect(sx + 1, sy + 1, 6, 1); screen.fill()         -- cap band
-  screen.level(13); screen.rect(sx + 2, sy + 2, 4, 2); screen.fill()         -- face
-  screen.level(0);  screen.pixel(sx + 3, sy + 3); screen.pixel(sx + 4, sy + 3); screen.fill()
-  screen.level(15); screen.pixel(sx + 6, sy + 3); screen.fill()              -- pipe ember
-  screen.level(7);  screen.pixel(sx + 7, sy + 3); screen.fill()              -- pipe stem
-  screen.level(5);  screen.rect(sx + 1, sy + 4, 6, 3); screen.fill()         -- coat
-  screen.level(2);  screen.move(sx + 1, sy + 4); screen.line(sx + 6, sy + 5); screen.stroke() -- net coil
-  screen.level(2);  screen.move(sx + 1, sy + 5); screen.line(sx + 6, sy + 6); screen.stroke()
-  screen.level(3);  screen.rect(sx + 2, sy + 7, 1, 1); screen.fill()
-  screen.level(3);  screen.rect(sx + 5, sy + 7, 1, 1); screen.fill()
-end
+-- (Calder uses its purpose-built draw_npc sprite via the alias above;
+--  the duplicate 21-NPC-pass override was removed.)
 
--- Lyssa: pale figure with a single lit candle, dark robe
-NPC_SPRITES.Lyssa = function(sx, sy)
-  screen.level(13); screen.rect(sx + 2, sy + 1, 4, 2); screen.fill()         -- pale face
-  screen.level(11); screen.rect(sx + 2, sy, 4, 1); screen.fill()             -- pale hair
-  screen.level(0);  screen.pixel(sx + 3, sy + 2); screen.pixel(sx + 4, sy + 2); screen.fill()
-  screen.level(2);  screen.rect(sx + 1, sy + 3, 6, 4); screen.fill()         -- dark robe
-  screen.level(15); screen.pixel(sx, sy + 3); screen.fill()                  -- candle flame
-  screen.level(11); screen.pixel(sx, sy + 4); screen.fill()                  -- wax
-  screen.level(7);  screen.pixel(sx, sy + 5); screen.pixel(sx, sy + 6); screen.fill()  -- candle stick
-  screen.level(3);  screen.rect(sx + 2, sy + 7, 1, 1); screen.fill()
-  screen.level(3);  screen.rect(sx + 5, sy + 7, 1, 1); screen.fill()
-end
+-- (Lyssa uses its purpose-built draw_npc sprite via the alias above;
+--  the duplicate 21-NPC-pass override was removed.)
 
--- Maren: coast healer — braid down one side, herb pouch on belt
-NPC_SPRITES.Maren = function(sx, sy)
-  screen.level(13); screen.rect(sx + 2, sy + 1, 4, 2); screen.fill()         -- face
-  screen.level(0);  screen.pixel(sx + 3, sy + 2); screen.pixel(sx + 4, sy + 2); screen.fill()
-  screen.level(5);  screen.rect(sx + 2, sy, 4, 1); screen.fill()             -- dark hair
-  screen.level(5);  screen.rect(sx, sy + 1, 2, 5); screen.fill()             -- side braid
-  screen.level(3);  screen.pixel(sx + 1, sy + 6); screen.fill()              -- braid tip
-  screen.level(9);  screen.rect(sx + 2, sy + 3, 4, 4); screen.fill()         -- dress
-  screen.level(7);  screen.rect(sx + 2, sy + 5, 4, 1); screen.fill()         -- belt
-  screen.level(13); screen.pixel(sx + 5, sy + 6); screen.fill()              -- pouch
-  screen.level(11); screen.pixel(sx + 5, sy + 5); screen.fill()              -- pouch tie
-  screen.level(3);  screen.rect(sx + 2, sy + 7, 1, 1); screen.fill()
-  screen.level(3);  screen.rect(sx + 5, sy + 7, 1, 1); screen.fill()
-end
+-- (Maren uses its purpose-built draw_npc sprite via the alias above;
+--  the duplicate 21-NPC-pass override was removed.)
 
--- Pip: tiny child by the water — short, oversized hat
-NPC_SPRITES.Pip = function(sx, sy)
-  screen.level(7);  screen.rect(sx + 1, sy + 1, 6, 2); screen.fill()         -- oversize hat
-  screen.level(11); screen.rect(sx + 1, sy + 2, 6, 1); screen.fill()         -- hat band
-  screen.level(13); screen.rect(sx + 3, sy + 3, 2, 2); screen.fill()         -- small face
-  screen.level(0);  screen.pixel(sx + 3, sy + 4); screen.fill()              -- eye
-  screen.level(9);  screen.rect(sx + 3, sy + 5, 2, 2); screen.fill()         -- tiny body
-  screen.level(3);  screen.rect(sx + 3, sy + 7, 1, 1); screen.fill()
-  screen.level(3);  screen.rect(sx + 4, sy + 7, 1, 1); screen.fill()
-end
+-- (Pip uses its purpose-built draw_npc sprite via the alias above;
+--  the duplicate 21-NPC-pass override was removed.)
 
--- Sergei: engineer — workshop apron, patch cable looped at his side
-NPC_SPRITES.Sergei = function(sx, sy)
-  screen.level(13); screen.rect(sx + 2, sy + 1, 4, 2); screen.fill()         -- face
-  screen.level(3);  screen.rect(sx + 1, sy, 6, 1); screen.fill()             -- short hair
-  screen.level(0);  screen.pixel(sx + 3, sy + 2); screen.pixel(sx + 4, sy + 2); screen.fill()
-  screen.level(7);  screen.rect(sx + 2, sy + 3, 4, 4); screen.fill()         -- shop apron
-  screen.level(11); screen.move(sx + 2, sy + 3); screen.line(sx + 5, sy + 5); screen.stroke() -- strap
-  screen.level(15); screen.pixel(sx + 4, sy + 4); screen.fill()              -- buckle gleam
-  -- patch cable loops to the right
-  screen.level(13); screen.move(sx + 6, sy + 4); screen.line(sx + 7, sy + 5); screen.stroke()
-  screen.level(13); screen.move(sx + 7, sy + 5); screen.line(sx + 6, sy + 6); screen.stroke()
-  screen.level(11); screen.pixel(sx + 7, sy + 6); screen.fill()              -- cable plug
-  screen.level(3);  screen.rect(sx + 2, sy + 7, 1, 1); screen.fill()
-  screen.level(3);  screen.rect(sx + 5, sy + 7, 1, 1); screen.fill()
-end
+-- (Sergei's overworld sprite is the canonical engineer party-class
+-- sprite — aliased above as `NPC_SPRITES.Sergei = SPRITE_BY_CLASS.engineer`.
+-- The earlier "apron + patch cable" placeholder from the 21-NPC sprite
+-- pass was removed so the recruit looks the same in and out of party.)
 
--- Iolen: lamp-bearer / stargazer — small held lantern that flickers
-NPC_SPRITES.Iolen = function(sx, sy)
-  screen.level(13); screen.rect(sx + 2, sy + 1, 4, 2); screen.fill()         -- face
-  screen.level(0);  screen.pixel(sx + 3, sy + 2); screen.pixel(sx + 4, sy + 2); screen.fill()
-  screen.level(5);  screen.rect(sx + 1, sy, 6, 1); screen.fill()             -- night cap brim
-  screen.level(8);  screen.rect(sx + 2, sy + 3, 4, 4); screen.fill()         -- robe
-  -- held lantern at left side
-  screen.level(7);  screen.pixel(sx, sy + 3); screen.fill()                  -- handle top
-  screen.level(11); screen.rect(sx, sy + 4, 2, 2); screen.fill()             -- lamp body
-  if (tick % 12) < 7 then
-    screen.level(15); screen.pixel(sx, sy + 4); screen.pixel(sx + 1, sy + 4); screen.fill()  -- flame
-  else
-    screen.level(13); screen.pixel(sx, sy + 5); screen.fill()
-  end
-  screen.level(3);  screen.rect(sx + 2, sy + 7, 1, 1); screen.fill()
-  screen.level(3);  screen.rect(sx + 5, sy + 7, 1, 1); screen.fill()
-end
+-- (Iolen uses its purpose-built draw_npc sprite via the alias above;
+--  the duplicate 21-NPC-pass override was removed.)
 
 -- Alder/Diegues/Strom NPC sprites — alias to their party-class sprites.
 -- These trigger when the player encounters them as NPCs before they
@@ -23406,56 +23580,11 @@ end
 -- anchored in the left margin. Drawn before tiles so opaque room walls
 -- cover it where they overlap; only the off-room strips show.
 function draw_staff_backdrop(ox, oy)
+  -- Plain black backdrop. Previously this drew a 5-line music staff +
+  -- treble-clef glyph in the side margins of small interior maps; the
+  -- staff + clef were removed in favor of a clean black surround so the
+  -- room reads more clearly against the OLED.
   screen.level(0); screen.rect(0, 0, 128, 64); screen.fill()
-  screen.level(3)
-  local STAFF_YS = {12, 22, 32, 42, 52}
-  for _, y in ipairs(STAFF_YS) do
-    screen.move(0, y); screen.line(128, y); screen.stroke()
-  end
-  if ox > 0 then
-    -- 9-wide pixel-grid treble clef centered horizontally in the left
-    -- margin. Curl at top, big loop in the middle, tail at the bottom.
-    local CLEF = {
-      "   ###   ",
-      "  #   #  ",
-      " #     # ",
-      " #     # ",
-      " #    #  ",
-      " #   #   ",
-      "  # #    ",
-      "   #     ",
-      "  ###    ",
-      " #  ##   ",
-      " #   ##  ",
-      "##    ## ",
-      "##  # ## ",
-      "##  # ## ",
-      " #  # #  ",
-      "  ##  #  ",
-      "    ##   ",
-      "    #    ",
-      "    #    ",
-      "   ##    ",
-      "  ## ##  ",
-      " ##    # ",
-      " #     # ",
-      "  ## ##  ",
-      "   ###   ",
-    }
-    local cw = #CLEF[1]
-    local cx = math.max(1, math.floor((ox - cw) / 2))
-    local cy = math.max(2, math.floor((64 - #CLEF) / 2))
-    screen.level(9)
-    for row = 1, #CLEF do
-      local line = CLEF[row]
-      for col = 1, #line do
-        if line:sub(col, col) == "#" then
-          screen.pixel(cx + col - 1, cy + row - 1)
-        end
-      end
-    end
-    screen.fill()
-  end
 end
 
 local function draw_overworld()
@@ -26869,6 +26998,33 @@ function draw_scene_lirael_bell_alcove()
   end
 end
 
+function draw_scene_academy_astrolabe_resonant()
+  -- Academy courtyard with the astrolabe at center. Concentric rings
+  -- expand outward from it; ECHO's silhouette stands beside it at solid
+  -- (no-trail) brightness, confirming she's anchored.
+  screen.level(1); screen.rect(0, 0, 128, 64); screen.fill()
+  -- courtyard floor (paving stripes)
+  screen.level(3)
+  for y = 36, 60, 4 do screen.move(0, y); screen.line(128, y); screen.stroke() end
+  -- astrolabe: pillar + rotating ring
+  screen.level(7); screen.rect(60, 28, 8, 24); screen.fill()
+  screen.level(11); screen.circle(64, 24, 8); screen.stroke()
+  local a = (tick * 0.05) % (math.pi * 2)
+  screen.level(13)
+  screen.pixel(64 + math.floor(math.cos(a) * 8), 24 + math.floor(math.sin(a) * 8))
+  screen.fill()
+  -- expanding rings emanating from the astrolabe
+  for k = 0, 2 do
+    local r = ((tick + k * 8) % 24) + 4
+    if r < 22 then
+      screen.level(math.max(3, 11 - k * 2)); screen.circle(64, 24, r); screen.stroke()
+    end
+  end
+  -- ECHO silhouette to the left (solid brightness, anchored)
+  screen.level(11); screen.rect(50, 26, 4, 4); screen.fill()  -- head
+  screen.level(11); screen.rect(49, 30, 6, 8); screen.fill()  -- body
+end
+
 
 SCENE_DRAW = {
   cosmic  = draw_scene_cosmic,
@@ -26899,6 +27055,7 @@ SCENE_DRAW = {
   lirael_courtyard    = draw_scene_lirael_courtyard,
   lirael_gate         = draw_scene_lirael_gate,
   lirael_bell_alcove  = draw_scene_lirael_bell_alcove,
+  academy_astrolabe_resonant = draw_scene_academy_astrolabe_resonant,
 }
 end  -- scene draws
 

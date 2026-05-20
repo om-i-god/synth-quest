@@ -1764,3 +1764,38 @@ Polish during playthrough:
 
 Effect dispatch still inlined into the ATK branch — extract when
 the second Resonance effect lands.
+
+## 2026-05-20 — ECHO joins the party (8th member, wraith class)
+
+Extended the canon astrolabe ECHO NPC into a recruitable 8th
+party member per docs/specs/2026-05-19-echo-eighth-party-member-design.md.
+New wraith class: new SynthDef sq_wraith (granular stutter +
+high-register CombC echo-train), new 8x8 sprite (max brightness
+9 -- visually translucent), new STIR action (3-grain MAG-scaled
+chord; 6 MP -- note: the only instrument action that costs MP,
+flagged for playtest), new DISPERSE limit break (5 ghost-bursts
+at MAG*4).
+
+ECHO joins at the Academy courtyard astrolabe (map 19, tile 13,6)
+during Act 3's "World of Silence" beat. Trigger gates on
+CONTENT.act3_silence OR CONTENT.debug_force_echo_recruit (the
+latter for testing before Act 3 systems land). Recruitment scene
+auto-grants the Long Echo sacred item; shrine = the astrolabe.
+
+Reconciliation note: the fluid-invocation merge (which landed
+since the ECHO spec was written) made the RESO branch generic --
+it reads RESONANCE_SITES[rid].shrine.signature.sound for SFX and
+RESO_ANIMS[rid] for animation (play_long_echo_anim already
+existed). So Long Echo needed no per-Resonance RESO dispatch and
+no armed flag (the fluid system only arms Ring). ECHO's Long Echo
+fires SFX + animation + 6-tick cooldown on R2; combat effect
+remains stubbed.
+
+NOT YET VERIFIED ON DEVICE -- requires SYSTEM > RESTART for the
+new sq_wraith SynthDef, then the 12 acceptance criteria in
+docs/plans/2026-05-19-echo-eighth-party-member.md (Task 19).
+
+This commit also carries pre-existing uncommitted working-tree
+fixes from a parallel session (SHOP/shards _G-mirror closure
+fixes, Senna/Pell repositioning) that were intermingled in
+synth-quest.lua and could not be cleanly separated.
