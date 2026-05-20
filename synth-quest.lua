@@ -20634,12 +20634,17 @@ end
 
 -- Tile 72 — Bookshelf tall (impassable; Academy library + Observatory study).
 TILE_DRAW[72] = function(px, py)
-  -- bookshelf_tall: tall warm-brown shelf with five visible book rows
-  screen.level(4)
-  screen.rect(px, py, 8, 8); screen.fill()
-  screen.level(2)
-  for i = 1, 7, 2 do
-    screen.move(px, py+i); screen.line_rel(8, 0); screen.stroke()
+  -- bookshelf_tall: warm case with 3 rows of varied-colour book spines
+  -- and shelf boards between them.
+  screen.level(4); screen.rect(px, py, 8, 8); screen.fill()          -- case
+  local cols = {11, 7, 13, 9, 6, 12}
+  for row = 0, 2 do
+    local ry = py + row * 3
+    for i = 0, 5 do
+      screen.level(cols[((i + row * 2) % 6) + 1])
+      screen.rect(px + 1 + i, ry, 1, 2); screen.fill()               -- book spine
+    end
+    screen.level(2); screen.rect(px, ry + 2, 8, 1); screen.fill()    -- shelf board
   end
 end
 
@@ -20772,19 +20777,22 @@ TILE_DRAW[84] = function(px, py, t)
 end
 
 TILE_DRAW[85] = function(px, py)
-  -- hymnal_stand: small dark stand with pale half-burned page on top
-  screen.level(6)
-  screen.rect(px+3, py+3, 2, 5); screen.fill()
-  screen.level(11)
-  screen.rect(px+1, py+1, 6, 3); screen.fill()
+  -- hymnal_stand: music stand with a half-burned hymnal page (a staff
+  -- line still visible) and a tripod base.
+  screen.level(6);  screen.rect(px+3, py+3, 2, 4); screen.fill()      -- post
+  screen.level(8);  screen.rect(px+2, py+7, 4, 1); screen.fill()      -- base
+  screen.level(11); screen.rect(px+1, py+1, 6, 3); screen.fill()      -- page
+  screen.level(2);  screen.move(px+2, py+2); screen.line_rel(3, 0); screen.stroke()  -- staff line
+  screen.level(4);  screen.pixel(px+5, py+1); screen.pixel(px+6, py+2); screen.fill()  -- burned corner
 end
 
 TILE_DRAW[86] = function(px, py)
-  -- child_toy: small object with Lirael-blue paint accent
-  screen.level(10)
-  screen.rect(px+2, py+5, 4, 2); screen.fill()
-  screen.level(2)
-  screen.pixel(px+2, py+4); screen.pixel(px+5, py+4); screen.fill()
+  -- child_toy: a ball left in the ash, faded Lirael-blue stripe + a
+  -- small ground shadow. A quiet, sad little object.
+  screen.level(11); screen.circle(px + 4, py + 5, 2); screen.fill()           -- ball
+  screen.level(13); screen.pixel(px + 3, py + 4); screen.fill()               -- highlight
+  screen.level(5);  screen.move(px + 2, py + 5); screen.line(px + 6, py + 5); screen.stroke()  -- blue stripe
+  screen.level(2);  screen.pixel(px + 2, py + 7); screen.pixel(px + 6, py + 7); screen.fill()  -- shadow
 end
 
 TILE_DRAW[87] = function(px, py)
