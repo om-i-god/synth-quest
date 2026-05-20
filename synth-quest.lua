@@ -24645,24 +24645,23 @@ function DRAW_ENEMY.bat(cx, cy)
 end
 
 function DRAW_ENEMY.mushroom(cx, cy)
-  -- cap
-  screen.level(11)
-  screen.circle(cx, cy - 2, 5)
-  screen.fill()
+  -- toadstool creature: domed cap with a shaded underside-gill rim,
+  -- white spots, a pale stem with two beady eyes. Gentle sway.
+  local sway = (tick % 32 < 16) and 0 or 1
+  -- cap dome
+  screen.level(11); screen.circle(cx + sway, cy - 2, 5); screen.fill()
+  screen.level(13); screen.circle(cx + sway, cy - 3, 3); screen.stroke()   -- cap top highlight
+  -- gill rim (underside, darker)
+  screen.level(5);  screen.rect(cx - 4 + sway, cy + 1, 9, 1); screen.fill()
+  -- white spots
+  screen.level(15)
+  screen.pixel(cx - 2 + sway, cy - 3); screen.pixel(cx + 2 + sway, cy - 2)
+  screen.pixel(cx + sway, cy - 4); screen.fill()
   -- stem
-  screen.level(7)
-  screen.rect(cx - 2, cy + 1, 4, 5)
-  screen.fill()
-  -- spots, alternating phase
-  if (tick % 8) < 4 then
-    screen.level(0)
-    screen.pixel(cx - 3, cy - 3)
-    screen.pixel(cx + 2, cy - 1)
-  else
-    screen.level(0)
-    screen.pixel(cx - 1, cy - 4)
-    screen.pixel(cx + 3, cy - 2)
-  end
+  screen.level(13); screen.rect(cx - 2, cy + 2, 4, 4); screen.fill()
+  screen.level(8);  screen.rect(cx + 1, cy + 2, 1, 4); screen.fill()       -- stem shade
+  -- beady eyes on the stem
+  screen.level(0); screen.pixel(cx - 1, cy + 3); screen.pixel(cx + 1, cy + 3); screen.fill()
 end
 
 function DRAW_ENEMY.wisp(cx, cy)
@@ -24688,30 +24687,30 @@ function DRAW_ENEMY.wisp(cx, cy)
 end
 
 function DRAW_ENEMY.wolf(cx, cy)
+  -- feral wolf in profile: shaded body (lit back / dark underbelly),
+  -- muzzle with a bared fang, glowing eye, bristled tail, four legs
+  -- with a subtle breathing crouch.
+  local breath = (tick % 24 < 12) and 0 or 1
   -- body
-  screen.level(8)
-  screen.rect(cx - 6, cy - 1, 12, 4)
+  screen.level(8);  screen.rect(cx - 6, cy - 1 + breath, 12, 4); screen.fill()
+  screen.level(10); screen.rect(cx - 6, cy - 1 + breath, 12, 1); screen.fill()   -- lit back
+  screen.level(5);  screen.rect(cx - 6, cy + 2 + breath, 12, 1); screen.fill()   -- dark underbelly
+  -- head + muzzle
+  screen.level(8);  screen.rect(cx + 4, cy - 3 + breath, 4, 3); screen.fill()
+  screen.level(8);  screen.rect(cx + 7, cy - 1 + breath, 2, 1); screen.fill()    -- muzzle
+  screen.level(15); screen.pixel(cx + 8, cy - 1 + breath); screen.fill()         -- bared fang
+  -- ears (pricked)
+  screen.level(8); screen.pixel(cx + 5, cy - 4 + breath); screen.pixel(cx + 7, cy - 4 + breath); screen.fill()
+  -- glowing eye
+  screen.level(15); screen.pixel(cx + 6, cy - 2 + breath); screen.fill()
+  -- bristled tail
+  screen.level(8); screen.move(cx - 6, cy + breath); screen.line(cx - 9, cy - 2 + breath); screen.stroke()
+  screen.level(5); screen.pixel(cx - 9, cy - 1 + breath); screen.fill()
+  -- four legs
+  screen.level(6)
+  screen.rect(cx - 5, cy + 3 + breath, 1, 2); screen.rect(cx - 2, cy + 3 + breath, 1, 2)
+  screen.rect(cx + 2, cy + 3 + breath, 1, 2); screen.rect(cx + 5, cy + 3 + breath, 1, 2)
   screen.fill()
-  -- head
-  screen.rect(cx + 4, cy - 3, 4, 3)
-  screen.fill()
-  -- ears
-  screen.pixel(cx + 5, cy - 4)
-  screen.pixel(cx + 7, cy - 4)
-  -- tail (line back-and-up)
-  screen.move(cx - 6, cy)
-  screen.line(cx - 9, cy - 2)
-  screen.stroke()
-  -- legs
-  screen.rect(cx - 5, cy + 3, 1, 2)
-  screen.fill()
-  screen.rect(cx - 1, cy + 3, 1, 2)
-  screen.fill()
-  screen.rect(cx + 5, cy + 3, 1, 2)
-  screen.fill()
-  -- eye
-  screen.level(0)
-  screen.pixel(cx + 6, cy - 2)
 end
 
 function DRAW_ENEMY.echo(cx, cy)
