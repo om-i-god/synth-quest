@@ -6827,20 +6827,10 @@ function start_prologue_silencer(idx)
   redraw()
 end
 
-function finish_prologue_silencer(idx)
-  CONTENT.silencer_defeated = CONTENT.silencer_defeated or {false, false}
-  CONTENT.silencer_defeated[idx] = true
-  -- Tiny XP grant so Miel actually progresses through the tutorial.
-  -- Standard gain_xp iterates alive party — solo Miel takes the whole share.
-  if gain_xp then gain_xp(28) end
-  CONTENT.banner_text  = "Silencer falls   +28 XP"
-  CONTENT.banner_ticks = 30
-  enemy = nil
-  battle_outcome = nil
-  game_state = "OVERWORLD"
-  params:set("clock_tempo", OVERWORLD_BPM)
-  redraw()
-end
+-- (finish_prologue_silencer removed — prologue silencer kills now route
+--  through the normal BATTLE_END / XP-summary path; the silencer_defeated
+--  flag is set in exit_battle. XP/gold moved to the enemy_xp/enemy_gold
+--  tables: Silencer=28xp/0g.)
 
 -- start_prologue_cave_monster(idx) — 3 cave-wisp creatures Miel can fight
 -- in the escape cave. Lower difficulty than silencers (she's tired, but
@@ -6871,19 +6861,10 @@ function start_prologue_cave_monster(idx)
   redraw()
 end
 
-function finish_prologue_cave_monster(idx)
-  CONTENT.cave_monster_defeated = CONTENT.cave_monster_defeated or {false, false, false}
-  CONTENT.cave_monster_defeated[idx] = true
-  if gain_xp then gain_xp(18) end
-  SHOP.gold = (SHOP.gold or 0) + 5
-  CONTENT.banner_text  = "Wisp dissolves   +18 XP  +5g"
-  CONTENT.banner_ticks = 30
-  enemy = nil
-  battle_outcome = nil
-  game_state = "OVERWORLD"
-  params:set("clock_tempo", OVERWORLD_BPM)
-  redraw()
-end
+-- (finish_prologue_cave_monster removed — cave wisp kills now route
+--  through the normal BATTLE_END / XP-summary path; cave_monster_defeated
+--  flag is set in exit_battle. XP/gold moved to enemy_xp/enemy_gold:
+--  Cave Wisp=18xp/5g.)
 
 function start_strom_battle()
   -- Custom boss-tier enemy. Stats balanced for an early-game 2-3 member
@@ -16287,6 +16268,17 @@ local function apply_player_action(p)
       local mv_atk = reso_fx_active("masked_voice")
       if mv_atk then dmg = math.floor(dmg * (mv_atk.mult or 1.25)) end
       damage_enemy(dmg, crit)
+      -- Long Echo (Resonance): the next 2 attacks echo at 50%, one beat late.
+      if (p.long_echo_charges or 0) > 0 then
+        p.long_echo_charges = p.long_echo_charges - 1
+        local echo_dmg = math.max(1, math.floor(dmg * 0.50))
+        reso_schedule(6, function()
+          if enemy and enemy.alive then
+            damage_enemy(echo_dmg, false)
+            ANIM.burst(96, 32, 4, 11)
+          end
+        end)
+      end
       if ring_fx then
         -- Clangor: root bell + a fifth above (same cleric voice as
         -- the signature sound; the fifth is the "harmonics no one
@@ -23401,14 +23393,9 @@ NPC_SPRITES.Holda = function(sx, sy)
   screen.level(13); screen.rect(sx + 6, sy, 2, 1); screen.fill()        -- axe head
 end
 
-NPC_SPRITES.Tilde = function(sx, sy)
-  -- Village kid: tiny, oversized hat, hops in place
-  local hop = (tick % 8) < 4 and 0 or -1
-  screen.level(7); screen.rect(sx + 2, sy + hop, 4, 1); screen.fill()
-  screen.level(11); screen.rect(sx + 3, sy + 1 + hop, 2, 2); screen.fill()
-  screen.level(13); screen.rect(sx + 3, sy + 4 + hop, 2, 3); screen.fill()
-  screen.level(5);  screen.pixel(sx + 2, sy + 7 + hop); screen.pixel(sx + 5, sy + 7 + hop); screen.fill()
-end
+-- (Duplicate NPC_SPRITES.Tilde removed — the canonical scarf+sparrow
+--  "Western Region child" version is defined earlier; this generic
+--  hopping-kid copy was shadowing nothing useful and is gone.)
 
 NPC_SPRITES.Sela = function(sx, sy)
   -- Eastern harbormaster: peaked hat, oilskin coat, brass buttons
