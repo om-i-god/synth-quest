@@ -16586,6 +16586,15 @@ local function apply_player_action(p)
       p.last_action = "RESO"
     end
   end
+  -- Threefold (Resonance): while active, every party action feeds the caster.
+  for _, c in ipairs(party) do
+    if c.alive and c.threefold_until and (tick or 0) < c.threefold_until then
+      local heal = math.floor((c.hp_max or 0) * 0.05)
+      if heal > 0 then
+        c.hp = math.min(c.hp_max, c.hp + heal)
+      end
+    end
+  end
 end
 
 -- COMBO / CHORD attacks. When 2+ characters fire ATK within COMBO_WINDOW
