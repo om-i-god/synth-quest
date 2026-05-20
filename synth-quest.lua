@@ -25376,19 +25376,27 @@ end
 
 -- Cave 6 + 7 enemies (Suno's Domain)
 function DRAW_ENEMY.lich(cx, cy)
-  -- skeletal robed figure
-  screen.level(2)
+  -- skeletal robed figure: shaded robe (lit left, shadowed right) with a
+  -- faint ribcage showing through, a bright skull, and a bone staff.
+  screen.level(3)
   screen.move(cx, cy - 18); screen.line(cx - 14, cy + 14); screen.line(cx + 14, cy + 14); screen.close(); screen.fill()
-  screen.level(15)  -- skull
-  screen.rect(cx - 5, cy - 14, 10, 8); screen.fill()
+  screen.level(1)   -- shadowed right half
+  screen.move(cx, cy - 18); screen.line(cx + 14, cy + 14); screen.line(cx + 3, cy + 14); screen.close(); screen.fill()
+  screen.level(6)   -- lit left edge
+  screen.move(cx, cy - 18); screen.line(cx - 14, cy + 14); screen.stroke()
+  -- faint ribcage
+  screen.level(6)
+  screen.move(cx - 4, cy - 4); screen.line(cx + 4, cy - 4); screen.stroke()
+  screen.move(cx - 3, cy - 1); screen.line(cx + 3, cy - 1); screen.stroke()
+  -- skull w/ jaw shadow
+  screen.level(15); screen.rect(cx - 5, cy - 14, 10, 8); screen.fill()
+  screen.level(8);  screen.rect(cx - 5, cy - 7, 10, 1); screen.fill()
   screen.level(0)
-  screen.pixel(cx - 2, cy - 11); screen.pixel(cx + 2, cy - 11)  -- eye sockets
+  screen.pixel(cx - 2, cy - 11); screen.pixel(cx + 2, cy - 11)   -- eye sockets
   screen.move(cx - 3, cy - 8); screen.line(cx + 3, cy - 8); screen.stroke()
-  -- staff
-  screen.level(11)
-  screen.rect(cx + 12, cy - 16, 1, 30); screen.fill()
-  screen.level(15)
-  screen.pixel(cx + 12, cy - 17)
+  -- bone staff
+  screen.level(11); screen.rect(cx + 12, cy - 16, 1, 30); screen.fill()
+  screen.level(15); screen.pixel(cx + 12, cy - 17)
 end
 
 function DRAW_ENEMY.voidcrawler(cx, cy)
@@ -25418,9 +25426,14 @@ function DRAW_ENEMY.voidcrawler(cx, cy)
 end
 
 function DRAW_ENEMY.echosuno(cx, cy)
-  -- mocking shadow figure resembling suno (smaller, paler)
+  -- mocking shadow figure resembling suno (smaller, paler): lightly shaded
+  -- robe (lit left, shadowed right), dark hood, glinting eyes, mocking grin.
   screen.level(7)
   screen.move(cx, cy - 16); screen.line(cx - 12, cy + 12); screen.line(cx + 12, cy + 12); screen.close(); screen.fill()
+  screen.level(4)   -- shadowed right half
+  screen.move(cx, cy - 16); screen.line(cx + 12, cy + 12); screen.line(cx + 3, cy + 12); screen.close(); screen.fill()
+  screen.level(10)  -- lit left edge
+  screen.move(cx, cy - 16); screen.line(cx - 12, cy + 12); screen.stroke()
   -- hood
   screen.level(2)
   screen.rect(cx - 4, cy - 14, 8, 6); screen.fill()
@@ -25431,41 +25444,58 @@ function DRAW_ENEMY.echosuno(cx, cy)
 end
 
 function DRAW_ENEMY.mutewarden(cx, cy)
-  -- silent armored sentry, no face
-  screen.level(7)
-  screen.rect(cx - 12, cy - 14, 24, 26); screen.fill()
-  -- helm visor (closed)
-  screen.level(0)
-  screen.rect(cx - 6, cy - 10, 12, 4); screen.fill()
+  -- silent armored sentry, no face: plated body with a lit pauldron line,
+  -- shadowed greaves, beveled sides, a waist seam, a closed visor with a
+  -- vision slit, a chestplate cross, and corner rivets.
+  screen.level(7);  screen.rect(cx - 12, cy - 14, 24, 26); screen.fill()
+  screen.level(10); screen.rect(cx - 12, cy - 14, 24, 2); screen.fill()   -- lit pauldrons
+  screen.level(4);  screen.rect(cx - 12, cy + 8, 24, 4); screen.fill()    -- shadowed greaves
+  screen.level(9);  screen.rect(cx - 12, cy - 12, 2, 24); screen.fill()   -- left bevel
+  screen.level(4);  screen.rect(cx + 10, cy - 12, 2, 24); screen.fill()   -- right bevel (shadow)
+  screen.level(4);  screen.rect(cx - 12, cy, 24, 1); screen.fill()        -- waist seam
+  -- helm visor (closed) w/ vision slit
+  screen.level(0);  screen.rect(cx - 6, cy - 10, 12, 4); screen.fill()
+  screen.level(5);  screen.rect(cx - 5, cy - 9, 10, 1); screen.fill()
   -- chestplate cross
   screen.level(11)
   screen.move(cx, cy - 4); screen.line(cx, cy + 8); screen.stroke()
   screen.move(cx - 6, cy + 2); screen.line(cx + 6, cy + 2); screen.stroke()
-  -- rivets
+  -- corner rivets
   screen.level(13)
   screen.pixel(cx - 10, cy - 12); screen.pixel(cx + 10, cy - 12)
-  screen.pixel(cx - 10, cy + 10); screen.pixel(cx + 10, cy + 10)
+  screen.pixel(cx - 10, cy + 10); screen.pixel(cx + 10, cy + 10); screen.fill()
 end
 
 function DRAW_ENEMY.locrius(cx, cy)
-  -- conductor of void: tall robed, sweeping arms
-  screen.level(2)
+  -- conductor of void: tall shaded robe (lit left, shadowed right),
+  -- sweeping bone-hand arms with a forearm taper, a black hood, the
+  -- triple-eye locrian mark (slow flare), and a whirling shadow at the hem.
+  screen.level(3)
   screen.move(cx, cy - 22); screen.line(cx - 18, cy + 18); screen.line(cx + 18, cy + 18); screen.close(); screen.fill()
-  -- bone hands extended
+  screen.level(1)   -- shadowed right half
+  screen.move(cx, cy - 22); screen.line(cx + 18, cy + 18); screen.line(cx + 4, cy + 18); screen.close(); screen.fill()
+  screen.level(6)   -- lit left edge
+  screen.move(cx, cy - 22); screen.line(cx - 18, cy + 18); screen.stroke()
+  screen.level(1)   -- fold
+  screen.move(cx - 6, cy - 2); screen.line(cx - 9, cy + 18); screen.stroke()
+  -- sweeping bone-hand arms (upper arm dim, bone hand bright)
+  screen.level(11)
+  screen.move(cx - 10, cy - 6); screen.line(cx - 16, cy - 4); screen.stroke()
+  screen.move(cx + 10, cy - 6); screen.line(cx + 16, cy - 4); screen.stroke()
   screen.level(15)
   screen.move(cx - 16, cy - 4); screen.line(cx - 22, cy + 4); screen.stroke()
   screen.move(cx + 16, cy - 4); screen.line(cx + 22, cy + 4); screen.stroke()
   -- hood
   screen.level(0)
   screen.rect(cx - 5, cy - 18, 10, 7); screen.fill()
-  -- triple-eye mark (locrian/diabolus)
-  screen.level(15)
-  screen.pixel(cx - 3, cy - 14); screen.pixel(cx, cy - 14); screen.pixel(cx + 3, cy - 14)
-  -- whirling shadow at base
+  -- triple-eye mark (locrian/diabolus), slow flare
+  local f = (tick % 30 < 22) and 15 or 7
+  screen.level(f)
+  screen.pixel(cx - 3, cy - 14); screen.pixel(cx, cy - 14); screen.pixel(cx + 3, cy - 14); screen.fill()
+  -- whirling shadow at the hem
   local s = (tick // 3) % 6
   screen.level(11)
-  screen.pixel(cx - 14 + s, cy + 18)
-  screen.pixel(cx + 14 - s, cy + 16)
+  screen.pixel(cx - 14 + s, cy + 18); screen.pixel(cx + 14 - s, cy + 16); screen.fill()
 end
 
 function DRAW_ENEMY.suno(cx, cy)
