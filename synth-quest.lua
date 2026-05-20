@@ -23026,6 +23026,97 @@ NPC_SPRITES.VoidEcho = function(sx, sy)
   screen.pixel(sx + 1, sy + 7); screen.pixel(sx + 3, sy + 7); screen.pixel(sx + 6, sy + 7); screen.fill()
 end
 
+-- ── More verified sprite-less static NPCs (lowercase role-name keys in
+--    the Lirael-ruins / region NPC tables). Identities confirmed from
+--    dialogue.
+
+-- chorister: grief-broken cathedral singer, stuck on one line. Robed,
+-- head tilted, a held note escaping her mouth.
+NPC_SPRITES.chorister = function(sx, sy)
+  screen.level(11); screen.rect(sx + 2, sy, 4, 1); screen.fill()             -- hair
+  screen.level(13); screen.rect(sx + 2, sy + 1, 4, 2); screen.fill()         -- face
+  screen.level(0);  screen.pixel(sx + 3, sy + 2); screen.pixel(sx + 4, sy + 2); screen.fill()
+  screen.level(15); screen.pixel(sx + 6, sy + 1); screen.fill()              -- held note
+  screen.level(11); screen.pixel(sx + 7, sy);     screen.fill()              -- note tail
+  screen.level(7);  screen.rect(sx + 1, sy + 3, 6, 4); screen.fill()         -- choir robe
+  screen.level(9);  screen.rect(sx + 3, sy + 3, 2, 4); screen.fill()         -- pale stole
+  screen.level(3);  screen.rect(sx + 2, sy + 7, 1, 1); screen.fill()
+  screen.level(3);  screen.rect(sx + 5, sy + 7, 1, 1); screen.fill()
+end
+
+-- captain: dying Lirael soldier slumped against rubble. Lying low in
+-- the cell, helm askew, a faint breath-flicker.
+NPC_SPRITES.captain = function(sx, sy)
+  screen.level(8);  screen.rect(sx + 1, sy + 4, 6, 2); screen.fill()         -- slumped torso (low)
+  screen.level(10); screen.rect(sx + 1, sy + 3, 2, 2); screen.fill()         -- helm askew (left)
+  screen.level(0);  screen.pixel(sx + 1, sy + 4); screen.fill()             -- visor slit
+  screen.level(5);  screen.rect(sx + 1, sy + 6, 6, 1); screen.fill()         -- legs splayed
+  screen.level(13); screen.rect(sx + 6, sy + 4, 1, 1); screen.fill()         -- pale hand
+  if (tick % 20) < 6 then
+    screen.level(7); screen.pixel(sx + 3, sy + 3); screen.fill()            -- faint breath
+  end
+end
+
+-- archivist: cathedral record-keeper, ledger open in both hands.
+NPC_SPRITES.archivist = function(sx, sy)
+  screen.level(13); screen.rect(sx + 2, sy + 1, 4, 2); screen.fill()         -- face
+  screen.level(4);  screen.rect(sx + 2, sy, 4, 1); screen.fill()             -- balding/short hair
+  screen.level(15); screen.pixel(sx + 5, sy + 2); screen.fill()              -- spectacle glint
+  screen.level(0);  screen.pixel(sx + 3, sy + 2); screen.fill()
+  screen.level(6);  screen.rect(sx + 2, sy + 3, 4, 2); screen.fill()         -- robe
+  screen.level(11); screen.rect(sx + 1, sy + 5, 6, 2); screen.fill()         -- open ledger
+  screen.level(15); screen.move(sx + 4, sy + 5); screen.line(sx + 4, sy + 6); screen.stroke() -- ledger spine
+  screen.level(3);  screen.rect(sx + 2, sy + 7, 1, 1); screen.fill()
+  screen.level(3);  screen.rect(sx + 5, sy + 7, 1, 1); screen.fill()
+end
+
+-- scout_trapped: pinned UNDER a fallen rafter (legit — her dialogue
+-- asks you to "sing the timber loose"). Dark beam slab across her legs.
+NPC_SPRITES.scout_trapped = function(sx, sy)
+  screen.level(13); screen.rect(sx + 2, sy + 1, 4, 2); screen.fill()         -- face (straining)
+  screen.level(5);  screen.rect(sx + 2, sy, 4, 1); screen.fill()             -- hair
+  screen.level(0);  screen.pixel(sx + 3, sy + 2); screen.pixel(sx + 4, sy + 2); screen.fill()
+  screen.level(9);  screen.rect(sx + 2, sy + 3, 4, 2); screen.fill()         -- jerkin
+  screen.level(13); screen.rect(sx + 1, sy + 4, 1, 1); screen.fill()         -- reaching hand
+  -- fallen rafter pinning the lower body
+  screen.level(4);  screen.rect(sx, sy + 5, 8, 1); screen.fill()
+  screen.level(2);  screen.rect(sx, sy + 6, 8, 1); screen.fill()
+  screen.level(0);  screen.rect(sx, sy + 7, 8, 1); screen.fill()
+end
+
+-- lamplighter: kind woman with a long lamp-pole, warm flame on top.
+NPC_SPRITES.lamplighter = function(sx, sy)
+  screen.level(7);  screen.rect(sx, sy, 1, 8); screen.fill()                 -- lamp pole (left)
+  if (tick % 12) < 7 then
+    screen.level(15); screen.pixel(sx, sy); screen.fill()                    -- flame bright
+    screen.level(11); screen.pixel(sx + 1, sy); screen.fill()
+  else
+    screen.level(13); screen.pixel(sx, sy); screen.fill()
+  end
+  screen.level(13); screen.rect(sx + 3, sy + 1, 2, 2); screen.fill()         -- face
+  screen.level(5);  screen.rect(sx + 3, sy, 3, 1); screen.fill()             -- hair
+  screen.level(0);  screen.pixel(sx + 3, sy + 2); screen.fill()
+  screen.level(11); screen.pixel(sx + 4, sy + 3); screen.fill()             -- smile
+  screen.level(9);  screen.rect(sx + 2, sy + 3, 4, 4); screen.fill()         -- coat
+  screen.level(3);  screen.rect(sx + 2, sy + 7, 1, 1); screen.fill()
+  screen.level(3);  screen.rect(sx + 5, sy + 7, 1, 1); screen.fill()
+end
+
+-- scout: eager young aspirant — sword in one hand, round shield on the
+-- other arm, standing tall.
+NPC_SPRITES.scout = function(sx, sy)
+  screen.level(13); screen.rect(sx + 6, sy, 1, 5); screen.fill()             -- raised sword blade
+  screen.level(11); screen.pixel(sx + 6, sy + 5); screen.fill()             -- crossguard
+  screen.level(13); screen.rect(sx + 2, sy + 1, 3, 2); screen.fill()         -- young face
+  screen.level(9);  screen.rect(sx + 2, sy, 3, 1); screen.fill()             -- mop of hair
+  screen.level(0);  screen.pixel(sx + 3, sy + 2); screen.fill()
+  screen.level(9);  screen.rect(sx, sy + 3, 2, 3); screen.fill()             -- round shield (left arm)
+  screen.level(13); screen.pixel(sx, sy + 4); screen.fill()                  -- shield boss
+  screen.level(7);  screen.rect(sx + 2, sy + 3, 3, 4); screen.fill()         -- tunic
+  screen.level(3);  screen.rect(sx + 2, sy + 7, 1, 1); screen.fill()
+  screen.level(3);  screen.rect(sx + 4, sy + 7, 1, 1); screen.fill()
+end
+
 -- Alder/Diegues/Strom NPC sprites — alias to their party-class sprites.
 -- These trigger when the player encounters them as NPCs before they
 -- have joined the active party. SPRITE_BY_CLASS draws using player.facing,
