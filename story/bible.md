@@ -710,6 +710,56 @@ For dossier-canon roles, voices, and inspirations, see Dossier
    Inspiration (per Dossier): FF9 VIVI + FF6 TERRA.
 
 
+-------- ECHO (Wraith / Song-Being) — 8TH PARTY MEMBER --------
+
+   STATUS: IN CODE (recruitable; not yet device-verified as of
+   2026-05-20). Recruited mid-to-late Act 3.
+
+   Origin: extends the canon astrolabe ECHO NPC (see NPC roster).
+   She is not Velthe's ghost — she is a song-being that learned to
+   speak in Velthe's voice, anchored to the Academy astrolabe for
+   years. When Modalia goes atonal in Act 3's World of Silence, her
+   tenuous existence dissolves; she asks to anchor in the party's
+   chord and joins as the 8th member.
+
+   Class: `wraith` (new class). Recruit slot 4.
+
+   Stat block (level 1):
+      HP  60   MP  70   ATK 2   DEF 2   MAG 7   SPD 5
+   Stat shape: the most fragile member by far (lowest HP + DEF —
+   she is barely physical). Highest MP pool and highest SPD —
+   near-constant action. ATK 2 is the party's lowest; she does not
+   strike. Plays as high-tempo MAG support that Miel must keep alive.
+
+   Mode affinity: Locrian. The half-step mode, the unresolved tonic
+   — she is the only character at home in Locrian's instability,
+   mirroring her own.
+
+   Voice in the ensemble:
+      `sq_wraith` — a high-register sawtooth grain run through a
+      narrow metallic bandpass and a CombC stutter trail (~14 Hz,
+      ~1.2s). Her notes fragment and echo behind themselves; they
+      sit ABOVE Diegues' bell and never share his fundamental. She
+      sounds like a voice that doesn't fully resolve.
+
+   Instrument action — STIR: a fragmented 3-grain chord across the
+   active mode; MAG-scaled single-target damage; 6 MP (the only
+   instrument action that costs MP — her large pool is her resource).
+
+   Limit break — DISPERSE: she splits into five ghost-copies for one
+   beat, MAG*4 damage. The screen shudders.
+
+   Resonance: THE LONG ECHO (sole carrier). She IS the wandering
+   singer the myth describes, so the sacred item ("ECHO's First
+   Note") auto-grants at recruitment; the shrine is the astrolabe
+   she was anchored to. (Long Echo's combat effect is still stubbed
+   per the Resonance-effects roadmap.)
+
+   Inspiration: FF6 SHADOW (mysterious wanderer who chooses to stay)
+   + FF4 TELLAH (carrier of a lost master's voice) + FF9 VIVI
+   (existential weight of "what am I").
+
+
 -------- SUNO AND HIS COURT --------
 
 For Suno's basic shape, see Dossier §ANTAGONIST. What follows is
@@ -1467,6 +1517,10 @@ present in the code.
       Role: Semi-transparent figure manifest near the astrolabe.
       Speaks only in fragments of Velthe's voice. Reveals a
       clearer line to Diegues.
+      NOW ALSO THE 8TH PARTY MEMBER: in Act 3's World of Silence
+      she becomes corporeal and joins the party (wraith class).
+      See THE PARTY section → ECHO. This NPC hides once the
+      recruitment scene fires (CONTENT.scene_seen.echo_recruit).
       STATUS: IN CODE.
 
    MASTER THERON (Academy)
