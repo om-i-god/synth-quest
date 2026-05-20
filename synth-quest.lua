@@ -24884,23 +24884,28 @@ function DRAW_ENEMY.tide(cx, cy)
 end
 
 function DRAW_ENEMY.scorpion(cx, cy)
-  -- low body + curled tail + claws
+  -- armored desert scorpion: carapace highlight + belly shade, legs,
+  -- pincer claws, segmented raised tail, glinting stinger w/ venom flash.
+  screen.level(10); screen.rect(cx - 4, cy + 1, 8, 3); screen.fill()        -- body
+  screen.level(13); screen.rect(cx - 4, cy + 1, 8, 1); screen.fill()        -- carapace highlight
+  screen.level(6);  screen.rect(cx - 4, cy + 3, 8, 1); screen.fill()        -- belly shade
+  -- legs
+  screen.level(7); screen.pixel(cx - 3, cy + 4); screen.pixel(cx - 1, cy + 4)
+  screen.pixel(cx + 1, cy + 4); screen.pixel(cx + 3, cy + 4); screen.fill()
+  -- claws (forward) w/ darker joints
   screen.level(10)
-  screen.rect(cx - 4, cy + 1, 8, 3)
-  screen.fill()
-  -- claws (forward)
   screen.move(cx - 6, cy + 1); screen.line(cx - 8, cy - 1); screen.line(cx - 4, cy + 1); screen.close(); screen.fill()
   screen.move(cx + 6, cy + 1); screen.line(cx + 8, cy - 1); screen.line(cx + 4, cy + 1); screen.close(); screen.fill()
-  -- segmented tail curling up over the back
+  screen.level(6); screen.pixel(cx - 7, cy); screen.pixel(cx + 7, cy); screen.fill()
+  -- segmented tail curling over the back
   screen.level(13)
-  screen.pixel(cx + 1, cy)
-  screen.pixel(cx + 2, cy - 1)
-  screen.pixel(cx + 1, cy - 2)
-  screen.pixel(cx, cy - 3)
-  screen.pixel(cx - 1, cy - 2)
-  -- stinger
-  screen.level(15)
-  screen.pixel(cx - 2, cy - 3)
+  screen.pixel(cx + 1, cy); screen.pixel(cx + 2, cy - 1); screen.pixel(cx + 1, cy - 2)
+  screen.pixel(cx, cy - 3); screen.pixel(cx - 1, cy - 2); screen.fill()
+  -- stinger glint + venom-drip flash
+  screen.level(15); screen.pixel(cx - 2, cy - 3); screen.fill()
+  if (tick % 10) < 5 then screen.level(15); screen.pixel(cx - 2, cy - 4); screen.fill() end
+  -- beady eyes
+  screen.level(0); screen.pixel(cx - 1, cy + 2); screen.pixel(cx + 1, cy + 2); screen.fill()
 end
 
 function DRAW_ENEMY.spectre(cx, cy)
@@ -25011,13 +25016,18 @@ function DRAW_ENEMY.frostwisp(cx, cy)
   screen.line(cx - 4, cy)
   screen.close()
   screen.fill()
+  -- crystalline facet lines (catch the light)
+  screen.level(11)
+  screen.move(cx, cy - 6 + d); screen.line(cx + 4, cy); screen.stroke()
+  screen.move(cx, cy + 6 + d); screen.line(cx - 4, cy); screen.stroke()
   -- core
   screen.level(15)
   screen.pixel(cx, cy)
-  -- snowflakes around
+  -- drifting snowflakes around
   screen.level(13)
   screen.pixel(cx - 12, cy - 4 + d)
   screen.pixel(cx + 13, cy + 6 - d)
+  screen.pixel(cx - 9, cy + 8 - d)
 end
 
 -- The First Chord — post-endgame superboss. A shifting cluster of
@@ -25098,23 +25108,23 @@ function DRAW_ENEMY.strom(cx, cy)
 end
 
 function DRAW_ENEMY.granite(cx, cy)
-  -- jagged stone golem
-  screen.level(7)
-  screen.rect(cx - 16, cy - 14, 32, 28)
-  screen.fill()
-  -- carved planes
+  -- craggy stone golem: top-lit face, dark base + crevices, faint ore
+  -- vein, glowing ore eyes, boulder arms w/ a lit top edge.
+  screen.level(7);  screen.rect(cx - 16, cy - 14, 32, 28); screen.fill()    -- mass
+  screen.level(10); screen.rect(cx - 16, cy - 14, 32, 4); screen.fill()     -- top-lit face
+  screen.level(4);  screen.rect(cx - 16, cy + 8, 32, 6); screen.fill()      -- base shadow
+  -- carved planes / crevices
   screen.level(2)
-  screen.move(cx - 16, cy - 14); screen.line(cx + 16, cy - 4); screen.stroke()
-  screen.move(cx - 16, cy + 8); screen.line(cx + 16, cy + 14); screen.stroke()
-  screen.move(cx, cy - 14); screen.line(cx - 8, cy + 14); screen.stroke()
+  screen.move(cx - 16, cy - 10); screen.line(cx + 16, cy - 2); screen.stroke()
+  screen.move(cx - 16, cy + 6);  screen.line(cx + 16, cy + 12); screen.stroke()
+  screen.move(cx, cy - 14);      screen.line(cx - 8, cy + 14); screen.stroke()
+  -- faint ore vein
+  screen.level(9); screen.move(cx + 2, cy - 8); screen.line(cx + 8, cy + 2); screen.stroke()
   -- glowing ore eyes
-  screen.level(15)
-  screen.pixel(cx - 6, cy - 6)
-  screen.pixel(cx + 6, cy - 4)
-  -- arms (stubby boulders)
-  screen.level(11)
-  screen.rect(cx - 20, cy - 4, 4, 12); screen.fill()
-  screen.rect(cx + 16, cy - 2, 4, 12); screen.fill()
+  screen.level(15); screen.rect(cx - 7, cy - 7, 2, 2); screen.rect(cx + 5, cy - 5, 2, 2); screen.fill()
+  -- boulder arms w/ top-light
+  screen.level(8);  screen.rect(cx - 20, cy - 4, 4, 12); screen.rect(cx + 16, cy - 2, 4, 12); screen.fill()
+  screen.level(11); screen.rect(cx - 20, cy - 4, 4, 1); screen.rect(cx + 16, cy - 2, 4, 1); screen.fill()
 end
 
 function DRAW_ENEMY.crow(cx, cy)
@@ -25200,24 +25210,28 @@ function DRAW_ENEMY.lich(cx, cy)
 end
 
 function DRAW_ENEMY.voidcrawler(cx, cy)
-  -- many-legged shadow with glowing dots
-  screen.level(0)
-  screen.rect(cx - 14, cy - 6, 28, 14); screen.fill()
-  screen.level(2)
-  screen.rect(cx - 10, cy - 4, 20, 10); screen.fill()
-  -- legs
-  screen.level(11)
-  for i = 0, 4 do
-    screen.move(cx - 10 + i * 5, cy + 6)
-    screen.line(cx - 10 + i * 5, cy + 12)
-    screen.stroke()
+  -- many-legged void: near-black body w/ faint inner mass + rim sheen,
+  -- twitching legs, mandibles, and a sweeping row of eyes where the
+  -- active one flares bright + large (the rest are dim).
+  screen.level(0); screen.rect(cx - 14, cy - 6, 28, 14); screen.fill()      -- void body
+  screen.level(2); screen.rect(cx - 10, cy - 4, 20, 10); screen.fill()      -- faint inner mass
+  screen.level(1); screen.rect(cx - 12, cy - 5, 24, 1); screen.fill()       -- top rim sheen
+  -- twitching legs (per-leg phase)
+  screen.level(8)
+  for i = 0, 5 do
+    local t = ((tick // 3) + i) % 2
+    screen.move(cx - 12 + i * 5, cy + 6); screen.line(cx - 12 + i * 5 - 1 + t, cy + 12); screen.stroke()
   end
-  -- glowing eye-line (animated)
+  -- mandibles
+  screen.level(6); screen.pixel(cx - 13, cy + 5); screen.pixel(cx + 13, cy + 5); screen.fill()
+  -- sweeping eye-row (active eye flares; fixes the old no-op loop)
   local s = (tick // 4) % 4
-  screen.level(15)
   for i = 0, 3 do
-    if i == s then screen.pixel(cx - 6 + i * 4, cy - 1)
-    else screen.pixel(cx - 6 + i * 4, cy - 1) end
+    if i == s then
+      screen.level(15); screen.rect(cx - 6 + i * 4, cy - 2, 2, 2); screen.fill()
+    else
+      screen.level(9); screen.pixel(cx - 6 + i * 4, cy - 1); screen.fill()
+    end
   end
 end
 
