@@ -24767,6 +24767,35 @@ function DRAW_ENEMY.dummy(cx, cy)
   screen.pixel(math.floor(cx + 1 + sway), math.floor(cy - 10)); screen.fill()
 end
 
+function DRAW_ENEMY.silencer(cx, cy)
+  -- Suno's faceless enforcer: a tall dark uniform (lit left, shadowed
+  -- right), shoulder guards, a blank faceplate with a single slit (no
+  -- eyes), a tuning-fork antenna, and the resonator coil humming on its
+  -- chest -- the wire it shares with Sergei's machine.
+  local hum = (tick % 20 < 10) and 0 or 1
+  -- torso
+  screen.level(5);  screen.rect(cx - 6, cy - 4, 12, 16); screen.fill()
+  screen.level(8);  screen.rect(cx - 6, cy - 4, 2, 16); screen.fill()   -- lit left edge
+  screen.level(3);  screen.rect(cx + 4, cy - 4, 2, 16); screen.fill()   -- shadow right edge
+  -- shoulder guards
+  screen.level(7);  screen.rect(cx - 9, cy - 5, 4, 3); screen.rect(cx + 5, cy - 5, 4, 3); screen.fill()
+  -- legs
+  screen.level(3);  screen.rect(cx - 5, cy + 12, 3, 4); screen.rect(cx + 2, cy + 12, 3, 4); screen.fill()
+  -- head: smooth blank faceplate w/ helm highlight
+  screen.level(9);  screen.rect(cx - 4, cy - 12, 8, 8); screen.fill()
+  screen.level(11); screen.rect(cx - 4, cy - 12, 8, 1); screen.fill()
+  screen.level(0);  screen.rect(cx - 3, cy - 8, 6, 1); screen.fill()    -- the silencing slit
+  -- tuning-fork antenna
+  screen.level(10)
+  screen.move(cx - 1, cy - 12); screen.line(cx - 1, cy - 15); screen.stroke()
+  screen.move(cx + 1, cy - 12); screen.line(cx + 1, cy - 15); screen.stroke()
+  -- resonator coil on the chest (faint hum pulse) + trailing wire
+  screen.level(10 + hum * 3)
+  screen.circle(cx, cy + 3, 3); screen.stroke()
+  screen.level(13); screen.pixel(cx, cy + 3)
+  screen.level(6);  screen.move(cx, cy + 6); screen.line(cx, cy + 11); screen.stroke()
+end
+
 function DRAW_ENEMY.slime(cx, cy)
   local pulse = (tick % 4) / 4
   local r = 6 + math.floor(math.sin(pulse * math.pi * 2) * 1.5)
@@ -28963,6 +28992,8 @@ BESTIARY_LORE = {
                 "cleric @ MIDI 28 — faltering hymn"},
   firstchord = {"The Held Chord before it broke,", "given shape. The music tests you.",
                 "cleric @ MIDI 12 — primordial drone"},
+  silencer   = {"Suno's faceless enforcer. Built", "from the wire that mutes a song.",
+                "warrior @ MIDI 24 — dead-dry stab"},
 }
 
 UI.draw_bestiary = function()
