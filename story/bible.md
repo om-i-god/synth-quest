@@ -1184,15 +1184,17 @@ All `STATUS: PROPOSED`; pattern values are placeholders.
 
    ── ICE GROTTO STANDARD ENEMIES ──
 
+   STATUS: IN CODE. These five now spawn in the Cave 5 pool (visuals:
+   acolyte / hollowbell / brokenchoir / drownedsinger / sunolieut),
+   alongside the frozen beasts (Frost Wisp, Yeti, Granite Beast, Crow
+   Wraith) that share the grotto. Each has a sprite, bestiary entry,
+   elemental affinity, and XP/gold. Snowgaunt remains the shard boss.
+
    ACOLYTE       HP 130  atk 5   pattern {6,6,6,6}        cleric soft
    HOLLOW BELL   HP 240  atk 7   pattern {16,16}          warrior toll
    BROKEN CHOIR  HP 100  atk 4   pattern {4,4,4,4,4}      cleric crack
    DROWNED SINGER HP 160 atk 6   pattern {8,8,12}         bard waterlog
    SUNO LIEUT.   HP 220  atk 8   pattern {6,6,6,6}        warrior square
-
-   (Note: code currently uses generic Northern-Wilds enemies — Frost
-   Wisp, Yeti, Granite Beast, Crow Wraith, Lich, Voidcrawler. Either
-   set may be canon depending on later balance work.)
 
    SHARD BOSS:
    SNOWGAUNT    HP 1500  atk 13  pattern {12,8,16,8}      cleric breath

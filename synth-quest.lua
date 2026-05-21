@@ -419,6 +419,28 @@ local CAVE5_ENCOUNTERS = {
     attack_pattern={3, 3, 3, 5, 3, 3, 8},                    -- shrieking flurry
     attack_sound={class="bard", note=76, vel=0.50, attack=0.003, release=0.60, wet=0.70},
     visual="crow" },
+  -- Ice Grotto canon set (story bible): the drowned-cathedral remnants the
+  -- shard's grief froze into the rock, alongside the frozen beasts above.
+  { name="Acolyte",       hp=130, atk=5,
+    attack_pattern={6, 6, 6, 6},                             -- soft devotional pulse
+    attack_sound={class="cleric", note=60, vel=0.45, attack=0.04, release=1.20, wet=0.60},
+    visual="acolyte" },
+  { name="Hollow Bell",   hp=240, atk=7,
+    attack_pattern={16, 16},                                 -- a slow, heavy toll
+    attack_sound={class="warrior", note=31, vel=0.72, attack=0.01, release=2.50, wet=0.50},
+    visual="hollowbell" },
+  { name="Broken Choir",  hp=100, atk=4,
+    attack_pattern={4, 4, 4, 4, 4},                          -- cracked, rapid voices
+    attack_sound={class="cleric", note=55, vel=0.40, attack=0.005, release=0.30, wet=0.50},
+    visual="brokenchoir" },
+  { name="Drowned Singer", hp=160, atk=6,
+    attack_pattern={8, 8, 12},                               -- waterlogged, dragging
+    attack_sound={class="bard", note=50, vel=0.50, attack=0.05, release=1.50, wet=0.90},
+    visual="drownedsinger" },
+  { name="Suno Lieutenant", hp=220, atk=8,
+    attack_pattern={6, 6, 6, 6},                             -- square, militaristic
+    attack_sound={class="warrior", note=40, vel=0.75, attack=0.005, release=0.25, wet=0.20},
+    visual="sunolieut" },
 }
 
 local CAVE5_BOSS = { name="Snowgaunt", hp=1500, atk=14,
@@ -488,6 +510,7 @@ local function enemy_xp(name)
     Crab=11, Manta=20, ["Tide Sprite"]=18, ["Sea Wisp"]=16,
     Scorpion=22, Spectre=24, ["Sand Manta"]=30, ["Dune Wolf"]=28,
     Yeti=42, ["Frost Wisp"]=28, ["Granite Beast"]=50, ["Crow Wraith"]=36,
+    Acolyte=24, ["Hollow Bell"]=40, ["Broken Choir"]=20, ["Drowned Singer"]=30, ["Suno Lieutenant"]=38,
     Lich=55, Voidcrawler=42, ["Echo of Suno"]=60, ["Mute Warden"]=70,
     ["Cave Echo"]=60, ["Forest Sentinel"]=90, Tidewatch=120, ["Dune Rider"]=160,
     Snowgaunt=200, Locrius=260, Suno=400,
@@ -504,6 +527,7 @@ local function enemy_gold(name)
     Crab=8, Manta=12, ["Tide Sprite"]=10, ["Sea Wisp"]=9,
     Scorpion=14, Spectre=14, ["Sand Manta"]=18, ["Dune Wolf"]=16,
     Yeti=22, ["Frost Wisp"]=14, ["Granite Beast"]=26, ["Crow Wraith"]=18,
+    Acolyte=12, ["Hollow Bell"]=20, ["Broken Choir"]=10, ["Drowned Singer"]=15, ["Suno Lieutenant"]=19,
     Lich=28, Voidcrawler=22, ["Echo of Suno"]=30, ["Mute Warden"]=36,
     ["Cave Echo"]=80, ["Forest Sentinel"]=140, Tidewatch=200, ["Dune Rider"]=260,
     Snowgaunt=320, Locrius=420, Suno=999,
@@ -15809,6 +15833,12 @@ ELEMENTAL_AFFINITY = {
   granite    = {weak = "dorian",     resist = "aeolian"},
   crow       = {weak = "lydian",     resist = "locrian"},
   snowgaunt  = {weak = "phrygian",   resist = "aeolian"},
+  -- Ice Grotto canon set
+  acolyte      = {weak = "phrygian", resist = "aeolian"},
+  hollowbell   = {weak = "phrygian", resist = "aeolian"},
+  brokenchoir  = {weak = "ionian",   resist = "locrian"},   -- a choir that needs resolving
+  drownedsinger= {weak = "lydian",   resist = "aeolian"},   -- bright air against the waterlog
+  sunolieut    = {weak = "ionian",   resist = "locrian"},   -- Suno's forces resist the unresolved
   lich       = {weak = "ionian",     resist = "locrian"},
   voidcrawler= {weak = "lydian",     resist = "locrian"},
   echosuno   = {weak = "lydian",     resist = "locrian"},
@@ -25413,6 +25443,101 @@ function DRAW_ENEMY.snowgaunt(cx, cy)
   screen.pixel(cx + 12 - s, cy + 16)
 end
 
+-- ── Ice Grotto canon set (Cave 5 / story bible) ──────────────────────────
+function DRAW_ENEMY.acolyte(cx, cy)
+  -- a worshipper frozen mid-prayer: short hooded robe (lit left, shadowed
+  -- right), bowed hood, hands pressed at the chest, a faint frost halo.
+  screen.level(6)
+  screen.move(cx, cy - 6); screen.line(cx - 7, cy + 10); screen.line(cx + 7, cy + 10); screen.close(); screen.fill()
+  screen.level(3)
+  screen.move(cx, cy - 6); screen.line(cx + 7, cy + 10); screen.line(cx + 2, cy + 10); screen.close(); screen.fill()
+  screen.level(9)
+  screen.move(cx, cy - 6); screen.line(cx - 7, cy + 10); screen.stroke()
+  -- bowed hood + face shadow
+  screen.level(4); screen.rect(cx - 3, cy - 9, 6, 4); screen.fill()
+  screen.level(2); screen.rect(cx - 2, cy - 6, 4, 1); screen.fill()
+  -- pressed hands at the chest
+  screen.level(11); screen.rect(cx - 1, cy - 1, 2, 4); screen.fill()
+  -- faint frost halo (slow shimmer)
+  local h = (tick % 24 < 12) and 7 or 4
+  screen.level(h)
+  screen.pixel(cx - 5, cy - 8); screen.pixel(cx + 5, cy - 8); screen.pixel(cx, cy - 11); screen.fill()
+end
+
+function DRAW_ENEMY.hollowbell(cx, cy)
+  -- a cracked cathedral bell tolling under the ice: trapezoid body (lit
+  -- crown, shadow lip), a jagged crack, a frost rim, a swaying clapper.
+  local sway = math.floor(math.sin(tick / 7) * 1)
+  -- yoke / mount
+  screen.level(4); screen.rect(cx - 8, cy - 12, 16, 2); screen.fill()
+  screen.level(6); screen.move(cx, cy - 10); screen.line(cx, cy - 12); screen.stroke()
+  -- bell body (trapezoid)
+  screen.level(9)
+  screen.move(cx - 4, cy - 9); screen.line(cx + 4, cy - 9); screen.line(cx + 9, cy + 8); screen.line(cx - 9, cy + 8); screen.close(); screen.fill()
+  screen.level(13); screen.move(cx - 4, cy - 9); screen.line(cx + 4, cy - 9); screen.stroke()
+  screen.level(5);  screen.rect(cx - 9, cy + 6, 18, 2); screen.fill()
+  -- jagged crack
+  screen.level(2)
+  screen.move(cx + 2, cy - 8); screen.line(cx - 1, cy - 3); screen.line(cx + 2, cy + 1); screen.line(cx - 1, cy + 7); screen.stroke()
+  -- frost rim
+  screen.level(15); screen.pixel(cx - 9, cy + 8); screen.pixel(cx + 9, cy + 8); screen.pixel(cx, cy + 8); screen.fill()
+  -- clapper (sways)
+  screen.level(3); screen.rect(cx - 1 + sway, cy + 2, 2, 5); screen.fill()
+end
+
+function DRAW_ENEMY.brokenchoir(cx, cy)
+  -- five cracked voices, no center: a huddle of pale heads with open
+  -- singing mouths, each pulsing on its own phase (no shared downbeat).
+  local heads = {{-7, 2}, {-3, -2}, {1, 1}, {5, -3}, {7, 3}}
+  for i, hd in ipairs(heads) do
+    local hx, hy = cx + hd[1], cy + hd[2]
+    local on = ((tick // 4) + i) % 3
+    screen.level(on == 0 and 11 or 6)
+    screen.circle(hx, hy, 2); screen.fill()
+    screen.level(0); screen.pixel(hx, hy + 1); screen.fill()       -- open mouth
+    screen.level(2); screen.pixel(hx - 1, hy - 1); screen.fill()   -- crack
+  end
+  -- thin robed mass below
+  screen.level(4); screen.rect(cx - 8, cy + 5, 16, 5); screen.fill()
+  screen.level(2); screen.rect(cx - 8, cy + 9, 16, 1); screen.fill()
+end
+
+function DRAW_ENEMY.drownedsinger(cx, cy)
+  -- sang as the cold took the grotto: a pale waterlogged figure, head
+  -- tilted back mid-note, water beading and dripping from the hem.
+  screen.level(6); screen.rect(cx - 5, cy - 4, 10, 14); screen.fill()
+  screen.level(9); screen.rect(cx - 5, cy - 4, 2, 14); screen.fill()   -- wet sheen
+  screen.level(3); screen.rect(cx + 3, cy - 4, 2, 14); screen.fill()   -- shadow
+  -- head tilted back, mouth open
+  screen.level(10); screen.rect(cx - 3, cy - 10, 6, 6); screen.fill()
+  screen.level(0);  screen.rect(cx - 1, cy - 6, 2, 2); screen.fill()
+  screen.level(13); screen.pixel(cx - 2, cy - 9); screen.pixel(cx + 1, cy - 9); screen.fill()
+  -- dripping water (animated)
+  local d = (tick // 4) % 6
+  screen.level(12)
+  screen.pixel(cx - 4, cy + 10 + (d % 4)); screen.pixel(cx + 4, cy + 10 + ((d + 2) % 4)); screen.fill()
+end
+
+function DRAW_ENEMY.sunolieut(cx, cy)
+  -- Suno's officer: square-shouldered uniform (lit left, shadow right),
+  -- heavy epaulettes, a blank slit faceplate like the rank-and-file
+  -- silencer, and a rank sigil pulsing on the chest.
+  screen.level(6);  screen.rect(cx - 7, cy - 4, 14, 16); screen.fill()
+  screen.level(9);  screen.rect(cx - 7, cy - 4, 2, 16); screen.fill()
+  screen.level(3);  screen.rect(cx + 5, cy - 4, 2, 16); screen.fill()
+  -- epaulettes
+  screen.level(8);  screen.rect(cx - 10, cy - 5, 4, 4); screen.rect(cx + 6, cy - 5, 4, 4); screen.fill()
+  -- legs
+  screen.level(3);  screen.rect(cx - 6, cy + 12, 4, 4); screen.rect(cx + 2, cy + 12, 4, 4); screen.fill()
+  -- head: blank faceplate w/ slit
+  screen.level(10); screen.rect(cx - 4, cy - 11, 8, 7); screen.fill()
+  screen.level(0);  screen.rect(cx - 3, cy - 8, 6, 1); screen.fill()
+  -- rank sigil (inverted triangle, faint pulse)
+  local p = (tick % 30 < 22) and 13 or 8
+  screen.level(p)
+  screen.move(cx - 2, cy + 1); screen.line(cx + 2, cy + 1); screen.line(cx, cy + 4); screen.close(); screen.fill()
+end
+
 -- Cave 6 + 7 enemies (Suno's Domain)
 function DRAW_ENEMY.lich(cx, cy)
   -- skeletal robed figure: shaded robe (lit left, shadowed right) with a
@@ -28980,6 +29105,16 @@ BESTIARY_LORE = {
                 "bard @ MIDI 67 — squawk"},
   snowgaunt  = {"Cave-5 boss. Waltzes in three.", "Don't follow its meter.",
                 "warrior @ MIDI 21 — bone clack"},
+  acolyte    = {"A worshipper frozen mid-prayer.", "Still keeping the soft tempo.",
+                "cleric @ MIDI 60 — soft devotion"},
+  hollowbell = {"Cracked cathedral bell, still",   "tolling under the ice.",
+                "warrior @ MIDI 31 — heavy toll"},
+  brokenchoir= {"What's left of Lirael's choir.",  "Five cracked voices, no center.",
+                "cleric @ MIDI 55 — cracked"},
+  drownedsinger = {"Sang as the cold took the",    "grotto. The song waterlogged.",
+                "bard @ MIDI 50 — waterlogged"},
+  sunolieut  = {"Suno's officer, posted to guard", "a shard already sent away.",
+                "warrior @ MIDI 40 — square march"},
   lich       = {"Robed and bone-fingered.",       "Conducts pain like a downbeat.",
                 "cleric @ MIDI 31 — dark hymn"},
   voidcrawler= {"Many-legged shadow. Each",       "leg a separate pulse.",
