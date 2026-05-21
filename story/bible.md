@@ -1053,13 +1053,16 @@ The eight proposed Resonances:
       one beat late at 50% damage.
       MP cost: 4
 
-   2. THE MASKED VOICE — vocoder
+   2. THE MASKED VOICE — vocoder       [STATUS: IN CODE]
       Myth: a courtier who could sing in any other person's voice.
       Suno hired and discarded her; her voice became the apparatus
       he uses now. The Resonance is what's left of her own.
       Effect: for one bar, all party damage carries the active
       voice's mode (mode-bonus stacking).
       MP cost: 6
+      Acquisition: Diegues's (mage) Resonance. Attune at Velthe's desk
+      in the Observatory — talk to Iola as the mage lead (she appears
+      after the Velthe entry). Effect + acquisition wired.
 
    3. THE SPRING — spring reverb       [STATUS: IN CODE]
       Myth: an old hermit who lived in a tin shack and could turn
@@ -1089,27 +1092,36 @@ The eight proposed Resonances:
       damage (their voices duck under the party's downbeats).
       MP cost: 6
 
-   6. THE SCATTER — granular cloud
+   6. THE SCATTER — granular cloud       [STATUS: IN CODE]
       Myth: a singer who fell into a bell-mine and was crushed.
       The mine echoed her in tiny shards for a year. She is the
       shards.
       Effect: applies CONFUSE to a single enemy for 4 bars; their
       attack pattern randomizes.
       MP cost: 4
+      Acquisition: Sergei's (engineer) Resonance. Attune in the
+      Phrygian bazaar — talk to Mira (the drone-singer) as the
+      engineer lead. Effect + acquisition wired.
 
-   7. THE SLOW WHEEL — analog phaser
+   7. THE SLOW WHEEL — analog phaser       [STATUS: IN CODE]
       Myth: a millwright who tuned her wheel to a slow phase and
       it never stopped turning, even after the mill burned.
       Effect: party SPD +1 for the next 4 bars.
       MP cost: 4
+      Acquisition: Strom's (warrior) Resonance. Attune at the Sunward
+      Coast — talk to Hask as the warrior lead. Effect + acquisition
+      wired.
 
-   8. THE THREEFOLD — vintage chorus
+   8. THE THREEFOLD — vintage chorus       [STATUS: IN CODE]
       Myth: three sisters who sang together so closely no one ever
       knew which was which. One died; the other two kept singing
       for three.
       Effect: party heal-on-cast — every party action this bar also
       heals the caster for 5% HP.
       MP cost: 8
+      Acquisition: Paj's (mathwiz) Resonance. Attune at the Academy —
+      talk to Master Theron as the mathwiz lead. Effect + acquisition
+      wired.
 
 The intent is that Resonances are MEMORABLE rather than balanced.
 Players should learn their names and call them by name in their

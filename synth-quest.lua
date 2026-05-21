@@ -286,7 +286,26 @@ RESONANCE_SITES = {
       },
     },
   },
-  masked_voice = { item = nil, shrine = nil },
+  masked_voice = {
+    item = {
+      kind  = "auto",
+      label = "The Vocoder Mask",
+      lead  = "mage",
+      hint  = "Velthe's desk at the Observatory (mage lead)",
+    },
+    shrine = {
+      map  = 24, x = 12, y = 8, lead = "mage",
+      signature = {
+        visual = "observatory_masked_voice",
+        sound  = { class = "mage", note = 72, vel = 0.7, attack = 0.05, release = 4.0, wet = 1.0 },
+        dialogue = {
+          "(Diegues lays the cracked vocoder-mask on Velthe's desk. It hums in a voice that is not his.)",
+          "[Diegues] A courtier who could sing as anyone. Suno's apparatus took her voice -- this is the rest of it.",
+          "(he says one word. It comes back in five voices, then settles into his own.)",
+        },
+      },
+    },
+  },
   spring       = {
     item = {
       kind  = "auto",
@@ -309,9 +328,66 @@ RESONANCE_SITES = {
       },
     },
   },
-  scatter      = { item = nil, shrine = nil },
-  slow_wheel   = { item = nil, shrine = nil },
-  threefold    = { item = nil, shrine = nil },
+  scatter      = {
+    item = {
+      kind  = "auto",
+      label = "Bell-Mine Shards",
+      lead  = "engineer",
+      hint  = "Mira in the Phrygian bazaar (engineer lead)",
+    },
+    shrine = {
+      map  = 36, x = 23, y = 8, lead = "engineer",
+      signature = {
+        visual = "phrygian_scatter",
+        sound  = { class = "mage", note = 60, vel = 0.65, attack = 0.005, release = 2.0, wet = 0.8 },
+        dialogue = {
+          "(Sergei pries a shard of bell-bronze from the bazaar wall. It is still warm with sound.)",
+          "[Sergei]  A singer went down in a bell-mine. It kept her -- in pieces, for a year. These are the pieces.",
+          "(he scatters the shards; each one rings a fragment of the same lost note.)",
+        },
+      },
+    },
+  },
+  slow_wheel   = {
+    item = {
+      kind  = "auto",
+      label = "The Slow Wheel",
+      lead  = "warrior",
+      hint  = "Hask at the Sunward Coast (warrior lead)",
+    },
+    shrine = {
+      map  = 35, x = 25, y = 6, lead = "warrior",
+      signature = {
+        visual = "sunward_slow_wheel",
+        sound  = { class = "warrior", note = 36, vel = 0.7, attack = 0.02, release = 3.0, wet = 0.4 },
+        dialogue = {
+          "(Strom sets his hand on the old harbor capstan. It turns -- slow, even, on its own.)",
+          "[Strom]   A millwright tuned her wheel to a slow phase. The mill burned. The wheel never stopped.",
+          "(the capstan keeps turning under his palm, dragging the room half a step behind the beat.)",
+        },
+      },
+    },
+  },
+  threefold    = {
+    item = {
+      kind  = "auto",
+      label = "The Three Forks",
+      lead  = "mathwiz",
+      hint  = "Master Theron at the Academy (mathwiz lead)",
+    },
+    shrine = {
+      map  = 19, x = 5, y = 2, lead = "mathwiz",
+      signature = {
+        visual = "academy_threefold",
+        sound  = { class = "bard", note = 64, vel = 0.65, attack = 0.03, release = 3.5, wet = 0.7 },
+        dialogue = {
+          "(Paj sets three tuning forks on the table and strikes them as one chord.)",
+          "[Paj]     Three sisters, one voice between them. One died and the chord did not lose a part.",
+          "(the forks ring together; a third tone appears that she never struck.)",
+        },
+      },
+    },
+  },
 }
 
 -- Each enemy has its own attack sequence (gaps between hits, looped) and
@@ -3076,6 +3152,17 @@ CONTENT = {
           }
         end
       end,
+      -- The Threefold attunement: Paj (mathwiz lead) attunes here, where the
+      -- Academy keeps the lore of the three sisters.
+      scene = function()
+        local lead = party[active] and party[active].class
+        if lead == "mathwiz" and CONTENT.resonances and CONTENT.resonances.threefold
+           and not CONTENT.resonances.threefold.attuned
+           and build_resonance_attunement_script then
+          CONTENT.resonances.threefold.item = true
+          return build_resonance_attunement_script("threefold")
+        end
+      end,
     },
     -- Aurin — junior scholar (from bible stub)
     {
@@ -4100,6 +4187,17 @@ CONTENT = {
             "It's quieter here than the Academy. I think",
             "she preferred it.",
           }
+        end
+      end,
+      -- The Masked Voice attunement: Diegues (mage lead) attunes here at
+      -- Velthe's desk. Iola is only visible after velthes_entry_heard.
+      scene = function()
+        local lead = party[active] and party[active].class
+        if lead == "mage" and CONTENT.resonances and CONTENT.resonances.masked_voice
+           and not CONTENT.resonances.masked_voice.attuned
+           and build_resonance_attunement_script then
+          CONTENT.resonances.masked_voice.item = true
+          return build_resonance_attunement_script("masked_voice")
         end
       end,
     },
@@ -12935,6 +13033,17 @@ CONTENT.sunward_coast_npcs = {
       end
     end,
     barks = {"(he wipes a glass)", "(eyes the door)"},
+    -- The Slow Wheel attunement: Strom (warrior lead) attunes here on the
+    -- harbor capstan; Hask has buried enough soldiers to know the weight.
+    scene = function()
+      local lead = party[active] and party[active].class
+      if lead == "warrior" and CONTENT.resonances and CONTENT.resonances.slow_wheel
+         and not CONTENT.resonances.slow_wheel.attuned
+         and build_resonance_attunement_script then
+        CONTENT.resonances.slow_wheel.item = true
+        return build_resonance_attunement_script("slow_wheel")
+      end
+    end,
   },
   -- Coral — 12-year-old aspiring singer
   { x = 17, y = 6, name = "Coral", kind = "npc",
@@ -13102,6 +13211,17 @@ CONTENT.phrygian_city_npcs = {
           "(a drone-singer, holding one note for a long time)",
           "(she nods when you pass)",
         }
+      end
+    end,
+    -- The Scatter attunement: Sergei (engineer lead) attunes here in the
+    -- bazaar, among the bell-bronze the mine left behind.
+    scene = function()
+      local lead = party[active] and party[active].class
+      if lead == "engineer" and CONTENT.resonances and CONTENT.resonances.scatter
+         and not CONTENT.resonances.scatter.attuned
+         and build_resonance_attunement_script then
+        CONTENT.resonances.scatter.item = true
+        return build_resonance_attunement_script("scatter")
       end
     end,
   },
