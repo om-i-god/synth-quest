@@ -1061,13 +1061,17 @@ The eight proposed Resonances:
       voice's mode (mode-bonus stacking).
       MP cost: 6
 
-   3. THE SPRING — spring reverb
+   3. THE SPRING — spring reverb       [STATUS: IN CODE]
       Myth: an old hermit who lived in a tin shack and could turn
       any sound into a long shimmering wash. He left his shack one
       morning and the wash kept going.
       Effect: the next heal echoes for two more bars at 25% per
       bar. Stacks weakly with Miel's heal.
       MP cost: 4
+      Acquisition: Alder's (bard) Resonance. The Hermit's Spring is
+      granted at the Sunward Coast bandstand homecoming (talk to Mara
+      as the bard lead, at night). Attune by returning to Mara at the
+      bandstand. Effect + acquisition both wired.
 
    4. THE RING — ring modulator
       Myth: two bell-tuners who married and learned to multiply

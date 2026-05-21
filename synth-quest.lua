@@ -287,7 +287,28 @@ RESONANCE_SITES = {
     },
   },
   masked_voice = { item = nil, shrine = nil },
-  spring       = { item = nil, shrine = nil },
+  spring       = {
+    item = {
+      kind  = "auto",
+      label = "The Hermit's Spring",
+      lead  = "bard",
+      hint  = "Alder's homecoming at the Sunward Coast bandstand",
+    },
+    shrine = {
+      map  = 35,
+      x    = 16, y = 5,
+      lead = "bard",
+      signature = {
+        visual = "sunward_bandstand_resonant",
+        sound  = { class = "bard", note = 67, vel = 0.7, attack = 0.05, release = 4.5, wet = 1.0 },
+        dialogue = {
+          "(Alder lays his hand flat on the bandstand rail. The sea answers under the boards.)",
+          "[Alder]   There was a hermit down the shore -- turned any sound into a long wash, then walked off into it.",
+          "(he plays a single note. It does not stop. It spreads out over the water and keeps going.)",
+        },
+      },
+    },
+  },
   scatter      = { item = nil, shrine = nil },
   slow_wheel   = { item = nil, shrine = nil },
   threefold    = { item = nil, shrine = nil },
@@ -6638,10 +6659,15 @@ end
 -- attunement scenes. Reads RESONANCE_SITES[id].shrine.signature for the
 -- per-Resonance overrides (visual scene-id, sound spec, dialogue lines).
 -- Sets CONTENT.resonances[id].attuned = true at the end.
-function start_resonance_attunement(id)
+-- Builds (and returns) the attunement scene script for Resonance `id`,
+-- or nil if its shrine isn't populated. Split out from the starter so an
+-- NPC `scene` closure can RETURN this script (the npc.scene mechanism
+-- SCENE.starts whatever the closure returns), while tile-step shrines
+-- call start_resonance_attunement() to start it directly.
+function build_resonance_attunement_script(id)
   local r   = RESONANCES[id]
   local s   = RESONANCE_SITES[id] and RESONANCE_SITES[id].shrine
-  if not (r and s and s.signature) then return end
+  if not (r and s and s.signature) then return nil end
   local sig = s.signature
   local px, py = player.x, player.y
   local script = {
@@ -6674,7 +6700,14 @@ function start_resonance_attunement(id)
     {show_player = true},
     {letterbox_out = true},
   }
-  SCENE.start(script)
+  return script
+end
+
+-- Starts an attunement directly. Tile-step shrines (ring/long_echo/
+-- heavy_hand) call this; NPC-triggered shrines return the built script.
+function start_resonance_attunement(id)
+  local script = build_resonance_attunement_script(id)
+  if script then SCENE.start(script) end
 end
 
 function start_prologue_throne_scene()
@@ -8038,10 +8071,18 @@ function start_sunward_bandstand_scene()
           end
         end
       end
+      -- The hermit's lingering wash answers Alder's playing: he gains the
+      -- Hermit's Spring (item for The Spring Resonance). Attune it by
+      -- returning to Mara at the bandstand as the bard lead.
+      if CONTENT.resonances and CONTENT.resonances.spring then
+        CONTENT.resonances.spring.item = true
+      end
     end},
     {dialogue = {
       "(You feel a small lift in your chest.)",
       "Alder's MAG +1.",
+      "(Out past the surf an old note keeps spreading, and will not stop.)",
+      "Obtained: The Hermit's Spring.",
     }, npc = nil},
   }
   return script
@@ -12849,6 +12890,15 @@ CONTENT.sunward_coast_npcs = {
       local lead = party[active] and party[active].class
       if lead == "bard" and not flag.bandstand_done and sq_is_night and sq_is_night() then
         return start_sunward_bandstand_scene()
+      end
+      -- The Spring attunement: once the homecoming has granted the Hermit's
+      -- Spring, a bard-lead return to Mara at the bandstand attunes it.
+      -- Return the built script (the npc.scene caller SCENE.starts it).
+      if lead == "bard" and CONTENT.resonances and CONTENT.resonances.spring
+         and CONTENT.resonances.spring.item
+         and not CONTENT.resonances.spring.attuned
+         and build_resonance_attunement_script then
+        return build_resonance_attunement_script("spring")
       end
     end,
   },
