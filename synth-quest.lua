@@ -3834,12 +3834,22 @@ CONTENT = {
     {
       x = 35, y = 3, name = "Winna", kind = "npc",
       dialogue = function()
-        return {
-          "(she's sorting half-burned papers)",
-          "I'm trying to recover the cathedral library.",
-          "Here — this was your mother's. Or grandmother's.",
-          "I can't tell anymore.",
-        }
+        local lead = party[active] and party[active].class
+        if lead == "cleric" then
+          return {
+            "(she's sorting half-burned papers)",
+            "I'm trying to recover the cathedral library.",
+            "Here — this was your mother's. Or grandmother's.",
+            "I can't tell anymore. But it's yours, Princess.",
+          }
+        else
+          return {
+            "(she's sorting half-burned papers)",
+            "I'm trying to recover the cathedral library.",
+            "All of it was the queen's line's, once.",
+            "Now I can't tell one hand from another.",
+          }
+        end
       end,
     },
     -- The broken chorister — sings one line, again and again.
