@@ -1972,3 +1972,47 @@ palm flat to the basin)" kept — an 8x8 sprite can't kneel; that's
 exactly what narration is for. Prologue throne scene reviewed and
 left alone: its captions are atmosphere already paired with
 shake/sfx staging.
+
+## 2026-07-02 (night) — the 8 Resonance signature panels finally show
+
+Built the 5 missing shrine panels AND the mechanism that displays
+all 8 (the 3 that already existed — bell alcove, astrolabe,
+drum-hall — were orphaned art nothing ever invoked):
+
+- New SCENE steps: {show_panel = "<SCENE_DRAW key>"} / {hide_panel}.
+  Panel draws at the very end of draw_overworld — over the world,
+  under the dialogue box and the global fade. Cleared on
+  SCENE.start, scene end, and load_game.
+- build_resonance_attunement_script shows sig.visual for the
+  signature sound (a ~36 hold so you actually see it), through the
+  dialogue, and a clean ~20 hold after, then hides it before the
+  banner.
+- Five new panels, matching the established idiom (dark ground,
+  location silhouette, tick-animated resonance motif, solid
+  character silhouette):
+  - observatory_masked_voice — Velthe's star-window + floating
+    mask; the voice-line beneath it re-sings itself as a square
+    wave every half-cycle.
+  - sunward_bandstand_resonant — bandstand at golden hour; Spring
+    droplets rise through the boards; every water ring is answered
+    by a dimmer echo of itself a beat later.
+  - phrygian_scatter — night bazaar; seven bright points jump to
+    new (hash-deterministic) positions every beat around Sergei's
+    rig.
+  - sunward_slow_wheel — the harbor capstan turning slow and even
+    on its own, Strom's hand on the rim.
+  - academy_threefold — three tuning forks struck as one; three
+    ring-sets bloom and meet in the middle.
+
+Review (subagent) caught the killer before it shipped: the panel
+hook lives in draw_overworld, which is defined BEFORE the
+`local SCENE_DRAW` declaration — the reference compiled as a
+never-assigned GLOBAL read, so every panel would have silently
+drawn nothing (the documented Lua local-scoping trap; luac can't
+see it). Fixed with a _G.SCENE_DRAW mirror, same pattern as
+_G.travel_to. Also per review: per-droplet fill in the bandstand
+loop (level batching), SCENE.panel cleared in the end-of-script
+reset, longer unobstructed holds around the dialogue box.
+
+NOT YET DEVICE-VERIFIED: needs an attunement playthrough (no new
+SynthDefs — script reload is enough).

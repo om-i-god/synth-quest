@@ -6861,12 +6861,23 @@ function build_resonance_attunement_script(id)
      name = (party[active] and CHAR_NAME[party[active].class]) or "",
      x = px, y = py, facing = "up", bob = false},
     {wait = 14},
+    -- Signature panel: each Resonance's full-screen visual
+    -- (sig.visual → SCENE_DRAW key), shown for the signature sound +
+    -- dialogue. These panels existed as data since the shrines were
+    -- built but were never displayed until the SCENE.panel mechanism
+    -- landed (2026-07-02).
+    {show_panel = sig.visual},
     -- Signature sound (one-shot).
     {sfx = sig.sound},
-    {wait = 8},
+    -- A real look at the panel before the dialogue box covers its lower
+    -- half (waits tick down 2/frame — 36 ≈ a few seconds with the
+    -- signature sound ringing over it).
+    {wait = 36},
     -- Dialogue lines from the signature block.
     {dialogue = sig.dialogue, npc = nil},
-    {wait = 12},
+    -- ...and a clean look again after the box closes.
+    {wait = 20},
+    {hide_panel = true},
     -- Banner + flag flip.
     {set = function()
       CONTENT.banner_text  = "* Resonance learned -- " .. r.name .. " *"
@@ -13931,6 +13942,7 @@ local function load_game()
     SCENE.fade = 0; SCENE.fade_target = 0; SCENE.fade_speed = 0
     SCENE.hide_player = false; SCENE.cam_tween = nil
     SCENE.letterbox = 0; SCENE.letterbox_target = 0
+    SCENE.panel = nil
   end
   if PARTICLES then PARTICLES.pool = {} end
   -- Reset dialogue typewriter state so a load mid-dialogue doesn't show
@@ -22176,6 +22188,10 @@ SCENE.advance = function()
     end
     if step.despawn then SCENE.despawn(step.despawn) end
     if step.despawn_all then SCENE.despawn_all() end
+    -- Full-screen panel overlay (SCENE_DRAW key). show_panel = "<key>"
+    -- displays it until hide_panel (or scene end / new scene).
+    if step.show_panel then SCENE.panel = step.show_panel end
+    if step.hide_panel then SCENE.panel = nil end
     if step.set then pcall(step.set) end
     -- Letterbox bars in / out (FF-style cutscene framing). 6px top + 6px
     -- bottom. Tween rate is roughly 1 px / tick — the tick_tweens loop
@@ -22287,6 +22303,7 @@ SCENE.advance = function()
   SCENE.cam_tween = nil
   SCENE.letterbox = 0
   SCENE.letterbox_target = 0
+  SCENE.panel = nil
   if SCENE.on_complete then
     local cb = SCENE.on_complete; SCENE.on_complete = nil
     pcall(cb)
@@ -22387,6 +22404,7 @@ SCENE.start = function(script, on_done)
   SCENE.fade_speed = 0
   SCENE.hide_player = false
   SCENE.cam_tween = nil
+  SCENE.panel = nil
   SCENE.on_complete = on_done
   SCENE.active = true
   SCENE.advance()
@@ -25027,6 +25045,15 @@ local function draw_overworld()
     screen.pixel(122, 3); screen.pixel(122, 4); screen.pixel(122, 5); screen.fill()
   end
 
+  -- Full-screen scene panel (attunement signature visuals). Drawn OVER
+  -- the world/HUD but UNDER the dialogue box (draw_dialogue calls
+  -- draw_overworld first) and UNDER the global fade overlay (drawn in
+  -- the redraw tail). Set/cleared by the show_panel/hide_panel scene
+  -- steps; only ever visible while a scene is active.
+  if SCENE and SCENE.active and SCENE.panel then
+    local fn = SCENE_DRAW and SCENE_DRAW[SCENE.panel]
+    if fn then fn() end
+  end
 end
 
 -- DAY / NIGHT cycle. ~11 minutes per half-phase at 85 BPM with the
@@ -28252,6 +28279,183 @@ function draw_scene_phrygian_drumhall_resonant()
   screen.level(11); screen.rect(39, 34, 6, 8); screen.fill()  -- body
 end
 
+function draw_scene_observatory_masked_voice()
+  -- Velthe's study: tall arched star-window, the desk, and a mask
+  -- floating over it. Beneath the mask, the voice-line redraws itself
+  -- in a different shape every half-cycle — the same phrase, sung as
+  -- someone else.
+  screen.level(1); screen.rect(0, 0, 128, 64); screen.fill()
+  -- arched window (right side) with stars
+  screen.level(3); screen.rect(88, 6, 30, 44); screen.fill()
+  screen.level(0); screen.rect(90, 8, 26, 40); screen.fill()
+  screen.level(9)
+  screen.pixel(96, 14); screen.pixel(108, 20); screen.pixel(101, 30)
+  screen.pixel(112, 38); screen.pixel(94, 42); screen.fill()
+  -- desk (low, left-center) + a small open book
+  screen.level(4); screen.rect(20, 44, 44, 3); screen.fill()
+  screen.level(2); screen.rect(24, 47, 3, 12); screen.rect(56, 47, 3, 12); screen.fill()
+  screen.level(8); screen.rect(38, 42, 10, 2); screen.fill()
+  -- the mask: floating rounded face with two eye slits, breathing
+  local bob = math.floor(math.sin(tick * 0.10) * 2)
+  screen.level(12); screen.rect(36, 16 + bob, 14, 12); screen.fill()
+  screen.level(0);  screen.rect(39, 20 + bob, 3, 1); screen.rect(44, 20 + bob, 3, 1); screen.fill()
+  -- the voice-line: alternates between two waveforms every 30 ticks —
+  -- a smooth wave and a squared one (same melody, different voice)
+  local squared = ((tick % 60) >= 30)
+  screen.level(10)
+  for x = 10, 76, 2 do
+    local ph = (x + tick) * 0.25
+    local y
+    if squared then
+      y = 34 + (((math.floor(ph / math.pi) % 2) == 0) and -3 or 3)
+    else
+      y = 34 + math.floor(math.sin(ph) * 3 + 0.5)
+    end
+    screen.pixel(x, y + bob)
+  end
+  screen.fill()
+  -- Diegues silhouette at the desk, solid
+  screen.level(11); screen.rect(28, 34, 4, 4); screen.fill()  -- head
+  screen.level(11); screen.rect(27, 38, 6, 8); screen.fill()  -- body
+end
+
+function draw_scene_sunward_bandstand_resonant()
+  -- The Sunward bandstand at golden hour: posts + canopy, sea horizon
+  -- behind. The Spring wells up through the boards — bright droplets
+  -- rise, and every ring the fountain-water makes is answered by a
+  -- dimmer echo of itself a beat later.
+  screen.level(1); screen.rect(0, 0, 128, 64); screen.fill()
+  -- horizon + low sun
+  screen.level(3); screen.move(0, 22); screen.line(128, 22); screen.stroke()
+  screen.level(6); screen.circle(106, 20, 5); screen.fill()
+  screen.level(1); screen.rect(98, 21, 20, 6); screen.fill()
+  -- bandstand: deck, two posts, canopy arc
+  screen.level(4); screen.rect(28, 46, 72, 3); screen.fill()
+  screen.level(5); screen.rect(34, 22, 3, 24); screen.rect(92, 22, 3, 24); screen.fill()
+  screen.level(7); screen.rect(30, 18, 68, 3); screen.fill()
+  screen.level(5); screen.rect(26, 21, 76, 1); screen.fill()
+  -- the Spring: droplets rising from the boards on staggered cycles
+  -- (fill per droplet — each has its own fade level)
+  for k = 0, 4 do
+    local ph = ((tick + k * 9) % 36) / 36
+    local dy = math.floor(ph * 22)
+    local lev = math.max(2, 12 - math.floor(ph * 10))
+    screen.level(lev)
+    screen.pixel(48 + k * 8, 44 - dy)
+    screen.fill()
+  end
+  -- water ring + its echo: same center, echo trails 8 ticks dimmer
+  local r1 = (tick % 28) + 3
+  if r1 < 26 then screen.level(9); screen.circle(64, 45, r1); screen.stroke() end
+  local r2 = ((tick - 8) % 28) + 3
+  if r2 < 26 then screen.level(4); screen.circle(64, 45, r2); screen.stroke() end
+  -- Alder silhouette on the deck, solid, lute at his side
+  screen.level(11); screen.rect(60, 32, 4, 4); screen.fill()   -- head
+  screen.level(11); screen.rect(59, 36, 6, 8); screen.fill()   -- body
+  screen.level(8);  screen.rect(66, 38, 2, 5); screen.fill()   -- lute neck
+end
+
+function draw_scene_phrygian_scatter()
+  -- The Phrygian bazaar at night: awning lines and stall shapes in the
+  -- sand-stone palette. Sergei's rig sits center; the Scatter throws a
+  -- handful of bright points into NEW positions on every beat — order
+  -- becoming delightful confusion.
+  screen.level(1); screen.rect(0, 0, 128, 64); screen.fill()
+  -- sand-stone floor stripes (drumhall palette)
+  screen.level(3)
+  for y = 44, 60, 4 do screen.move(0, y); screen.line(128, y); screen.stroke() end
+  -- stall awnings: two slanted canopies
+  screen.level(4); screen.move(6, 16); screen.line(40, 12); screen.stroke()
+  screen.move(6, 16); screen.line(10, 30); screen.stroke()
+  screen.move(122, 18); screen.line(90, 13); screen.stroke()
+  screen.move(122, 18); screen.line(118, 32); screen.stroke()
+  -- Sergei's rig: a squat box with a dial and one blinking lamp
+  screen.level(6); screen.rect(56, 34, 16, 10); screen.fill()
+  screen.level(2); screen.circle(64, 39, 2); screen.stroke()
+  if (tick % 16) < 8 then screen.level(13); screen.pixel(70, 36); screen.fill() end
+  -- the Scatter: 7 points that JUMP to new deterministic positions
+  -- every 12 ticks (hash on the beat index — no math.random in draws)
+  local beat = math.floor(tick / 12)
+  screen.level(12)
+  for k = 1, 7 do
+    local h = (beat * 73 + k * 137) % 97
+    local x = 24 + ((h * 83 + k * 29) % 80)
+    local y = 8 + ((h * 47 + k * 61) % 26)
+    screen.pixel(x, y)
+  end
+  screen.fill()
+  -- Sergei silhouette beside the rig, solid
+  screen.level(11); screen.rect(46, 32, 4, 4); screen.fill()  -- head
+  screen.level(11); screen.rect(45, 36, 6, 8); screen.fill()  -- body
+end
+
+function draw_scene_sunward_slow_wheel()
+  -- The harbor capstan: a great wheel that turns on its own — slow,
+  -- even, unhurried — over the water. Strom stands with a hand on it.
+  screen.level(1); screen.rect(0, 0, 128, 64); screen.fill()
+  -- sea horizon + water stripes
+  screen.level(3); screen.move(0, 20); screen.line(128, 20); screen.stroke()
+  screen.level(2)
+  for y = 24, 32, 4 do screen.move(0, y); screen.line(128, y); screen.stroke() end
+  -- dock boards
+  screen.level(4)
+  for y = 48, 62, 4 do screen.move(0, y); screen.line(128, y); screen.stroke() end
+  -- the capstan wheel: hub + rim + four spokes rotating SLOWLY
+  local cx, cy, R = 64, 36, 14
+  screen.level(9); screen.circle(cx, cy, R); screen.stroke()
+  screen.level(5); screen.circle(cx, cy, R - 3); screen.stroke()
+  local a0 = tick * 0.02   -- slow, even, on its own
+  screen.level(11)
+  for k = 0, 3 do
+    local a = a0 + k * (math.pi / 2)
+    screen.move(cx, cy)
+    screen.line(cx + math.floor(math.cos(a) * R), cy + math.floor(math.sin(a) * R))
+    screen.stroke()
+  end
+  screen.level(13); screen.circle(cx, cy, 2); screen.fill()
+  -- Strom silhouette at the wheel's edge, hand on the rim, solid
+  screen.level(11); screen.rect(42, 32, 4, 4); screen.fill()  -- head
+  screen.level(11); screen.rect(41, 36, 6, 8); screen.fill()  -- body
+  screen.level(9);  screen.rect(47, 37, 4, 1); screen.fill()  -- arm to the rim
+end
+
+function draw_scene_academy_threefold()
+  -- The Academy: three tuning forks stand on the lectern table, struck
+  -- as one — three ring-sets bloom from three mouths and meet in the
+  -- middle as a single chord. Paj beside the table.
+  screen.level(1); screen.rect(0, 0, 128, 64); screen.fill()
+  -- hall floor stripes
+  screen.level(3)
+  for y = 46, 60, 4 do screen.move(0, y); screen.line(128, y); screen.stroke() end
+  -- lectern table
+  screen.level(4); screen.rect(38, 40, 52, 3); screen.fill()
+  screen.level(2); screen.rect(42, 43, 3, 12); screen.rect(82, 43, 3, 12); screen.fill()
+  -- three tuning forks (U shapes) standing on the table
+  screen.level(10)
+  for k = 0, 2 do
+    local fx = 48 + k * 16
+    screen.rect(fx,     28, 1, 8); screen.fill()   -- left tine
+    screen.rect(fx + 4, 28, 1, 8); screen.fill()   -- right tine
+    screen.rect(fx + 1, 36, 3, 1); screen.fill()   -- base
+    screen.rect(fx + 2, 37, 1, 3); screen.fill()   -- stem to table
+  end
+  -- three ring-sets, one per fork, same phase — one chord, threefold
+  local r = (tick % 26) + 2
+  if r < 24 then
+    for k = 0, 2 do
+      screen.level(math.max(2, 11 - math.floor(r / 3)))
+      screen.circle(50 + k * 16, 30, r); screen.stroke()
+    end
+  end
+  -- a bright meeting-point where the rings overlap (pulses on cycle)
+  if r > 8 and r < 16 then
+    screen.level(14); screen.pixel(58, 30); screen.pixel(74, 30); screen.fill()
+  end
+  -- Paj silhouette beside the table, solid
+  screen.level(11); screen.rect(30, 34, 4, 4); screen.fill()  -- head
+  screen.level(11); screen.rect(29, 38, 6, 8); screen.fill()  -- body
+end
+
 SCENE_DRAW = {
   cosmic  = draw_scene_cosmic,
   dark    = draw_scene_dark,
@@ -28283,7 +28487,19 @@ SCENE_DRAW = {
   lirael_bell_alcove  = draw_scene_lirael_bell_alcove,
   academy_astrolabe_resonant = draw_scene_academy_astrolabe_resonant,
   phrygian_drumhall_resonant = draw_scene_phrygian_drumhall_resonant,
+  -- Resonance signature panels (2026-07-02) — completes all 8; shown
+  -- by the attunement scaffold via the show_panel scene step.
+  observatory_masked_voice   = draw_scene_observatory_masked_voice,
+  sunward_bandstand_resonant = draw_scene_sunward_bandstand_resonant,
+  phrygian_scatter           = draw_scene_phrygian_scatter,
+  sunward_slow_wheel         = draw_scene_sunward_slow_wheel,
+  academy_threefold          = draw_scene_academy_threefold,
 }
+-- Mirror to _G for draw_overworld's panel hook: that function is
+-- defined lexically BEFORE the `local SCENE_DRAW` declaration, so its
+-- reference compiles as a global read (the documented local-scoping
+-- trap). Same pattern as the _G.travel_to / _G.save_game mirrors.
+_G.SCENE_DRAW = SCENE_DRAW
 end  -- scene draws
 
 -- Scrub characters the Tom Thumb / default fonts can't render, mirroring
