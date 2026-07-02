@@ -2016,3 +2016,54 @@ reset, longer unobstructed holds around the dialogue box.
 
 NOT YET DEVICE-VERIFIED: needs an attunement playthrough (no new
 SynthDefs — script reload is enough).
+
+## 2026-07-02 (late night) — pacing, Lirael = the castle, trap + glitch fixes
+
+User playtest reports, all fixed:
+
+1. "Lirael entry scene absurdly slow / frames dropping" — root
+   cause was systemic: the ENTIRE game loop (tick + SCENE.tick +
+   redraw) synced to clock_tempo quarter-beats. Lirael's mourning
+   theme is 48 BPM → the whole game ran at 3.2 fps there (village
+   100 BPM = 6.7). Fixes:
+   - Scenes + dialogue now run on a FIXED 10 Hz clock
+     (scene_clock_id), decoupled from musical tempo. Every scene
+     plays at the same pace in every zone; scene waits are now
+     fixed-time (wait = 20 ≈ 1s). Music keeps syncing to the beat.
+   - Dialogue typewriter converted to REAL time (util.time, 55
+     cps) — was 4 chars/tick, i.e. tempo-dependent.
+   - SCENE.draw_fade dither coarsened from per-pixel (8192 iters +
+     up to ~4k path ops per frame) to 2x2 blocks — the mid-fade
+     frame cost was the "dropped frames" feel.
+   Known deltas (reviewed, accepted): scene tweens now also ease
+   during dialogue; ANIM.shake decays per-redraw so scene shakes
+   read shorter.
+
+2. "Lirael ruins are nothing like the castle" — they are now. The
+   NW block (cols 1-11, rows 1-5) was rebuilt as the RUINED THRONE
+   HALL mirroring prologue map 20: rubble-choked breach (blocking
+   tile 81) in the north wall where the tapestry escape hung,
+   ruined throne (53) at cols 8-9 echoing the castle dais, carpet
+   remnant running out through the split south doors. First-visit
+   scene restaged there: camera opens on the throne, Miel walks
+   the carpet to the dais, "That was a tapestry. It bought me my
+   life."; Diegues confirms the geometry ("The dais. The split
+   doors. The breach where the tapestry hung."). WhiteBird perches
+   on the throne's broken back. Page waits in the hall, toy ball
+   beside her. The broken-window ambient moved to the hall's west
+   wall (2,2).
+
+3. "Sequence traps you in a room with no doors" — the old NW
+   "royal quarters" had a room (cols 7-11, rows 2-4) with NO door
+   at all and a decorative door to nowhere at (5,2). Dissolving
+   the rooms into the open hall removes the trap class entirely.
+   (If the user's trap was somewhere else, it's still open — ask.)
+
+4. "Long grey horizontal line mid-screen while walking" — the
+   night cue drew a full-width dim line at y=47 on outdoor maps
+   during the night phase. Removed; the top-edge line + stars +
+   moon carry the cue.
+
+NOT YET DEVICE-VERIFIED: Lirael entry playthrough + a feel-pass on
+the new fixed scene pacing (10 Hz; easy to tune via the
+scene_clock sleep if scenes now feel too brisk).

@@ -2860,6 +2860,7 @@ local game_state = "TITLE"  -- TITLE | CUTSCENE | OVERWORLD | DIALOGUE | BATTLE 
 GAME_OVER_TICK = 0  -- frame the GAME_OVER state was entered (for fade-in)
 -- (tick is declared at the top of the file so animated sprites can see it)
 local clock_id
+local scene_clock_id   -- fixed-rate scene/dialogue clock (see init)
 
 -- l2_held is now a TOGGLE (rising-edge of left trigger flips it).
 -- Avoids issues with controller trigger drift causing the modifier to stick on.
@@ -3798,28 +3799,38 @@ CONTENT = {
   },
   -- Lirael Ruins (map id 23) — Miel's burned ancestral home. Reached
   -- via tile 51 (lirael-entry) on the western_region map after the
-  -- academy arc completes. Single broken courtyard with a still-standing
-  -- bell tower at the back. Ash particles fall ambiently (PARTICLES.tick
-  -- gates this on map==23). Tiles:
-  --   4  = ruined wall (broken stone block, drawn dimmed in this map)
-  --   0  = ash-covered floor (walkable; ambient ash overlay handles the look)
-  --   30 = scorched fireplace / hearth (existing tile, reused)
-  --   31 = broken bookshelf (existing tile, reused)
-  --   32 = bell-tower base (NEW tile)
-  --   53 = empty throne (NEW tile — Miel kneels here for the memory scene)
-  --   47 = mainland-return door (existing tile)
+  -- academy arc completes. Expanded layout: the RUINED THRONE HALL in
+  -- the NW (rows 1-5, cols 1-11) deliberately echoes prologue map 20 —
+  -- this IS the castle from the night of the raid: rubble breach at
+  -- cols 8-9 row 1 where the tapestry escape hung, ruined throne at
+  -- (8-9, 3), carpet remnant running out through the split south doors
+  -- (cols 8-9 row 5). East of it: cathedral with pillared nave +
+  -- broken altar at (18,2) (rows 1-8, door at cols 19-20 row 8),
+  -- burned merchant streets (rows 9-14), sea cliff + water along the
+  -- south. Ash particles fall ambiently (PARTICLES.tick gates this on
+  -- map==23). Tiles:
+  --   87 = lirael_blue_brick   84 = broken_altar   82 = nave pillar
+  --   85 = hymnal_stand        86 = child_toy      88 = cathedral_door
+  --   80 = ash (walkable)      81 = rubble (BLOCKS) 83 = sea cliff
+  --   2 = street/carpet        17 = west exit      5 = interior door
+  --   4 = ruined wall          53 = ruined throne (blocks)
   lirael_ruins_map = {
     -- 40w × 18h
-    -- row 1 (north wall: lirael_blue NW + cathedral apse N + side chapel back E)
-    {87,87,87,87,87,87,87,87,87,87,87,87,87,87,87,87,87,87,87,87,87,87,87,87,87,87,87,87,87,87,87,87,4,4,4,4,4,4,4,4},
-    -- row 2 (royal quarters interior; cathedral altar at col 18)
-    {87,0,0,0,5,87,0,0,0,0,0,87,87,87,87,87,87,84,87,87,87,87,87,87,87,87,87,87,87,87,87,4,0,0,0,0,0,0,0,4},
-    -- row 3
-    {87,0,0,0,0,87,0,86,0,0,0,87,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4,0,0,85,0,0,0,0,4},
-    -- row 4 (royal quarters + cathedral nave with pillars)
-    {87,0,0,0,0,87,0,0,0,0,0,87,0,82,0,0,82,0,0,82,0,0,82,0,0,0,82,0,0,82,0,4,0,0,0,0,0,0,0,4},
-    -- row 5
-    {87,87,87,5,87,87,87,87,87,87,87,87,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4,0,0,0,0,0,0,0,4},
+    -- row 1 (north wall; cols 8-9 = rubble-choked BREACH where the
+    -- tapestry escape hung — mirrors prologue map 20's north wall.
+    -- Tile 81 = BLOCKING rubble, so the gap is visible but impassable;
+    -- 80 is walkable ash and would let the player stand in the wall.)
+    {87,87,87,87,87,87,87,81,81,87,87,87,87,87,87,87,87,87,87,87,87,87,87,87,87,87,87,87,87,87,87,87,4,4,4,4,4,4,4,4},
+    -- row 2 (open floor behind the dais, like castle row 3; cathedral altar at col 18)
+    {87,0,0,0,0,0,0,0,0,0,0,87,87,87,87,87,87,84,87,87,87,87,87,87,87,87,87,87,87,87,87,4,0,0,0,0,0,0,0,4},
+    -- row 3 (RUINED THRONE at cols 8-9, echoing castle dais; a child's
+    -- toy ball at col 3, beside where the Page child waits at (4,3))
+    {87,0,86,0,0,0,0,53,53,0,0,87,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4,0,0,85,0,0,0,0,4},
+    -- row 4 (carpet remnant leading to the dais + cathedral nave pillars)
+    {87,0,0,0,0,0,0,2,2,0,0,87,0,82,0,0,82,0,0,82,0,0,82,0,0,0,82,0,0,82,0,4,0,0,0,0,0,0,0,4},
+    -- row 5 (hall south wall, split open at cols 8-9 — the doors Suno
+    -- tore through; carpet runs out through the gap)
+    {87,87,87,87,87,87,87,2,2,87,87,87,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4,0,0,0,0,0,0,0,4},
     -- row 6 (nave continues; side chapel east wall begins)
     {0,0,0,0,0,0,0,0,0,0,0,0,0,82,0,0,82,0,0,82,0,0,82,0,0,0,82,0,0,82,0,4,4,4,4,4,4,4,5,4},
     -- row 7
@@ -3848,9 +3859,10 @@ CONTENT = {
     {3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3},
   },
   lirael_ruins_npcs = {
-    -- The white bird — appears in the rafters after the first-visit
-    -- scene. Talking to it (Miel facing the bell-tower base at row 3)
-    -- triggers a single bell-tone + a tiny memory line.
+    -- The white bird — perches on the throne's broken back after the
+    -- first-visit scene (it sits ON the throne tile at (8,3), drawn
+    -- over it). Talking to it triggers a single bell-tone + a tiny
+    -- memory line.
     { x = 8, y = 3, name = "WhiteBird", kind = "pet",
       visible = function() return CONTENT.scene_seen and CONTENT.scene_seen.lirael_first end,
       dialogue = function()
@@ -3868,7 +3880,7 @@ CONTENT = {
     { x = 4, y = 6, name = "KeeperStone", kind = "object",
       dialogue = function()
         return {
-          "(a small stone with shallow incisions, half-buried at the foot of the broken bookshelf)",
+          "(a small stone with shallow incisions, half-buried against the blue brick at the hall's threshold)",
           "(VELTHE wrote: 'A bell sings what a voice will not. A queen sits where she stood.')",
           "(Beneath, in a different hand: 'I was here before you. I will be here after.' -- M.)",
         }
@@ -3898,14 +3910,15 @@ CONTENT = {
         end
       end,
     },
-    -- Page — surviving royal child, waiting in the royal quarters.
+    -- Page — surviving royal child, waiting in the ruined hall west of
+    -- the throne, her toy ball beside her at (3,3).
     {
       x = 4, y = 3, name = "Page", kind = "npc",
       dialogue = function()
         local lead = party[active] and party[active].class
         if lead == "cleric" then
           return {
-            "(a child, small in the royal quarters)",
+            "(a child, small in the great empty hall)",
             "(she clings to Miel's sleeve)",
             "Is the queen coming back? Are you the queen?",
             "I waited where she told me to wait.",
@@ -8787,7 +8800,9 @@ function ambient_lirael_child_toy()
   }
 end
 
--- Broken window in the royal quarters, wind or cleric resonance. Tile (7, 3).
+-- Broken window in the throne hall's west wall, wind or cleric
+-- resonance. Tile (2, 2) — moved when the old royal-quarters rooms
+-- were rebuilt into the ruined throne hall.
 function ambient_lirael_window()
   local cleric_lead = party and party[active] and party[active].class == "cleric"
   return {
@@ -9643,12 +9658,16 @@ function start_lirael_first_visit()
     mage = class_in_party("mage"),
   }
   -- Establishing: hide player, letterbox in, fade FROM black so the
-  -- arrival has weight. Camera starts on the throne (the destination)
-  -- before we even introduce Miel.
+  -- arrival has weight. Camera starts on the RUINED THRONE at (8, 3) —
+  -- the same dais, breach and doorway geometry as prologue map 20,
+  -- because these ruins ARE the castle from the night of the raid.
+  -- (Restaged 2026-07-02 after the map rebuild; the old staging
+  -- addressed a throne/hearths/bell-tower from a single-courtyard map
+  -- that no longer existed.)
   script[#script + 1] = {hide_player = true}
   script[#script + 1] = {set = function() SCENE.fade = 15 end}   -- start black
   script[#script + 1] = {letterbox_in = true}
-  script[#script + 1] = {focus = {x = 8, y = 6}, ticks = 1}
+  script[#script + 1] = {focus = {x = 8, y = 3}, ticks = 1}
   script[#script + 1] = {fade_in = 36}
   script[#script + 1] = {wait = 24}
   -- Single bell glint heard from the silence.
@@ -9657,13 +9676,13 @@ function start_lirael_first_visit()
   script[#script + 1] = {wait = 36}
   script[#script + 1] = {dialogue = {
     "(The arch is a wound the wind has not stopped pressing on.)",
-    "(Inside: the bell tower still standing.)",
-    "(Two hearths long since cold. The throne, broken-backed, in the middle of nothing.)",
+    "(Streets of ash. The cathedral still standing. The blue brick holds its color under the soot.)",
+    "(And north of the streets: the hall from the night of the raid. The roof is gone. The sky has moved in.)",
   }, npc = nil}
-  -- Pan camera back to the entrance to introduce the party.
+  -- Pan camera down to the street below the hall to introduce the party.
   script[#script + 1] = {focus = {x = 8, y = 9}, ticks = 36}
   script[#script + 1] = {wait = 6}
-  -- Spawn party at the south arch.
+  -- Spawn party in the street below the hall's broken doorway.
   script[#script + 1] = {spawn = "miel", class = "cleric", name = "Miel",
                          x = 8, y = 9, facing = "up"}
   if has.bard    then script[#script + 1] = {spawn = "alder",   class = "bard",    name = "Alder",   x = 7, y = 9, facing = "up", bob = false} end
@@ -9681,23 +9700,25 @@ function start_lirael_first_visit()
     "(Miel does not say anything for a long time.)",
   }, npc = nil}
   script[#script + 1] = {wait = 12}
-  -- Miel walks alone toward the throne. Camera tracks her.
-  script[#script + 1] = {move = "miel", to = {x = 8, y = 7}, ticks = 80}
-  script[#script + 1] = {focus = "miel", ticks = 60}
-  script[#script + 1] = {wait = 6}
-  script[#script + 1] = {move = "miel", to = {x = 7, y = 7}, ticks = 28}
+  -- Miel walks alone up the carpet remnant, through the split doors,
+  -- to the foot of the dais. Camera tracks her.
+  script[#script + 1] = {move = "miel", to = {x = 8, y = 6}, ticks = 40}
+  script[#script + 1] = {focus = "miel", ticks = 40}
+  script[#script + 1] = {move = "miel", to = {x = 8, y = 4}, ticks = 32}
   script[#script + 1] = {face = "miel", facing = "up"}
   script[#script + 1] = {wait = 24}
   -- A long held silence in front of the throne.
   script[#script + 1] = {dialogue = {
     "[Miel]    (her voice is steady. Surprisingly steady.)",
+    "[Miel]    (she looks past the throne, to the break in the north wall)",
+    "[Miel]    That was a tapestry. It bought me my life.",
     "[Miel]    I sat in your lap until I was nine.",
     "[Miel]    After that I stood at your knee.",
   }, npc = {name = "Miel"}}
   script[#script + 1] = {wait = 12}
   script[#script + 1] = {dialogue = {
     "[Miel]    I am the queen of Lirael now.",
-    "[Miel]    Queen of an ash field with a bell on it.",
+    "[Miel]    Queen of an ash field by the sea.",
   }, npc = {name = "Miel"}}
   script[#script + 1] = {wait = 8}
   script[#script + 1] = {dialogue = {
@@ -9708,7 +9729,7 @@ function start_lirael_first_visit()
   -- Optional reactions from companions. We add them only if the
   -- character is present, so the scene scales with whoever's in the party.
   if has.warrior then
-    script[#script + 1] = {move = "strom", to = {x = 7, y = 8}, ticks = 32}
+    script[#script + 1] = {move = "strom", to = {x = 7, y = 6}, ticks = 32}
     script[#script + 1] = {face = "strom", facing = "up"}
     script[#script + 1] = {wait = 6}
     script[#script + 1] = {dialogue = {
@@ -9718,18 +9739,19 @@ function start_lirael_first_visit()
     }, npc = {name = "Strom"}}
   end
   if has.mage then
-    script[#script + 1] = {move = "diegues", to = {x = 9, y = 7}, ticks = 32}
-    script[#script + 1] = {face = "diegues", facing = "left"}
+    script[#script + 1] = {move = "diegues", to = {x = 9, y = 6}, ticks = 32}
+    script[#script + 1] = {face = "diegues", facing = "up"}
     script[#script + 1] = {wait = 6}
     script[#script + 1] = {dialogue = {
       "[Diegues] (writes. He is always writing.)",
-      "[Diegues] Lirael. One bell. Two hearths. A throne with a fault in the back.",
+      "[Diegues] The dais. The split doors. The breach where the tapestry hung.",
+      "[Diegues] It is one thing to be told. It is another to stand in it.",
       "[Diegues] An archive of one. I will copy it twice and lose neither.",
     }, npc = {name = "Diegues"}}
   end
   if has.bard then
-    script[#script + 1] = {move = "alder", to = {x = 8, y = 7}, ticks = 32}
-    script[#script + 1] = {face = "alder", facing = "left"}
+    script[#script + 1] = {move = "alder", to = {x = 8, y = 6}, ticks = 32}
+    script[#script + 1] = {face = "alder", facing = "up"}
     script[#script + 1] = {wait = 6}
     script[#script + 1] = {dialogue = {
       "[Alder]  (unslings the lute. Plays one note, very softly. The note holds.)",
@@ -9745,8 +9767,8 @@ function start_lirael_first_visit()
   script[#script + 1] = {shake = {mag = 1, ticks = 4}}
   script[#script + 1] = {wait = 36}
   script[#script + 1] = {dialogue = {
-    "(The bell rings once, of its own accord. Nothing has touched it.)",
-    "(In the rafters: a small bird, white, that was not there a moment ago.)",
+    "(A bell rings once, of its own accord. There is no bell left to ring.)",
+    "(On the throne's broken back: a small bird, white, that was not there a moment ago.)",
     "(Miel takes one step back from the throne. She does not bow. She does not need to.)",
   }, npc = nil}
   script[#script + 1] = {flash = "* a small mercy is granted *", ticks = 60}
@@ -9762,7 +9784,8 @@ function start_lirael_first_visit()
   if has.mage    then script[#script + 1] = {despawn = "diegues"} end
   if has.warrior then script[#script + 1] = {despawn = "strom"} end
   script[#script + 1] = {despawn = "miel"}
-  script[#script + 1] = {teleport_player = {x = 7, y = 7, facing = "up"}}
+  -- Return control at the hall's threshold, facing the throne.
+  script[#script + 1] = {teleport_player = {x = 8, y = 6, facing = "up"}}
   script[#script + 1] = {show_player = true}
   SCENE.start(script)
 end
@@ -13949,7 +13972,8 @@ local function load_game()
   -- a partially-revealed line.
   if dlg then
     dlg.lines = nil; dlg.line = 1; dlg.npc = nil
-    dlg.line_start_tick = nil; dlg.complete = false; dlg.snap_to_complete = false
+    dlg.line_start_tick = nil; dlg.line_start_time = nil
+    dlg.complete = false; dlg.snap_to_complete = false
   end
   player.x = data.player.x
   player.y = data.player.y
@@ -15875,7 +15899,7 @@ local function try_move(dx, dy)
         if nx == 20 and ny == 12 then
           SCENE.start(ambient_lirael_child_toy())
           CONTENT.last_lirael_ambient_t = now
-        elseif nx == 7 and ny == 3 then
+        elseif nx == 2 and ny == 2 then
           SCENE.start(ambient_lirael_window())
           CONTENT.last_lirael_ambient_t = now
         elseif nx == 13 and ny == 4 then
@@ -16123,6 +16147,7 @@ start_dialogue = function(npc)
   dlg.line = 1
   -- Reset typewriter state so the new dialogue starts a fresh reveal.
   dlg.line_start_tick = tick
+  dlg.line_start_time = nil   -- real-time typewriter re-inits on next draw
   dlg.complete = false
   dlg.snap_to_complete = false
   -- Defensive: any error from npc.dialogue() (or pack_dialogue_lines)
@@ -16173,6 +16198,7 @@ local function advance_dialogue()
   dlg.snap_to_complete = false
   dlg.complete = false
   dlg.line_start_tick = tick
+  dlg.line_start_time = nil   -- real-time typewriter re-inits on next draw
   dlg.line = dlg.line + 1
   if dlg.line > #(dlg.lines or {}) then
     local npc = dlg.npc
@@ -17910,10 +17936,10 @@ travel_to = function(map_id, x, y)
       "(This was the Academy. Once. It is being attacked now. You can hear the breaking.)",
     })
   elseif not _scene_busy and map_id == 23 then
-    -- First step into the Lirael Ruins. A long, slow memory scene that
-    -- only fires once per save — heavy on stage direction, light on
-    -- combat. Choreographed: the camera rests on the empty throne; Miel
-    -- walks slowly toward it; small pause at the foot; she kneels.
+    -- First step into the Lirael Ruins. A memory scene that only fires
+    -- once per save. Choreographed: the camera rests on the ruined
+    -- throne in the hall from the prologue raid; Miel walks up the
+    -- carpet remnant to the foot of the dais; the ghost-bell rings.
     if not (CONTENT.scene_seen and CONTENT.scene_seen.lirael_first)
        and start_lirael_first_visit then
       CONTENT.scene_seen = CONTENT.scene_seen or {}
@@ -19365,9 +19391,9 @@ function init()
         tick_overworld_music()
         if inn_rest_ticks > 0 then inn_rest_ticks = inn_rest_ticks - 1 end
         if tower_locked_ticks > 0 then tower_locked_ticks = tower_locked_ticks - 1 end
-        -- Drive any active scripted scene (sprite tweens, camera pan,
-        -- step advance). No-op when SCENE.active is false.
-        if SCENE and SCENE.active then SCENE.tick() end
+        -- (Scripted scenes used to tick here, per music tick — which
+        -- made scene pacing depend on the zone theme's BPM. They now
+        -- run on the fixed-rate scene clock below.)
         -- Tick particle pool (ambient region effects).
         if PARTICLES and PARTICLES.tick then PARTICLES.tick() end
       elseif game_state == "JAM" then
@@ -19393,6 +19419,29 @@ function init()
         end
       end
       redraw()
+    end
+  end)
+  -- Scenes + dialogue run on a FIXED-rate clock, decoupled from the
+  -- musical tempo. The main loop above syncs to clock_tempo quarter-
+  -- beats — that's the MUSIC's business. In Lirael (48 BPM theme) that
+  -- meant 3.2 ticks/sec: scene tweens, waits, the typewriter and the
+  -- screen itself all crawled at one-third village speed and read as
+  -- dropped frames. Scenes now tick + redraw here at a constant 10/sec
+  -- everywhere, so every scene plays at the same pace regardless of
+  -- the zone theme's tempo. (Scene `wait` counts are now fixed-time:
+  -- wait = 20 ≈ 1 second.) Dialogue outside scenes just gets redraws
+  -- for the real-time typewriter.
+  scene_clock_id = clock.run(function()
+    while true do
+      clock.sleep(0.1)
+      if game_state == "OVERWORLD" or game_state == "DIALOGUE" then
+        if SCENE and SCENE.active then
+          SCENE.tick()
+          redraw()
+        elseif game_state == "DIALOGUE" then
+          redraw()
+        end
+      end
     end
   end)
   -- Tempo heartbeat for tempo-synced delays. Polls clock_tempo every
@@ -19649,6 +19698,7 @@ end
 
 function cleanup()
   if clock_id then clock.cancel(clock_id) end
+  if scene_clock_id then clock.cancel(scene_clock_id) end
   engine.drone_amp(0)
 end
 
@@ -22280,6 +22330,7 @@ SCENE.advance = function()
       dlg.lines = pack_dialogue_lines(step.dialogue, step.npc and step.npc.name)
       dlg.line = 1
       dlg.line_start_tick = tick
+      dlg.line_start_time = nil   -- real-time typewriter re-inits on next draw
       dlg.complete = false
       dlg.snap_to_complete = false
       dlg.npc = step.npc
@@ -22382,12 +22433,15 @@ SCENE.draw_fade = function()
     screen.level(0); screen.rect(0, 0, 128, 64); screen.fill()
     return
   end
+  -- 2x2-block dither (64x32 grid): ~4x fewer iterations and far fewer
+  -- path ops than the old per-pixel loop, which chugged the frame rate
+  -- through every mid-fade frame ("dropped frames" feel on scene entry).
   local density = SCENE.fade
   screen.level(0)
-  for y = 0, 63 do
-    for x = 0, 127 do
-      if (((x * 7 + y * 13) % 16) < density) then
-        screen.pixel(x, y)
+  for by = 0, 31 do
+    for bx = 0, 63 do
+      if (((bx * 7 + by * 13) % 16) < density) then
+        screen.rect(bx * 2, by * 2, 2, 2)
       end
     end
   end
@@ -25032,11 +25086,12 @@ local function draw_overworld()
      and not (SCENE and SCENE.active) then
     -- Soft "it is night" cue, no screen-wide stipple — the dense
     -- pattern was reading as visual noise and made sprites hard to
-    -- track. Now: thin dim line at the top + bottom of the playfield,
-    -- a handful of fixed-position stars, and the moon glyph.
+    -- track. Now: thin dim line at the top edge, a handful of fixed-
+    -- position stars, and the moon glyph. (The old second line at
+    -- y=47 — mid-playfield — read as a rendering glitch, a stray grey
+    -- bar across the screen, and was removed.)
     screen.level(3)
     screen.rect(0, 0, 128, 1); screen.fill()
-    screen.rect(0, 47, 128, 1); screen.fill()
     screen.level(7)
     screen.pixel(14, 3); screen.pixel(38, 5); screen.pixel(62, 2)
     screen.pixel(86, 6); screen.pixel(102, 4); screen.fill()
@@ -25177,11 +25232,15 @@ local function draw_dialogue()
   -- A-press still snaps to fully-revealed; a second A advances.
   -- (Previous value of 0.85 cpt = 17 chars/sec was glacial — most lines
   --  took 4+ seconds, which read as "cut off and moving really slow".)
-  if not dlg.line_start_tick then dlg.line_start_tick = tick end
-  local TYPEWRITER_CPT = 4.0   -- ~80 chars/sec, snappy
-  local age = tick - (dlg.line_start_tick or tick)
+  -- Typewriter runs on REAL time (util.time), not game ticks: ticks
+  -- follow the musical tempo, so tick-based reveal crawled in slow-BPM
+  -- zones (Lirael, 48 BPM). The scene clock redraws dialogue at 10 fps
+  -- so the reveal actually animates between music ticks.
+  if not dlg.line_start_time then dlg.line_start_time = util.time() end
+  local TYPEWRITER_CPS = 55   -- chars/sec, real-time
+  local age_s = util.time() - dlg.line_start_time
   local total_chars = #body
-  local revealed = math.min(total_chars, math.floor(age * TYPEWRITER_CPT))
+  local revealed = math.min(total_chars, math.floor(age_s * TYPEWRITER_CPS))
   if dlg.snap_to_complete then revealed = total_chars end
   dlg.complete = (revealed >= total_chars)
   local visible_body = body:sub(1, revealed)

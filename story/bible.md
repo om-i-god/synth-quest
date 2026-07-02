@@ -1359,10 +1359,18 @@ present in the code.
       Possible threads: Strom-adjacent (former comrade), or
       Mixolydian coast captain who knew the Harbormaster.
 
-   PAGE (Lirael Ruins, Royal Quarters)
-      Role: Surviving royal child. Hides in the Royal Quarters,
-      clings to Miel and asks if the queen is coming back. The
-      living memory of the kingdom's fall.
+   PAGE (Lirael Ruins, ruined throne hall)
+      Role: Surviving royal child. Hides in the great hall west of
+      the broken throne, her toy ball beside her; clings to Miel
+      and asks if the queen is coming back. The living memory of
+      the kingdom's fall.
+      Note (2026-07-02): the ruins' NW block was rebuilt as the
+      RUINED THRONE HALL, geometry mirroring the prologue castle
+      (map 20): breach in the north wall where the tapestry
+      escape hung, broken throne, carpet remnant through the
+      split south doors. The old sealed "royal quarters" rooms
+      are gone — the ruins are now recognizably the castle from
+      the night of the raid.
       STATUS: IN CODE.
 
    MIRA (Phrygian Night City)
