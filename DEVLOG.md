@@ -2122,3 +2122,16 @@ the dimensions we're working in." Two layers:
    - Stale dimension comments corrected (academy "10x9"/"map_id 17",
      cave 7 "16x14" (it's 12x6), ambient dispatch coords, guard
      columns) — this class of stale comment is what seeded the bugs.
+
+## 2026-07-02 (device playtest) — three more academy box traps
+
+User hit it live: "after you get Strom you're literally trapped in a
+box." finish_academy_arc (the Strom-join epilogue) still parked and
+returned the player at (6,6) — inside the sealed courtyard building —
+along with TWO more scenes using the same pre-expansion staging:
+start_diegues_study_scene and start_academy_choir_scene (whose choir
+students also stood inside wall tiles). All three restaged in the
+lecture hall to match the restaged intro (player parks/returns at
+(7,3) / (7,4)). Grep confirms no (6,6) parks or teleports remain.
+Lesson for the audit method: "checked clean" must include walkability
+of the RETURN position, not just map bounds.

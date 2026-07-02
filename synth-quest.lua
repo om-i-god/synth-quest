@@ -7259,18 +7259,23 @@ function finish_academy_arc()
   for _, p in ipairs(party) do
     if p.alive then p.hp = p.hp_max; p.mp = p.mp_max end
   end
-  player.x, player.y = 6, 6
-  player.facing = "right"
+  -- Staged in the LECTURE HALL, matching the restaged intro (the old
+  -- (6,6) staging predates the 28x14 academy — it parked and RETURNED
+  -- the player inside the sealed courtyard building: trapped in a box
+  -- right after Strom joins).
+  player.x, player.y = 7, 3
+  player.facing = "down"
   update_camera()
-  -- Choreographed epilogue. Letterboxed. Strom on his knees center;
-  -- Diegues approaches from the lectern; Miel watches from her side
-  -- of the room. Sprite poses + facing changes punctuate every beat.
+  -- Choreographed epilogue. Letterboxed. Strom on his knees in the
+  -- corridor where he fought; Diegues approaches from the lectern;
+  -- Miel watches from the hall. Sprite poses + facing changes
+  -- punctuate every beat.
   local script = {
     {hide_player = true},
     {letterbox_in = true},
-    {spawn = "miel",    class = "cleric",  name = "Miel",    x = 6, y = 6, facing = "right", bob = false},
-    {spawn = "strom",   class = "warrior", name = "Strom",   x = 8, y = 6, facing = "left", bob = false},
-    {spawn = "diegues", class = "mage",    name = "Diegues", x = 4, y = 4, facing = "right"},
+    {spawn = "miel",    class = "cleric",  name = "Miel",    x = 7, y = 3, facing = "down", bob = false},
+    {spawn = "strom",   class = "warrior", name = "Strom",   x = 6, y = 4, facing = "up", bob = false},
+    {spawn = "diegues", class = "mage",    name = "Diegues", x = 7, y = 2, facing = "down"},
     {wait = 12},
     -- Hammer falls (loud SFX + shake).
     {sfx = {class = "warrior", note = 24, vel = 0.95, attack = 0.001, release = 0.30, wet = 0.10}},
@@ -7288,7 +7293,7 @@ function finish_academy_arc()
       "[Strom]   (he is older than he looked.)",
     }, npc = {name = "Strom"}},
     -- Diegues steps down from the lectern toward Strom.
-    {move = "diegues", to = {x = 6, y = 5}, ticks = 28},
+    {move = "diegues", to = {x = 5, y = 4}, ticks = 28},
     {look = "diegues", toward = "strom"},
     {wait = 8},
     -- Strom faces Diegues to speak (head still down — face down).
@@ -7339,8 +7344,8 @@ function finish_academy_arc()
       "[Strom]   Where you go, I will keep watch.",
     }, npc = {name = "Strom"}},
     -- Strom + Diegues take their formation positions beside Miel.
-    {move = "strom",   to = {x = 7, y = 6}, ticks = 18},
-    {move = "diegues", to = {x = 5, y = 6}, ticks = 18},
+    {move = "strom",   to = {x = 8, y = 3}, ticks = 18},
+    {move = "diegues", to = {x = 6, y = 3}, ticks = 18},
     {look = "strom", toward = "miel"},
     {look = "diegues", toward = "miel"},
     {wait = 12},
@@ -7348,7 +7353,7 @@ function finish_academy_arc()
     {sfx = {class = "warrior", note = 36, vel = 0.85, attack = 0.005, release = 0.50, wet = 0.20}},
     {wait = 18},
     {despawn = "strom"}, {despawn = "diegues"}, {despawn = "miel"},
-    {teleport_player = {x = 6, y = 6, facing = "down"}},
+    {teleport_player = {x = 7, y = 3, facing = "down"}},
     {show_player = true},
     {letterbox_out = true},
   }
@@ -7725,19 +7730,21 @@ end
 -- few tiles away. The page he's reading is one HE wrote in the very
 -- first cutscene of the game; he is not the same person who wrote it.
 function start_diegues_study_scene()
-  player.x, player.y = 6, 6
+  -- Lecture-hall staging (the old (6,6) park/teleport was inside the
+  -- sealed courtyard building on the 28x14 map — box trap).
+  player.x, player.y = 7, 3
   player.facing = "up"
   update_camera()
   local script = {
     {hide_player = true},
     {set = function() SCENE.fade = 15 end},
     {letterbox_in = true},
-    {focus = {x = 4, y = 4}, ticks = 1},
+    {focus = {x = 7, y = 3}, ticks = 1},
     {fade_in = 36},
-    -- Diegues at the lectern, head down (face down — he's reading).
-    {spawn = "diegues", class = "mage", name = "Diegues", x = 4, y = 4, facing = "down", bob = false},
-    -- Miel hangs back near the door.
-    {spawn = "miel", class = "cleric", name = "Miel", x = 6, y = 6, facing = "left", bob = false},
+    -- Diegues at the west lectern, head down (face down — reading).
+    {spawn = "diegues", class = "mage", name = "Diegues", x = 7, y = 2, facing = "down", bob = false},
+    -- Miel hangs back in the corridor.
+    {spawn = "miel", class = "cleric", name = "Miel", x = 9, y = 4, facing = "left", bob = false},
     {wait = 24},
     {dialogue = {
       "(Diegues is at the lectern. He has been there a while.)",
@@ -7764,7 +7771,7 @@ function start_diegues_study_scene()
     }, npc = {name = "Diegues"}},
     {wait = 12},
     -- Miel walks down to him.
-    {move = "miel", to = {x = 5, y = 5}, ticks = 32},
+    {move = "miel", to = {x = 8, y = 3}, ticks = 32},
     {look = "miel", toward = "diegues"},
     {wait = 8},
     {dialogue = {
@@ -7778,7 +7785,7 @@ function start_diegues_study_scene()
     {sfx = {class = "cleric", note = 67, vel = 0.45, attack = 0.20, release = 4.0, wet = 0.95}},
     {wait = 18},
     {despawn = "diegues"}, {despawn = "miel"},
-    {teleport_player = {x = 6, y = 6, facing = "up"}},
+    {teleport_player = {x = 7, y = 3, facing = "up"}},
     {show_player = true},
     {letterbox_out = true},
     {set = function() unlock_achievement("diegues_study", "Diegues' Study") end},
@@ -7787,23 +7794,26 @@ function start_diegues_study_scene()
 end
 
 function start_academy_choir_scene()
-  player.x, player.y = 6, 6
+  -- Lecture-hall staging (the old (6,6) park/teleport was inside the
+  -- sealed courtyard building on the 28x14 map — box trap — and the
+  -- students stood inside wall tiles).
+  player.x, player.y = 7, 4
   player.facing = "up"
   update_camera()
   local script = {
     {hide_player = true},
     {set = function() SCENE.fade = 15 end},
     {letterbox_in = true},
-    {focus = {x = 6, y = 4}, ticks = 1},
+    {focus = {x = 7, y = 2}, ticks = 1},
     {fade_in = 36},
-    -- Diegues at the lectern (col 4 row 4).
-    {spawn = "diegues", class = "mage", name = "Diegues", x = 4, y = 4, facing = "right", bob = false},
-    -- Four students in a semicircle, each a different class for sprite
-    -- variety. They're seated (no bob) until they rise.
-    {spawn = "student1", class = "bard",    name = "Iva",   x = 6, y = 4, facing = "left",  bob = false},
-    {spawn = "student2", class = "cleric",  name = "Tem",   x = 8, y = 4, facing = "left",  bob = false},
-    {spawn = "student3", class = "warrior", name = "Ord",   x = 6, y = 5, facing = "left",  bob = false},
-    {spawn = "student4", class = "mage",    name = "Lis",   x = 8, y = 5, facing = "left",  bob = false},
+    -- Diegues west of the first lectern (tile 75 at (6,2)).
+    {spawn = "diegues", class = "mage", name = "Diegues", x = 5, y = 2, facing = "right", bob = false},
+    -- Four students in two rows facing him, each a different class for
+    -- sprite variety. They're seated (no bob) until they rise.
+    {spawn = "student1", class = "bard",    name = "Iva",   x = 8,  y = 2, facing = "left",  bob = false},
+    {spawn = "student2", class = "cleric",  name = "Tem",   x = 10, y = 2, facing = "left",  bob = false},
+    {spawn = "student3", class = "warrior", name = "Ord",   x = 8,  y = 3, facing = "left",  bob = false},
+    {spawn = "student4", class = "mage",    name = "Lis",   x = 10, y = 3, facing = "left",  bob = false},
     {wait = 18},
     {dialogue = {
       "(The Hall of Resonance is no longer quiet.)",
@@ -7848,7 +7858,7 @@ function start_academy_choir_scene()
     {despawn = "student3"},
     {despawn = "student4"},
     {despawn = "diegues"},
-    {teleport_player = {x = 6, y = 6, facing = "up"}},
+    {teleport_player = {x = 7, y = 4, facing = "up"}},
     {show_player = true},
     {letterbox_out = true},
     {flash = "* Choir Hour ends *", ticks = 36},
