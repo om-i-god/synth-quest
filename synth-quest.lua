@@ -6541,15 +6541,20 @@ function start_courtyard_breach_script()
     {dialogue = {
       "(the south gate splits inward with a sound like a chord breaking)",
     }, npc = nil},
-    -- Spawn silencers OFF-MAP below the gate (row 13-14). Actor coords
-    -- can be outside the tile grid; the scene draw clips them when
-    -- they walk into view. They emerge through the gate tiles row 12.
-    -- Columns picked to weave BETWEEN the guards (gA=4, gB=6, gC=9, gD=11)
-    -- so the lines don't visually overlap at the clash.
-    {spawn = "s1", class = "warrior", name = "Silencer1", x = 5, y = 14, facing = "up", bob = false},
-    {spawn = "s2", class = "warrior", name = "Silencer2", x = 7, y = 14, facing = "up", bob = false},
-    {spawn = "s3", class = "warrior", name = "Silencer3", x = 8, y = 14, facing = "up", bob = false},
-    {spawn = "s4", class = "warrior", name = "Silencer4", x = 10, y = 14, facing = "up", bob = false},
+    -- Pan the camera DOWN to take in the gate row. Without this the
+    -- viewport (rows 4-11 at the opening focus) never shows row 12 —
+    -- the silencers played the whole fight off-screen and the guards
+    -- visibly fell to nothing.
+    {focus = {x = 7, y = 10}, ticks = 16},
+    -- Spawn silencers just below the gate (row 13, one off-map row).
+    -- Actor coords can be outside the tile grid; the scene draw clips
+    -- them until they walk into view. They emerge through the gate
+    -- tiles at row 12. Columns picked to weave BETWEEN the guards
+    -- (gA=4, gB=6, gC=9, gD=11) so the lines don't overlap at the clash.
+    {spawn = "s1", class = "warrior", name = "Silencer1", x = 5, y = 13, facing = "up", bob = false},
+    {spawn = "s2", class = "warrior", name = "Silencer2", x = 7, y = 13, facing = "up", bob = false},
+    {spawn = "s3", class = "warrior", name = "Silencer3", x = 8, y = 13, facing = "up", bob = false},
+    {spawn = "s4", class = "warrior", name = "Silencer4", x = 10, y = 13, facing = "up", bob = false},
     {wait = 8},
     -- Silencers pour through the gate (row 12) into the courtyard,
     -- threading between the guard columns rather than landing on them.
@@ -19426,14 +19431,15 @@ function init()
   -- beats — that's the MUSIC's business. In Lirael (48 BPM theme) that
   -- meant 3.2 ticks/sec: scene tweens, waits, the typewriter and the
   -- screen itself all crawled at one-third village speed and read as
-  -- dropped frames. Scenes now tick + redraw here at a constant 10/sec
+  -- dropped frames. Scenes now tick + redraw here at a constant 15/sec
   -- everywhere, so every scene plays at the same pace regardless of
-  -- the zone theme's tempo. (Scene `wait` counts are now fixed-time:
-  -- wait = 20 ≈ 1 second.) Dialogue outside scenes just gets redraws
-  -- for the real-time typewriter.
+  -- the zone theme's tempo. (Scene `wait` counts are fixed-time:
+  -- wait = 30 ≈ 1 second. Raised from 10/sec on playtest feedback —
+  -- scenes still played out too slowly.) Dialogue outside scenes just
+  -- gets redraws for the real-time typewriter.
   scene_clock_id = clock.run(function()
     while true do
-      clock.sleep(0.1)
+      clock.sleep(1 / 15)
       if game_state == "OVERWORLD" or game_state == "DIALOGUE" then
         if SCENE and SCENE.active then
           SCENE.tick()
@@ -24867,10 +24873,13 @@ local function draw_overworld()
     draw_player_at((player.x - cam.x) * TILE + view_ox, (player.y - cam.y) * TILE + view_oy)
   end
 
-  -- prompt: talk OR enter cave OR enter inn
-  local fnpc = find_facing_npc()
+  -- prompt: talk OR enter cave OR enter inn. Suppressed entirely
+  -- during scripted scenes — the player can't interact mid-scene, and
+  -- a flashing "A: talk" over choreography reads as a glitch.
+  local _in_scene = SCENE and SCENE.active
+  local fnpc = (not _in_scene) and find_facing_npc() or nil
   local fdx, fdy = facing_offset()
-  local ftile = tile_at(player.x + fdx, player.y + fdy)
+  local ftile = _in_scene and -1 or tile_at(player.x + fdx, player.y + fdy)
   if fnpc and (tick % 8) < 5 then
     screen.level(15)
     screen.move(64, 60)

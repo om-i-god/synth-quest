@@ -2067,3 +2067,19 @@ User playtest reports, all fixed:
 NOT YET DEVICE-VERIFIED: Lirael entry playthrough + a feel-pass on
 the new fixed scene pacing (10 Hz; easy to tune via the
 scene_clock sleep if scenes now feel too brisk).
+
+## 2026-07-02 (later) — playtest fixes: prompts, pace, visible silencers
+
+- "A: talk" (and cave/inn tile prompts) no longer flash during
+  scripted scenes — the whole prompt block is suppressed while
+  SCENE.active.
+- Scene clock raised 10 → 15 Hz on feedback that scenes still
+  played too slowly (wait = 30 ≈ 1s now). Single constant if it
+  needs further tuning.
+- Courtyard breach: the silencers fought the entire battle
+  OFF-SCREEN — the map is 12 rows, the camera's opening focus
+  showed rows 4-11, and the silencers spawned at row 14 and
+  stopped at row 12. Guards visibly fell to nothing. The camera
+  now pans down to the gate row when it breaks, and silencers
+  spawn one row closer so they emerge promptly. (The Hova/Borin
+  section already refocused correctly.)
