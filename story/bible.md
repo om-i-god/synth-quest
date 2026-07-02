@@ -1523,7 +1523,18 @@ present in the code.
       cathedral; recognized Miel's mother by sight.
       Note: renamed from the original stub "Brann" to avoid
       collision with Phrygian Night City's Brann (caravan master).
-      Both characters now coexist in canon.
+      Both characters now coexist in canon. (2026-07-02: a later
+      code pass had accidentally created a SECOND "Bren" — a
+      village smith — who stole this steward's sprite slot; that
+      smith is now ANVEL, and the steward has his own sprite.)
+      STATUS: IN CODE.
+
+   ANVEL (mainland village smith)
+      Role: journeyman smith at the open-air anvil in the village
+      center, two tiles east of Brann's shop row. Hammer pattern
+      is the warrior's natural meter. Recognizes warrior-lead as
+      ex-army. At six shards, the iron starts singing under his
+      hand. (Renamed 2026-07-02 from an accidental second "Bren".)
       STATUS: IN CODE.
 
    ARAM (Phrygian Night City)
@@ -1569,6 +1580,9 @@ present in the code.
       she becomes corporeal and joins the party (wraith class).
       See THE PARTY section → ECHO. This NPC hides once the
       recruitment scene fires (CONTENT.scene_seen.echo_recruit).
+      2026-07-02: she has an ending beat ("ECHO kept her promise")
+      and her name closes the ending name-song alongside the rest
+      of the eight.
       STATUS: IN CODE.
 
    MASTER THERON (Academy)

@@ -1881,3 +1881,48 @@ NOT YET VERIFIED ON DEVICE: the World of Silence needs a real
 playthrough of the six-shards → Academy → tower stretch (no new
 SynthDefs, so no SYSTEM > RESTART needed — script reload is
 enough).
+
+## 2026-07-02 (later) — narration is never spoken by a character
+
+User pass: "make sure narration is not spoken by a character; make
+sure all scenes and dialogue make sense." Full audit (subagent swept
+~1,500 [Name] tags + every scene dialogue step) + fixes:
+
+- Renderer rule: inside scripted scenes, an UNTAGGED fully-
+  parenthetical line renders with no speaker header (it's scene
+  description). Scoped to SCENE.active on purpose: outside scenes,
+  examine-objects (Fountain, gravestones, shelves) speak entirely in
+  parentheticals and need their name labels, and an NPC's own stage
+  direction under their label is the game's idiom. Long narration
+  lines must stay under ~75 chars or the packer splits them and the
+  fragments lose their parens (two such lines split at source).
+- Tag parser now allows multi-word speakers ("[Cave Echo]",
+  "[Dune Rider]" — the latter had NEVER rendered as a tag). All four
+  tag-matching sites use the same pattern.
+- Cave-1 boss retagged [Echo] → [Cave Echo] (it was pulling the
+  academy-girl Echo NPC portrait); sprite aliased.
+- CHAR_NAME.wraith="ECHO" (level-up on ECHO was a nil-concat crash)
+  + DLG_NAME_TO_CLASS.ECHO so her portrait renders in scenes.
+- Prologue throne scene sent the player SOUTH to a tapestry that has
+  been in the NORTH wall since Pass 61 (line, facing, flash + five
+  stale comments all corrected).
+- Niko was "she" twice in the Heavy Hand acquisition narration.
+- Second village smith "Bren" (accidental duplicate of the Lirael
+  steward's name, stealing his sprite) renamed ANVEL; steward Bren
+  got his own sprite. Bible updated.
+- STORY lines can now be a function; Strom's solo campfire beat only
+  recounts the Sergei conversation if Sergei actually joined (new
+  alternate lines otherwise). (The Sergei/Niko group campfire lines
+  were already safe — STORY.filter_party_lines drops absent members.)
+- ECHO added to the ending name-song + her own ending panel.
+- scout_trapped NPC display name → "Scout".
+- Misc: garbled academy-choir baton line, Vix backticks, stale
+  comments.
+
+Also this pass, from a sprite/scene audit: every party class, ~96
+named NPCs, and all 36 enemy visuals have dedicated art (no
+placeholders). KNOWN GAP (not yet built): 5 of 8 Resonance shrines
+have no full-screen panel art (masked_voice/spring/scatter/
+slow_wheel/threefold), and NO attunement scene actually displays its
+signature.visual key — the 3 existing panels (bell alcove, astrolabe,
+drum-hall) are orphaned. Candidate follow-up pass.

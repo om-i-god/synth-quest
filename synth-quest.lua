@@ -121,7 +121,8 @@ local SCALE = {33,36,38,40,43, 45,48,50,52,55, 57,60,62,64,67, 69,72,74,76,79, 8
 
 -- character names by class (display in battle UI)
 local CHAR_NAME = {mage="Diegues", cleric="Miel", warrior="Strom", bard="Alder",
-                   engineer="Sergei", mathwiz="Paj", drummer="Niko"}
+                   engineer="Sergei", mathwiz="Paj", drummer="Niko",
+                   wraith="ECHO"}
 
 local CUTOFF_RANGE = {
   mage    = {min=400, max=10000},
@@ -260,7 +261,7 @@ RESONANCE_SITES = {
         dialogue = {
           "(Niko sets the iron guard against the great drum's skin and waits for the room to go quiet.)",
           "[Niko]    He hit so hard the others stopped playing. They called it rude. He called it the one.",
-          "(she strikes once. The drum answers from somewhere under the floor, and the dust jumps.)",
+          "(he strikes once. The drum answers from somewhere under the floor, and the dust jumps.)",
         },
       },
     },
@@ -1263,8 +1264,9 @@ local ENDING_LINES = {
   {text = "Sergei rebuilt the resonator. He said it sounded like an apology. Niko played a beat under it.", scene = "village"},
   {text = "Paj wrote down the function for what they had done. It would not fit on the page.", scene = "village"},
   {text = "She drew a circle around it instead, and labeled the circle: HELD.", scene = "village"},
+  {text = "ECHO kept her promise. Somewhere under everything, one note held, and holds still.", scene = "village"},
   -- The song travels
-  {text = "Alder, Miel, Strom, Diegues, Sergei, Paj, Niko --", scene = "cosmic"},
+  {text = "Alder, Miel, Strom, Diegues, Sergei, Paj, Niko, ECHO --", scene = "cosmic"},
   {text = "your names became a song.", scene = "cosmic"},
   {text = "And the song was carried on every wind.", scene = "cosmic"},
   {text = "FIN.", scene = "cosmic"},
@@ -3267,25 +3269,24 @@ CONTENT = {
   -- CHAMBER AT BOTTOM. Player walks NORTH from chamber → through
   -- corridor → into throne hall, where Suno's confrontation fires.
   --
-  -- Layout:
-  --   rows 1-3: throne hall back (hearth wall + bookshelves + throne dais
-  --     at cols 8-9 row 3)
-  --   rows 4-5: throne hall floor (where Miel stands and Suno arrives)
-  --   row 6:    tapestry-escape row (col 8 = tile 48 escape door)
-  --   row 7:    interior wall with two corridors at cols 4 and 11
-  --   rows 8-9: open antechamber + lanterns at edges
-  --   row 10:   chamber wall row (col 4 + col 11 are walls; col 5/12 open)
-  --   row 11:   Miel's chamber (left, with bed at col 2) + side room
-  --   row 12:   south wall with visible double-door (Suno's entry)
+  -- Layout (Pass 61, 9 rows — the old 12-row layout with the tapestry
+  -- at row 6, corridors, and Miel's chamber is history):
+  --   row 1:    top wall
+  --   row 2:    north wall + tapestry escape (tile 48, cols 8-9)
+  --   row 3:    open floor BEHIND the throne (access to tapestry)
+  --   row 4:    throne dais (cols 8-9) + bookshelves/lanterns at edges
+  --   rows 5-8: hall floor + carpet (Miel stands row 5; Suno arrives
+  --             from the south doors)
+  --   row 9:    south wall + hallway doors (cols 8-9, to map 27)
   --
-  -- Tile codes: 4=stone wall, 0=floor, 21=bed, 24=lantern, 30=hearth,
-  -- 31=bookshelf, 39=plant, 42=broom, 48=tapestry escape, 53=throne
-  -- dais (decorative), 55=double-door (decorative).
+  -- Tile codes: 4=stone wall, 0=floor, 24=lantern, 31=bookshelf,
+  -- 39=plant, 42=broom, 48=tapestry escape, 53=throne dais
+  -- (decorative), 58=interior door.
   -- Castle THRONE HALL (map 20) — overhauled in Pass 60. Bedroom +
   -- antechamber gone; this is now strictly the throne hall. Carpet
   -- runner (tile 2) flows from the south doors up to the dais.
-  -- Tapestry escape preserved at (8, 6). South wall row 9 has two
-  -- interior doors (cols 7-8) leading to the hallway (map 27).
+  -- Tapestry escape at (8-9, 2) in the north wall. South wall row 9
+  -- has two interior doors (cols 8-9) leading to the hallway (map 27).
   -- 16w × 9t.
   -- Castle THRONE HALL — revised in Pass 61. Tapestry now embedded
   -- INTO the north wall directly behind the throne; the thrones are
@@ -4216,7 +4217,10 @@ CONTENT = {
     },
     -- A trapped Sage Circle scout (upper level side scene)
     {
-      x = 14, y = 4, name = "scout_trapped", kind = "npc",
+      -- Display name "Scout" (the raw id "scout_trapped" was showing as
+      -- the dialogue speaker header). Distinct from the lowercase
+      -- "scout" NPC; sprite key renamed to match.
+      x = 14, y = 4, name = "Scout", kind = "npc",
       dialogue = function()
         local lead = party[active] and party[active].class
         if lead == "bard" then
@@ -4694,17 +4698,28 @@ local STORY = {
       trig = function()
         return shards.mixolydian and class_in_party and class_in_party("warrior")
       end,
-      lines = {
-        "[Strom]  (sharpening his blade slowly, with long even strokes)",
-        "[Strom]  My captain. I never said her name aloud after she fell.",
-        "[Strom]  Not at the wake. Not at the cairn. Not when her brother came asking.",
-        "[Strom]  I thought saying it would make her gone twice.",
-        "[Strom]  Sergei knew her brother. Different rig, same hands.",
-        "[Strom]  He told me her name back to me. Told me it was hers to be carried, not hidden.",
-        "[Strom]  I think if I say it now the wind will carry it. And maybe -- a little -- she will hear me.",
-        "[Strom]  ...Reya.",
-        "(The fire pops. The wind moves through it once, then settles.)",
-      },
+      -- lines as a function: the middle beat depends on whether Sergei
+      -- has actually joined — without him, Strom can't recount a
+      -- conversation that never happened.
+      lines = function()
+        local out = {
+          "[Strom]  (sharpening his blade slowly, with long even strokes)",
+          "[Strom]  My captain. I never said her name aloud after she fell.",
+          "[Strom]  Not at the wake. Not at the cairn. Not when her brother came asking.",
+          "[Strom]  I thought saying it would make her gone twice.",
+        }
+        if CONTENT.recruits[1] and CONTENT.recruits[1].joined then
+          out[#out + 1] = "[Strom]  Sergei knew her brother. Different rig, same hands."
+          out[#out + 1] = "[Strom]  He told me her name back to me. Told me it was hers to be carried, not hidden."
+        else
+          out[#out + 1] = "[Strom]  Her brother came asking, and I gave him silence. He deserved her name."
+          out[#out + 1] = "[Strom]  A name is hers to be carried, not hidden. It took me too long to learn that."
+        end
+        out[#out + 1] = "[Strom]  I think if I say it now the wind will carry it. And maybe -- a little -- she will hear me."
+        out[#out + 1] = "[Strom]  ...Reya."
+        out[#out + 1] = "(The fire pops. The wind moves through it once, then settles.)"
+        return out
+      end,
     },
     {
       id = "solo_diegues",
@@ -5584,7 +5599,7 @@ STORY.filter_party_lines = function(lines)
   local out = {}
   local kept_speech = false
   for _, line in ipairs(lines) do
-    local sp = line:match("^%[(%S+)%]")
+    local sp = line:match("^%[([^%]]+)%]")
     if sp then
       local cls = STORY.SPEAKER_CLASS[sp]
       if cls and not class_in_party(cls) then
@@ -5608,7 +5623,10 @@ end
 STORY.play = function()
   for _, sc in ipairs(STORY.scenes) do
     if not STORY.seen[sc.id] and sc.trig() then
-      local filtered = STORY.filter_party_lines(sc.lines)
+      -- lines may be a function (for scenes whose content depends on
+      -- more than party composition — e.g. recruit-aware beats).
+      local raw = (type(sc.lines) == "function") and sc.lines() or sc.lines
+      local filtered = STORY.filter_party_lines(raw)
       if filtered then
         STORY.seen[sc.id] = true
         start_dialogue({name = "_party_scene", dialogue = filtered})
@@ -5625,7 +5643,8 @@ STORY.play_id = function(id)
   if STORY.seen[id] then return false end
   for _, sc in ipairs(STORY.scenes) do
     if sc.id == id and sc.trig() then
-      local filtered = STORY.filter_party_lines(sc.lines)
+      local raw = (type(sc.lines) == "function") and sc.lines() or sc.lines
+      local filtered = STORY.filter_party_lines(raw)
       if filtered then
         STORY.seen[id] = true
         start_dialogue({name = "_party_scene", dialogue = filtered})
@@ -6322,8 +6341,9 @@ BOSS_APPROACH = {
     "(The cave widens into a chamber. The drip from the ceiling hits the floor a half-beat too late.)",
     "(...far back in the dark, the drip answers itself.)",
     "[Miel]   It's listening.",
-    "(A voice -- her own voice -- comes back from the wall, twisted to a different key.)",
-    "[Echo]   ((It's listening.))",
+    "(A voice -- her own voice -- comes back from the wall.)",
+    "(It comes back twisted, to a different key.)",
+    "[Cave Echo] ((It's listening.))",
     "(Something at the back of the chamber takes a step. The party draws together.)",
   },
   [2] = {  -- Cave 2: Sentinel
@@ -6719,6 +6739,9 @@ function start_echo_recruit_scene()
     {spawn = "alder",   class = "bard",    name = "Alder",   x = px - 1, y = py, facing = "right", bob = false},
     {spawn = "miel",    class = "cleric",  name = "Miel",    x = px,     y = py, facing = "right", bob = false},
     {spawn = "diegues", class = "mage",    name = "Diegues", x = px - 2, y = py, facing = "right", bob = false},
+    -- Strom has no lines here, but the whole core four stand together
+    -- for a major story beat (he was visually missing).
+    {spawn = "strom",   class = "warrior", name = "Strom",   x = px - 3, y = py, facing = "right", bob = false},
     {spawn = "echo",    class = "wraith",  name = "ECHO",    x = ax,     y = ay, facing = "left",  bob = false},
     {wait = 12},
     {sfx = {class = "wraith", note = 79, vel = 0.4, attack = 0.005, release = 1.2, wet = 1.0}},
@@ -6780,7 +6803,8 @@ function start_echo_recruit_scene()
     table.insert(script, {wait = 12})
   end
   for _, step in ipairs({
-    {despawn = "alder"}, {despawn = "miel"}, {despawn = "diegues"}, {despawn = "echo"},
+    {despawn = "alder"}, {despawn = "miel"}, {despawn = "diegues"},
+    {despawn = "strom"}, {despawn = "echo"},
     {teleport_player = {x = px, y = py, facing = "left"}},
     {show_player = true},
     {letterbox_out = true},
@@ -6852,10 +6876,10 @@ function start_prologue_throne_scene()
   -- script step; if anything went wrong we'd softlock the player into
   -- the trigger zone forever.
   CONTENT.prologue_scene_done = true
-  -- Throne hall is now at the TOP of the new castle map (rows 1-6).
-  -- Throne dais at (8-9, 3). Tapestry escape at (8, 6). Player has
-  -- walked NORTH from the chamber, through the corridor at row 7, and
-  -- crossed into the throne hall at row 5.
+  -- Throne hall is the whole of map 20 (Pass 61). Throne dais at
+  -- (8-9, 4); tapestry escape at (8-9, 2) in the north wall behind it.
+  -- Player has walked NORTH from the hallway (map 27) through the
+  -- south doors and crossed into the throne hall at row 5.
   --
   -- We force the camera to cam.y = 1 (showing rows 1-8) via a focus to
   -- (8, 5) — clamps to cam.y = max(1, min(5, 5-4)) = 1. With cam.y=1:
@@ -7018,11 +7042,12 @@ function start_prologue_throne_scene()
       "(Miel exhales. Her hand finds the cold edge of the dais.)",
       "[Miel]    (very quietly, only to herself)",
       "[Miel]    ...grandmother. The fault in the floor.",
-      "[Miel]    The room behind the south wall.",
+      "[Miel]    The room behind the north wall.",
     }, npc = {name = "Miel"}},
     {wait = 6},
-    -- Miel turns to face the south wall (the tapestry).
-    {face = "miel", facing = "down"},
+    -- Miel turns to face the north wall (the tapestry sits in it,
+    -- directly behind the throne — Pass 61 map).
+    {face = "miel", facing = "up"},
     {wait = 12},
     {dialogue = {
       "(She has known the seam since she was a child.)",
@@ -7037,12 +7062,13 @@ function start_prologue_throne_scene()
     {despawn = "sil_l"},
     {despawn = "sil_r"},
     {despawn = "miel"},
-    -- Drop player at (8, 5) — walkable throne-hall floor, facing south
-    -- toward the tapestry escape at (8, 6).
-    {teleport_player = {x = 8, y = 5, facing = "down"}},
+    -- Drop player at (8, 5) — walkable throne-hall floor, facing north
+    -- toward the throne and the tapestry escape behind it at (8, 2)
+    -- (reached around the dais via the open row 3).
+    {teleport_player = {x = 8, y = 5, facing = "up"}},
     {show_player = true},
     {wait = 6},
-    {flash = "* the tapestry. south. *", ticks = 80},
+    {flash = "* the tapestry. north. *", ticks = 80},
   }
   SCENE.start(script)
 end
@@ -7051,7 +7077,7 @@ end
 -- The `flash` scene step writes CONTENT.banner_text with a multi-tick
 -- lifetime; the scripted battles below set game_state="BATTLE" directly
 -- and so bypass enter_battle's wipe (lines ~17838). Without this, a
--- navigation hint like "* the tapestry. south. *" bleeds into the
+-- navigation hint like "* the tapestry. north. *" bleeds into the
 -- opening frames of the fight. Keeps the hint in the overworld, off the
 -- battle screen.
 function clear_pending_banner()
@@ -7688,7 +7714,8 @@ function start_academy_choir_scene()
     {wait = 18},
     {dialogue = {
       "(The Hall of Resonance is no longer quiet.)",
-      "(Four students stand at the front of the room. Diegues has a baton in his hand he has never owned a baton before.)",
+      "(Four students stand at the front of the room.)",
+      "(Diegues has a baton in his hand. He has never owned a baton.)",
       "[Diegues] (raises the baton) On three.",
       "[Diegues] (more quietly, to himself) I have wanted to say 'on three' in this room for a long time.",
     }, npc = {name = "Diegues"}},
@@ -9125,9 +9152,10 @@ function start_boss_approach_scene(cv)
         "[Miel]    It's listening.",
       }, npc = {name = "Miel"}},
       {dialogue = {
-        "(A voice -- her own voice -- comes back from the wall, twisted to a different key.)",
-        "[Echo]    ((It's listening.))",
-      }, npc = {name = "Echo"}},
+        "(A voice -- her own voice -- comes back from the wall.)",
+        "(It comes back twisted, to a different key.)",
+        "[Cave Echo] ((It's listening.))",
+      }, npc = {name = "Cave Echo"}},
       {dialogue = {
         "(Something at the back of the chamber takes a step.)",
         "(The party draws together.)",
@@ -11168,11 +11196,12 @@ local MAINLAND_NPCS = {
       }
     end,
   },
-  -- Bren the smith — works at a small open-air anvil in the village
-  -- center, two tiles east of Brann (the path runs through here).
-  -- His hammer-strike pattern is the warrior's natural meter
+  -- Anvel the journeyman smith (renamed from a second "Bren" — that
+  -- name is the Lirael steward's) — works at a small open-air anvil in
+  -- the village center, two tiles east of Brann (the path runs through
+  -- here). His hammer-strike pattern is the warrior's natural meter
   -- (4-on-the-floor). Lore deepens as the chord assembles.
-  { x = 29, y = 9, name = "Bren",
+  { x = 29, y = 9, name = "Anvel",
     barks = {"(hammer falls)", "iron is honest.", "(hisses quench)", "mornin'.", "(clang) (clang)"},
     dialogue = function()
       local n = 0; for _, v in pairs(shards) do if v then n = n + 1 end end
@@ -11180,23 +11209,23 @@ local MAINLAND_NPCS = {
       -- A tiny anvil ring on dialogue-open.
       sq_trig("warrior", midi_to_freq(72), 0.55, 0.001, 0.30, 0.30)
       if n >= 6 then
-        return with_shard_react("Bren", {
-          "[Bren]    (sets the hammer down for the first time today)",
-          "[Bren]    The iron's been singing under my hand. It hasn't done that in years.",
-          "[Bren]    Bring back the seventh and I'll forge you something that remembers.",
+        return with_shard_react("Anvel", {
+          "[Anvel]   (sets the hammer down for the first time today)",
+          "[Anvel]   The iron's been singing under my hand. It hasn't done that in years.",
+          "[Anvel]   Bring back the seventh and I'll forge you something that remembers.",
         })
       end
       if lead == "warrior" then
-        return with_shard_react("Bren", {
-          "[Bren]    (looks up, recognizes the stance) Ex-army.",
-          "[Bren]    Eastern Reaches campaign? Lirael garrison?",
-          "[Bren]    (smiles, a little tired) ...whichever it was. Sit a moment. I'll heat the kettle.",
+        return with_shard_react("Anvel", {
+          "[Anvel]   (looks up, recognizes the stance) Ex-army.",
+          "[Anvel]   Eastern Reaches campaign? Lirael garrison?",
+          "[Anvel]   (smiles, a little tired) ...whichever it was. Sit a moment. I'll heat the kettle.",
         })
       end
-      return with_shard_react("Bren", {
-        "[Bren]    (clang) Mornin'. (clang) Don't mind the noise. (clang)",
-        "[Bren]    Iron is honest. It tells you exactly what it is, every time you hit it.",
-        "[Bren]    (clang) People aren't iron. (clang) Pity, sometimes.",
+      return with_shard_react("Anvel", {
+        "[Anvel]   (clang) Mornin'. (clang) Don't mind the noise. (clang)",
+        "[Anvel]   Iron is honest. It tells you exactly what it is, every time you hit it.",
+        "[Anvel]   (clang) People aren't iron. (clang) Pity, sometimes.",
       })
     end,
   },
@@ -12450,7 +12479,7 @@ CONTENT.northern_shop_npcs = {
         return lines[math.random(#lines)]
       elseif n >= 5 then
         local lines = {
-          {"Vix's nose twitches when you say `Aeolian`.", "She does not move otherwise. But the twitch is new."},
+          {"Vix's nose twitches when you say 'Aeolian'.", "She does not move otherwise. But the twitch is new."},
           {"Vix tracks Strom across the room with her eyes,", "ears canted toward his footsteps."},
         }
         return lines[math.random(#lines)]
@@ -12652,9 +12681,9 @@ CONTENT.castle_npcs = {
   -- SAME silencers (visual continuity — no "they appeared out of fire"
   -- effect from sudden spawns at random coords). Player at (8, 5)
   -- after the scene; silencers flank her at the throne dais (row 4).
-  -- Player can still walk south to the tapestry escape (col 8 row 6),
-  -- and can engage either silencer by approaching from south (face
-  -- north, press A).
+  -- Player can walk north around the dais (open row 3) to the tapestry
+  -- escape (cols 8-9, row 2), and can engage either silencer by
+  -- approaching from south (face north, press A).
   { x = 7, y = 4, name = "Silencer1",
     visible = function()
       return CONTENT.prologue_state == "coup"
@@ -13428,7 +13457,7 @@ local npcs = MAINLAND_NPCS  -- active NPC list (mutable; swaps on travel_to)
 
 -- Global (was local) so NPC dialogue functions defined EARLIER in the
 -- file can call midi_to_freq without falling through to a nil global
--- lookup. e.g. Bren's anvil-ring SFX at line ~7890 fires
+-- lookup. e.g. Anvel's anvil-ring SFX (village smith NPC) fires
 -- sq_trig(..., midi_to_freq(72), ...) and the local midi_to_freq
 -- isn't yet in lexical scope at the NPC's definition point.
 function midi_to_freq(n)
@@ -15308,7 +15337,7 @@ local function try_move(dx, dy)
       dlg.lines = pack_dialogue_lines({
         "(Niko lifts the iron guard off the plinth. Heavier than it looks.)",
         "[Niko]    He wore this until his hands quit. Then he kept going.",
-        "(she fits it over her own knuckles. It settles like it was waiting.)",
+        "(he fits it over his own knuckles. It settles like it was waiting.)",
       }, nil)
       dlg.line = 1; dlg.npc = nil
       game_state = "DIALOGUE"
@@ -15552,10 +15581,10 @@ local function try_move(dx, dy)
       end
     end
     -- Castle prologue: fires the throne-room confrontation the first
-    -- time Miel crosses into the throne hall (row <=5 — she's walked
-    -- north past the tapestry row + interior corridor and is now on
-    -- the throne hall floor). Only fires after the intro beat played
-    -- and before the scene has already played.
+    -- time Miel crosses into the throne hall (row <=5 — she's come up
+    -- from the south hallway doors and is now on the throne hall
+    -- floor). Only fires after the intro beat played and before the
+    -- scene has already played.
     if current_map_id == 20
        and CONTENT.prologue_intro_done
        and not CONTENT.prologue_scene_done
@@ -15934,7 +15963,7 @@ function pack_dialogue_lines(raw, npc_name)
   -- consistent tags.
   local expanded = {}
   for _, line in ipairs(raw) do
-    local sp_pre, body_pre = line:match("^(%[%S+%]%s*)(.*)$")
+    local sp_pre, body_pre = line:match("^(%[[^%]]+%]%s*)(.*)$")
     if sp_pre and #body_pre > 0 and #line > MAX_CHARS_PRE then
       for _, piece in ipairs(split_long(body_pre)) do
         expanded[#expanded + 1] = sp_pre .. piece
@@ -15977,7 +16006,8 @@ function pack_dialogue_lines(raw, npc_name)
   local i = 1
   while i <= #raw do
     local first = clean(raw[i])
-    local sp1, body1 = first:match("^%[(%S+)%]%s*(.*)$")
+    -- Same tag pattern as draw_dialogue: allows spaces ("[Cave Echo]").
+    local sp1, body1 = first:match("^%[([^%]]+)%]%s*(.*)$")
     local prefix = sp1 and ("[" .. sp1 .. "] ") or ""
     local body_acc = body1 or first
     local consumed = 1
@@ -15986,7 +16016,7 @@ function pack_dialogue_lines(raw, npc_name)
     local cap = (sp1 == nil) and DEFAULT_FONT_CAP or MAX_CHARS
     while i + consumed <= #raw do
       local nxt = clean(raw[i + consumed])
-      local sp2, body2 = nxt:match("^%[(%S+)%]%s*(.*)$")
+      local sp2, body2 = nxt:match("^%[([^%]]+)%]%s*(.*)$")
       if (sp1 or "") ~= (sp2 or "") then break end
       local trial = body_acc .. " " .. (body2 or nxt)
       if #trial > cap then break end
@@ -22890,7 +22920,8 @@ NPC_SPRITES = {
   -- the local draw_engineer_sprite is out of scope here).
   Sergei = SPRITE_BY_CLASS.engineer,
   Paj    = SPRITE_BY_CLASS.mathwiz,
-  -- Hidden NPCs (Wina/Karoo/Snow) use the generic NPC fallback
+  -- (Wina/Karoo/Snow have bespoke NPC_SPRITES entries added below —
+  -- this table is only the initial do-block batch.)
 }
 end  -- npc draws
 
@@ -23000,6 +23031,11 @@ NPC_SPRITES.Echo = function(sx, sy)
   -- mouth slit
   screen.level(0); screen.pixel(sx + 4, sy + 2); screen.fill()
 end
+
+-- The boss's dialogue tag is "[Cave Echo]" (renamed to stop colliding
+-- with the academy-girl Echo NPC + party-member ECHO); alias the glyph
+-- so the header portrait and the spawned approach actor both resolve.
+NPC_SPRITES["Cave Echo"] = NPC_SPRITES.Echo
 
 NPC_SPRITES.Sentinel = function(sx, sy, t)
   -- Sentinel: massive wooden figure, mossed. No animation — it does not
@@ -23198,9 +23234,10 @@ NPC_SPRITES.Tilde = function(sx, sy)
   screen.level(15); screen.pixel(sx + 6, sy + 5); screen.fill()         -- bird eye highlight
 end
 
--- Bren the smith — broad shoulders, leather apron, hammer-down posture.
--- Tiny anvil glint at the base.
-NPC_SPRITES.Bren = function(sx, sy)
+-- Anvel the smith (was keyed "Bren" — that name belongs to the Lirael
+-- steward, who was rendering with this smith art). Broad shoulders,
+-- leather apron, hammer-down posture. Tiny anvil glint at the base.
+NPC_SPRITES.Anvel = function(sx, sy)
   -- head (dark hair)
   screen.level(3); screen.rect(sx + 2, sy + 1, 4, 2); screen.fill()
   screen.level(7); screen.rect(sx + 2, sy + 2, 4, 1); screen.fill()
@@ -23214,6 +23251,23 @@ NPC_SPRITES.Bren = function(sx, sy)
   if (tick % 24) < 4 then
     screen.level(15); screen.pixel(sx + 4, sy + 7); screen.fill()
   end
+end
+
+-- Bren — the old Lirael steward. Stooped, thin, still in Lirael colors:
+-- a pale sash across a dark formal coat. Hands folded in front.
+NPC_SPRITES.Bren = function(sx, sy)
+  -- head (white hair, slightly bowed)
+  screen.level(13); screen.rect(sx + 2, sy + 1, 4, 1); screen.fill()
+  screen.level(10); screen.rect(sx + 2, sy + 2, 4, 1); screen.fill()
+  -- narrow stooped shoulders, dark coat
+  screen.level(4); screen.rect(sx + 2, sy + 3, 4, 4); screen.fill()
+  -- Lirael sash, shoulder to hip
+  screen.level(12); screen.pixel(sx + 2, sy + 3); screen.pixel(sx + 3, sy + 4)
+  screen.pixel(sx + 4, sy + 5); screen.pixel(sx + 5, sy + 6); screen.fill()
+  -- folded hands
+  screen.level(9); screen.rect(sx + 3, sy + 6, 2, 1); screen.fill()
+  -- feet
+  screen.level(3); screen.rect(sx + 2, sy + 7, 1, 1); screen.rect(sx + 5, sy + 7, 1, 1); screen.fill()
 end
 
 -- Tilo the dock-child — small, hood up, holding hands together as if
@@ -23743,9 +23797,10 @@ NPC_SPRITES.archivist = function(sx, sy)
   screen.level(3);  screen.rect(sx + 5, sy + 7, 1, 1); screen.fill()
 end
 
--- scout_trapped: pinned UNDER a fallen rafter (legit — her dialogue
--- asks you to "sing the timber loose"). Dark beam slab across her legs.
-NPC_SPRITES.scout_trapped = function(sx, sy)
+-- Scout (was scout_trapped): pinned UNDER a fallen rafter (legit — her
+-- dialogue asks you to "sing the timber loose"). Dark beam slab across
+-- her legs. Key matches the NPC's display name.
+NPC_SPRITES.Scout = function(sx, sy)
   screen.level(13); screen.rect(sx + 2, sy + 1, 4, 2); screen.fill()         -- face (straining)
   screen.level(5);  screen.rect(sx + 2, sy, 4, 1); screen.fill()             -- hair
   screen.level(0);  screen.pixel(sx + 3, sy + 2); screen.pixel(sx + 4, sy + 2); screen.fill()
@@ -24950,7 +25005,7 @@ end
 -- Now includes the recruits so post-join scenes render their portraits too.
 local DLG_NAME_TO_CLASS = {
   Alder="bard", Miel="cleric", Strom="warrior", Diegues="mage",
-  Sergei="engineer", Paj="mathwiz", Niko="drummer",
+  Sergei="engineer", Paj="mathwiz", Niko="drummer", ECHO="wraith",
 }
 
 local function draw_dialogue()
@@ -24973,11 +25028,27 @@ local function draw_dialogue()
   -- (so party-scene lines show the actual character + their sprite, not
   -- "_party_scene").
   local cur = (dlg.lines or {})[dlg.line] or ""
-  local sp, rest = cur:match("^%[(%S+)%]%s*(.*)$")
+  -- Tag pattern allows spaces inside the brackets ("[Cave Echo]") —
+  -- %S+ silently failed on multi-word names and dumped the raw tag
+  -- into the dialogue body.
+  local sp, rest = cur:match("^%[([^%]]+)%]%s*(.*)$")
   -- dlg.npc may be nil for narrator-style sequences (campfire memories,
   -- in-line story banter). Fall back to no speaker label in that case.
   local speaker = sp or (dlg.npc and dlg.npc.name) or ""
   if speaker == "_party_scene" then speaker = "" end
+  -- Narration is never spoken by a character: in a SCRIPTED SCENE, an
+  -- untagged line that is entirely parenthetical "(like this.)" is
+  -- scene description, so it renders with no speaker header even inside
+  -- an npc-attributed dialogue step. Explicitly tagged action beats
+  -- ("[Miel] (touches the basin's lip)") keep their header — the [Name]
+  -- tag is the author saying whose beat it is. Scoped to SCENE.active:
+  -- outside scenes, examine-objects (Fountain, gravestones, shelves)
+  -- speak entirely in parentheticals and NEED their name label, and an
+  -- NPC's own stage direction under their label is the game's idiom.
+  if not sp and SCENE and SCENE.active
+     and cur:match("^%(") and cur:match("%)%s*$") then
+    speaker = ""
+  end
   local body = rest or cur
   -- Final safety: if the body still leads with "<speaker>:" (e.g. someone
   -- wrote "[Strom] Strom: ..." or pack didn't catch a stray prefix),
