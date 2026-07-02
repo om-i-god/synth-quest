@@ -1926,3 +1926,39 @@ have no full-screen panel art (masked_voice/spring/scatter/
 slow_wheel/threefold), and NO attunement scene actually displays its
 signature.visual key — the 3 existing panels (bell alcove, astrolabe,
 drum-hall) are orphaned. Candidate follow-up pass.
+
+## 2026-07-02 (later still) — show, don't tell: animating narrated actions
+
+User direction: JRPGs shouldn't caption character actions — you
+should SEE them. First conversion pass over the highest-traffic
+scenes, replacing parenthetical action narration with real scene
+choreography:
+
+- Six-shards fountain: Alder turns to the fountain (face step, was
+  "(looks at the fountain)"); Diegues' book-taps are two soft
+  high-register clicks you hear; Miel's basin touch is a camera
+  drift to the fountain + a small water-bright chime.
+- World of Silence beat: Diegues' "(turns a slow circle,
+  listening)" is now an actual four-facing slow turn.
+- ECHO recruit: her shuddering outline is a real despawn/respawn
+  flicker with a stuttered half-syllable sfx; the "(a flicker; she
+  nearly vanishes, returns)" mid-line became a longer on-screen
+  blink between her two lines; Miel's "(steps forward; offers her
+  hand)" is a real one-tile move toward ECHO (direction computed
+  from spawn positions).
+- Niko recruit: "(sets down the drumsticks)/(picks them back up)"
+  became wood-click sfx beats inside the existing face-down/
+  face-left choreography.
+
+AUTHORING CONVENTION going forward: in scripted scenes, physical
+actions by present actors get choreography steps (face / look /
+move / sfx / flicker), not captions. Parenthetical narration is
+reserved for what can't be shown on an 8x8 sprite: atmosphere,
+interiority, sound-images ("Half a syllable, then nothing."),
+world description. NPC-talk stage directions outside scenes keep
+the game's existing caption idiom.
+
+Remaining candidates for future passes (not yet converted):
+prologue castle/Lirael scenes, boss-approach scenes, finale, and
+the attunement scaffold (whose orphaned signature.visual panels
+are a separate known gap).

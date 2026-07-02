@@ -6744,9 +6744,19 @@ function start_echo_recruit_scene()
     {spawn = "strom",   class = "warrior", name = "Strom",   x = px - 3, y = py, facing = "right", bob = false},
     {spawn = "echo",    class = "wraith",  name = "ECHO",    x = ax,     y = ay, facing = "left",  bob = false},
     {wait = 12},
+    -- ECHO's outline shudders — shown as an actual flicker (despawn/
+    -- respawn blink) with a stuttered half-syllable, not a caption.
+    {sfx = {class = "wraith", note = 79, vel = 0.4, attack = 0.005, release = 0.15, wet = 1.0}},
+    {despawn = "echo"},
+    {wait = 3},
+    {spawn = "echo", class = "wraith", name = "ECHO", x = ax, y = ay, facing = "left", bob = false},
+    {wait = 5},
+    {despawn = "echo"},
+    {wait = 2},
+    {spawn = "echo", class = "wraith", name = "ECHO", x = ax, y = ay, facing = "left", bob = false},
+    {wait = 8},
     {sfx = {class = "wraith", note = 79, vel = 0.4, attack = 0.005, release = 1.2, wet = 1.0}},
     {dialogue = {
-      "(ECHO's outline shudders. Half a syllable, then nothing. Then again.)",
       "[ECHO]    ...the chord. You still carry...",
       "[ECHO]    I cannot hold here without it. The silence eats my edges.",
     }, npc = {name = "ECHO"}},
@@ -6758,12 +6768,24 @@ function start_echo_recruit_scene()
     }, npc = {name = "Diegues"}},
     {wait = 6},
     {dialogue = {
-      "[ECHO]    Let me walk with you. (a flicker; she nearly vanishes, returns)",
+      "[ECHO]    Let me walk with you.",
+    }, npc = {name = "ECHO"}},
+    -- The near-vanish, on screen: a longer blink than before.
+    {despawn = "echo"},
+    {wait = 8},
+    {spawn = "echo", class = "wraith", name = "ECHO", x = ax, y = ay, facing = "left", bob = false},
+    {wait = 6},
+    {dialogue = {
       "[ECHO]    Your chord is the loudest thing left.",
     }, npc = {name = "ECHO"}},
     {wait = 8},
+    -- Miel steps toward her and offers her hand — a real step, not a
+    -- caption. (One tile toward the astrolabe; ax > px on both map-19
+    -- entry points is not guaranteed, so compute the direction.)
+    {look = "miel", toward = "echo"},
+    {move = "miel", to = {x = px + ((ax > px) and 1 or -1), y = py}, ticks = 20},
+    {wait = 8},
     {dialogue = {
-      "[Miel]    (steps forward; offers her hand)",
       "[Miel]    We will not let the silence have you.",
     }, npc = {name = "Miel"}},
     {wait = 10},
@@ -7394,8 +7416,11 @@ function start_six_shards_scene()
   table.insert(script, {wait = 18})
   -- Each present companion has a brief reaction.
   if class_in_party("bard") then
+    -- Show, don't tell: Alder turns to the fountain instead of a
+    -- "(looks at the fountain)" caption.
+    table.insert(script, {face = "alder", facing = "up"})
+    table.insert(script, {wait = 10})
     table.insert(script, {dialogue = {
-      "[Alder]    (looks at the fountain)",
       "[Alder]    The water didn't run like this when I wrote my last song.",
       "[Alder]    I'll need a new last song.",
     }, npc = {name = "Alder"}})
@@ -7408,17 +7433,24 @@ function start_six_shards_scene()
     }, npc = {name = "Strom"}})
   end
   if class_in_party("mage") then
+    -- Two soft book-taps you can HEAR instead of a caption.
+    table.insert(script, {sfx = {class = "mage", note = 96, vel = 0.18, attack = 0.001, release = 0.06, wet = 0.10}})
+    table.insert(script, {wait = 8})
+    table.insert(script, {sfx = {class = "mage", note = 96, vel = 0.18, attack = 0.001, release = 0.06, wet = 0.10}})
+    table.insert(script, {wait = 10})
     table.insert(script, {dialogue = {
-      "[Diegues]  (taps the small leather book against his palm)",
       "[Diegues]  Six. The orrery in the observatory will know already.",
       "[Diegues]  The seventh note will fit. The math says so.",
       "[Diegues]  I have stopped doubting the math.",
     }, npc = {name = "Diegues"}})
   end
   table.insert(script, {wait = 14})
-  -- Miel's resolution.
+  -- Miel's resolution. Camera drifts to her at the basin and a small
+  -- water-bright chime rings — her hand on the lip, shown not captioned.
+  table.insert(script, {focus = {x = 15, y = 7}, ticks = 18})
+  table.insert(script, {sfx = {class = "cleric", note = 96, vel = 0.22, attack = 0.10, release = 2.5, wet = 1.00}})
+  table.insert(script, {wait = 10})
   table.insert(script, {dialogue = {
-    "[Miel]     (touches the basin's lip)",
     "[Miel]     Tomorrow morning we go to the tower.",
     "[Miel]     If we do not come back -- (...) -- the village should at least know who tried.",
     "[Miel]     Tonight, the inn. Tonight, the fire.",
@@ -7467,8 +7499,17 @@ function start_six_shards_scene()
       "[Miel]     ...he heard us.",
     }, npc = {name = "Miel"}})
     if class_in_party("mage") then
+      -- Diegues turns his slow listening circle on screen instead of
+      -- in a caption.
+      table.insert(script, {face = "diegues", facing = "down"})
+      table.insert(script, {wait = 10})
+      table.insert(script, {face = "diegues", facing = "left"})
+      table.insert(script, {wait = 10})
+      table.insert(script, {face = "diegues", facing = "up"})
+      table.insert(script, {wait = 10})
+      table.insert(script, {face = "diegues", facing = "right"})
+      table.insert(script, {wait = 12})
       table.insert(script, {dialogue = {
-        "[Diegues]  (turns a slow circle, listening)",
         "[Diegues]  The rhythm is intact. The voices are intact. Only the tuning is gone.",
         "[Diegues]  Pitch is the surface of music, not the substance. I always suspected.",
         "[Diegues]  I hated suspecting it.",
@@ -12970,15 +13011,19 @@ CONTENT.hollow_npcs = {
           "[Niko]    Four shards.",
           "[Niko]    That's enough chord for me to lock onto.",
         }, npc = {name = "Niko"}},
-        -- Niko looks at his sticks: face down, then back up.
+        -- Niko looks at his sticks: face down, sets them down (soft
+        -- wood click), picks them back up (two careful clicks), faces
+        -- back up. Shown + heard, not captioned.
         {face = "niko", facing = "down"},
         {wait = 12},
+        {sfx = {class = "warrior", note = 84, vel = 0.22, attack = 0.001, release = 0.06, wet = 0.10}},
+        {wait = 16},
+        {sfx = {class = "warrior", note = 84, vel = 0.16, attack = 0.001, release = 0.05, wet = 0.10}},
+        {wait = 5},
+        {sfx = {class = "warrior", note = 86, vel = 0.16, attack = 0.001, release = 0.05, wet = 0.10}},
+        {wait = 10},
         {face = "niko", facing = "left"},
         {wait = 6},
-        {dialogue = {
-          "[Niko]    (sets down the drumsticks)",
-          "[Niko]    (picks them back up, more carefully)",
-        }, npc = {name = "Niko"}},
         -- Niko stands and walks one step toward Miel.
         {move = "niko", to = {x = 10, y = 3}, ticks = 24},
         {look = "niko", toward = "miel"},
