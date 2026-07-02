@@ -6747,6 +6747,12 @@ function start_echo_recruit_scene()
     {sfx = {class = "wraith", note = 72, vel = 0.7, attack = 0.05, release = 4.0, wet = 0.9}},
     {wait = 14},
     {set = function()
+      -- ECHO anchors in the party's chord — and the chord anchors the
+      -- world. Ends the World of Silence (no-op on the debug path).
+      -- Cleared FIRST: this closure runs inside a pcall, and if a later
+      -- line ever errored after echo_recruit was marked seen, the gate
+      -- would never refire and the silence would be stuck.
+      CONTENT.act3_silence = false
       CONTENT.scene_seen = CONTENT.scene_seen or {}
       CONTENT.scene_seen.echo_recruit = true
       if CONTENT.recruits[4] then CONTENT.recruits[4].joined = true end
@@ -6755,11 +6761,30 @@ function start_echo_recruit_scene()
       CONTENT.banner_ticks = 90
     end},
     {wait = 24},
+  }
+  -- If the world is currently atonal (the real Act 3 path, not the
+  -- debug recruit), ECHO's anchoring audibly re-tunes it: a true fifth
+  -- rings out where every note has been sliding for days.
+  if CONTENT.act3_silence then
+    table.insert(script, {sfx = {class = "wraith", note = 69, vel = 0.55,
+                                 attack = 0.30, release = 6.0, wet = 1.00}})
+    table.insert(script, {wait = 6})
+    table.insert(script, {sfx = {class = "cleric", note = 76, vel = 0.45,
+                                 attack = 0.30, release = 6.0, wet = 1.00}})
+    table.insert(script, {wait = 14})
+    table.insert(script, {dialogue = {
+      "(ECHO steadies. And around her, outward like rings on water, the world remembers its tuning.)",
+      "[ECHO]    ...there. I will hold the note.",
+      "[ECHO]    You hold me.",
+    }, npc = {name = "ECHO"}})
+    table.insert(script, {wait = 12})
+  end
+  for _, step in ipairs({
     {despawn = "alder"}, {despawn = "miel"}, {despawn = "diegues"}, {despawn = "echo"},
     {teleport_player = {x = px, y = py, facing = "left"}},
     {show_player = true},
     {letterbox_out = true},
-  }
+  }) do table.insert(script, step) end
   SCENE.start(script)
 end
 
@@ -7389,6 +7414,56 @@ function start_six_shards_scene()
     table.insert(script, {wait = 6})
   end
   table.insert(script, {wait = 24})
+  -- ACT 3 — THE WORLD OF SILENCE (compressed from the bible's Act 3).
+  -- The chord rings true... and Suno answers. With six notes gathered,
+  -- he casts the seventh's absence across Modalia: the world keeps its
+  -- rhythm and its voices but loses its tuning. While
+  -- CONTENT.act3_silence holds, fire_ow_voice bends every overworld
+  -- note by a random microtonal offset; ECHO's recruitment at the
+  -- Academy astrolabe re-anchors pitch (and is what this flag gates);
+  -- Suno's defeat clears it as a backstop. Skipped entirely if ECHO
+  -- already joined (debug recruit path) — an anchored chord holds the
+  -- world's tuning.
+  local echo_joined = CONTENT.scene_seen and CONTENT.scene_seen.echo_recruit
+  if not echo_joined then
+    table.insert(script, {wait = 12})
+    -- A sour answer from very far away: the party's root, bent a
+    -- quarter-tone wrong. midi_to_freq takes fractional notes.
+    table.insert(script, {sfx = {class = "mage", note = 48.55, vel = 0.55,
+                                 attack = 2.5, release = 9.0, wet = 1.00}})
+    table.insert(script, {wait = 20})
+    table.insert(script, {dialogue = {
+      "(The chord hangs over the plaza. Then -- far off, past the coast, past the North -- something answers.)",
+      "(The fountain's song slides. Not quieter. Wrong.)",
+      "(Every pitch in the world lets go of its mooring at once.)",
+    }, npc = nil})
+    table.insert(script, {dialogue = {
+      "[Miel]     ...he heard us.",
+    }, npc = {name = "Miel"}})
+    if class_in_party("mage") then
+      table.insert(script, {dialogue = {
+        "[Diegues]  (turns a slow circle, listening)",
+        "[Diegues]  The rhythm is intact. The voices are intact. Only the tuning is gone.",
+        "[Diegues]  Pitch is the surface of music, not the substance. I always suspected.",
+        "[Diegues]  I hated suspecting it.",
+      }, npc = {name = "Diegues"}})
+      table.insert(script, {dialogue = {
+        "[Diegues]  The Academy's astrolabe turns on mathematics, not pitch.",
+        "[Diegues]  If anything still remembers the true tuning -- it is Echo.",
+        "[Diegues]  We go there before the tower.",
+      }, npc = {name = "Diegues"}})
+    else
+      table.insert(script, {dialogue = {
+        "[Miel]     The Academy's astrolabe. The figure who lives beside it.",
+        "[Miel]     If the silence is eating the world's edges -- what is it doing to hers?",
+        "[Miel]     We go to the Academy before the tower.",
+      }, npc = {name = "Miel"}})
+    end
+    table.insert(script, {set = function()
+      CONTENT.act3_silence = true
+    end})
+    table.insert(script, {wait = 12})
+  end
   table.insert(script, {despawn = "miel"})
   if class_in_party("warrior") then table.insert(script, {despawn = "strom"}) end
   if class_in_party("mage")    then table.insert(script, {despawn = "diegues"}) end
@@ -7396,7 +7471,11 @@ function start_six_shards_scene()
   table.insert(script, {teleport_player = {x = 15, y = 8, facing = "up"}})
   table.insert(script, {show_player = true})
   table.insert(script, {letterbox_out = true})
-  table.insert(script, {flash = "* the chord is six notes *", ticks = 60})
+  if echo_joined then
+    table.insert(script, {flash = "* the chord is six notes *", ticks = 60})
+  else
+    table.insert(script, {flash = "* the world has lost its tuning *", ticks = 60})
+  end
   SCENE.start(script)
 end
 
@@ -7418,6 +7497,7 @@ function start_new_game_plus()
   end
   CONTENT.scene_seen = {}
   CONTENT.events_seen = {}   -- ambient one-shot events refire on NG+
+  CONTENT.act3_silence = false   -- world starts NG+ in tune (six-shards re-arms it)
   -- Quest counters back to zero (gold and items kept — they're "earned").
   if QUESTS.hens then QUESTS.hens.wins = 0; QUESTS.hens.discount = false end
   if QUESTS.brann then QUESTS.brann.wins = 0; QUESTS.brann.claimed = false end
@@ -13589,7 +13669,7 @@ local travel_to       -- forward decl (defined later)
 --     -- chamber-wake scene was rewritten -- let it replay
 --     if data.scene_seen then data.scene_seen.chamber_wake = nil end
 --   end
-SAVE_VERSION = 1
+SAVE_VERSION = 2
 SAVE_MIGRATIONS = {
   -- v0 -> v1: page_warning scene was rewritten (Page now ends at his
   -- static post at (8,8) instead of running back to the door), and the
@@ -13603,6 +13683,22 @@ SAVE_MIGRATIONS = {
     end
     -- (CONTENT.courtyard_breach_done isn't currently saved, so the
     -- breach already replays on load — no migration needed for it.)
+  end,
+  -- v1 -> v2: the World of Silence beat landed (CONTENT.act3_silence,
+  -- set at the end of the six-shards scene, cleared by ECHO's
+  -- recruitment or the ending). Saves taken between six-shards and
+  -- ECHO/ending predate the beat entirely — re-arm the flag so ECHO's
+  -- recruitment is reachable on those saves.
+  [2] = function(data)
+    if data.act3_silence == nil then
+      local seen = data.scene_seen or {}
+      -- The ionian-shard check covers finished games from BEFORE
+      -- endgame_done was persisted (v0 saves): a returned seventh
+      -- shard means the world is already re-tuned.
+      data.act3_silence = (seen.six_shards and not seen.echo_recruit
+                           and not data.endgame_done
+                           and not (data.shards and data.shards.ionian)) or false
+    end
   end,
 }
 
@@ -13695,6 +13791,7 @@ save_game = function()
   data.pell_seen             = CONTENT.pell_seen or false
   data.senna_seen            = CONTENT.senna_seen or false
   data.endgame_done          = CONTENT.endgame_done or false
+  data.act3_silence          = CONTENT.act3_silence or false
   data.total_wins            = CONTENT.total_wins or 0
   data.cave_entered = {}
   for k, v in pairs(CONTENT.cave_entered or {}) do data.cave_entered[k] = v end
@@ -13948,6 +14045,7 @@ local function load_game()
   if data.pell_seen             ~= nil then CONTENT.pell_seen             = data.pell_seen end
   if data.senna_seen            ~= nil then CONTENT.senna_seen            = data.senna_seen end
   if data.endgame_done          ~= nil then CONTENT.endgame_done          = data.endgame_done end
+  if data.act3_silence          ~= nil then CONTENT.act3_silence          = data.act3_silence end
   if data.total_wins            ~= nil then CONTENT.total_wins            = data.total_wins end
   if data.fire_seen             ~= nil then CONTENT.fire_seen             = data.fire_seen end
   if data.cave_entered then
@@ -14191,6 +14289,17 @@ local function fire_ow_voice(class, scale_idx, artic_override, scale_override)
   if not sc_val then return end
   local note = sc_val + JAM.root
   local freq = midi_to_freq(note)
+  -- ACT 3 — World of Silence: while the silence holds, every voice
+  -- routed through here keeps its rhythm and register but loses its
+  -- tuning — each note bends by a random continuous offset up to ±6
+  -- semitones (bible: "the melody is still there, structurally; it
+  -- has lost only its tuning"). Both overworld AND battle themes
+  -- funnel through fire_ow_voice, so fights during the silence go
+  -- atonal too — deliberate (bible: atonal-mode combat, "the fights
+  -- feel naked"). Scene sfx and player jam notes stay in tune.
+  if CONTENT.act3_silence then
+    freq = freq * (2 ^ ((math.random() * 12 - 6) / 12))
+  end
   local base = OW_ARTIC[class]
   local ovr = artic_override and artic_override[class]
   local vel    = (ovr and ovr.vel)     or base.vel
@@ -17581,9 +17690,15 @@ travel_to = function(map_id, x, y)
   end
   -- ECHO recruitment: Act 3 "World of Silence" beat at the Academy
   -- courtyard. Fires once when the player enters map 19 with the silence
-  -- flag set. Until Act 3 systems land, CONTENT.debug_force_echo_recruit
-  -- bypasses the act3_silence check for testing.
-  if not _scene_busy and map_id == 19 and CONTENT
+  -- flag set (the six-shards scene sets it; see start_six_shards_scene).
+  -- CONTENT.debug_force_echo_recruit still bypasses the check for testing.
+  -- Re-check SCENE.active FRESH here (not just the _scene_busy snapshot):
+  -- on a first-ever Academy entry during the silence, the academy-intro
+  -- gate above has already SCENE.start-ed — firing ECHO's scene in the
+  -- same travel_to would wipe the intro script and its on_complete
+  -- (Diegues join + Strom battle), losing both recruits for the run.
+  -- ECHO simply waits for the next visit.
+  if not _scene_busy and not (SCENE and SCENE.active) and map_id == 19 and CONTENT
      and (CONTENT.act3_silence or CONTENT.debug_force_echo_recruit)
      and not (CONTENT.scene_seen and CONTENT.scene_seen.echo_recruit) then
     if start_echo_recruit_scene then start_echo_recruit_scene() end
@@ -18051,6 +18166,9 @@ exit_battle = function()
   if ending_pending then
     ending_pending = false
     ending_idx = 1
+    -- Backstop: if the player went straight to Suno without recruiting
+    -- ECHO, the Ionian shard's return ends the World of Silence too.
+    CONTENT.act3_silence = false
     game_state = "ENDING"
     params:set("clock_tempo", INTRO_BPM)
     redraw()

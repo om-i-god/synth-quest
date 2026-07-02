@@ -1814,3 +1814,70 @@ stub + Ruined Drum-Hall canonized. Device-verified (9/9 ACs).
 
 Acquisition only — the Heavy Hand combat effect (duck_enemies) is
 the parallel resonance-effects pass's job.
+
+## 2026-05-21 — Shrines complete + Ice Grotto (catch-up note)
+
+Batch that landed right after the Niko entry, logged here
+retroactively: the Spring wired as bard heal-echo (Miel's HEAL —
+and, since 2026-07-02, Alder's LUTE — echo twice at 25% per bar
+when armed), the Spring acquisition shrine (Alder / bandstand),
+the four remaining Resonance shrines, the Ice Grotto enemy set
+(Cave 5, from bible), Broken Cadence Ionian weakness + bestiary
+lore, Silencer battle sprite, Winna cleric-aware line, and
+count_shards promoted to a global (restores the Iola letter
+path). All 8 Resonances now have acquisition + combat effects.
+
+## 2026-07-02 — ACT 3: The World of Silence + polish
+
+The big one this session: CONTENT.act3_silence existed only as a
+read (the ECHO recruitment gate) with nothing ever setting it —
+the 8th party member was unreachable outside the debug flag.
+Implemented the World of Silence as a compressed version of the
+bible's Act 3:
+
+- Six-shards fountain scene now ends with Suno answering: a
+  quarter-tone-bent root from far away, the world's pitch lets
+  go of its moorings, act3_silence set. Diegues (or Miel if no
+  mage in party) points to the Academy astrolabe. Final flash
+  becomes "* the world has lost its tuning *". Skipped when ECHO
+  already joined via debug path.
+- The bible's midpoint twist, literal: while the flag holds,
+  fire_ow_voice bends every note by a random continuous offset
+  up to ±6 semitones. Rhythm, voices, register intact — only the
+  tuning is gone. Battle themes route through the same funnel,
+  so fights during the silence go atonal too — kept deliberately
+  (bible: atonal-mode combat, "the fights feel naked"). Scene
+  sfx and player jam notes stay in tune.
+- Review fixes (subagent adversarial pass): ECHO's map-19 gate
+  re-checks SCENE.active fresh so a first-ever Academy entry
+  during the silence can't have ECHO's scene wipe the academy
+  intro (which would have lost Diegues + Strom for the run);
+  act3_silence cleared FIRST in the recruit set-closure (pcall
+  safety); migration [2] also checks the ionian shard so v0
+  finished saves don't re-arm the silence.
+- ECHO's recruitment clears the flag with a re-tune beat (true
+  A + E fifth, "I will hold the note. You hold me."). Suno's
+  defeat clears it as a backstop; NG+ reset clears it too.
+- Persistence: SAVE_VERSION 1→2. data.act3_silence saved and
+  restored; SAVE_MIGRATIONS[2] re-arms the flag on old saves
+  sitting between six-shards and ECHO/ending so ECHO stays
+  reachable.
+
+Also this session:
+- Committed a prior session's playtest fixes: banner bleed into
+  scripted battles (clear_pending_banner), zone-tempo resume
+  after battle (overworld_tempo), removed the flaky L2 BPM
+  editor (BPM editing lives in Jam mode).
+- Spring now echoes the bard's own LUTE heal (routed through
+  heal_party) — it was dead weight in cleric-less parties.
+- Housekeeping: viewer/mac-run.sh committed, built .app bundle
+  gitignored, fully-merged feature/resonance-effects branch
+  pruned. The spring-resonance branch (Spring-as-regen "Spring
+  Wash", 2026-05-20, still checked out in a superpowers
+  worktree) is SUPERSEDED by main's heal-echo Spring — kept for
+  reference, do not merge.
+
+NOT YET VERIFIED ON DEVICE: the World of Silence needs a real
+playthrough of the six-shards → Academy → tower stretch (no new
+SynthDefs, so no SYSTEM > RESTART needed — script reload is
+enough).

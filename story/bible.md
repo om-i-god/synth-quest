@@ -925,6 +925,19 @@ read for each act.
 
    Loglines: Dossier §ARC, Act 3.
 
+   IMPLEMENTED (compressed) 2026-07-02: in the shipped game the
+   Silence fires at the end of the six-shards fountain scene —
+   the chord rings true and Suno answers, casting the seventh
+   note's absence across Modalia (CONTENT.act3_silence). The
+   midpoint twist is literal: while the flag holds, every
+   overworld voice keeps its rhythm and register but detunes by
+   a random microtonal offset per note (fire_ow_voice). Diegues
+   (or Miel, if he's absent) points the party to the Academy
+   astrolabe; ECHO's recruitment re-anchors the world's pitch
+   and ends the Silence. Defeating Suno clears it as a backstop.
+   The full Act 3 shape below (Aeolian catastrophe, Miel taken,
+   nation-by-nation restoration) remains the uncompressed vision.
+
    Foregrounded: MIEL — and her absence.
 
    Shape: Suno's forces strike Aeolian country (Miel's homeland).
