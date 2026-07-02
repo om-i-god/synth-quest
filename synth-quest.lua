@@ -7022,10 +7022,25 @@ function start_prologue_throne_scene()
   SCENE.start(script)
 end
 
+-- Clear any lingering overworld/scene banner before a scripted battle.
+-- The `flash` scene step writes CONTENT.banner_text with a multi-tick
+-- lifetime; the scripted battles below set game_state="BATTLE" directly
+-- and so bypass enter_battle's wipe (lines ~17838). Without this, a
+-- navigation hint like "* the tapestry. south. *" bleeds into the
+-- opening frames of the fight. Keeps the hint in the overworld, off the
+-- battle screen.
+function clear_pending_banner()
+  CONTENT.banner_text  = ""
+  CONTENT.banner_ticks = 0
+  CONTENT.flash_text   = ""
+  CONTENT.flash_ticks  = 0
+end
+
 -- start_prologue_silencer(idx) builds a low-tier Silencer enemy and
 -- launches battle. The defeat path consumes the silencer slot so the
 -- NPC vanishes from the castle on next render.
 function start_prologue_silencer(idx)
+  clear_pending_banner()
   CONTENT.silencer_defeated = CONTENT.silencer_defeated or {false, false}
   enemy = {
     name = "Silencer",
@@ -7060,6 +7075,7 @@ end
 -- in the escape cave. Lower difficulty than silencers (she's tired, but
 -- so are they). Drops a few gold each.
 function start_prologue_cave_monster(idx)
+  clear_pending_banner()
   CONTENT.cave_monster_defeated = CONTENT.cave_monster_defeated or {false, false, false}
   enemy = {
     name = "Cave Wisp",
@@ -7091,6 +7107,7 @@ end
 --  Cave Wisp=18xp/5g.)
 
 function start_strom_battle()
+  clear_pending_banner()
   -- Custom boss-tier enemy. Stats balanced for an early-game 2-3 member
   -- party. Drops nothing — defeat triggers the join scene, not loot.
   enemy = {
@@ -7234,6 +7251,7 @@ end
 -- start_lirael_broken_cadence_scene(). On victory, sets flag +
 -- grants the Key of Lirael to instruments_owned.
 function start_broken_cadence_battle()
+  clear_pending_banner()
   enemy = {
     name    = "The Broken Cadence",
     visual  = "broken_cadence",
@@ -14109,6 +14127,16 @@ end
 -- which region's theme is currently playing — used to detect transitions
 local current_theme = "village"
 
+-- The tempo the overworld should currently sound at: the active zone
+-- theme's own bpm (zones run 48–130), falling back to the global
+-- OVERWORLD_BPM when a theme defines none. Returning from battle uses
+-- this so the music resumes at the zone's tempo instead of snapping to
+-- the global default — which audibly changed the BPM after every fight.
+function overworld_tempo()
+  local theme = OW_THEMES[current_theme]
+  return (theme and theme.bpm) or OVERWORLD_BPM
+end
+
 local function active_theme_id()
   if current_map_id == 2 then return "eastern" end
   if current_map_id == 3 then return "northern" end
@@ -17983,7 +18011,7 @@ exit_battle = function()
       CONTENT.banner_text  = "* you fall back. try again. *"
       CONTENT.banner_ticks = 48
       game_state = "OVERWORLD"
-      params:set("clock_tempo", OVERWORLD_BPM)
+      params:set("clock_tempo", overworld_tempo())
       engine.drone_amp(0)
       redraw()
       return
@@ -18027,7 +18055,7 @@ exit_battle = function()
     return
   end
   game_state = "OVERWORLD"
-  params:set("clock_tempo", OVERWORLD_BPM)
+  params:set("clock_tempo", overworld_tempo())
   engine.drone_amp(0)
   -- Fire any post-battle queued scene now that we're back on the
   -- overworld. Six-shards beat is one type; per-cave boss-aftermath
@@ -18122,30 +18150,15 @@ function gamepad.dpad(axis, sign)
     -- Suppress player movement during a scripted scene (sprite tweens
     -- handle blocking + camera).
     if SCENE and SCENE.active then return end
-    if l2_held then
-      -- L2 + dpad UD = overworld BPM, L2 + dpad LR = battle BPM
-      if axis == "Y" then
-        adjust_journey_bpm(-sign * BPM_STEP)
-      elseif axis == "X" then
-        adjust_battle_bpm(sign * BPM_STEP)
-      end
-      redraw()
-      return
-    end
+    -- BPM editing lives in Jam mode now (L2 + dpad there). The old
+    -- overworld L2 BPM editor was removed: a flaky/sticky left-trigger
+    -- toggle made walking the d-pad change the tempo unprompted.
     if axis == "X" then try_move(sign, 0)
     elseif axis == "Y" then try_move(0, sign)
     end
   elseif game_state == "BATTLE" then
-    if l2_held then
-      -- L2 in battle: same scheme — UD = overworld BPM, LR = battle BPM
-      if axis == "Y" then
-        adjust_journey_bpm(-sign * BPM_STEP)
-      elseif axis == "X" then
-        adjust_battle_bpm(sign * BPM_STEP)
-      end
-      redraw()
-      return
-    end
+    -- BPM editing lives in Jam mode now (L2 + dpad there). The old
+    -- in-battle L2 BPM editor was removed (see overworld note above).
     if axis == "Y" then
       -- dpad UD cycles the queued action for the active character.
       -- If this character has an attuned Resonance, RESO is appended as
@@ -24701,19 +24714,6 @@ local function draw_overworld()
     end
   end
 
-  -- L2 toggle ON → BPM-edit mode; tiny corner strip + hint
-  if l2_held then
-    screen.level(0)
-    screen.rect(0, 0, 90, 10)
-    screen.fill()
-    screen.level(15)
-    screen.move(2, 8)
-    screen.text("JRN " .. OVERWORLD_BPM)
-    screen.level(8)
-    screen.move(88, 8)
-    screen.text_right("L2:exit")
-  end
-
   -- DEBUG overlay (toggle in menu)
   if debug_visible then
     if l2_held then
@@ -26409,16 +26409,6 @@ local function draw_battle()
     screen.font_face(1); screen.font_size(8)
   end
   player.facing = saved_facing
-
-  -- L2 toggle ON → BPM-edit mode
-  if l2_held then
-    screen.level(0); screen.rect(0, 0, 56, 9); screen.fill()
-    screen.level(15)
-    screen.move(2, 7)
-    screen.text("BPM " .. BATTLE_BPM)
-    screen.level(8)
-    screen.move(54, 7); screen.text_right("L2:exit")
-  end
 
   -- crit-flash pulse on the enemy (3 ticks of bright outline ring)
   if ANIM.crit_flash and (tick - ANIM.crit_flash) < 4 then
