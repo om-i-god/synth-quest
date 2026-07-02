@@ -16705,11 +16705,13 @@ local function apply_player_action(p)
     end
   elseif p.queued == "LUTE" then
     -- Alder's lute: heal all 10% HP + buff next attack of all alive.
+    -- The heal routes through heal_party so an armed Spring echoes the
+    -- bard's own lute — without this, Spring only echoed Miel's HEAL
+    -- and was dead weight in cleric-less parties.
+    heal_party(0.10, 0)
     for _, q in ipairs(party) do
       if q.alive then
-        q.hp = math.min(q.hp_max, q.hp + math.floor(q.hp_max * 0.10))
         q.buffed = true
-        q.last_hit = tick
       end
     end
   elseif p.queued == "MIX" then
