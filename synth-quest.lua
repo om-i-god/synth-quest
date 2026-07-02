@@ -3068,10 +3068,13 @@ CONTENT = {
     {4,4,4,4,4,17,17,4,4,4,4,4},
   },
   northern_shop_npcs = {},
-  -- Academy interior (map_id 17). Reached via tile 47 at the SW corner of
-  -- mainland. Tiles: 4=wall, 0=floor, 17=exit door, 30=fireplace,
-  -- 31=bookshelf, 39=plant, 42=broom. Diegues stands center; on first
-  -- entry the silencer-attack scene plays + battle vs Strom.
+  -- Academy interior (map_id 19, 28x14 — the old "map_id 17 / 10x9"
+  -- notes predate the expansion; 17 is the Eastern Reaches inn).
+  -- Reached via tile 50 (front door) or tile 78, both landing at
+  -- (14,12). Tiles: 4=wall, 0=floor, 2=corridor, 17=exit door,
+  -- 75=lectern, 73=astrolabe, 31=bookshelf, 39=plant, 42=broom.
+  -- On first entry the silencer-attack scene plays + battle vs Strom
+  -- (staged in the lecture hall, rows 2-4).
   academy_map = {
     -- 28w × 14h
     -- row 1 (north wall, lecture hall back)
@@ -6251,22 +6254,26 @@ CAMPFIRE_SCENES = {
 
 function start_academy_intro()
   CONTENT.academy_state = "scene_done"
-  -- Player parked at center; she's been hidden during the scene and
+  -- Player parked in the LECTURE HALL (restaged 2026-07-02: the whole
+  -- scene was authored for the old 10x9 academy — on the 28x14 map its
+  -- coordinates put half the beats inside walls and, worst, teleported
+  -- the player into the sealed courtyard building at (6,6) at the end:
+  -- trapped in a room with no doors). She's hidden during the scene and
   -- spawned as a Miel actor so we can pose her independently.
-  player.x, player.y = 6, 6
+  player.x, player.y = 7, 3
   player.facing = "up"
   update_camera()
-  -- Academy is 10w x 9h, view is 16x8 — the whole room fits on-screen
-  -- so we don't need pans, but letterbox + character entry choreography
-  -- elevates the intro to FF4-tier.
+  -- With the player at (7,3) the camera clamps to (1,1): rows 1-8 /
+  -- cols 1-16 on screen — the lecture hall + corridor staging below is
+  -- fully visible with no pans.
   local script = {
     {hide_player = true},
     {letterbox_in = true},
     {wait = 12},
-    -- Diegues at the lectern (col 4 row 4), facing the player initially.
-    {spawn = "diegues", class = "mage", name = "Diegues", x = 4, y = 4, facing = "down"},
-    -- Spawn Miel just inside the door (player position) facing up.
-    {spawn = "miel", class = "cleric", name = "Miel", x = 6, y = 7, facing = "up"},
+    -- Diegues beside the westmost lectern (tile 75 at (6,2)).
+    {spawn = "diegues", class = "mage", name = "Diegues", x = 7, y = 2, facing = "down"},
+    -- Spawn Miel in the corridor south of the hall, facing up.
+    {spawn = "miel", class = "cleric", name = "Miel", x = 7, y = 4, facing = "up"},
     {wait = 8},
     -- Diegues spots Miel — "shock" turn + small upward bump.
     {look = "diegues", toward = "miel"},
@@ -6279,13 +6286,12 @@ function start_academy_intro()
       "[Diegues] (sees you, eyes wide) Don't come in -- the silencers --",
       "[Diegues] They want this hall as a tower. A silencing one. They want the chord here.",
     }, npc = {name = "Diegues"}},
-    -- Strom enters from the south doorway (academy interior — door at
-    -- col 4-5 row 9). He walks two steps in, hammer dragging SFX.
-    {spawn = "strom", class = "warrior", name = "Strom", x = 5, y = 8, facing = "up", bob = false},
+    -- Strom enters along the corridor from the west, hammer dragging.
+    {spawn = "strom", class = "warrior", name = "Strom", x = 3, y = 4, facing = "right", bob = false},
     {sfx = {class = "warrior", note = 22, vel = 0.85, attack = 0.005, release = 0.40, wet = 0.10}},
     {shake = {mag = 2, ticks = 6}},
     {wait = 12},
-    {move = "strom", to = {x = 5, y = 7}, ticks = 24},
+    {move = "strom", to = {x = 5, y = 4}, ticks = 24},
     {wait = 6},
     -- Miel turns to look at Strom; shock bump.
     {look = "miel", toward = "strom"},
@@ -6300,7 +6306,7 @@ function start_academy_intro()
       "[Strom]   Step aside, or join the wreckage.",
     }, npc = {name = "Strom"}},
     -- Diegues walks down from the lectern to flank Miel.
-    {move = "diegues", to = {x = 6, y = 5}, ticks = 36},
+    {move = "diegues", to = {x = 6, y = 3}, ticks = 36},
     {look = "diegues", toward = "miel"},
     {wait = 6},
     {dialogue = {
@@ -6333,7 +6339,7 @@ function start_academy_intro()
     {sfx = {class = "mage", note = 79, vel = 0.65, attack = 0.005, release = 1.20, wet = 0.55}},
     {wait = 18},
     {despawn = "diegues"}, {despawn = "strom"}, {despawn = "miel"},
-    {teleport_player = {x = 6, y = 6, facing = "up"}},
+    {teleport_player = {x = 7, y = 3, facing = "up"}},
     {show_player = true},
     {letterbox_out = true},
   }
@@ -6550,11 +6556,12 @@ function start_courtyard_breach_script()
     -- Actor coords can be outside the tile grid; the scene draw clips
     -- them until they walk into view. They emerge through the gate
     -- tiles at row 12. Columns picked to weave BETWEEN the guards
-    -- (gA=4, gB=6, gC=9, gD=11) so the lines don't overlap at the clash.
-    {spawn = "s1", class = "warrior", name = "Silencer1", x = 5, y = 13, facing = "up", bob = false},
-    {spawn = "s2", class = "warrior", name = "Silencer2", x = 7, y = 13, facing = "up", bob = false},
-    {spawn = "s3", class = "warrior", name = "Silencer3", x = 8, y = 13, facing = "up", bob = false},
-    {spawn = "s4", class = "warrior", name = "Silencer4", x = 10, y = 13, facing = "up", bob = false},
+    -- (guards STEP to cols 4/6/9/11 from spawns 3/5/9/11) so the lines
+    -- don't overlap at the clash.
+    {spawn = "s1", class = "warrior", name = "Silencer1", x = 5, y = 13, facing = "up", bob = false, offmap = true},
+    {spawn = "s2", class = "warrior", name = "Silencer2", x = 7, y = 13, facing = "up", bob = false, offmap = true},
+    {spawn = "s3", class = "warrior", name = "Silencer3", x = 8, y = 13, facing = "up", bob = false, offmap = true},
+    {spawn = "s4", class = "warrior", name = "Silencer4", x = 10, y = 13, facing = "up", bob = false, offmap = true},
     {wait = 8},
     -- Silencers pour through the gate (row 12) into the courtyard,
     -- threading between the guard columns rather than landing on them.
@@ -6611,9 +6618,12 @@ function start_courtyard_breach_script()
     {wait = 4},
     -- They run southeast toward the gate row, threading between the
     -- silencer columns (5, 7, 8, 10) so their move arcs are visible.
+    -- Camera leads the charge: pan to the gate row FIRST so both
+    -- 40-tick runs land on screen (they previously arrived while the
+    -- camera still framed the barracks door).
+    {focus = {x = 7, y = 11}, ticks = 20},
     {move = "hova",  to = {x = 6,  y = 11}, ticks = 40},
     {move = "borin", to = {x = 9,  y = 11}, ticks = 40},
-    {focus = {x = 7, y = 11}, ticks = 30},
     {wait = 8},
     -- Borin reaches the gate first; brittle and brave.
     {dialogue = {
@@ -6754,12 +6764,17 @@ function start_echo_recruit_scene()
     {hide_player = true},
     {letterbox_in = true},
     {focus = {x = ax, y = ay - 1}, ticks = 14},
-    {spawn = "alder",   class = "bard",    name = "Alder",   x = px - 1, y = py, facing = "right", bob = false},
-    {spawn = "miel",    class = "cleric",  name = "Miel",    x = px,     y = py, facing = "right", bob = false},
-    {spawn = "diegues", class = "mage",    name = "Diegues", x = px - 2, y = py, facing = "right", bob = false},
+    -- Party staged at FIXED courtyard positions inside the camera's
+    -- astrolabe window (rows 1-8, cols 5-20). They previously spawned
+    -- at the map-entry point (px,py) — entering from the south corridor
+    -- (14,12) put the entire party below the visible window for the
+    -- whole scene.
+    {spawn = "miel",    class = "cleric",  name = "Miel",    x = 11, y = 7, facing = "right", bob = false},
+    {spawn = "alder",   class = "bard",    name = "Alder",   x = 10, y = 7, facing = "right", bob = false},
+    {spawn = "diegues", class = "mage",    name = "Diegues", x = 9,  y = 7, facing = "right", bob = false},
     -- Strom has no lines here, but the whole core four stand together
     -- for a major story beat (he was visually missing).
-    {spawn = "strom",   class = "warrior", name = "Strom",   x = px - 3, y = py, facing = "right", bob = false},
+    {spawn = "strom",   class = "warrior", name = "Strom",   x = 8,  y = 7, facing = "right", bob = false},
     {spawn = "echo",    class = "wraith",  name = "ECHO",    x = ax,     y = ay, facing = "left",  bob = false},
     {wait = 12},
     -- ECHO's outline shudders — shown as an actual flicker (despawn/
@@ -6798,10 +6813,9 @@ function start_echo_recruit_scene()
     }, npc = {name = "ECHO"}},
     {wait = 8},
     -- Miel steps toward her and offers her hand — a real step, not a
-    -- caption. (One tile toward the astrolabe; ax > px on both map-19
-    -- entry points is not guaranteed, so compute the direction.)
+    -- caption. (One tile toward the astrolabe from her staged spot.)
     {look = "miel", toward = "echo"},
-    {move = "miel", to = {x = px + ((ax > px) and 1 or -1), y = py}, ticks = 20},
+    {move = "miel", to = {x = 12, y = 7}, ticks = 20},
     {wait = 8},
     {dialogue = {
       "[Miel]    We will not let the silence have you.",
@@ -6984,9 +6998,9 @@ function start_prologue_throne_scene()
     -- "they came in through the front" instead of materialising in the
     -- middle of the room. Actor coords can be off-map for the spawn —
     -- only the walked-to destinations need to be on real tiles.
-    {spawn = "suno",  class = "warrior", name = "Suno",      x = 8, y = 10, facing = "up", bob = false},
-    {spawn = "sil_l", class = "warrior", name = "Silencer1", x = 7, y = 10, facing = "up", bob = false},
-    {spawn = "sil_r", class = "warrior", name = "Silencer2", x = 8, y = 11, facing = "up", bob = false},
+    {spawn = "suno",  class = "warrior", name = "Suno",      x = 8, y = 10, facing = "up", bob = false, offmap = true},
+    {spawn = "sil_l", class = "warrior", name = "Silencer1", x = 7, y = 10, facing = "up", bob = false, offmap = true},
+    {spawn = "sil_r", class = "warrior", name = "Silencer2", x = 8, y = 11, facing = "up", bob = false, offmap = true},
     {wait = 6},
     -- Step 1: through the doors. Suno + Sil_l onto the two door tiles
     -- (row 9, cols 8 + 7). Sil_r holds back one tile (col 8 row 10)
@@ -7081,7 +7095,7 @@ function start_prologue_throne_scene()
     {move = "sil_l", to = {x = 7, y = 4}, ticks = 18},
     {move = "sil_r", to = {x = 9, y = 4}, ticks = 18},
     {wait = 22},
-    {move = "suno", to = {x = 8, y = 10}, ticks = 32},
+    {move = "suno", to = {x = 8, y = 10}, ticks = 32, offmap = true},
     {wait = 32},
     -- Suno crosses the threshold. Doors thud. He's gone.
     {despawn = "suno"},
@@ -8433,12 +8447,16 @@ end
 function start_academy_iolas_letter_scene()
   local script = {
     {letterbox_in = true},
-    {focus = {x = 23, y = 10}, ticks = 24},   -- library tile
+    -- Iola speaks and hands the letter over WHERE SHE STANDS (camera is
+    -- already on the player talking to her); only then does the camera
+    -- drift to the library for the letter's text. Previously the pan
+    -- came first and the whole exchange played off-window.
     {dialogue = {"Iola:", "I have something for you. It was meant for",
                  "whoever finds the Locrian shard."}, npc = {name = "Iola"}},
     {wait = 6},
     {dialogue = {"(she hands you a sealed letter)"}, npc = nil},
     {wait = 8},
+    {focus = {x = 23, y = 10}, ticks = 24},   -- drift to the library
     -- typewriter letter; Velthe's voice fades in over final lines
     {dialogue = {"\"To my successor:"}, npc = nil},
     {dialogue = {"If you are reading this, the Locrian shard is",
@@ -8532,10 +8550,15 @@ function start_lirael_miel_walks_alone_scene()
     {move = "miel_alone", to = {x = 19, y = 7}, ticks = 40},
     {wait = 8},
     {move = "miel_alone", to = {x = 18, y = 4}, ticks = 50},
+    -- Re-anchor the camera at the altar: the one-shot actor focus above
+    -- was taken while Miel was at (19,9), so without this the arrival,
+    -- the line, and the Queen's Echo all played ABOVE the visible
+    -- window (same staging class as the courtyard-silencer bug).
+    {focus = {x = 18, y = 4}, ticks = 24},
     -- Music ducks to silence; sustained low cleric drone
     {sfx = {class = "cleric", note = 36, vel = 0.2, attack = 2.0, release = 6.0, wet = 0.9}},
     {wait = 16},
-    -- Miel arrives at the broken altar (row 3 col 18)
+    -- Miel arrives at the broken altar (row 2 col 18)
     {move = "miel_alone", to = {x = 18, y = 3}, ticks = 24},
     {face = "miel_alone", facing = "up"},
     {wait = 16},
@@ -8673,7 +8696,7 @@ end
 -- by CONTENT.last_sunward_ambient_t (once per ~600 ticks). All globals to
 -- dodge the 200-main-chunk-locals cap.
 
--- Bandstand practice: faint lute tone + caption. Tile (16, 5).
+-- Bandstand practice: faint lute tone + caption. Dispatch tile (14, 6).
 function ambient_sunward_bandstand_practice()
   return {
     {sfx = {class = "bard", note = 67, vel = 0.4, attack = 0.05, release = 0.3, wet = 0.4}},
@@ -8691,7 +8714,7 @@ function ambient_sunward_dock_gull()
   }
 end
 
--- Market cry: a brief overheard vendor shout. Tile (11, 5).
+-- Market cry: a brief overheard vendor shout. Dispatch tile (12, 5).
 function ambient_sunward_market_cry()
   return {
     {dialogue = {"\"FRESH MORNING CATCH — FRESH MORNING —\""}, npc = nil},
@@ -9425,9 +9448,10 @@ end
 
 function start_finale_scene()
   local sx, sy = player.x, player.y
-  -- Cave 7 is 16 wide x 14 tall; boss at (8, 3). Suno spawns at (8, 2)
-  -- — back wall. Camera will move from "wide shot" of the chamber to
-  -- a tight focus on Suno, then back wide.
+  -- Cave 7 (cave7_map) is 12 wide x 6 tall — small enough that the
+  -- camera clamps to (1,1) and the whole chamber is always on screen;
+  -- the focus steps below are dramatic nudges, not reveals. Suno
+  -- spawns at (8, 2) — back wall.
   local script = {
     {hide_player = true},
     {set = function() SCENE.fade = 15 end},
@@ -15334,7 +15358,10 @@ local function try_move(dx, dy)
     -- story scene when academy_state is still "untriggered".
     CONTENT.return_map = current_map_id
     CONTENT.return_x = nx; CONTENT.return_y = ny + 1
-    travel_to(19, 5, 7)
+    -- Land at the same interior spot as the tile-78 entrance: the old
+    -- (5,7) target predates the 28x14 academy expansion and is a wall
+    -- tile there now.
+    travel_to(19, 14, 12)
     redraw()
     return
   end
@@ -15397,7 +15424,9 @@ local function try_move(dx, dy)
     -- Tapestry door (castle interior, prologue). One-way: enters the
     -- escape cave at its starting tile. Sets prologue_state to "escape".
     CONTENT.prologue_state = "escape"
-    travel_to(21, 2, 5)
+    -- (2,5) is a wall tile — the open west pocket is row 6; the escape
+    -- scene tweens Miel east from wherever this lands.
+    travel_to(21, 2, 6)
     redraw()
     return
   end
@@ -22212,6 +22241,37 @@ SCENE.tick_tweens = function()
   end
 end
 
+-- Dev guards (maiden console only, zero player impact). Born from a
+-- real staging bug: the courtyard-breach silencers fought their whole
+-- battle below a 12-row map's viewport and the guards visibly fell to
+-- nothing. These print when choreography leaves the dimensions we're
+-- working in:
+--   check_bounds — a spawn/move/teleport target lies outside the
+--     current map. Off-map entrances/exits are a legit technique —
+--     mark those steps `offmap = true` to declare the intent and
+--     silence the warning.
+--   check_visible — a dramatic beat (bump) plays on an actor outside
+--     the camera's visible window (may false-positive briefly during
+--     a camera tween; treat repeats as real).
+SCENE.check_bounds = function(what, id, x, y, offmap_ok)
+  if offmap_ok or not (x and y) then return end
+  if x < 1 or y < 1 or x > (MAP_W or 999) or y > (MAP_H or 999) then
+    print(string.format(
+      "synth-quest: SCENE %s '%s' OFF-MAP at (%d,%d); map is %dx%d (mark offmap=true if intended)",
+      what, tostring(id), x, y, MAP_W or -1, MAP_H or -1))
+  end
+end
+SCENE.check_visible = function(what, id)
+  local a = SCENE.get and SCENE.get(id)
+  if not a or not a.fx then return end
+  if a.fx < cam.x - 1 or a.fx >= cam.x + VIEW_W
+     or a.fy < cam.y - 1 or a.fy >= cam.y + VIEW_H then
+    print(string.format(
+      "synth-quest: SCENE %s '%s' plays OFF-SCREEN at (%.0f,%.0f); cam at (%d,%d)",
+      what, tostring(id), a.fx, a.fy, cam.x, cam.y))
+  end
+end
+
 SCENE.advance = function()
   while SCENE.script and SCENE.step <= #SCENE.script do
     local step = SCENE.script[SCENE.step]
@@ -22224,6 +22284,9 @@ SCENE.advance = function()
         facing = step.facing, bob = step.bob, alpha = step.alpha,
         sprite = step.sprite,
       })
+      SCENE.check_bounds("spawn", step.spawn,
+        (step.x or (step.at and step.at.x)),
+        (step.y or (step.at and step.at.y)), step.offmap)
     end
     if step.face then
       local a = SCENE.get(step.face); if a then a.facing = step.facing end
@@ -22269,6 +22332,9 @@ SCENE.advance = function()
     end
     if step.teleport_player then
       local t = step.teleport_player
+      -- Never legitimately off-map: this is where the player regains
+      -- control, so an out-of-bounds target is always an authoring bug.
+      SCENE.check_bounds("teleport_player", "player", t.x, t.y, false)
       player.x, player.y = t.x or player.x, t.y or player.y
       player.facing = t.facing or player.facing
       update_camera()
@@ -22276,6 +22342,7 @@ SCENE.advance = function()
     if step.hide_player ~= nil then SCENE.hide_player = step.hide_player end
     if step.show_player then SCENE.hide_player = false end
     if step.move and step.to then
+      SCENE.check_bounds("move", step.move, step.to.x, step.to.y, step.offmap)
       SCENE.move_actor(step.move, step.to.x, step.to.y, step.ticks or 12)
       SCENE.wait = step.ticks or 12
       return
@@ -22283,6 +22350,7 @@ SCENE.advance = function()
     -- bump = id, dir = "up"|"down"|"left"|"right" — small "shock" jump.
     -- Total duration is 2 * (step.ticks or 4) so we wait both halves.
     if step.bump and step.dir then
+      SCENE.check_visible("bump", step.bump)
       local t = step.ticks or 4
       SCENE.bump_actor(step.bump, step.dir, t)
       SCENE.wait = t * 2

@@ -2083,3 +2083,42 @@ scene_clock sleep if scenes now feel too brisk).
   now pans down to the gate row when it breaks, and silencers
   spawn one row closer so they emerge promptly. (The Hova/Borin
   section already refocused correctly.)
+
+## 2026-07-02 (late) — bounds/staging guards + full coordinate audit
+
+User principle adopted: "check that we aren't putting things outside
+the dimensions we're working in." Two layers:
+
+1. RUNTIME DEV GUARDS (maiden console only): SCENE.check_bounds warns
+   when a spawn/move/teleport target lies outside the current map
+   (mark deliberate entrances `offmap = true` — courtyard silencers
+   + prologue throne Suno/silencers are flagged); check_visible warns
+   when a bump plays outside the camera window. teleport_player
+   off-map always warns.
+
+2. STATIC AUDIT (subagent, full map inventory: 35 maps, all row
+   widths verified; 136 NPC placements; 59 travel_to targets; ~45
+   scenes walked against the camera model). Findings, all fixed:
+   - THE TRAP: start_academy_intro was authored for the old 10x9
+     academy; on the 28x14 map it teleported the player to (6,6) —
+     inside a sealed 3x2 courtyard building with NO DOOR. Every
+     playthrough ended the academy intro entombed. Scene fully
+     restaged in the lecture hall (player parks/returns at (7,3);
+     Diegues at the west lectern; Strom enters along the corridor).
+   - travel_to(19,5,7) (academy front door) spawned INTO A WALL on
+     every re-entry → now lands at (14,12) like the tile-78 door.
+   - travel_to(21,2,5) (tapestry → escape cave, every playthrough)
+     spawned into a wall → (2,6).
+   - miel_walks_alone: "Mother. I'm here." + the Queen's Echo played
+     ABOVE the camera window (courtyard-bug class) → altar refocus
+     added after her walk.
+   - echo_recruit: party spawned at the map-entry point — entering
+     from the south corridor put all four below the window for the
+     entire scene → staged at fixed courtyard positions in-window.
+   - courtyard breach: camera now pans to the gate row BEFORE
+     Hova/Borin's runs (their arrivals were landing off-screen).
+   - Iola's letter: she now speaks + hands the letter over on-camera;
+     the library pan happens for the letter text only.
+   - Stale dimension comments corrected (academy "10x9"/"map_id 17",
+     cave 7 "16x14" (it's 12x6), ambient dispatch coords, guard
+     columns) — this class of stale comment is what seeded the bugs.
