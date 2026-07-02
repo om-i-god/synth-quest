@@ -7640,12 +7640,21 @@ function start_endgame_scene()
   end
   if class_in_party("warrior") then
     table.insert(script, {dialogue = {
-      "[Strom]    The campaigns are over. (looks east) Reya would have liked this morning.",
+      "[Strom]    The campaigns are over.",
+    }, npc = {name = "Strom"}})
+    -- He looks east (screen right) — shown, not captioned.
+    table.insert(script, {face = "strom", facing = "right"})
+    table.insert(script, {wait = 12})
+    table.insert(script, {dialogue = {
+      "[Strom]    Reya would have liked this morning.",
     }, npc = {name = "Strom"}})
   end
   if class_in_party("mage") then
+    -- The book closes — a soft click you hear.
+    table.insert(script, {sfx = {class = "mage", note = 91, vel = 0.20, attack = 0.001, release = 0.08, wet = 0.15}})
+    table.insert(script, {wait = 8})
     table.insert(script, {dialogue = {
-      "[Diegues]  (closes the leather book) The math is closed. The song is open.",
+      "[Diegues]  The math is closed. The song is open.",
     }, npc = {name = "Diegues"}})
   end
   table.insert(script, {dialogue = {
@@ -9405,12 +9414,11 @@ function start_finale_scene()
     {wait = 36},
     {dialogue = {
       "(The chord that holds Suno's domain pulls tight as a wire over your heads.)",
-      "(He stands at the center of the chamber.)",
       "(Larger than you remembered.)",
     }, npc = nil},
-    -- Suno speaks with his back to Miel.
+    -- Suno speaks with his back to Miel — visible on screen (he spawns
+    -- facing away; his slow turn is staged later), so no caption.
     {dialogue = {
-      "[Suno]    (without turning)",
       "[Suno]    You should be a wagon-print in the road by now.",
       "[Suno]    A small one.",
     }, npc = {name = "Suno"}},

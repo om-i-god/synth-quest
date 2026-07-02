@@ -1962,3 +1962,13 @@ Remaining candidates for future passes (not yet converted):
 prologue castle/Lirael scenes, boss-approach scenes, finale, and
 the attunement scaffold (whose orphaned signature.visual panels
 are a separate known gap).
+
+Pass 2 (same convention): finale — dropped "(without turning)" and
+"(He stands at the center of the chamber.)" (both visible on
+screen; his slow turn was already staged); endgame — Strom's
+"(looks east)" is a real face-right beat mid-line, Diegues'
+"(closes the leather book)" is a soft click sfx. Miel's "(kneels,
+palm flat to the basin)" kept — an 8x8 sprite can't kneel; that's
+exactly what narration is for. Prologue throne scene reviewed and
+left alone: its captions are atmosphere already paired with
+shake/sfx staging.
