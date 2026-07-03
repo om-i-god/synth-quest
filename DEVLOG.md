@@ -2256,3 +2256,27 @@ one tile off the eastern shop's new flank.
 - Cave 1 finally has its theme: echo crystals (new tile 94, shimmer
   + slow glint) at four chamber positions. (Cave 5 ice / cave 6 crypt
   deserve the same treatment in a later pass.)
+
+## 2026-07-03 — wave 6: UI screens + cave themes
+
+Cave 5 has ice pillars (tile 95) and cave 6 grave-candles (tile 96),
+completing the per-cave theming that started with cave 1's echo
+crystals.
+
+UI audit findings, all fixed:
+- Norns-only players were soft-locked in FOUR screens (Quests/Shards/
+  Bestiary/Party — no key() branches existed; the CREDITS bug class
+  again) and couldn't open Map/Achievements at all. Full norns key +
+  encoder navigation added to every info screen.
+- The pause menu overflowed 64px with 11 options — rebuilt as two
+  columns.
+- Rare kills were overwriting boss/base bestiary entries (shared
+  visuals): rares are name-keyed now, marked "(a rare, greater
+  strain.)".
+- The achievements screen silently dropped entries 14-15; "Rare
+  Hunter" was granted but undefined; layout now scales.
+- Pith's quest joined the journal; the World of Silence finally has
+  an on-screen "detuned" cue (battle bar + overworld corner); Long
+  Echo charges and the Threefold window got HUD glyphs matching the
+  Ring bell; ECHO's name now renders in status + XP summary.
+Verification pass: first batch to come back with zero blockers.

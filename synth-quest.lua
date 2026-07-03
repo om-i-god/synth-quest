@@ -4833,18 +4833,24 @@ CONTENT = {
   -- 20x14: ice-pillar lattice + a partition wall with three gaps splits
   -- the vault into upper and lower chambers. Boss is high in the upper
   -- chamber; player must thread the lattice from the south door first.
+  -- Tiles: 4=wall, 0=cave floor, 17=exit door, 27=boss arena marker,
+  -- 95=ice_pillar (impassable, animated).
+  -- Ice pillars (95) at (7,2), (3,5), (15,5), (14,11): two per chamber,
+  -- in open rows clear of the lattice, the partition gaps (cols 2/5/13/
+  -- 18-19 of row 8), Wenna (2,8), the boss (11,4), the spawn (9,13) and
+  -- the exit (9-10,14).
   cave5_map = {
     {4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4},
-    {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4},
+    {4,0,0,0,0,0,95,0,0,0,0,0,0,0,0,0,0,0,0,4},
     {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4},
     {4,0,0,0,4,0,0,0,4,0,27,0,4,0,0,0,4,0,0,4},
-    {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4},
+    {4,0,95,0,0,0,0,0,0,0,0,0,0,0,95,0,0,0,0,4},
     {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4},
     {4,0,0,0,4,0,0,0,4,0,0,0,4,0,0,0,4,0,0,4},
     {4,0,4,4,0,4,4,4,4,4,4,4,0,4,4,4,4,0,0,4},
     {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4},
     {4,0,0,0,4,0,0,0,4,0,0,0,4,0,0,0,4,0,0,4},
-    {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4},
+    {4,0,0,0,0,0,0,0,0,0,0,0,0,95,0,0,0,0,0,4},
     {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4},
     {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4},
     {4,4,4,4,4,4,4,4,17,17,4,4,4,4,4,4,4,4,4,4},
@@ -4878,21 +4884,27 @@ CONTENT = {
   -- 18x16: long tomb with a transverse divider wall (gaps at cols 1
   -- and 14) and a row of nave columns. Boss is in the upper sanctum
   -- past the divider.
+  -- Tiles: 4=wall, 0=cave floor, 17=exit door, 27=boss arena marker,
+  -- 96=crypt_candle (impassable, animated).
+  -- Crypt candles (96) at (6,5), (11,9), (12,12), (7,14): one per aisle,
+  -- clear of the nave columns, the divider gaps (cols 2/4/15/17 of row
+  -- 11), Vessel (2,8), the boss (10,3), the spawn (9,14-15) and the
+  -- exit (9-10,16).
   cave6_map = {
     {4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4},
     {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4},
     {4,0,0,0,0,0,0,4,0,27,4,0,0,0,0,0,0,4},
     {4,0,0,0,4,0,0,0,0,0,4,0,0,4,0,0,0,4},
-    {4,0,0,0,0,0,0,4,0,0,0,0,0,0,0,0,0,4},
+    {4,0,0,0,0,96,0,4,0,0,0,0,0,0,0,0,0,4},
     {4,0,0,0,0,0,0,4,0,0,4,0,0,0,0,0,0,4},
     {4,0,0,0,4,0,0,0,0,0,0,0,0,4,0,0,0,4},
     {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4},
-    {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4},
+    {4,0,0,0,0,0,0,0,0,0,96,0,0,0,0,0,0,4},
     {4,0,0,0,4,0,0,0,0,0,0,0,0,4,0,0,0,4},
     {4,0,4,0,4,4,4,4,4,4,4,4,4,4,0,4,0,4},
-    {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4},
+    {4,0,0,0,0,0,0,0,0,0,0,96,0,0,0,0,0,4},
     {4,0,0,0,4,0,0,0,0,0,0,0,0,4,0,0,0,4},
-    {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4},
+    {4,0,0,0,0,0,96,0,0,0,0,0,0,0,0,0,0,4},
     {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4},
     {4,4,4,4,4,4,4,4,17,17,4,4,4,4,4,4,4,4},
   },
@@ -6402,6 +6414,8 @@ local cutscene_idx = 1
 -- 93 = storefront_wall    (impassable; timber flank walls extending inn (13)
 --                          and shop (12) entrances into 3-wide facades)
 -- 94 = echo_crystal       (impassable; Cave 1 angular crystal, animated shimmer)
+-- 95 = ice_pillar         (impassable; Cave 5 pale ice column, animated glint)
+-- 96 = crypt_candle       (impassable; Cave 6 gravestone candle, animated flame)
 -- Map data is per-continent; active map swaps via travel_to().
 -- MAINLAND (64x16): cols 1-32 = Village; 33-48 = Hollow Woods; 49-64 = Sunward Coast.
 -- Mountain pass (id 15) at row 1 col 13 → Northern Wilds (current_map_id 3).
@@ -17050,8 +17064,11 @@ local function damage_enemy(amount, is_crit)
     end
     SHOP.last_gold = enemy_gold(enemy.name)
     SHOP.gold = SHOP.gold + SHOP.last_gold
-    -- bestiary: record this enemy as seen (visual key + name + max stats)
-    CONTENT.bestiary[enemy.visual or enemy.name] = {
+    -- bestiary: record this enemy as seen (visual key + name + max stats).
+    -- Rares are keyed by NAME so a greater strain never clobbers the base
+    -- monster's (or a boss's) visual-keyed entry — their `visual` field
+    -- still points at the base art for the sprite/lore lookups.
+    CONTENT.bestiary[(enemy.is_rare and enemy.name) or enemy.visual or enemy.name] = {
       name = enemy.name,
       hp_max = enemy.hp_max,
       atk = enemy.atk,
@@ -18109,7 +18126,8 @@ ACHIEVEMENT_DEFS = {
   {id = "all_shards",         name = "Whole Chord",       hint = "Collect all 7 shards."},
   {id = "ng_plus",            name = "Encore",            hint = "Begin New Game +."},
   {id = "hundred_wins",       name = "Centurion",         hint = "Win 100 random battles."},
-  {id = "all_caves",          name = "All Sealed",        hint = "Clear all 7 caves."},
+  {id = "first_rare",         name = "Rare Hunter",       hint = "Fell one of the six greater strains."},
+  {id = "all_caves",          name = "All Seven Sealed",  hint = "Clear all 7 caves."},
   {id = "first_chord_silenced", name = "First Chord Silenced", hint = "Defeat the post-endgame superboss."},
   {id = "first_shard",        name = "First Shard",       hint = "Clear your first cave."},
   {id = "diegues_study",      name = "Diegues' Study",    hint = "Witness Diegues' research scene."},
@@ -18161,7 +18179,7 @@ local function check_battle_end()
       unlock_achievement("first_shard", "First Shard")
       local total_cleared = 0
       for i = 1, 7 do if cave_state[i].cleared then total_cleared = total_cleared + 1 end end
-      if total_cleared >= 7 then unlock_achievement("all_caves", "All Seven Cleared") end
+      if total_cleared >= 7 then unlock_achievement("all_caves", "All Seven Sealed") end
       -- Boss-specific victory quip. Stashed here, applied by exit_battle
       -- (which otherwise overwrites CONTENT.victory_quip with a random
       -- class-pool one-liner). Small character moments tied to the
@@ -19378,8 +19396,6 @@ function gamepad.button(button, state)
       local opt = MENU_OPTIONS[menu_idx]
       if opt == "Save Game" then
         save_game()
-      elseif opt == "Load Game" then
-        load_game()
       elseif opt == "Party Status" then
         status_idx = active or 1
         game_state = "STATUS"
@@ -19397,13 +19413,10 @@ function gamepad.button(button, state)
         game_state = "MAP"
       elseif opt == "Achievements" then
         game_state = "ACHIEVEMENTS"
-        UI.ach_idx = 1
       elseif opt == "Bestiary" then
         game_state = "BESTIARY"
       elseif opt == "Shards" then
         game_state = "SHARDS"
-      elseif opt == "Jam Pad" then
-        enter_jam_pad()
       elseif opt == "Debug" then
         debug_visible = not debug_visible
       end
@@ -20246,15 +20259,15 @@ function key(n, z)
     elseif n == 3 then
       local opt = MENU_OPTIONS[menu_idx]
       if opt == "Save Game" then save_game()
-      elseif opt == "Load Game" then load_game()
       elseif opt == "Party Status" then status_idx = active or 1; game_state = "STATUS"
       elseif opt == "Equipment" then equip_idx = active or 1; equip_choice = 1; game_state = "EQUIP"
       elseif opt == "Items" then game_state = "ITEMS"
       elseif opt == "Party" then game_state = "PARTYSEL"
       elseif opt == "Quests" then game_state = "QUESTS"
+      elseif opt == "Map" then game_state = "MAP"
+      elseif opt == "Achievements" then game_state = "ACHIEVEMENTS"
       elseif opt == "Bestiary" then game_state = "BESTIARY"
       elseif opt == "Shards" then game_state = "SHARDS"
-      elseif opt == "Jam Pad" then enter_jam_pad()
       elseif opt == "Debug" then debug_visible = not debug_visible
       end
       redraw()
@@ -20370,6 +20383,54 @@ function key(n, z)
     if age > 600 then
       if start_new_game_plus then start_new_game_plus() end
     end
+  elseif game_state == "QUESTS" or game_state == "SHARDS"
+      or game_state == "BESTIARY" or game_state == "ACHIEVEMENTS"
+      or game_state == "MAP" then
+    -- Norns keys mirror the gamepad handling so every info screen is
+    -- exitable without a controller. K2 = back (pops the bestiary detail
+    -- view first, like gamepad B); K3 = the screen's context action
+    -- (QUESTS page flip / BESTIARY detail toggle). Scrolling lives on
+    -- E2 — see enc().
+    if n == 2 then
+      if game_state == "BESTIARY" and CONTENT.bestiary_detail then
+        CONTENT.bestiary_detail = false
+      else
+        game_state = "MENU"
+      end
+      redraw()
+    elseif n == 3 then
+      if game_state == "QUESTS" then
+        UI.quests_page = ((UI.quests_page or 1) == 1) and 2 or 1
+      elseif game_state == "BESTIARY" then
+        CONTENT.bestiary_detail = not CONTENT.bestiary_detail
+      end
+      redraw()
+    end
+  elseif game_state == "PARTYSEL" then
+    -- K2 = back to MENU (gamepad B); K3 = swap the focused STANDBY
+    -- character into the active slot (gamepad A). Focus moves on E2.
+    if n == 2 then
+      game_state = "MENU"; redraw()
+    elseif n == 3 then
+      local cells = partysel_cells()
+      local cell = cells[CONTENT.partysel_focus or 0]
+      if cell and cell.kind == "reserve" then
+        party[active] = cell.char
+        -- Same clamp as the gamepad A path: displacement can shrink the
+        -- standby list, so keep the focus index in range.
+        local ncells = #partysel_cells()
+        if (CONTENT.partysel_focus or 0) > ncells then
+          CONTENT.partysel_focus = math.max(0, ncells)
+        end
+        redraw()
+      end
+    end
+  elseif game_state == "JAM" and n == 2 then
+    -- Mirror gamepad B/SELECT: exit jam mode back to wherever we came
+    -- from (norns had no way out of a gamepad-initiated jam session).
+    game_state = jam_prev_state or "OVERWORLD"
+    jam_prev_state = nil
+    redraw()
   end
 end
 
@@ -20399,6 +20460,33 @@ function enc(n, d)
     -- E3 cycles tabs (matches L/R bumper + D-pad LR on the gamepad).
     CONTENT.items_tab = ((CONTENT.items_tab or 1) - 1 + d) % #ITEM_TABS + 1
     CONTENT.items_idx = 1
+    redraw()
+    return
+  end
+  if game_state == "BESTIARY" and n == 2 then
+    -- E2 scrolls bestiary entries (mirrors gamepad dpad UD).
+    local total = 0; for _ in pairs(CONTENT.bestiary) do total = total + 1 end
+    if total > 0 then
+      CONTENT.bestiary_idx = ((CONTENT.bestiary_idx or 1) - 1 + d) % total + 1
+      if CONTENT.bestiary_idx < 1 then CONTENT.bestiary_idx = CONTENT.bestiary_idx + total end
+      redraw()
+    end
+    return
+  end
+  if game_state == "QUESTS" and n == 2 then
+    -- E2 flips journal pages: right = page 2, left = page 1 (absolute
+    -- rather than toggling per detent so a fast turn doesn't flutter).
+    UI.quests_page = (d > 0) and 2 or 1
+    redraw()
+    return
+  end
+  if game_state == "PARTYSEL" and n == 2 then
+    -- E2 cycles standby focus 0..#cells (mirrors gamepad dpad UD).
+    local ncells = #partysel_cells()
+    CONTENT.partysel_focus = ((CONTENT.partysel_focus or 0) + d) % (ncells + 1)
+    if CONTENT.partysel_focus < 0 then
+      CONTENT.partysel_focus = CONTENT.partysel_focus + (ncells + 1)
+    end
     redraw()
     return
   end
@@ -22112,6 +22200,28 @@ TILE_DRAW[94] = function(px, py, t)
   if ((t or 0) % 90) < 8 then
     screen.level(14); screen.pixel(px + 4, py + 4); screen.fill()
   end
+end
+
+TILE_DRAW[95] = function(px, py, t)
+  -- ice_pillar: a tall pale ice column (Cave 5, Ice Grotto). Slow glint
+  -- like the echo crystal but on a different period so caves don't
+  -- blink in unison.
+  screen.level(11); screen.rect(px + 2, py + 1, 4, 7); screen.fill()  -- column body
+  screen.level(14); screen.rect(px + 2, py + 1, 1, 7); screen.fill()  -- lit highlight edge
+  screen.level(6);  screen.rect(px + 1, py + 7, 6, 1); screen.fill()  -- base skirt
+  if ((t or 0) % 70) < 6 then
+    screen.level(15); screen.pixel(px + 3, py + 3); screen.fill()
+  end
+end
+
+TILE_DRAW[96] = function(px, py, t)
+  -- crypt_candle: a squat gravestone with a candle stub on top (Cave 6,
+  -- Locrian Crypt). The flame flickers between two brightness levels.
+  screen.level(4);  screen.rect(px + 1, py + 3, 6, 5); screen.fill()  -- stone slab
+  screen.level(2);  screen.rect(px + 1, py + 7, 6, 1); screen.fill()  -- slab shadow line
+  screen.level(9);  screen.rect(px + 3, py + 1, 1, 2); screen.fill()  -- candle stub on top
+  screen.level(((t or 0) % 16) < 8 and 13 or 10)                      -- flickering flame
+  screen.pixel(px + 3, py); screen.fill()
 end
 
 local SPRITE_BY_CLASS
@@ -25689,7 +25799,7 @@ local function draw_overworld()
         TILE_DRAW.cavefloor(sx, sy, tx + ty * MAP_W)
       else
         local fn = TILE_DRAW[t] or TILE_DRAW[0]
-        if t == 3 or t == 6 or t == 7 or t == 9 or t == 11 or t == 14 or t == 16 or t == 18 or t == 19 or t == 20 or t == 24 or t == 27 or t == 30 or t == 32 or t == 36 or t == 38 or t == 39 or t == 41 or t == 43 or t == 52 or t == 53 or t == 54 or t == 55 or t == 56 or t == 57 or t == 58 or t == 62 or t == 67 or t == 70 or t == 73 or t == 84 or t == 94 then fn(sx, sy, tick)
+        if t == 3 or t == 6 or t == 7 or t == 9 or t == 11 or t == 14 or t == 16 or t == 18 or t == 19 or t == 20 or t == 24 or t == 27 or t == 30 or t == 32 or t == 36 or t == 38 or t == 39 or t == 41 or t == 43 or t == 52 or t == 53 or t == 54 or t == 55 or t == 56 or t == 57 or t == 58 or t == 62 or t == 67 or t == 70 or t == 73 or t == 84 or t == 94 or t == 95 or t == 96 then fn(sx, sy, tick)
         elseif t == 0 or t == 8 then fn(sx, sy, tx + ty * MAP_W)
         else fn(sx, sy)
         end
@@ -25918,6 +26028,17 @@ local function draw_overworld()
     screen.level(11)
     screen.move(126, 8)
     screen.text_right("> " .. CHAR_NAME[party[active].class])
+  end
+
+  -- World of Silence cue: tiny tilde squiggle + "detuned" tag in the
+  -- top-left corner (the voice indicator owns top-right; interaction
+  -- prompts and banners are all centered lower). Subtle, level 6.
+  if CONTENT.act3_silence then
+    screen.font_face(25); screen.font_size(6)
+    screen.level(6)
+    screen.pixel(2, 4); screen.pixel(3, 3); screen.pixel(4, 4); screen.fill()
+    screen.move(7, 6); screen.text("detuned")
+    screen.font_face(1); screen.font_size(8)
   end
 
   -- place label banner (shows briefly on entering a new place / crossing a region)
@@ -27370,6 +27491,16 @@ local function draw_battle()
   screen.level(4)
   screen.move(2 + cave_w + 3, 6)
   screen.text(BATTLE_BPM .. " " .. JAM.note_names[((JAM.root or 0) % 12) + 1])
+  -- World of Silence cue: tiny tilde squiggle + "detuned" tag, right-
+  -- aligned at x=105 so it hugs the stick pads (x=108+) and stays clear
+  -- of the cave-name/BPM text on the left. Subtle (level 6), no pulse.
+  if CONTENT.act3_silence then
+    screen.level(6)
+    local dw = screen.text_extents("detuned")
+    screen.move(105, 6); screen.text_right("detuned")
+    screen.pixel(105 - dw - 7, 4); screen.pixel(105 - dw - 6, 3)
+    screen.pixel(105 - dw - 5, 4); screen.fill()
+  end
   screen.font_face(1); screen.font_size(8)
   -- Two stick mini-pads at the top-right (left stick = reverb/delay, right = cutoff/res).
   -- Indicators reflect the ACTIVE voice's latched stick — switching voices makes
@@ -27612,6 +27743,32 @@ local function draw_battle()
       screen.pixel(bx + 2, by + 4)
       screen.fill()
     end
+    -- Long Echo armed indicator (ECHO-specific). One tiny chevron arrow
+    -- per remaining echo charge, in the same glyph slot the bell uses
+    -- (classes are mutually exclusive per column) with the same slow
+    -- pulse convention.
+    if (p.long_echo_charges or 0) > 0 and p.alive then
+      local bx, by = cx + 25, 49
+      local lev = ((tick % 24) < 12) and 13 or 15
+      screen.level(lev)
+      for k = 1, math.min(2, p.long_echo_charges) do
+        local ax = bx + (k - 1) * 3
+        screen.pixel(ax, by); screen.pixel(ax + 1, by + 1); screen.pixel(ax, by + 2)
+      end
+      screen.fill()
+    end
+    -- Threefold active indicator (Paj-specific). Tiny triangle in the
+    -- bell's glyph slot while the heal-on-action window holds; same
+    -- pulse convention as the bell.
+    if p.alive and p.threefold_until and (tick or 0) < p.threefold_until then
+      local bx, by = cx + 25, 49
+      local lev = ((tick % 24) < 12) and 13 or 15
+      screen.level(lev)
+      screen.pixel(bx + 2, by)
+      screen.pixel(bx + 1, by + 1); screen.pixel(bx + 3, by + 1)
+      for c = 0, 4 do screen.pixel(bx + c, by + 2) end
+      screen.fill()
+    end
     -- character sprite (left of column at row 49) — battle animations land here.
     -- FF-style shock-jump: when recently hit (last 6 ticks), the sprite
     -- bumps 1-2 px back and to the side, easing back to neutral. Reads
@@ -27762,7 +27919,7 @@ end
 function draw_battle_end_xp()
   local NAMES = {
     mage="Diegues", cleric="Miel", warrior="Strom", bard="Alder",
-    engineer="Sergei", mathwiz="Paj", drummer="Niko",
+    engineer="Sergei", mathwiz="Paj", drummer="Niko", wraith="ECHO",
   }
   draw_battle()
   screen.level(0); screen.rect(0, 0, 128, 64); screen.fill()
@@ -28031,20 +28188,38 @@ local function draw_menu()
   player.facing = saved_facing
   screen.level(15); screen.move(mx + 32, 6); screen.text_center("MENU")
   screen.level(6); screen.move(mx + 3, 8); screen.line(mx + 61, 8); screen.stroke()
-  -- First option starts at y=14 so its 6px-font glyphs (y=9..14) clear the
-  -- divider at y=8 — was y=12 which had glyphs y=7..12 crashing into the line.
+  -- Two-column option grid: 11 options overflowed the old single
+  -- 5-px-pitch column (row 11 landed at y=64, off-screen and colliding
+  -- with the gold footer). Options 1-6 fill column A, 7-11 column B;
+  -- menu_idx stays absolute and the cursor tick renders in whichever
+  -- column holds it (column B = idx > 6). Long labels are display-
+  -- shortened to fit the ~26-px column width — dispatch still keys off
+  -- the full MENU_OPTIONS strings. First row at y=16 so 6px-font glyphs
+  -- (y=11..16) clear the divider at y=8.
+  local SHORT_LBL = {["Save Game"] = "Save", ["Party Status"] = "Status",
+                     ["Equipment"] = "Equip", ["Bestiary"] = "Beasts",
+                     ["Achievements"] = "Awards"}
   for i, opt in ipairs(MENU_OPTIONS) do
-    local y = 14 + (i - 1) * 5
-    local label = opt
-    if opt == "Debug" then label = opt .. ": " .. (debug_visible and "ON" or "OFF") end
+    local col_b = (i > 6)
+    local x = col_b and (mx + 33) or (mx + 3)
+    local y = 16 + (col_b and (i - 7) or (i - 1)) * 7
+    local label = SHORT_LBL[opt] or opt
+    if opt == "Debug" then
+      -- "Dbg ON" when active; plain "Debug" reads as off ("Debug: OFF"
+      -- no longer fits the column).
+      label = debug_visible and "Dbg ON" or "Debug"
+    end
     if i == menu_idx then
-      screen.level(15); screen.move(mx + 3, y); screen.text("> " .. label)
+      screen.level(15)
+      screen.rect(x, y - 4, 2, 4); screen.fill()   -- cursor tick
+      screen.move(x + 4, y); screen.text(label)
     else
-      screen.level(7); screen.move(mx + 6, y); screen.text(label)
+      screen.level(7)
+      screen.move(x + 4, y); screen.text(label)
     end
   end
-  -- Footer: gold counter (left), kept clear of menu options above by the
-  -- 5-px row pitch capping the option list at y=14+8*5=54.
+  -- Footer: gold counter (left). Options end at y=16+5*7=51 (column A's
+  -- 6th row), so the y=62 footer band stays clear.
   screen.level(11); screen.move(mx + 3, 62); screen.text(SHOP.gold .. "g")
   screen.font_face(1); screen.font_size(8)
   -- save flash (kept on default font)
@@ -28384,7 +28559,8 @@ local function draw_status()
   if status_idx > #party then status_idx = 1 end
   local p = party[status_idx]
   local CLASS_LBL = {bard="Bard", cleric="Cleric", warrior="Warrior", mage="Mage",
-                     engineer="Engineer", mathwiz="Mathwiz", drummer="Drummer"}
+                     engineer="Engineer", mathwiz="Mathwiz", drummer="Drummer",
+                     wraith="Wraith"}
   local name = CHAR_NAME[p.class]
   local cls = CLASS_LBL[p.class] or p.class
 
@@ -30456,14 +30632,16 @@ UI.draw_quests = function()
     end
   else
     -- ── SIDE QUESTS ──
+    -- Four quests at an 11-px entry pitch (label + status 6 px apart);
+    -- last status baseline y=54 clears the y=62 footer glyphs.
     -- Hens
     do
       local q = QUESTS.hens
       local status, lev
       if q.discount then status, lev = "DONE  shop -25%", 11
       else status, lev = q.wins .. "/" .. q.target .. " road wins", 15 end
-      screen.level(11); screen.move(2, 17); screen.text("Hens (Shopkeep)")
-      screen.level(lev); screen.move(2, 23); screen.text(status)
+      screen.level(11); screen.move(2, 15); screen.text("Hens (Shopkeep)")
+      screen.level(lev); screen.move(2, 21); screen.text(status)
     end
     -- Brann
     do
@@ -30471,8 +30649,8 @@ UI.draw_quests = function()
       local status, lev
       if q.claimed then status, lev = "DONE  +200g, +1 Star", 11
       else status, lev = q.wins .. "/" .. q.target .. " road wins", 15 end
-      screen.level(11); screen.move(2, 31); screen.text("Brann (Smith)")
-      screen.level(lev); screen.move(2, 37); screen.text(status)
+      screen.level(11); screen.move(2, 26); screen.text("Brann (Smith)")
+      screen.level(lev); screen.move(2, 32); screen.text(status)
     end
     -- Tova
     do
@@ -30482,13 +30660,27 @@ UI.draw_quests = function()
       local status, lev
       if QUESTS.tova.claimed then status, lev = "DONE  +80g + lore", 11
       else status, lev = visited .. "/4 sages met", 15 end
-      screen.level(11); screen.move(2, 45); screen.text("Tova (Sage)")
-      screen.level(lev); screen.move(2, 51); screen.text(status)
+      screen.level(11); screen.move(2, 37); screen.text("Tova (Sage)")
+      screen.level(lev); screen.move(2, 43); screen.text(status)
+    end
+    -- Pith (cartographer — report back with 3+ caves cleared)
+    do
+      local q = QUESTS.pith
+      -- Mirror Pith's own dialogue logic, which counts caves 1-5.
+      local cleared = 0
+      for i = 1, 5 do
+        if cave_state[i] and cave_state[i].cleared then cleared = cleared + 1 end
+      end
+      local status, lev
+      if q.claimed then status, lev = "DONE  +100g, +1 Tonic", 11
+      else status, lev = cleared .. "/" .. q.target .. " caves logged", 15 end
+      screen.level(11); screen.move(2, 48); screen.text("Pith's report")
+      screen.level(lev); screen.move(2, 54); screen.text(status)
     end
   end
 
-  screen.level(6); screen.move(2, 62);   screen.text("L1/R1 page")
-  screen.level(6); screen.move(126, 62); screen.text_right("B back")
+  screen.level(6); screen.move(2, 62);   screen.text("L1/R1/K3 page")
+  screen.level(6); screen.move(126, 62); screen.text_right("B/K2 back")
   screen.font_face(1); screen.font_size(8)
 end
 
@@ -30549,7 +30741,7 @@ UI.draw_map = function()
 
   -- Footer: position + region hint
   screen.level(8); screen.move(2, 62); screen.text("(" .. player.x .. "," .. player.y .. ")")
-  screen.level(6); screen.move(126, 62); screen.text_right("B back")
+  screen.level(6); screen.move(126, 62); screen.text_right("B/K2 back")
   screen.font_face(1); screen.font_size(8)
 end
 
@@ -30567,25 +30759,29 @@ UI.draw_achievements = function()
   screen.level(11); screen.move(126, 7)
   screen.text_right(unlocked .. "/" .. #ACHIEVEMENT_DEFS)
 
-  -- Each entry: bright if unlocked, dim "????" if locked. 7px rows,
-  -- 7 rows fit between y=13 and y=58.
-  local rows = math.min(7, #ACHIEVEMENT_DEFS)
+  -- Each entry: bright if unlocked, dim hint/"?" if locked. Two balanced
+  -- columns of ceil(n/2) rows so every entry renders (the old fixed 7/6
+  -- split silently dropped entries past 13). Row pitch shrinks to 6 px
+  -- once a column exceeds 7 rows so the last row clears the y=62 footer.
+  local n_defs = #ACHIEVEMENT_DEFS
+  local rows = math.ceil(n_defs / 2)
+  local pitch = (rows > 7) and 6 or 7
   for i = 1, rows do
     local def = ACHIEVEMENT_DEFS[i]
-    local y = 14 + (i - 1) * 7
+    local y = 14 + (i - 1) * pitch
     local got = CONTENT.achievements[def.id]
     screen.level(got and 15 or 5)
     screen.move(2, y); screen.text(got and ("* " .. def.name) or ("? " .. def.hint))
   end
-  -- second column (rows 8-13)
-  for i = 8, math.min(#ACHIEVEMENT_DEFS, 13) do
+  -- second column
+  for i = rows + 1, n_defs do
     local def = ACHIEVEMENT_DEFS[i]
-    local y = 14 + (i - 8) * 7
+    local y = 14 + (i - rows - 1) * pitch
     local got = CONTENT.achievements[def.id]
     screen.level(got and 15 or 5)
     screen.move(70, y); screen.text(got and ("* " .. def.name) or "?")
   end
-  screen.level(6); screen.move(126, 62); screen.text_right("B back")
+  screen.level(6); screen.move(126, 62); screen.text_right("B/K2 back")
   screen.font_face(1); screen.font_size(8)
 end
 
@@ -30698,7 +30894,7 @@ UI.draw_shards = function()
     screen.level(7); screen.move(64, 61)
     screen.text_center("tuned: " .. (MODE_LBL[JAM.mode] or JAM.mode or "?"))
   end
-  screen.level(6); screen.move(126, 62); screen.text_right("B back")
+  screen.level(6); screen.move(126, 62); screen.text_right("B/K2 back")
   screen.font_face(1); screen.font_size(8)
 end
 
@@ -30784,13 +30980,19 @@ UI.draw_bestiary = function()
   screen.font_face(25); screen.font_size(6)
   screen.level(15); screen.move(64, 7); screen.text_center("BESTIARY")
   screen.level(3); screen.move(0, 9); screen.line(128, 9); screen.stroke()
-  -- collect entries into a stable order
+  -- collect entries into a stable order (keep the table key on each
+  -- entry: rares are name-keyed, so key ~= visual identifies them)
   local list = {}
-  for _, e in pairs(CONTENT.bestiary) do list[#list+1] = e end
-  table.sort(list, function(a, b) return (a.hp_max or 0) < (b.hp_max or 0) end)
+  for k, e in pairs(CONTENT.bestiary) do e.key = k; list[#list+1] = e end
+  -- name tiebreaker so equal-HP entries don't swap order between redraws
+  table.sort(list, function(a, b)
+    local ah, bh = (a.hp_max or 0), (b.hp_max or 0)
+    if ah ~= bh then return ah < bh end
+    return (a.name or "") < (b.name or "")
+  end)
   if #list == 0 then
     screen.level(7); screen.move(64, 36); screen.text_center("(no defeated foes yet)")
-    screen.level(6); screen.move(126, 62); screen.text_right("B back")
+    screen.level(6); screen.move(126, 62); screen.text_right("B/K2 back")
     screen.font_face(1); screen.font_size(8)
     return
   end
@@ -30799,6 +31001,12 @@ UI.draw_bestiary = function()
   local sel = CONTENT.bestiary_idx
   local cur = list[sel]
   local lore = BESTIARY_LORE[cur.visual or cur.name] or {"(no lore yet.)", ""}
+  -- Rare (name-keyed) entries reuse the base monster's lore — flag them
+  -- as the greater strain: marker becomes line 1, base line 1 follows,
+  -- and the voice/sound-design note (lore[3]) is kept for the detail row.
+  if cur.key and cur.visual and cur.key ~= cur.visual then
+    lore = {"(a rare, greater strain.)", lore[1], lore[3]}
+  end
 
   if CONTENT.bestiary_detail then
     -- ── DETAIL VIEW: name strip + sprite center + stats + lore ──
@@ -30828,7 +31036,7 @@ UI.draw_bestiary = function()
     -- lore (2 compact lines)
     screen.level(13); screen.move(2, 56); screen.text(lore[1] or "")
     screen.level(13); screen.move(2, 62); screen.text(lore[2] or "")
-    screen.level(6); screen.move(126, 62); screen.text_right("B back")
+    screen.level(6); screen.move(126, 62); screen.text_right("B/K2 back")
     screen.font_face(1); screen.font_size(8)
     return
   end
@@ -30852,8 +31060,8 @@ UI.draw_bestiary = function()
   -- the y=62 footer is free for hints without text collisions.
   screen.level(3); screen.move(0, 50); screen.line(128, 50); screen.stroke()
   screen.level(11); screen.move(2, 57); screen.text(lore[1] or "")
-  screen.level(6); screen.move(2, 63); screen.text("A view")
-  screen.level(6); screen.move(126, 63); screen.text_right("B back")
+  screen.level(6); screen.move(2, 63); screen.text("A/K3 view")
+  screen.level(6); screen.move(126, 63); screen.text_right("B/K2 back")
   screen.font_face(1); screen.font_size(8)
 end
 
@@ -31284,7 +31492,7 @@ UI.draw_partysel = function()
   elseif focus_cell and focus_cell.kind == "locked" then
     screen.level(8); screen.move(2, 63); screen.text("(not yet joined)")
   else
-    screen.level(6); screen.move(2, 63); screen.text("L1/R1 slot   UD pick   B back")
+    screen.level(6); screen.move(2, 63); screen.text("L1/R1 slot  UD/E2 pick  B/K2 back")
   end
   screen.font_face(1); screen.font_size(8)
 end
