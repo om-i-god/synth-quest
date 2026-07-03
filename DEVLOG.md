@@ -2200,3 +2200,36 @@ Progression audit findings, all fixed:
   13 instead of cave id 6); double-Iola in the first-visit scene;
   cliff-reeds ambient read the prologue wisp tracker instead of cave-3
   state; comment corrections.
+
+## 2026-07-03 — every door leads somewhere (buildings revamp, phase 1)
+
+User direction: "buildings should be consistent — weird facades with
+purposeless doors everywhere, but enterable buildings take 1 square.
+I want to enter the blacksmith's shop."
+
+Inventory found the root truth: tile 5 (door) had NO handler — every
+exterior door in the game was fake (8 facades across MAINLAND +
+SUNWARD). Built the parametric house system: one interior map id (38)
++ CONTENT.HOUSES registry keyed "map:x,y" of the door tile; t==5
+handler stashes return position (and the OUTER region warp, restored
+on exit) and warps into the keyed interior; save/load persists
+house_key and rebuilds the right room on Continue.
+
+Eight interiors, each 10x7 in the inn/shop furniture vocabulary with
+flavor objects in the game's voice: Tova's house, Pip's family house,
+the Elder's cottage, BRANN'S FORGE (workbench, quench barrel, spare
+plate = one-time 15g), Wynne's fisher cottage, the harbormaster's
+widow's house (two cups; one unmoved for years), Beck's cottage
+(+Salt the cat), and THE TAVERN — Hask now stands behind his own bar
+(he lived in a 1-tile corridor before) with Vesa at a table; the
+Slow Wheel attunement rewritten for the indoor capstan-ring relic.
+
+Also: backwards Sunward cottage facades rebuilt (doors faced the map
+edge); academy's two sealed courtyard boxes got doors + practice/
+listening rooms; Far Hills ruin opened into a shepherd's bothy;
+Fountain object moved onto the actual fountain tile.
+
+Verification loop caught this batch's bug: TOVA and BONK were
+standing on the only approach tiles of two house doors, sealing them
+— moved one tile aside. Also preserved the Sunward→mainland signpost
+warp across house visits (outer_return stash).

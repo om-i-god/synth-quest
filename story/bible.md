@@ -601,6 +601,32 @@ territories. These are the connective tissue of the overworld:
    THE ACADEMY — see THE SAGE CIRCLE above.
 
 
+-------- VILLAGE + SUNWARD INTERIORS (2026-07-03) --------
+
+   STATUS: IN CODE ("every door leads somewhere" pass; CONTENT.HOUSES,
+   shared interior map_id 38, entered via the exterior tile-5 doors).
+
+   TOVA'S HOUSE (village) — reference shelves and a travel desk that
+      tracks the party's route; a Hollow Woods flower pressed in a book.
+   PIP'S HOUSE (village) — mama's big bed and Pip's small one; seven
+      chalk shapes on the wall, two scribbled out and redrawn; warm bread.
+   THE ELDER'S HOUSE (village) — austere; a patched fountain-rite robe
+      and a tuning fork worn smooth, from when the Elder was not the Elder.
+   BRANN'S FORGE (village) — the flagship interior: hearth-as-forge,
+      workbench with instrument bracing, hissing quench barrel, and a
+      spare stamped plate (one-time 15g pickup).
+   THE FISHER'S COTTAGE (Sunward Coast) — nets and salt; the loft is
+      lent to travelers, currently Wynne's.
+   THE HARBORMASTER'S HOUSE (Sunward Coast) — Mara's; the harbor ledger
+      ends on a date and nothing else; two cups by the window, one
+      unmoved for years.
+   BECK'S COTTAGE (Sunward Coast) — coiled lines, ranked boots, and
+      Salt, a profoundly fish-scented cat.
+   THE SUNWARD TAVERN (Sunward Coast) — both exterior doors now work;
+      Hask keeps the bar (Slow Wheel attunement fires here), Vesa
+      records the room from a table.
+
+
 -------- THE PARTY — DEEPER --------
 
 For dossier-canon roles, voices, and inspirations, see Dossier

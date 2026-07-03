@@ -357,14 +357,20 @@ RESONANCE_SITES = {
       hint  = "Hask at the Sunward Coast (warrior lead)",
     },
     shrine = {
+      -- Attunement fires via Hask's scene closure INSIDE the tavern
+      -- (map 38 via the "35:25,5" house); coords kept for the record.
+      -- The old capstan's ring hangs behind Hask's bar — the dialogue
+      -- was reworded for the indoor setting (the full-screen panel
+      -- still shows the harbor capstan itself).
       map  = 35, x = 25, y = 6, lead = "warrior",
       signature = {
         visual = "sunward_slow_wheel",
         sound  = { class = "warrior", note = 36, vel = 0.7, attack = 0.02, release = 3.0, wet = 0.4 },
         dialogue = {
-          "(Strom sets his hand on the old harbor capstan. It turns -- slow, even, on its own.)",
+          "(Hask lifts the old capstan ring down from behind the bar and sets it spinning on the counter.)",
+          "(It turns -- slow, even, on its own. It does not lose speed.)",
           "[Strom]   A millwright tuned her wheel to a slow phase. The mill burned. The wheel never stopped.",
-          "(the capstan keeps turning under his palm, dragging the room half a step behind the beat.)",
+          "(the ring keeps turning under his palm, dragging the room half a step behind the beat.)",
         },
       },
     },
@@ -3075,6 +3081,351 @@ CONTENT = {
     {4,4,4,4,4,17,17,4,4,4,4,4},
   },
   northern_shop_npcs = {},
+  -- =========================================================== HOUSES
+  -- "Every door leads somewhere" (2026-07-03): the village/coast tile-5
+  -- doors were decorative — walkable, but they warped nowhere. This
+  -- registry gives each one a home interior. Keyed by "mapid:x,y" of the
+  -- EXTERIOR door tile; try_move's tile-5 handler looks the key up,
+  -- points CONTENT.house_map / house_npcs at the entry and warps to the
+  -- shared interior map id 38. Tile-5 doors WITHOUT a registry entry
+  -- (interior room doors — Academy office/dorms, Lirael street doors)
+  -- keep their old plain-walkable behavior via fall-through.
+  -- House shell convention: 10w x 7t, wall ring (4), exit pair 17,17 at
+  -- cols 5-6 of row 7, player spawns at (5,6). Interior tile vocabulary
+  -- (same as the inn/shop maps): 21 bed, 22 counter, 23 rug, 24 lantern,
+  -- 30 fireplace, 31 shelf, 32 table, 33 till, 35 barrel, 38 painting,
+  -- 39 plant, 40 chair, 41 sign, 42 broom.
+  HOUSES = {
+    -- Tova's house (village west building, door at MAINLAND 4,5).
+    -- The sage-scribe's home: reference shelves, a travel desk where
+    -- she tracks every road the party walks.
+    ["1:4,5"] = {
+      label = "Tova's House",
+      map = {
+        {4,4,38,4,4,4,4,4,4,4},        -- back wall + a small framed map
+        {4,31,31,31,0,0,21,21,0,4},    -- reference shelves + her bed
+        {4,0,0,0,0,0,0,0,39,4},
+        {4,24,0,32,40,0,23,23,0,4},    -- travel desk + chair + rug
+        {4,0,0,0,0,0,23,23,0,4},
+        {4,42,0,0,0,0,0,0,24,4},
+        {4,4,4,4,17,17,4,4,4,4},
+      },
+      npcs = {
+        { x = 4, y = 4, name = "TravelDesk", kind = "object",
+          dialogue = function()
+            local lead = party[active] and party[active].class
+            if lead == "mage" then
+              return {
+                "(route notes in Tova's hand. The party's names appear in the margins more than she'd admit.)",
+                "(beside a copied page of the chronicle: 'D. gets the chord wrong here. Keep him anyway.')",
+              }
+            end
+            return {
+              "(a travel desk stacked with route notes -- every road the party has walked, inked and dated)",
+              "(in the margin, smaller: 'they came back through the village today. all seven chords of them.')",
+            }
+          end,
+        },
+        { x = 3, y = 2, name = "PressedFlower", kind = "object",
+          dialogue = function()
+            return {
+              "(a book left open on the shelf. Between the pages: a flower, pressed flat and kept.)",
+              "(Hollow Woods blue. The kind that only opens when somebody sings near it.)",
+            }
+          end,
+        },
+      },
+    },
+    -- Pip's house (village middle building, door at MAINLAND 10,5).
+    -- Mama's big bed, Pip's small one, and a wall of chalk.
+    ["1:10,5"] = {
+      label = "Pip's House",
+      map = {
+        {4,4,38,4,4,4,4,4,4,4},        -- back wall + painting
+        {4,21,21,0,0,0,30,30,0,4},     -- mama's big bed + hearth
+        {4,0,0,0,0,0,0,0,21,4},        -- Pip's small bed
+        {4,0,32,40,0,0,23,23,0,4},     -- table + chair + rug
+        {4,0,0,0,0,0,23,23,0,4},
+        {4,24,31,0,0,0,0,39,0,4},      -- lantern + bread shelf + plant
+        {4,4,4,4,17,17,4,4,4,4},
+      },
+      npcs = {
+        -- Chalk drawings on the north wall (impassable tile; checkable
+        -- from the tile below — same convention as the dais Silencers).
+        { x = 5, y = 1, name = "ChalkDrawings", kind = "object",
+          dialogue = function()
+            return {
+              "(chalk on the wall, low to the floor: seven glowing shapes, drawn and redrawn.)",
+              "(two are scribbled out. The third try of one is bigger than all the rest.)",
+              "(under them, in careful letters: PIP WAS HERE. SO WERE THE SONGS.)",
+            }
+          end,
+        },
+        { x = 3, y = 6, name = "BreadShelf", kind = "object",
+          dialogue = function()
+            return {
+              "(a loaf under a cloth. Still warm -- someone timed the baking to somebody's walk home.)",
+              "(the cloth is embroidered with a fountain, mid-song.)",
+            }
+          end,
+        },
+      },
+    },
+    -- The Elder's house (village east building, door at MAINLAND 20,5).
+    -- Austere: one bed, one table, one shelf. Everything else is memory.
+    ["1:20,5"] = {
+      label = "the Elder's House",
+      map = {
+        {4,4,4,4,38,4,4,4,4,4},        -- back wall + one painting
+        {4,21,0,0,0,0,0,31,0,4},       -- narrow bed + one shelf
+        {4,0,0,0,0,0,0,0,0,4},
+        {4,0,0,0,32,40,0,0,0,4},       -- plain table + chair
+        {4,0,0,0,0,0,0,0,0,4},
+        {4,24,0,0,0,0,0,39,0,4},
+        {4,4,4,4,17,17,4,4,4,4},
+      },
+      npcs = {
+        { x = 8, y = 2, name = "CeremonyRobe", kind = "object",
+          dialogue = function()
+            return {
+              "(a robe folded square on the shelf. Fountain-rite white, gone soft grey with age.)",
+              "(patched at both elbows and the hem -- different thread every decade, same hands.)",
+            }
+          end,
+        },
+        { x = 5, y = 4, name = "OldTuningFork", kind = "object",
+          dialogue = function()
+            return {
+              "(an iron tuning fork, worn smooth where a thumb has rested on it for fifty years.)",
+              "(it hums a hair flat of A. Struck so many times it settled there -- the Elder's,",
+              "from when the Elder was not the Elder.)",
+            }
+          end,
+        },
+      },
+    },
+    -- Brann's forge (village smithy, door at MAINLAND 25,9 — the north-
+    -- facing door beside the anvil). The flagship interior: the hearth
+    -- runs as a forge, the counter is his workbench.
+    ["1:25,9"] = {
+      label = "Brann's Forge",
+      map = {
+        {4,4,4,4,4,4,4,4,4,4},
+        {4,30,30,0,0,0,31,31,31,4},    -- forge fire (never quite out) + rack shelf
+        {4,0,0,0,0,0,0,0,0,4},
+        {4,22,22,22,0,0,0,35,35,4},    -- workbench + quench barrels
+        {4,0,0,0,0,0,0,0,0,4},
+        {4,42,0,0,0,0,0,35,24,4},
+        {4,4,4,4,17,17,4,4,4,4},
+      },
+      npcs = {
+        { x = 2, y = 4, name = "Workbench", kind = "object",
+          dialogue = function()
+            return {
+              "(half-finished bracing for some instrument's ribs, clamped and drying. Files laid out by size.)",
+              "(nothing on this bench is out of place. Brann argues with iron, not with order.)",
+            }
+          end,
+        },
+        { x = 8, y = 4, name = "QuenchBarrel", kind = "object",
+          dialogue = function()
+            return {
+              "(the quench barrel. The water hisses, faintly, even with nothing cooling in it.)",
+              "(Brann says coast steel remembers the sea. You believe him a little more now.)",
+            }
+          end,
+        },
+        -- One-time 15g pickup — same grant-inside-dialogue pattern as
+        -- Iolen's tide stone / Ymra's remedy shelf. (The chest system is
+        -- per-map-id and every house shares map 38, so a CONTENT.chests
+        -- entry here would appear in all eight homes.)
+        { x = 8, y = 2, name = "SparePlate", kind = "object",
+          dialogue = function()
+            if flag.brann_plate_taken then
+              return {
+                "(the gap on the rack where the spare plate was. Brann has definitely noticed by now.)",
+              }
+            end
+            flag.brann_plate_taken = true
+            SHOP.gold = SHOP.gold + 15
+            return {
+              "(a spare iron plate on the rack, stamped with Brann's mark. Worth a little to the right buyer.)",
+              "(you pocket the spare plate. Brann would want you to have it -- probably.)",
+              "(+15 gold)",
+            }
+          end,
+        },
+      },
+    },
+    -- Fisher cottage (Sunward Coast west-of-two, door at 10,2). Nets and
+    -- salt; the loft is lent to whoever the road brings — Wynne, lately.
+    ["35:10,2"] = {
+      label = "the Fisher's Cottage",
+      map = {
+        {4,4,38,4,4,4,4,4,4,4},
+        {4,31,31,0,0,0,21,21,0,4},     -- net loft shelf + bed
+        {4,0,0,0,0,0,0,0,35,4},        -- salt barrel
+        {4,0,32,40,0,0,23,23,0,4},
+        {4,0,0,0,0,0,23,23,0,4},
+        {4,24,0,0,0,0,0,39,0,4},
+        {4,4,4,4,17,17,4,4,4,4},
+      },
+      npcs = {
+        { x = 2, y = 2, name = "NetLoft", kind = "object",
+          dialogue = function()
+            return {
+              "(nets hung to dry from the loft beam. Salt in every board of the ceiling.)",
+              "(a traveling pack leans in the corner -- Wynne's, by the lute strings poking out the top.)",
+              "(the fisher folk lend the loft to whoever the road brings. The sea likes company.)",
+            }
+          end,
+        },
+      },
+    },
+    -- The Harbormaster's house (Sunward Coast east-of-two, door at 24,2).
+    -- Mara keeps the bandstand; the house keeps everything else.
+    ["35:24,2"] = {
+      label = "the Harbormaster's House",
+      map = {
+        {4,4,38,4,4,4,4,38,4,4},       -- two paintings: him, and the sea
+        {4,21,21,0,0,0,30,30,0,4},     -- bed + hearth
+        {4,0,0,0,0,0,0,0,32,4},        -- small table by the window
+        {4,0,32,40,40,0,23,23,0,4},    -- table with TWO chairs
+        {4,0,0,0,0,0,23,23,0,4},
+        {4,24,0,0,0,0,0,39,0,4},
+        {4,4,4,4,17,17,4,4,4,4},
+      },
+      npcs = {
+        { x = 3, y = 4, name = "HarborLedger", kind = "object",
+          dialogue = function()
+            return {
+              "(the harbor ledger, kept open on the table. Arrivals, departures, tides, in a steady hand.)",
+              "(the last entry is a date and nothing else.)",
+            }
+          end,
+        },
+        { x = 9, y = 3, name = "TwoCups", kind = "object",
+          dialogue = function()
+            return {
+              "(two cups by the window. One sits rim-down, washed this morning.)",
+              "(the other faces the sea. It has not been moved in years.)",
+            }
+          end,
+        },
+      },
+    },
+    -- Beck's cottage (Sunward Coast west edge, door at 4,3). Ropes,
+    -- boots, and a cat who has claimed the rug in perpetuity.
+    ["35:4,3"] = {
+      label = "Beck's Cottage",
+      map = {
+        {4,4,38,4,4,4,4,4,4,4},
+        {4,21,0,0,0,0,31,31,0,4},      -- bed + rope shelf
+        {4,0,0,0,0,0,0,0,35,4},
+        {4,0,32,40,0,0,23,23,0,4},
+        {4,0,0,0,0,0,23,23,0,4},       -- rug (Salt at 7,5)
+        {4,42,0,0,0,0,0,24,0,4},
+        {4,4,4,4,17,17,4,4,4,4},
+      },
+      npcs = {
+        { x = 7, y = 2, name = "CoiledLines", kind = "object",
+          dialogue = function()
+            return {
+              "(coils of line hung by weight, boots ranked by wear. Everything here is ready to leave at dawn.)",
+              "(none of it smells of anywhere but home.)",
+            }
+          end,
+        },
+        { x = 7, y = 5, name = "Salt", kind = "pet",
+          barks = {"mrr.", "(stretches)"},
+          dialogue = function()
+            return {
+              "(Salt smells overwhelmingly of fish. Salt is deeply, profoundly content about this.)",
+              "(she stretches one paw toward the fire, reconsiders, and settles deeper into the rug.)",
+            }
+          end,
+        },
+      },
+    },
+    -- The Sunward tavern (both doors — 25,5 north and 25,8 south — warp
+    -- here; the south key is aliased to this entry just below the
+    -- CONTENT literal). Hask behind his own bar at last; Vesa records
+    -- the room from a table.
+    ["35:25,5"] = {
+      label = "the Sunward Tavern",
+      map = {
+        {4,4,4,4,41,4,4,4,4,4},        -- hanging sign over the bar
+        {4,31,31,0,0,0,0,31,31,4},     -- bottle shelves behind the bar
+        {4,22,22,22,33,22,0,0,35,4},   -- long bar + brass till
+        {4,0,0,0,0,0,0,0,0,4},
+        {4,32,40,0,0,0,40,32,0,4},     -- two tables with chairs
+        {4,24,0,0,0,0,0,0,35,4},
+        {4,4,4,4,17,17,4,4,4,4},
+      },
+      npcs = {
+        -- Hask — tavern keeper, gossip-monger. Moved inside from the
+        -- old exterior corridor at (25,6); dialogue + attunement scene
+        -- unchanged.
+        { x = 4, y = 2, name = "Hask", kind = "npc",
+          dialogue = function()
+            local lead = party[active] and party[active].class
+            if lead == "warrior" then
+              return {
+                "Hold up. That scar on your collar — that's",
+                "a Suno harness mark. I've buried men who",
+                "wore that and never spoke after.",
+              }
+            elseif lead == "bard" then
+              return {
+                "Bards drink free here on Sevenday. Mara's",
+                "rule, not mine. Mostly mine.",
+              }
+            else
+              return {
+                "Refinery's hidden behind the headlands now.",
+                "You can hear it if the wind comes wrong.",
+              }
+            end
+          end,
+          barks = {"(he wipes a glass)", "(eyes the door)"},
+          -- The Slow Wheel attunement: Strom (warrior lead) attunes here;
+          -- Hask has buried enough soldiers to know the weight.
+          scene = function()
+            local lead = party[active] and party[active].class
+            if lead == "warrior" and CONTENT.resonances and CONTENT.resonances.slow_wheel
+               and not CONTENT.resonances.slow_wheel.attuned
+               and build_resonance_attunement_script then
+              CONTENT.resonances.slow_wheel.item = true
+              return build_resonance_attunement_script("slow_wheel")
+            end
+          end,
+        },
+        -- Vesa — Sage Circle outpost archivist. Moved inside off the old
+        -- exterior wall tile at (26,5); dialogue unchanged.
+        { x = 6, y = 5, name = "Vesa", kind = "npc",
+          dialogue = function()
+            local lead = party[active] and party[active].class
+            if lead == "mage" then
+              return {
+                "Diegues, isn't it? Iola wrote me about you.",
+                "I'm keeping the eastern records here while",
+                "she sees to Velthe's last papers.",
+              }
+            else
+              return {
+                "I record every singer who passes. Names",
+                "are how we remember after the music goes.",
+              }
+            end
+          end,
+        },
+      },
+    },
+  },
+  -- Live house-interior state (set by try_move's tile-5 handler; the
+  -- registry key persists in the save so a Continue inside a house
+  -- rebuilds the right room).
+  house_key = nil, house_map = nil, house_npcs = nil,
   -- Academy interior (map_id 19, 28x14 — the old "map_id 17 / 10x9"
   -- notes predate the expansion; 17 is the Eastern Reaches inn).
   -- Reached via tile 50 (front door) or tile 78, both landing at
@@ -3098,8 +3449,10 @@ CONTENT = {
     {4,0,0,0,4,0,0,0,4,0,0,0,73,0,0,0,0,0,4,0,0,0,0,4,0,0,0,4},
     -- row 7
     {4,0,0,0,4,0,0,0,4,0,0,0,0,0,0,0,0,0,4,0,0,0,0,4,0,0,0,4},
-    -- row 8 (courtyard south edge)
-    {4,0,0,0,4,4,4,4,4,0,0,0,0,0,0,0,0,0,4,4,4,4,4,4,0,0,0,4},
+    -- row 8 (courtyard south edge; tile-5 doors at cols 7 + 21 open the
+    -- old sealed boxes as walk-in rooms — practice room W, listening
+    -- room E. Plain walkable doors, no warp: the rooms are on this map.)
+    {4,0,0,0,4,4,5,4,4,0,0,0,0,0,0,0,0,0,4,4,5,4,4,4,0,0,0,4},
     -- row 9 (dorm wing west; library east wall begins)
     {4,0,4,5,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,72,72,72,72,72,72,4},
     -- row 10 (dorm room interior)
@@ -3114,6 +3467,24 @@ CONTENT = {
     {4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4},
   },
   academy_npcs = {
+    -- The two courtyard boxes (opened 2026-07-03 via tile-5 doors in
+    -- row 8): each holds one checkable room-object.
+    { x = 7, y = 6, name = "PracticeRoom", kind = "object",
+      dialogue = function()
+        return {
+          "(a small rehearsal room. Chalk tallies on the wall count somebody's scales:",
+          "four hundred and eleven.)",
+        }
+      end,
+    },
+    { x = 21, y = 6, name = "ListeningRoom", kind = "object",
+      dialogue = function()
+        return {
+          "(felt on the walls. The quietest room in the Academy.)",
+          "(somebody has carved: VELTHE SAT HERE.)",
+        }
+      end,
+    },
     -- Iola — Velthe's last apprentice, senior scholar (visible at Academy until migration)
     {
       x = 20, y = 2, name = "Iola", kind = "npc",
@@ -4294,7 +4665,7 @@ CONTENT = {
     {1, 0, 3, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1},
     {1, 0, 3, 0, 0, 0, 0, 0, 0, 0, 4, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
     {1, 0, 3, 0, 0, 0, 0, 0, 0, 0, 4, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1},
-    {1, 0, 3, 3, 0, 0, 0, 0, 0, 0, 4, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+    {1, 0, 3, 3, 0, 0, 0, 0, 0, 0, 4, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},  -- ruin south wall gap at (12,7): the bothy's doorway
     {1, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 1},
     {1, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1},
     {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
@@ -4358,6 +4729,16 @@ CONTENT = {
         return {
           "(a smooth flat stone at the creek's edge, etched with a faint laurel)",
           "(VELTHE wrote: 'The first chord rang here. The water has remembered it ever since.')",
+        }
+      end,
+    },
+    -- Inside the small ruin (gap opened in its south wall at 12,7):
+    -- it was never a ruin at all, just a shepherd's shelter.
+    { x = 12, y = 6, name = "Bothy", kind = "object",
+      dialogue = function()
+        return {
+          "(a shepherd's bothy: bedroll, wind-chime of flat keys, a carved tally of winters.)",
+          "(sixty-one.)",
         }
       end,
     },
@@ -4526,6 +4907,11 @@ CONTENT = {
   },
   cave7_npcs = {},
 }
+
+-- The Sunward tavern has two working doors (north 25,5 / south 25,8);
+-- both registry keys resolve to the same interior. Aliased here because
+-- a table literal can't reference its own fields mid-construction.
+CONTENT.HOUSES["35:25,8"] = CONTENT.HOUSES["35:25,5"]
 
 -- Global jam controls (root-note transposition in semitones; bpm offset).
 -- Adjusted via dpad while in JAM mode; persisted in save.
@@ -6098,14 +6484,19 @@ local SUNOS_DOMAIN = {
 -- 32w x 16h
 -- =================================================================
 SUNWARD_COAST_MAP = {
-  {1,1,1,1,0,0,0,0,4,5,4,0,0,0,0,1,1,1,1,1,0,0,4,5,4,0,0,1,1,1,1,1},
-  {1,0,0,0,0,0,0,0,4,0,4,0,0,0,0,0,0,0,0,0,0,0,4,0,4,0,0,0,0,0,0,1},
-  {1,0,4,5,4,0,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,0,1},
-  {1,0,4,0,4,0,2,64,64,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,1},
-  {0,0,0,0,0,0,2,0,0,2,64,64,2,0,0,62,62,62,0,0,0,0,0,4,5,4,0,0,0,2,0,0},
-  {0,0,0,0,0,0,2,0,0,2,0,0,2,0,0,62,62,62,0,0,0,0,0,4,61,4,0,0,0,2,0,0},
-  {65,2,2,2,2,2,2,0,0,2,0,0,2,0,0,62,62,62,0,0,0,0,0,4,61,4,0,0,0,2,2,9},  -- col 1: Sunward Coast signpost (tile 65) — west-path return to MAINLAND
-  {0,0,0,0,0,0,2,0,0,2,64,64,2,0,0,0,0,0,0,0,0,0,0,4,5,4,0,0,0,2,0,0},
+  -- rows 1-2: the two north cottages. Their doors used to sit on the
+  -- map-edge row 1 (facing off-map, with open south sides); rebuilt
+  -- 2026-07-03 as closed boxes with south-face doors on row 2, reachable
+  -- from the path row 3. Fisher cottage door (10,2); Harbormaster's
+  -- house door (24,2). Both doors warp via CONTENT.HOUSES.
+  {1,1,1,1,0,0,0,0,4,4,4,0,0,0,0,1,1,1,1,1,0,0,4,4,4,0,0,1,1,1,1,1},
+  {1,0,0,0,0,0,0,0,4,5,4,0,0,0,0,0,0,0,0,0,0,0,4,5,4,0,0,0,0,0,0,1},
+  {1,0,4,5,4,0,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,0,1},  -- col 4: Beck's cottage door (north face, reached from row 2)
+  {1,0,4,4,4,0,2,64,64,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,1},  -- Beck's box closed (was 4,0,4 with an open south side)
+  {0,0,0,0,0,0,2,0,0,2,64,64,2,0,0,62,62,62,0,0,0,0,0,4,5,4,0,0,0,2,0,0},  -- (25,5): tavern north door
+  {0,0,0,0,0,0,2,0,0,2,0,0,2,0,0,62,62,62,0,0,0,0,0,4,4,4,0,0,0,2,0,0},   -- tavern body (was a dead-end 61 corridor)
+  {65,2,2,2,2,2,2,0,0,2,0,0,2,0,0,62,62,62,0,0,0,0,0,4,4,4,0,0,0,2,2,9},  -- col 1: Sunward Coast signpost (tile 65) — west-path return to MAINLAND
+  {0,0,0,0,0,0,2,0,0,2,64,64,2,0,0,0,0,0,0,0,0,0,0,4,5,4,0,0,0,2,0,0},    -- (25,8): tavern south door
   {0,0,0,0,0,0,2,0,0,2,0,0,2,63,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,0},
   {3,3,3,60,60,60,2,0,0,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,3,3},
   {3,3,3,60,60,60,60,60,60,60,60,60,60,60,60,3,3,3,60,60,60,60,60,60,60,60,60,60,3,3,3,3},
@@ -10090,7 +10481,9 @@ local MAINLAND_NPCS = {
       }
     end,
   },
-  { x = 4, y = 6, name = "Tova",
+  -- (One tile WEST of her front door at (4,5) — standing on (4,6)
+  -- blocked the only approach to her own house.)
+  { x = 3, y = 6, name = "Tova",
     barks = {"hmm.", "(turns a page)", "fascinating.", "ah, the dean.", "(scribbles)"},
     dialogue = function()
       local lead = party[active] and party[active].class
@@ -10358,7 +10751,9 @@ local MAINLAND_NPCS = {
   -- Village Fountain. The plaza centerpiece. A "Lirael well" stone basin
   -- whose chord-bell awakens with shards collected. Reactive lore that
   -- ties Pip's "the fountain SANG!" line to a real interactable.
-  { x = 13, y = 4, name = "Fountain", kind = "object",
+  -- Sits ON the fountain tile (14) at plaza (15,7) — impassable tiles
+  -- are still checkable from adjacent (the dais-Silencers precedent).
+  { x = 15, y = 7, name = "Fountain", kind = "object",
     dialogue = function()
       local lead = party[active] and party[active].class
       -- The basin was carved from Lirael stone — Miel's line. When she
@@ -11370,7 +11765,9 @@ local MAINLAND_NPCS = {
       return fragments[CONTENT.eos_idx]
     end,
   },
-  { x = 10, y = 6, name = "Bonk",
+  -- (One tile WEST of Pip's door at (10,5) — sitting on (10,6)
+  -- blocked the only way into the house.)
+  { x = 9, y = 6, name = "Bonk",
     dialogue = function()
       local lead = party[active] and party[active].class
       if lead == "warrior" then
@@ -13334,41 +13731,9 @@ CONTENT.sunward_coast_npcs = {
       end
     end,
   },
-  -- Hask — tavern keeper, gossip-monger
-  { x = 25, y = 6, name = "Hask", kind = "npc",
-    dialogue = function()
-      local lead = party[active] and party[active].class
-      if lead == "warrior" then
-        return {
-          "Hold up. That scar on your collar — that's",
-          "a Suno harness mark. I've buried men who",
-          "wore that and never spoke after.",
-        }
-      elseif lead == "bard" then
-        return {
-          "Bards drink free here on Sevenday. Mara's",
-          "rule, not mine. Mostly mine.",
-        }
-      else
-        return {
-          "Refinery's hidden behind the headlands now.",
-          "You can hear it if the wind comes wrong.",
-        }
-      end
-    end,
-    barks = {"(he wipes a glass)", "(eyes the door)"},
-    -- The Slow Wheel attunement: Strom (warrior lead) attunes here on the
-    -- harbor capstan; Hask has buried enough soldiers to know the weight.
-    scene = function()
-      local lead = party[active] and party[active].class
-      if lead == "warrior" and CONTENT.resonances and CONTENT.resonances.slow_wheel
-         and not CONTENT.resonances.slow_wheel.attuned
-         and build_resonance_attunement_script then
-        CONTENT.resonances.slow_wheel.item = true
-        return build_resonance_attunement_script("slow_wheel")
-      end
-    end,
-  },
+  -- (Hask, the tavern keeper, moved INSIDE the tavern 2026-07-03 — see
+  -- CONTENT.HOUSES["35:25,5"]. He used to stand in the dead-end door
+  -- corridor at (25,6), which is now solid tavern wall.)
   -- Coral — 12-year-old aspiring singer
   { x = 17, y = 6, name = "Coral", kind = "npc",
     dialogue = function()
@@ -13432,24 +13797,9 @@ CONTENT.sunward_coast_npcs = {
       }
     end,
   },
-  -- Vesa — Sage Circle outpost archivist
-  { x = 26, y = 5, name = "Vesa", kind = "npc",
-    dialogue = function()
-      local lead = party[active] and party[active].class
-      if lead == "mage" then
-        return {
-          "Diegues, isn't it? Iola wrote me about you.",
-          "I'm keeping the eastern records here while",
-          "she sees to Velthe's last papers.",
-        }
-      else
-        return {
-          "I record every singer who passes. Names",
-          "are how we remember after the music goes.",
-        }
-      end
-    end,
-  },
+  -- (Vesa, the Sage Circle archivist, moved INSIDE the tavern
+  -- 2026-07-03 — see CONTENT.HOUSES["35:25,5"]. She used to render ON
+  -- the tavern wall tile at (26,5).)
   -- Iolen — tide-watcher kid
   { x = 8, y = 9, name = "Iolen", kind = "npc",
     dialogue = function()
@@ -14039,6 +14389,9 @@ save_game = function()
   data.return_map            = CONTENT.return_map
   data.return_x              = CONTENT.return_x
   data.return_y              = CONTENT.return_y
+  -- House-interior registry key (map 38 is shared by every home; the
+  -- key is what tells load_game WHICH home the player saved inside).
+  data.house_key             = CONTENT.house_key
   data.cave_entered = {}
   for k, v in pairs(CONTENT.cave_entered or {}) do data.cave_entered[k] = v end
   data.events_seen = {}
@@ -14307,6 +14660,7 @@ local function load_game()
   if data.return_map            ~= nil then CONTENT.return_map            = data.return_map end
   if data.return_x              ~= nil then CONTENT.return_x              = data.return_x end
   if data.return_y              ~= nil then CONTENT.return_y              = data.return_y end
+  if data.house_key             ~= nil then CONTENT.house_key             = data.house_key end
   if data.fire_seen             ~= nil then CONTENT.fire_seen             = data.fire_seen end
   if data.cave_entered then
     CONTENT.cave_entered = {}
@@ -14340,10 +14694,20 @@ local function load_game()
     SHOP.inv.tonic = data.inv.tonic or 0
     SHOP.inv.key   = data.inv.key or 0
   end
+  -- Houses (map 38) share one map id: rebuild the interior refs from
+  -- the persisted registry key BEFORE the deferred travel_to below runs,
+  -- so travel_to(38, ...) points at the right room.
+  if ld_map_id == 38 and CONTENT.house_key and CONTENT.HOUSES
+     and CONTENT.HOUSES[CONTENT.house_key] then
+    local h = CONTENT.HOUSES[CONTENT.house_key]
+    CONTENT.house_map = h.map; CONTENT.house_npcs = h.npcs
+  end
   -- Deferred map switch (see note above): all story flags / scene_seen /
   -- academy_state are restored by now, so travel_to's map-entry triggers
   -- see the true post-save state and won't replay finished scenes.
-  if ld_map_id and ld_map_id ~= current_map_id then
+  -- Map 38 is exempt from the "same map id" skip: two different houses
+  -- share id 38, so equal ids don't imply the same room.
+  if ld_map_id and (ld_map_id ~= current_map_id or ld_map_id == 38) then
     travel_to(ld_map_id, ld_x, ld_y)
   end
   player.x = ld_x
@@ -14525,6 +14889,7 @@ local function active_theme_id()
   if current_map_id == 4 then return "tower" end
   -- Pass 25: interior themes (inn, shop, each cave, side dungeon).
   if current_map_id == 5 or current_map_id == 17 or current_map_id == 18 then return "inn" end
+  if current_map_id == 38 then return "inn" end  -- house interiors: same cozy hearth theme as the inn
   if current_map_id == 6 or current_map_id == 15 or current_map_id == 16 then return "shop" end
   if current_map_id == 19 then return "academy" end  -- academy interior gets its own scholarly theme
   if current_map_id == 20 then return "castle" end -- castle interior: coup-in-progress urgency
@@ -14853,7 +15218,8 @@ function try_ambient_event()
   if current_map_id == 5 or current_map_id == 6 or current_map_id == 15 or current_map_id == 16
      or current_map_id == 17 or current_map_id == 18 or current_map_id == 19
      or current_map_id == 20 or current_map_id == 21
-     or current_map_id == 23 or current_map_id == 24 or current_map_id == 25 then return false end
+     or current_map_id == 23 or current_map_id == 24 or current_map_id == 25
+     or current_map_id == 38 then return false end   -- 38 = house interiors
   if current_map_id == 1 and player.x <= 32 then return false end
   if math.random() >= 0.012 then return false end
   -- Each event has a `where` predicate that decides if the current
@@ -15112,7 +15478,8 @@ local function try_random_encounter()
   -- Interiors + scripted prologue maps never roll random encounters.
   if current_map_id == 5 or current_map_id == 6 or current_map_id == 15 or current_map_id == 16
      or current_map_id == 17 or current_map_id == 18 or current_map_id == 19
-     or current_map_id == 20 or current_map_id == 21 then return false end
+     or current_map_id == 20 or current_map_id == 21
+     or current_map_id == 38 then return false end   -- 38 = house interiors (CONTENT.HOUSES)
   if current_map_id == 1 and player.x <= 32 then return false end
   -- Cave interiors use their own per-step encounter rate, not the overworld one.
   -- Side dungeon (The Hollow, map 12) reuses Cave 1's encounter pool.
@@ -15483,6 +15850,37 @@ local function try_move(dx, dy)
     redraw()
     return
   end
+  if t == 5 then
+    -- House door (tile 5). Every door leads somewhere: doors registered
+    -- in CONTENT.HOUSES (keyed "mapid:x,y" of the door tile) warp into
+    -- that home's interior on shared map id 38. Unregistered tile-5
+    -- doors (interior room doors — Academy office/dorms, the new
+    -- practice/listening rooms, Lirael street doors) fall through to
+    -- the plain walkable move below, exactly as before.
+    local hk = current_map_id .. ":" .. nx .. "," .. ny
+    local house = CONTENT.HOUSES and CONTENT.HOUSES[hk]
+    if house then
+      CONTENT.house_key  = hk
+      CONTENT.house_map  = house.map
+      CONTENT.house_npcs = house.npcs
+      -- Stash the OUTER return trio (e.g. the Sunward->mainland
+      -- signpost warp) so a house visit doesn't consume it — the
+      -- tile-17 exit restores it after popping the house's own.
+      if CONTENT.return_map and CONTENT.return_map ~= 38 then
+        CONTENT.outer_return = {m = CONTENT.return_map,
+                                x = CONTENT.return_x,
+                                y = CONTENT.return_y}
+      end
+      CONTENT.return_map = current_map_id
+      -- Step back out onto the tile the player entered FROM — the
+      -- pre-move position works for every door orientation (south-face
+      -- village doors, the north-face forge door, both tavern doors).
+      CONTENT.return_x = player.x; CONTENT.return_y = player.y
+      travel_to(38, 5, 6)
+      redraw()
+      return
+    end
+  end
   if t == 47 then
     -- Region-transition door. Bidirectional:
     --   mainland (1) → Western Region (22), spawn at east edge.
@@ -15493,11 +15891,10 @@ local function try_move(dx, dy)
       travel_to(22, 22, 11)   -- arrive next to the east-edge return tile
     elseif current_map_id == 22 then
       travel_to(1, 3, 13)     -- arrive just inside the mainland SW spit
-    elseif current_map_id == 23 then
-      -- Lirael Ruins south exit → return to Western Region just east of
-      -- the entry arch.
-      travel_to(22, 2, 7)
     end
+    -- (A third `current_map_id == 23` arm lived here once — Lirael Ruins
+    -- south exit — but map 23 has no tile 47 anymore; its west exit is a
+    -- tile 17. Removed 2026-07-03.)
     redraw()
     return
   end
@@ -15813,11 +16210,21 @@ local function try_move(dx, dy)
     -- Inn-rest (leaving map 5) is the canonical "campfire moment" that
     -- surfaces an unseen party-banter scene; shop / cave exits should not.
     local was_inn = (current_map_id == 5 or current_map_id == 17 or current_map_id == 18)
+    local was_house = (current_map_id == 38)
     local rm = CONTENT.return_map or 1
     local rx = CONTENT.return_x or 4
     local ry = CONTENT.return_y or 8
     CONTENT.return_map = nil
     CONTENT.return_x = nil; CONTENT.return_y = nil
+    -- Leaving a house: restore the OUTER warp (e.g. Sunward->mainland
+    -- signpost) that the house entry stashed, so region exits still
+    -- return the player to their original overworld position.
+    if was_house and CONTENT.outer_return then
+      CONTENT.return_map = CONTENT.outer_return.m
+      CONTENT.return_x   = CONTENT.outer_return.x
+      CONTENT.return_y   = CONTENT.outer_return.y
+      CONTENT.outer_return = nil
+    end
     travel_to(rm, rx, ry)
     if was_inn and STORY.play() then return end
     -- One-shot Strom dream: first inn rest with Strom in the active
@@ -18017,6 +18424,13 @@ travel_to = function(map_id, x, y)
     map = PHRYGIAN_CITY_MAP; npcs = CONTENT.phrygian_city_npcs or {}
   elseif map_id == 37 then
     map = DRUMHALL_MAP; npcs = DRUMHALL_NPCS
+  elseif map_id == 38 then
+    -- Shared house-interior id (see CONTENT.HOUSES). try_move's tile-5
+    -- handler / load_game point house_map + house_npcs at the right
+    -- registry entry before warping; the fallbacks only matter if a
+    -- corrupt save lands here without a key.
+    map = CONTENT.house_map or CONTENT.inn_map
+    npcs = CONTENT.house_npcs or {}
   else
     map = SUNOS_DOMAIN; npcs = SUNOS_NPCS
   end
@@ -24954,6 +25368,155 @@ NPC_SPRITES.WoundedGuard = function(sx, sy)
   screen.level(8); screen.pixel(sx + 6, sy + 5); screen.pixel(sx + 7, sy + 5); screen.fill()
 end
 
+-- ── House-interior object sprites (2026-07-03, CONTENT.HOUSES pass) ──
+-- Each draws ON TOP of the furniture tile underneath it (desk/shelf/
+-- barrel), same convention as RemedyShelf / CrownOnTable. Registered as
+-- anonymous functions to stay clear of the 200-local cap.
+
+-- TravelDesk (Tova's): route papers fanned on the desk + inkpot.
+NPC_SPRITES.TravelDesk = function(sx, sy)
+  screen.level(13); screen.rect(sx + 1, sy + 2, 4, 3); screen.fill()   -- top sheet
+  screen.level(11); screen.rect(sx + 3, sy + 3, 4, 3); screen.fill()   -- sheet beneath
+  screen.level(2);  screen.move(sx + 2, sy + 3); screen.line(sx + 4, sy + 3); screen.stroke()  -- route line
+  screen.level(0);  screen.rect(sx + 6, sy + 1, 2, 2); screen.fill()   -- inkpot
+end
+
+-- PressedFlower (Tova's): open book on the shelf, flower between pages.
+NPC_SPRITES.PressedFlower = function(sx, sy)
+  screen.level(11); screen.rect(sx + 1, sy + 3, 6, 3); screen.fill()   -- open book
+  screen.level(3);  screen.move(sx + 4, sy + 3); screen.line(sx + 4, sy + 5); screen.stroke()  -- spine
+  screen.level(15); screen.pixel(sx + 5, sy + 4); screen.fill()        -- the flower (Hollow Woods blue)
+  screen.level(8);  screen.pixel(sx + 5, sy + 5); screen.fill()        -- pressed stem
+end
+
+-- ChalkDrawings (Pip's): seven small chalk shapes low on the wall,
+-- two scribbled dimmer (the redraws).
+NPC_SPRITES.ChalkDrawings = function(sx, sy)
+  screen.level(13)
+  screen.pixel(sx + 1, sy + 4); screen.pixel(sx + 3, sy + 3); screen.pixel(sx + 5, sy + 4)
+  screen.pixel(sx + 7, sy + 3); screen.pixel(sx + 2, sy + 6); screen.fill()
+  screen.level(5); screen.pixel(sx + 4, sy + 6); screen.pixel(sx + 6, sy + 6); screen.fill()  -- scribbled-out pair
+  -- one shape glints faintly, like it's almost singing
+  if (tick % 32) < 8 then screen.level(15); screen.pixel(sx + 3, sy + 3); screen.fill() end
+end
+
+-- BreadShelf (Pip's): loaf under a cloth, still steaming faintly.
+NPC_SPRITES.BreadShelf = function(sx, sy)
+  screen.level(9);  screen.rect(sx + 2, sy + 3, 4, 2); screen.fill()   -- loaf
+  screen.level(13); screen.rect(sx + 1, sy + 2, 6, 1); screen.fill()   -- cloth over it
+  if (tick % 24) < 12 then
+    screen.level(4); screen.pixel(sx + 4, sy + 1); screen.fill()       -- warmth wisp
+  end
+end
+
+-- CeremonyRobe (Elder's): folded white square, patch at one corner.
+NPC_SPRITES.CeremonyRobe = function(sx, sy)
+  screen.level(13); screen.rect(sx + 2, sy + 2, 5, 3); screen.fill()   -- folded robe
+  screen.level(11); screen.rect(sx + 2, sy + 3, 5, 1); screen.fill()   -- fold shadow
+  screen.level(7);  screen.pixel(sx + 6, sy + 4); screen.fill()        -- the newest patch
+end
+
+-- OldTuningFork (Elder's): small iron fork laid on the table; a hum
+-- glint at the tines every few seconds.
+NPC_SPRITES.OldTuningFork = function(sx, sy)
+  screen.level(7)
+  screen.move(sx + 3, sy + 2); screen.line(sx + 3, sy + 5); screen.stroke()  -- tine
+  screen.move(sx + 5, sy + 2); screen.line(sx + 5, sy + 5); screen.stroke()  -- tine
+  screen.move(sx + 4, sy + 5); screen.line(sx + 4, sy + 7); screen.stroke()  -- handle
+  if (tick % 48) < 6 then
+    screen.level(15); screen.pixel(sx + 3, sy + 2); screen.pixel(sx + 5, sy + 2); screen.fill()
+  end
+end
+
+-- Workbench (Brann's forge): clamped bracing strips + files by size.
+NPC_SPRITES.Workbench = function(sx, sy)
+  screen.level(9); screen.rect(sx + 1, sy + 2, 5, 1); screen.fill()    -- bracing strip
+  screen.level(9); screen.rect(sx + 2, sy + 4, 4, 1); screen.fill()    -- second strip
+  screen.level(3); screen.pixel(sx + 1, sy + 2); screen.pixel(sx + 5, sy + 2); screen.fill()  -- clamps
+  screen.level(7)                                                       -- files, ordered by size
+  screen.pixel(sx + 7, sy + 2); screen.pixel(sx + 7, sy + 4); screen.pixel(sx + 7, sy + 6); screen.fill()
+end
+
+-- QuenchBarrel (Brann's forge): water sheen + a steam wisp that rises
+-- even with nothing cooling in it.
+NPC_SPRITES.QuenchBarrel = function(sx, sy)
+  screen.level(8); screen.rect(sx + 2, sy + 2, 4, 2); screen.fill()    -- water surface
+  screen.level(11); screen.pixel(sx + 3, sy + 2); screen.fill()        -- sheen
+  local w = (tick // 8) % 3
+  screen.level(4); screen.pixel(sx + 3 + w, sy + 1 - (w % 2)); screen.fill()  -- wandering steam
+end
+
+-- SparePlate (Brann's forge): iron plate on the rack — gone once taken
+-- (same vanish-on-flag trick as RemedyShelf).
+NPC_SPRITES.SparePlate = function(sx, sy)
+  if flag and flag.brann_plate_taken then return end
+  screen.level(7);  screen.rect(sx + 2, sy + 3, 4, 3); screen.fill()   -- the plate
+  screen.level(11); screen.rect(sx + 2, sy + 3, 4, 1); screen.fill()   -- top edge catches the forge light
+  screen.level(3);  screen.pixel(sx + 4, sy + 4); screen.fill()        -- Brann's stamp
+end
+
+-- NetLoft (fisher cottage): net mesh hung from the loft beam.
+NPC_SPRITES.NetLoft = function(sx, sy)
+  screen.level(5)
+  screen.move(sx + 1, sy + 1); screen.line(sx + 6, sy + 6); screen.stroke()
+  screen.move(sx + 6, sy + 1); screen.line(sx + 1, sy + 6); screen.stroke()
+  screen.move(sx + 1, sy + 3); screen.line(sx + 6, sy + 3); screen.stroke()
+  screen.level(9); screen.pixel(sx + 7, sy + 6); screen.fill()          -- cork float
+end
+
+-- HarborLedger (widow's house): the ledger open on the table.
+NPC_SPRITES.HarborLedger = function(sx, sy)
+  screen.level(13); screen.rect(sx + 1, sy + 3, 6, 3); screen.fill()   -- open pages
+  screen.level(3);  screen.move(sx + 4, sy + 3); screen.line(sx + 4, sy + 5); screen.stroke()  -- spine
+  screen.level(5);  screen.move(sx + 2, sy + 4); screen.line(sx + 3, sy + 4); screen.stroke()  -- entries
+  screen.level(2);  screen.pixel(sx + 5, sy + 4); screen.fill()        -- the last, unfinished line
+end
+
+-- TwoCups (widow's house): one cup washed and rim-down, one facing the
+-- sea, untouched for years.
+NPC_SPRITES.TwoCups = function(sx, sy)
+  screen.level(11); screen.rect(sx + 1, sy + 4, 2, 2); screen.fill()   -- washed cup, rim-down
+  screen.level(6);  screen.rect(sx + 5, sy + 3, 2, 3); screen.fill()   -- his cup, upright
+  screen.level(2);  screen.pixel(sx + 5, sy + 2); screen.fill()        -- dust on the rim
+end
+
+-- CoiledLines (Beck's cottage): rope coils on the shelf pegs.
+NPC_SPRITES.CoiledLines = function(sx, sy)
+  screen.level(9); screen.rect(sx + 1, sy + 2, 3, 3); screen.fill()
+  screen.level(2); screen.pixel(sx + 2, sy + 3); screen.fill()          -- coil hole
+  screen.level(7); screen.rect(sx + 5, sy + 3, 2, 2); screen.fill()     -- smaller coil
+end
+
+-- PracticeRoom (Academy west box): chalk tally marks climbing the wall.
+NPC_SPRITES.PracticeRoom = function(sx, sy)
+  screen.level(11)
+  screen.move(sx + 1, sy + 2); screen.line(sx + 1, sy + 5); screen.stroke()
+  screen.move(sx + 3, sy + 2); screen.line(sx + 3, sy + 5); screen.stroke()
+  screen.move(sx + 5, sy + 2); screen.line(sx + 5, sy + 5); screen.stroke()
+  screen.move(sx, sy + 4); screen.line(sx + 6, sy + 3); screen.stroke() -- the cross-stroke of five
+  screen.level(5); screen.pixel(sx + 7, sy + 6); screen.fill()          -- chalk stub on the floor
+end
+
+-- ListeningRoom (Academy east box): felt panel + the carved name.
+NPC_SPRITES.ListeningRoom = function(sx, sy)
+  screen.level(3); screen.rect(sx + 1, sy + 1, 6, 5); screen.fill()    -- felt panel
+  screen.level(1); screen.rect(sx + 2, sy + 2, 4, 3); screen.fill()    -- deeper hush
+  screen.level(7); screen.move(sx + 2, sy + 6); screen.line(sx + 5, sy + 6); screen.stroke()  -- the carving
+end
+
+-- Bothy (Far Hills ruin): bedroll + wind-chime of flat keys.
+NPC_SPRITES.Bothy = function(sx, sy)
+  screen.level(6);  screen.rect(sx + 1, sy + 5, 5, 2); screen.fill()   -- bedroll
+  screen.level(9);  screen.rect(sx + 1, sy + 5, 2, 2); screen.fill()   -- rolled end
+  screen.level(7)                                                       -- hanging chime keys
+  screen.move(sx + 6, sy + 1); screen.line(sx + 6, sy + 3); screen.stroke()
+  screen.move(sx + 7, sy + 1); screen.line(sx + 7, sy + 4); screen.stroke()
+  if (tick % 40) < 6 then screen.level(13); screen.pixel(sx + 7, sy + 4); screen.fill() end  -- a key catches the wind
+end
+
+-- Salt (Beck's cat): shares the cat sprite with Mews/Pim.
+NPC_SPRITES.Salt = NPC_SPRITES.Mews
+
 -- ============================================================ DRAWING — STATES
 
 -- Pixel offsets that center an interior map within the 128x64 viewport.
@@ -25003,7 +25566,8 @@ local function draw_overworld()
           or current_map_id == 27 or current_map_id == 28
           or current_map_id == 29 or current_map_id == 30
           or current_map_id == 31 or current_map_id == 33
-          or current_map_id == 34) and t == 0 then
+          or current_map_id == 34
+          or current_map_id == 38) and t == 0 then   -- 38 = house interiors
         TILE_DRAW.floor(sx, sy)
       elseif current_map_id == 23 and t == 0 then
         -- Lirael Ruins: ash-covered scorched stone. Drawn as dim stone
@@ -25207,7 +25771,7 @@ local function draw_overworld()
   elseif ftile == 5 and (tick % 8) < 5 then
     screen.level(15)
     screen.move(64, 60)
-    screen.text_center("walk in to rest")
+    screen.text_center("walk in")   -- tile-5 doors are homes now, not the inn
   elseif ftile == 6 and (tick % 8) < 5 then
     screen.level(15)
     screen.move(64, 60)
@@ -25327,6 +25891,12 @@ local function draw_overworld()
       ["26:"]       = "The Far Hills",
     }
     local name = PLACE_NAMES[last_region or ""] or ""
+    -- Houses share map id 38; the banner shows the specific home's
+    -- label from the CONTENT.HOUSES registry.
+    if current_map_id == 38 then
+      local h = CONTENT.HOUSES and CONTENT.house_key and CONTENT.HOUSES[CONTENT.house_key]
+      name = (h and h.label) or "a quiet house"
+    end
     if name ~= "" then
       screen.level(0)
       screen.rect(8, 22, 112, 14); screen.fill()
