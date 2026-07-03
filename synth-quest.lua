@@ -2975,6 +2975,7 @@ CONTENT = {
   },
   banner_text = "",
   partysel_focus = 0,           -- 0 = none, 1 = Sergei, 2 = Paj, 3 = Niko
+  partysel_scroll = 0,          -- standby-row scroll offset (3 cells drawn at a time)
   -- Campfires: small rest points scattered on overworld; stepping on one heals
   -- the party 25% HP and shows a brief banner. Reusable (no opened state).
   campfires = {
@@ -4160,6 +4161,9 @@ CONTENT = {
     -- Iola — Velthe's apprentice, present after the first-arrival scene.
     -- Stands inside the telescope alcove (reachable via the col-13 gap).
     { x = 9, y = 5, name = "Iola",
+      -- Hide during scripted scenes (the first-visit scene spawns its
+      -- own Iola actor — two Iolas stood side by side otherwise).
+      visible = function() return not (SCENE and SCENE.active) end,
       visible = function() return CONTENT.scene_seen and CONTENT.scene_seen.observatory_first end,
       dialogue = function()
         local lead = party[active] and party[active].class
@@ -6074,7 +6078,7 @@ local NORTHERN_WILDS = {
 local SUNOS_DOMAIN = {
   {4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4},
   {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4},
-  {4,0,80,0,4,4,0,0,0,0,0,4,4,0,0,0,0,4,4,0,80,0,0,4},  -- (3,2)/(21,2): ash, not trees -- no greenery in Suno's Domain
+  {4,0,80,0,4,4,0,0,0,0,0,4,4,0,0,0,0,4,4,0,80,0,0,4},  -- (3,3)/(21,3): ash, not trees -- no greenery in Suno's Domain
   {4,0,0,0,4,0,0,0,0,0,0,0,4,0,0,0,0,4,0,0,0,0,0,4},
   {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4},
   {4,0,0,0,0,0,0,0,0,2,2,2,2,2,2,2,0,0,0,0,0,0,0,4},
@@ -6859,6 +6863,8 @@ function start_echo_recruit_scene()
       CONTENT.scene_seen = CONTENT.scene_seen or {}
       CONTENT.scene_seen.echo_recruit = true
       if CONTENT.recruits[4] then CONTENT.recruits[4].joined = true end
+      if ensure_recruit_character then ensure_recruit_character(4) end
+      if save_game then save_game() end   -- autosave on recruit
       CONTENT.resonances.long_echo.item = true
       CONTENT.banner_text  = "* ECHO joins the party *"
       CONTENT.banner_ticks = 90
@@ -7637,6 +7643,7 @@ function start_new_game_plus()
     end
   end
   CONTENT.scene_seen = {}
+  CONTENT.queued_scene = nil   -- stale queued beats don't carry into NG+
   CONTENT.events_seen = {}   -- ambient one-shot events refire on NG+
   CONTENT.act3_silence = false   -- world starts NG+ in tune (six-shards re-arms it)
   -- First-entry beats + party scenes replay in NG+, matching the
@@ -7676,6 +7683,10 @@ end
 -- instruments, gold; resets shards/cave-clears so the journey can
 -- repeat at higher base power).
 function start_endgame_scene()
+  -- Mark the scene seen so the ENDING-dismiss handlers (and any legacy
+  -- queued_scene path) never fire it twice.
+  CONTENT.scene_seen = CONTENT.scene_seen or {}
+  CONTENT.scene_seen.endgame = true
   travel_to(1, 15, 8)
   player.facing = "up"
   update_camera()
@@ -8468,8 +8479,10 @@ function start_academy_diegues_returns_scene()
   local script = {
     {letterbox_in = true},
     {focus = {x = 13, y = 6}, ticks = 30},   -- pan to courtyard astrolabe
-    -- Iola descends from her office
-    {spawn = "iola_descending", class = "mage", name = "Iola", x = 20, y = 2, facing = "down"},
+    -- Iola descends from her office. Spawn ON the office door tile
+    -- (21,2) — (20,2) is solid wall (academy_map row 2 col 20 = 4;
+    -- the tile-5 door is at col 21). Doors are walkable.
+    {spawn = "iola_descending", class = "mage", name = "Iola", x = 21, y = 2, facing = "down"},
     {move = "iola_descending", to = {x = 18, y = 5}, ticks = 30},
     {look = "iola_descending", toward = "player"},
     {wait = 8},
@@ -8774,7 +8787,9 @@ end
 
 -- Cliff reeds: wind drone + caption that changes once Cave 3 is cleared. Tile (31, 7).
 function ambient_sunward_cliff_reeds()
-  local done = CONTENT.cave_monster_defeated and CONTENT.cave_monster_defeated[3]
+  -- (was reading cave_monster_defeated[3] — the prologue escape-cave
+  -- wisp tracker — instead of the cave-3 clear state)
+  local done = cave_state and cave_state[3] and cave_state[3].cleared
   return {
     {sfx = {class = "cleric", note = 48, vel = 0.3, attack = 0.5, release = 1.2, wet = 0.8}},
     {dialogue = {
@@ -9604,7 +9619,7 @@ function start_observatory_first_visit()
     {letterbox_in = true},
     -- Camera holds on the orrery first — establishing shot of the
     -- centerpiece before introducing characters.
-    {focus = {x = 8, y = 5}, ticks = 1},
+    {focus = {x = 7, y = 5}, ticks = 1},
     {fade_in = 36},
     {wait = 18},
     -- A 3-note brass arpeggio rises off the orrery.
@@ -9620,7 +9635,7 @@ function start_observatory_first_visit()
       "(A young woman with chalk-white hair plucks a tiny note off one of its rings.)",
     }, npc = nil},
     -- Spawn Iola at the orrery, Miel just inside the door.
-    {spawn = "iola", class = "mage", name = "Iola", x = 8, y = 5, facing = "down", bob = false},
+    {spawn = "iola", class = "mage", name = "Iola", x = 9, y = 5, facing = "down", bob = false},
     {spawn = "miel", class = "cleric", name = "Miel", x = 8, y = 9, facing = "up", bob = false},
     -- Pan camera to frame both characters.
     {focus = {x = 8, y = 7}, ticks = 30},
@@ -10691,6 +10706,8 @@ local MAINLAND_NPCS = {
     scene = function()
       if not shards.mixolydian or CONTENT.recruits[1].joined then return nil end
       CONTENT.recruits[1].joined = true
+      if ensure_recruit_character then ensure_recruit_character(1) end
+      if save_game then save_game() end   -- autosave on recruit
       local px, py = player.x, player.y
       local script = {
         {hide_player = true},
@@ -10752,6 +10769,8 @@ local MAINLAND_NPCS = {
       -- cue. He still has every reason to join — recruit him on visit.
       if shards.mixolydian then
         CONTENT.recruits[1].joined = true
+        if ensure_recruit_character then ensure_recruit_character(1) end
+        if save_game then save_game() end   -- autosave on recruit
         return with_shard_react("Sergei", {
           "You took Tidewatch on the chord. Without me having to throw a wrench.",
           "(...he sets the cable down, slow.)",
@@ -10844,6 +10863,8 @@ local MAINLAND_NPCS = {
       if not (cave_state[5] and cave_state[5].cleared) then return nil end
       if CONTENT.recruits[2].joined then return nil end
       CONTENT.recruits[2].joined = true
+      if ensure_recruit_character then ensure_recruit_character(2) end
+      if save_game then save_game() end   -- autosave on recruit
       local px, py = player.x, player.y
       local script = {
         {hide_player = true},
@@ -10883,6 +10904,8 @@ local MAINLAND_NPCS = {
       -- Paj joins after Cave 5 (Snowgaunt / Aeolian) is cleared.
       if cave_state[5].cleared and not CONTENT.recruits[2].joined then
         CONTENT.recruits[2].joined = true
+        if ensure_recruit_character then ensure_recruit_character(2) end
+        if save_game then save_game() end   -- autosave on recruit
         return {
           "(she sets down her pen mid-equation.)",
           "The Aeolian rang. I felt the function resolve through the floorboards.",
@@ -13120,6 +13143,8 @@ CONTENT.hollow_npcs = {
       -- Only choreograph the actual join moment.
       if r.joined or n < 4 then return nil end
       r.joined = true
+      if ensure_recruit_character then ensure_recruit_character(3) end
+      if save_game then save_game() end   -- autosave on recruit
       local px, py = player.x, player.y
       local script = {
         {hide_player = true},
@@ -13204,6 +13229,8 @@ CONTENT.hollow_npcs = {
       end
       -- Fallback (should not reach: scene fires first)
       r.joined = true
+      if ensure_recruit_character then ensure_recruit_character(3) end
+      if save_game then save_game() end   -- autosave on recruit
       return with_shard_react("Niko", {
         "[Niko]   Four shards. (...he's already on his feet)",
         "(Niko joins your reserve -- swap from the Party menu.)",
@@ -13799,12 +13826,9 @@ local function obtain_shard(name)
     CONTENT.banner_text  = "* THE CHORD IS WHOLE *"
     CONTENT.banner_ticks = 90
     if unlock_achievement then unlock_achievement("all_shards", "Whole Chord") end
-    -- Endgame trigger: queue the finale + credits for the next
-    -- overworld return. Only the FIRST time (subsequent re-collects
-    -- in NG+ should not retrigger the credits).
-    if not (CONTENT.scene_seen and CONTENT.scene_seen.endgame) then
-      CONTENT.queued_scene = "endgame"
-    end
+    -- (No queued_scene here anymore: the ENDING-dismiss handlers now
+    -- chain start_endgame_scene()/CREDITS directly, so queueing the
+    -- endgame beat for a later battle exit was redundant.)
   end
   -- Stash a "fire on next overworld entry" flag so the choreographed
   -- six-shards convergence scene plays right after BATTLE_END dismiss.
@@ -14156,9 +14180,15 @@ local function load_game()
       end
     end
   end
-  if data.current_map_id and data.current_map_id ~= current_map_id then
-    travel_to(data.current_map_id, player.x, player.y)
-  end
+  -- NOTE: travel_to is deliberately DEFERRED to the end of load_game.
+  -- travel_to fires map-entry story triggers (academy intro, ECHO
+  -- recruit, prologue beats) gated on flags that are only restored
+  -- below — calling it here replayed the whole academy intro + Strom
+  -- fight when Continuing a save made inside map 19. Position/facing
+  -- are stashed in locals and applied by the deferred call.
+  local ld_map_id = data.current_map_id
+  local ld_x, ld_y = data.player.x, data.player.y
+  local ld_facing  = data.player.facing
   if data.battle_bpm then BATTLE_BPM = data.battle_bpm end
   if data.journey_bpm then OVERWORLD_BPM = data.journey_bpm end
   -- equipment (gracefully no-op for older saves; migrate cleric instrument names)
@@ -14310,6 +14340,15 @@ local function load_game()
     SHOP.inv.tonic = data.inv.tonic or 0
     SHOP.inv.key   = data.inv.key or 0
   end
+  -- Deferred map switch (see note above): all story flags / scene_seen /
+  -- academy_state are restored by now, so travel_to's map-entry triggers
+  -- see the true post-save state and won't replay finished scenes.
+  if ld_map_id and ld_map_id ~= current_map_id then
+    travel_to(ld_map_id, ld_x, ld_y)
+  end
+  player.x = ld_x
+  player.y = ld_y
+  player.facing = ld_facing
   -- apply current tempo for the active state
   if game_state == "BATTLE" then
     params:set("clock_tempo", BATTLE_BPM)
@@ -14357,6 +14396,21 @@ function build_recruit_record(r)
     last_fire=-99, last_hit=-99,
     stick={lx=0,ly=0,rx=0,ry=0}, xwet=0, dly=0,
   }
+end
+
+-- ensure_recruit_character(idx) — make sure the recruit in
+-- CONTENT.recruits[idx] has a CHARACTERS record the moment they join,
+-- so they can be swapped in from the Party menu immediately (before,
+-- records were only built lazily by load_game, so a freshly-joined
+-- recruit was un-swappable until save+reload). Idempotent: no-op if
+-- the class record already exists. Global (like build_recruit_record)
+-- so join-scene closures defined earlier in the chunk can call it.
+function ensure_recruit_character(idx)
+  local r = CONTENT.recruits and CONTENT.recruits[idx]
+  if not r then return end
+  CHARACTERS = CHARACTERS or {}
+  if CHARACTERS[r.class] then return end
+  CHARACTERS[r.class] = build_recruit_record(r)
 end
 
 local function init_party()
@@ -15096,7 +15150,9 @@ local function try_random_encounter()
   -- only in the upper telescope chamber (rows 2-5).  Cave 6 = Locrian Crypt pool.
   if current_map_id == 24 then
     if player.y >= 2 and player.y <= 5 and math.random() < 0.02 then
-      enter_battle(13, true)
+      -- Cave id 6 (Locrian pool) — passing the MAP id (13) here crashed
+      -- enter_battle (cave_state has no [13]).
+      enter_battle(6, true)
       return true
     end
     return false
@@ -15293,6 +15349,18 @@ local function try_move(dx, dy)
   end
   if t == 16 then
     -- Cave 5 entry: enter the explorable interior.
+    -- Gated by the Key of Lirael (granted by finish_broken_cadence).
+    -- Per the story bible: the Broken Cadence does NOT drop the shard;
+    -- the intended sequence is Lirael, THEN the Ice Grotto. Caves are
+    -- otherwise order-free and nothing before 4 shards requires the
+    -- aeolian shard, so hard-gating cave 5 behind Lirael (itself a
+    -- 4-shard gate) is the intended progression change.
+    if not (instruments_owned and instruments_owned.key_of_lirael) then
+      CONTENT.banner_text  = "* frozen shut -- the Key of Lirael *"
+      CONTENT.banner_ticks = 48
+      redraw()
+      return
+    end
     CONTENT.return_map = current_map_id
     CONTENT.return_x = nx; CONTENT.return_y = ny + 1
     travel_to(11, 9, 13)
@@ -15450,6 +15518,14 @@ local function try_move(dx, dy)
     -- Lirael Ruins entry (Western Region — far west). Warps into the
     -- ruins map. travel_to's on-entry hook fires the first-arrival
     -- memory scene the first time Miel walks in.
+    -- Gated by lirael_is_unlocked (4 shards + veiled mystic) — same
+    -- gate + refusal banner as the twin tile-89 entry.
+    if not (lirael_is_unlocked and lirael_is_unlocked()) then
+      CONTENT.banner_text  = "* The road west is closed in mourning. No one passes. *"
+      CONTENT.banner_ticks = 48
+      redraw()
+      return
+    end
     CONTENT.return_map = current_map_id
     CONTENT.return_x = nx; CONTENT.return_y = ny + 1
     travel_to(23, 8, 9)   -- spawn just inside the south exit
@@ -15479,7 +15555,7 @@ local function try_move(dx, dy)
     -- Far Hills cave-mouth (mainland village, north of Alder's fire).
     -- Bidirectional: from mainland → Far Hills, and from Far Hills back.
     if current_map_id == 1 then
-      travel_to(26, 13, 11)   -- spawn on grass one tile north of the Far Hills return mountain (13,12); (12,13) was a tree
+      travel_to(26, 13, 11)   -- spawn on grass two tiles north of the return mountain at (13,13)
     else
       travel_to(1, 17, 2)     -- back to village, just south of the mountain
     end
@@ -16833,6 +16909,8 @@ local function damage_party(p, amount)
     if not any_alive then
       CONTENT.sergei_intervened = true
       CONTENT.recruits[1].joined = true   -- Sergei
+      if ensure_recruit_character then ensure_recruit_character(1) end
+      if save_game then save_game() end   -- autosave on recruit
       for _, q in ipairs(party) do
         q.alive = true
         q.hp = math.max(1, math.floor(q.hp_max * 0.50))
@@ -17660,7 +17738,12 @@ local function check_battle_end()
       end
       -- Stash a boss-aftermath scene to fire on exit_battle. Skip cave 7
       -- (Suno) — that goes straight to ENDING via ending_pending.
-      if cave_id < 7 then
+      -- CRITICAL: obtain_shard (called above) may have queued a BIGGER
+      -- beat ("six_shards" → the World of Silence, or "endgame") —
+      -- never clobber it. This overwrite is why the six-shards scene
+      -- (and with it ECHO's entire recruitment) never fired: the 6th
+      -- shard always comes from a cave 1-6 boss.
+      if cave_id < 7 and not CONTENT.queued_scene then
         CONTENT.queued_scene = "boss_aftermath_" .. cave_id
       end
     end
@@ -18438,6 +18521,9 @@ exit_battle = function()
   if ending_pending then
     ending_pending = false
     ending_idx = 1
+    -- The ending supersedes any queued beat; credits chain directly
+    -- from ENDING now (see the ENDING-dismiss handlers).
+    CONTENT.queued_scene = nil
     -- Backstop: if the player went straight to Suno without recruiting
     -- ECHO, the Ionian shard's return ends the World of Silence too.
     CONTENT.act3_silence = false
@@ -18805,10 +18891,18 @@ function gamepad.button(button, state)
     if button == "A" or button == "B" or button == "START" then
       ending_idx = ending_idx + 1
       if ending_idx > #ENDING_LINES then
-        -- return to title; player can start a new run with all instruments retained
-        game_state = "TITLE"
-        params:set("clock_tempo", INTRO_BPM)
-        engine.drone_amp(0)
+        -- Credits chain directly from ENDING: run the fountain scene
+        -- (stamps endgame_done and enters CREDITS) the first time.
+        if start_endgame_scene
+           and not (CONTENT.scene_seen and CONTENT.scene_seen.endgame) then
+          game_state = "OVERWORLD"
+          start_endgame_scene()
+        else
+          -- return to title; player can start a new run with all instruments retained
+          game_state = "TITLE"
+          params:set("clock_tempo", INTRO_BPM)
+          engine.drone_amp(0)
+        end
       end
       redraw()
     end
@@ -19655,8 +19749,15 @@ function key(n, z)
   elseif game_state == "ENDING" and (n == 2 or n == 3) then
     ending_idx = ending_idx + 1
     if ending_idx > #ENDING_LINES then
-      game_state = "TITLE"
-      engine.drone_amp(0)
+      -- Credits chain directly from ENDING (see gamepad handler).
+      if start_endgame_scene
+         and not (CONTENT.scene_seen and CONTENT.scene_seen.endgame) then
+        game_state = "OVERWORLD"
+        start_endgame_scene()
+      else
+        game_state = "TITLE"
+        engine.drone_amp(0)
+      end
     end
     redraw()
   elseif game_state == "CUTSCENE" and n == 1 then
@@ -30502,10 +30603,22 @@ UI.draw_partysel = function()
   if (CONTENT.partysel_focus or 0) > #cells then
     CONTENT.partysel_focus = 0
   end
-  for i, cell in ipairs(cells) do
-    if i > 3 then break end   -- only 3 cells fit horizontally
+  -- Scroll window: only 3 standby cells fit horizontally, but the roster
+  -- can grow past 3 (4 recruits + displaced starters). Slide a scroll
+  -- offset so the focused cell is always within the 3 drawn slots.
+  local focus = CONTENT.partysel_focus or 0
+  local scroll = CONTENT.partysel_scroll or 0
+  scroll = math.min(scroll, math.max(0, #cells - 3))
+  if focus > 0 then
+    if focus <= scroll then scroll = focus - 1
+    elseif focus > scroll + 3 then scroll = focus - 3 end
+  end
+  CONTENT.partysel_scroll = scroll
+  for i = 1, 3 do
+    local cell = cells[scroll + i]
+    if not cell then break end
     local cx = (i - 1) * 43
-    local focused = (CONTENT.partysel_focus == i)
+    local focused = (focus == scroll + i)
     if focused then
       screen.level(2); screen.rect(cx, 45, 42, 13); screen.fill()
       screen.level(15); screen.rect(cx, 45, 42, 13); screen.stroke()

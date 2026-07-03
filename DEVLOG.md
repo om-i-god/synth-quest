@@ -2171,3 +2171,32 @@ cutscene skip; NG+ resets pith quest, cave_entered, STORY.seen and
 the flag table (keeping learned gifts); JAM refuses GAME_OVER/
 CREDITS. Victory fanfare deliberately stays in tune during the
 Silence (same rule as player notes).
+
+## 2026-07-03 — wave 4: the World of Silence was unreachable (again), ending fixed
+
+Progression audit findings, all fixed:
+- THE BIG ONE: clear_boss unconditionally overwrote CONTENT.queued_scene
+  with "boss_aftermath_N" AFTER obtain_shard queued "six_shards" — and
+  the 6th shard always comes from a cave 1-6 boss, so the six-shards
+  scene (and the entire World of Silence + ECHO recruitment) never
+  fired on any route. Aftermath now yields to bigger queued beats.
+- ENDING → CREDITS chain: credits were a queued_scene consumed only by
+  the NEXT battle won — finish the game and never fight again = no
+  credits, no NG+, no endgame_done ever. ENDING dismiss now chains
+  directly into start_endgame_scene.
+- load_game ran travel_to BEFORE restoring story flags: Continuing a
+  save made inside the academy replayed the entire intro + Strom
+  fight. travel_to now runs after all restores.
+- Freshly-joined recruits didn't exist in CHARACTERS until save+reload
+  (couldn't be swapped in): ensure_recruit_character() at ALL EIGHT
+  join sites + autosave on every recruit join.
+- Party-select reserve UI drew 3 cells while focus cycled all: window
+  now scrolls with focus.
+- Lirael tile-51 entry gated like its twin (4 shards + mystic).
+- Key of Lirael now actually opens the Ice Grotto (cave 5 gated on it,
+  per the bible's Lirael → Ice Grotto sequence; Paj consequently sits
+  behind Lirael too).
+- Observatory upper-floor encounters crashed (enter_battle got MAP id
+  13 instead of cave id 6); double-Iola in the first-visit scene;
+  cliff-reeds ambient read the prologue wisp tracker instead of cave-3
+  state; comment corrections.
