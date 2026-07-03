@@ -612,6 +612,9 @@ local function enemy_xp(name)
     Lich=55, Voidcrawler=42, ["Echo of Suno"]=60, ["Mute Warden"]=70,
     ["Cave Echo"]=60, ["Forest Sentinel"]=90, Tidewatch=120, ["Dune Rider"]=160,
     Snowgaunt=200, Locrius=260, Suno=400,
+    -- Rare encounters (CAVE_RARES) — scaled by HP, 350→700.
+    ["Elder Slime"]=80, ["Sage Sentinel"]=95, Tideturner=110,
+    ["Dune Sovereign"]=120, Frostfather=140, Voidpriest=160,
   }
   return xp[name] or 5
 end
@@ -629,6 +632,9 @@ local function enemy_gold(name)
     Lich=28, Voidcrawler=22, ["Echo of Suno"]=30, ["Mute Warden"]=36,
     ["Cave Echo"]=80, ["Forest Sentinel"]=140, Tidewatch=200, ["Dune Rider"]=260,
     Snowgaunt=320, Locrius=420, Suno=999,
+    -- Rare encounters (CAVE_RARES) — scaled by HP, 350→700.
+    ["Elder Slime"]=45, ["Sage Sentinel"]=55, Tideturner=65,
+    ["Dune Sovereign"]=70, Frostfather=80, Voidpriest=95,
   }
   return g[name] or 3
 end
@@ -4052,7 +4058,7 @@ CONTENT = {
   -- chronicler's apprentice (Iola) stands at a brass orrery in the
   -- center; the walls are dark with shelved star-charts. Tile 32 reused
   -- as decorative columns; tile 30 (hearth) for the small reading-fire;
-  -- tile 31 for chart-shelves. Tile 47 = south exit.
+  -- tile 31 for chart-shelves. South exit is tile 17 at (11,13).
   observatory_map = {
     -- 24w x 14h
     -- row 1 (upper level: telescope chamber, broken roof open to sky via tile 76)
@@ -4061,16 +4067,16 @@ CONTENT = {
     {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4,4,4,4,4,4,4},
     -- row 3 (broken telescope footprint - inner alcove walls)
     {4,0,0,0,0,0,0,4,4,4,4,4,4,0,0,0,0,4,0,0,0,0,0,4},
-    -- row 4
-    {4,0,0,0,0,0,0,4,0,0,0,0,4,0,0,0,0,4,0,0,0,0,0,4},
-    -- row 5
-    {4,0,0,0,0,0,0,4,0,0,0,0,4,0,0,0,0,4,0,0,0,0,0,4},
+    -- row 4 (col 13 opened to floor: gap connecting telescope alcove to the east arm of the U)
+    {4,0,0,0,0,0,0,4,0,0,0,0,0,0,0,0,0,4,0,0,0,0,0,4},
+    -- row 5 (col 13 opened to floor: gap connecting telescope alcove to the east arm of the U)
+    {4,0,0,0,0,0,0,4,0,0,0,0,0,0,0,0,0,4,0,0,0,0,0,4},
     -- row 6 (internal stair between levels at col 10)
     {4,4,4,4,4,4,4,4,4,5,4,4,4,4,4,4,4,4,0,0,0,0,0,4},
     -- row 7 (lower level: entry / study)
     {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4,0,0,0,0,0,4},
-    -- row 8 (Velthe's desk + chair area; desk at col 12)
-    {4,0,0,0,0,0,0,0,0,0,0,74,0,0,0,0,0,4,0,0,0,0,0,4},
+    -- row 8 (Velthe's desk + chair area; desk at col 12; col 18 = interior door into the east wing)
+    {4,0,0,0,0,0,0,0,0,0,0,74,0,0,0,0,0,5,0,0,0,0,0,4},
     -- row 9
     {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4,0,0,0,0,0,4},
     -- row 10 (library shelves west wall)
@@ -4146,8 +4152,14 @@ CONTENT = {
         return pick.lore
       end,
     },
+    -- DraftShelf — object in the east wing (through the col-18 door at row 8).
+    { x = 21, y = 7, name = "DraftShelf", kind = "object", dialogue = function() return {
+      "(a lean shelf of Velthe's discarded drafts -- staves crossed out, margins full of argument)",
+      "(one page is pinned flat by a pebble: 'The lock is not the door. Stop writing this down, V.')",
+    } end },
     -- Iola — Velthe's apprentice, present after the first-arrival scene.
-    { x = 8, y = 5, name = "Iola",
+    -- Stands inside the telescope alcove (reachable via the col-13 gap).
+    { x = 9, y = 5, name = "Iola",
       visible = function() return CONTENT.scene_seen and CONTENT.scene_seen.observatory_first end,
       dialogue = function()
         local lead = party[active] and party[active].class
@@ -4288,9 +4300,9 @@ CONTENT = {
     {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
   },
   far_hills_npcs = {
-    -- A wandering shepherd at the small ruin (col 11 row 5). He's been
-    -- here for years; remembers Miel's grandmother walking through.
-    { x = 11, y = 5, name = "Shepherd",
+    -- A wandering shepherd just west of the small ruin (col 9 row 5).
+    -- He's been here for years; remembers Miel's grandmother walking through.
+    { x = 9, y = 5, name = "Shepherd",
       dialogue = function()
         local lead = party[active] and party[active].class
         -- The shepherd knew Miel's grandmother; recognises Miel by family
@@ -4345,6 +4357,9 @@ CONTENT = {
         }
       end,
     },
+    -- The shepherd's flock — two sheep grazing near the ruin.
+    { x = 8, y = 6, name = "Sheep", kind = "pet", barks = {"baa.", "(chews)", "..."}, dialogue = function() return {"(it regards you with total, wooly indifference)", "(baa.)"} end },
+    { x = 10, y = 4, name = "Sheep2", kind = "pet", barks = {"(chews)", "baa?"}, dialogue = function() return {"(this one has opinions about your walking speed)", "(baa. baa.)"} end },
   },
   -- Cave 1 interior (map id 7). Tiles: 4=wall, 0=cave floor (walkable),
   -- 17=exit door, 27=boss arena marker. Random encounters roll on step.
@@ -6059,7 +6074,7 @@ local NORTHERN_WILDS = {
 local SUNOS_DOMAIN = {
   {4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4},
   {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4},
-  {4,0,1,0,4,4,0,0,0,0,0,4,4,0,0,0,0,4,4,0,1,0,0,4},
+  {4,0,80,0,4,4,0,0,0,0,0,4,4,0,0,0,0,4,4,0,80,0,0,4},  -- (3,2)/(21,2): ash, not trees -- no greenery in Suno's Domain
   {4,0,0,0,4,0,0,0,0,0,0,0,4,0,0,0,0,4,0,0,0,0,0,4},
   {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4},
   {4,0,0,0,0,0,0,0,0,2,2,2,2,2,2,2,0,0,0,0,0,0,0,4},
@@ -7624,9 +7639,20 @@ function start_new_game_plus()
   CONTENT.scene_seen = {}
   CONTENT.events_seen = {}   -- ambient one-shot events refire on NG+
   CONTENT.act3_silence = false   -- world starts NG+ in tune (six-shards re-arms it)
+  -- First-entry beats + party scenes replay in NG+, matching the
+  -- scene_seen policy above.
+  CONTENT.cave_entered = {}
+  STORY.seen = {}
+  -- Story flags reset so gated content replays; learned gifts and
+  -- granted one-time items survive (they persist like instruments).
+  local keep_flags = { mira_flat_second = flag.mira_flat_second,
+                       iolen_stone_given = flag.iolen_stone_given }
+  for k in pairs(flag) do flag[k] = nil end
+  for k, v in pairs(keep_flags) do flag[k] = v end
   -- Quest counters back to zero (gold and items kept — they're "earned").
   if QUESTS.hens then QUESTS.hens.wins = 0; QUESTS.hens.discount = false end
   if QUESTS.brann then QUESTS.brann.wins = 0; QUESTS.brann.claimed = false end
+  if QUESTS.pith then QUESTS.pith.claimed = false end
   if QUESTS.tova then
     QUESTS.tova.spoke = {}
     QUESTS.tova.claimed = false
@@ -8515,8 +8541,9 @@ end
 -- at the desk and reads her final journal entry. Mentions Locrius by name.
 -- Mage-lead variant: Diegues finishes the incomplete final line in his own
 -- voice. Sets flag.velthes_entry_heard = true on completion, which:
---   • unlocks the crypt_stair (Task 3.4 routing handler checks this flag)
 --   • triggers Iola's migration to the Observatory (Task 3.5 visibility flags)
+-- Note: the crypt_stair itself is gated on flag.iolas_letter_received
+-- (see the tile-77 routing handler), not on velthes_entry_heard.
 function start_observatory_velthes_entry_scene()
   local mage_lead = party and party[active] and party[active].class == "mage"
   local script = {
@@ -11978,7 +12005,7 @@ local SUNOS_NPCS = {
       end
       return with_shard_react("Calder", {
         "[Calder]  (a tall soldier in a dark cape, sword across his back)",
-        "[Calder]  Past me lies Locrius. The Half-step.",
+        "[Calder]  Past me lies the last chamber. He is listening for you.",
         "[Calder]  Do not strike him in time -- strike him out of it. He cannot follow swing.",
         "[Calder]  (his voice drops) ...if you can spare him a quick end, do. He has been awake too long.",
       })
@@ -12015,7 +12042,7 @@ local SUNOS_NPCS = {
 
 -- Inn interior NPCs (map id 5). Innkeeper handles the rest action.
 CONTENT.inn_npcs = {
-  { x = 3, y = 3, name = "Mara",
+  { x = 4, y = 3, name = "Mara",
     dialogue = function()
       -- Heal full HP/MP, revive KO'd, brief 3-note rest chord.
       for _, p in ipairs(party) do
@@ -12123,7 +12150,7 @@ CONTENT.inn_npcs = {
   -- 0-2 shards, eastern inn at 3-4, northern inn at 5-6, then she
   -- vanishes (back on the road, sketching). Each meeting gives her a
   -- small lore drop + a coordinate hint about the next region's secret.
-  { x = 6, y = 4, name = "Tovia",
+  { x = 6, y = 5, name = "Tovia",
     visible = function()
       local n = 0; for _, v in pairs(shards) do if v then n = n + 1 end end
       return n <= 2
@@ -12235,7 +12262,7 @@ CONTENT.eastern_inn_npcs = {
       }
     end,
   },
-  { x = 5, y = 4, name = "Lin",
+  { x = 5, y = 5, name = "Lin",
     dialogue = function()
       local lead = party[active] and party[active].class
       if lead == "cleric" then
@@ -12344,7 +12371,7 @@ CONTENT.northern_inn_npcs = {
       }
     end,
   },
-  { x = 2, y = 7, name = "Eyvi",
+  { x = 3, y = 7, name = "Eyvi",
     dialogue = function()
       local lead = party[active] and party[active].class
       if lead == "warrior" then
@@ -12859,7 +12886,7 @@ CONTENT.castle_npcs = {
 -- Three Cave Wisps spaced along the path. Same trigger pattern as the
 -- silencers — visible until defeated.
 CONTENT.escape_cave_npcs = {
-  { x = 5, y = 3, name = "Wisp1",
+  { x = 6, y = 3, name = "Wisp1",
     visible = function()
       return not (CONTENT.cave_monster_defeated and CONTENT.cave_monster_defeated[1])
     end,
@@ -12871,7 +12898,7 @@ CONTENT.escape_cave_npcs = {
       }
     end,
   },
-  { x = 7, y = 5, name = "Wisp2",
+  { x = 8, y = 6, name = "Wisp2",
     visible = function()
       return not (CONTENT.cave_monster_defeated and CONTENT.cave_monster_defeated[2])
     end,
@@ -12882,7 +12909,7 @@ CONTENT.escape_cave_npcs = {
       }
     end,
   },
-  { x = 10, y = 8, name = "Wisp3",
+  { x = 13, y = 8, name = "Wisp3",
     visible = function()
       return not (CONTENT.cave_monster_defeated and CONTENT.cave_monster_defeated[3])
     end,
@@ -13980,11 +14007,19 @@ save_game = function()
   data.endgame_done          = CONTENT.endgame_done or false
   data.act3_silence          = CONTENT.act3_silence or false
   data.total_wins            = CONTENT.total_wins or 0
+  data.tess_defected         = CONTENT.tess_defected or false
+  data.tilde_paid            = CONTENT.tilde_paid or false
+  data.wisp_paid             = CONTENT.wisp_paid or false
+  -- Interior return-door target: persists so cave/interior exit doors
+  -- still return correctly after save + Continue inside an interior.
+  data.return_map            = CONTENT.return_map
+  data.return_x              = CONTENT.return_x
+  data.return_y              = CONTENT.return_y
   data.cave_entered = {}
   for k, v in pairs(CONTENT.cave_entered or {}) do data.cave_entered[k] = v end
   data.events_seen = {}
   for k, v in pairs(CONTENT.events_seen or {}) do data.events_seen[k] = v end
-  data.fire_seen = CONTENT.fire_seen or false
+  data.fire_seen = CONTENT.fire_seen or {}   -- table of campfire indices (not a boolean)
   -- Resonances state (per-Resonance item-collected + attuned flags).
   data.resonances = {}
   for id, r in pairs(CONTENT.resonances or {}) do
@@ -14236,6 +14271,12 @@ local function load_game()
   if data.endgame_done          ~= nil then CONTENT.endgame_done          = data.endgame_done end
   if data.act3_silence          ~= nil then CONTENT.act3_silence          = data.act3_silence end
   if data.total_wins            ~= nil then CONTENT.total_wins            = data.total_wins end
+  if data.tess_defected         ~= nil then CONTENT.tess_defected         = data.tess_defected end
+  if data.tilde_paid            ~= nil then CONTENT.tilde_paid            = data.tilde_paid end
+  if data.wisp_paid             ~= nil then CONTENT.wisp_paid             = data.wisp_paid end
+  if data.return_map            ~= nil then CONTENT.return_map            = data.return_map end
+  if data.return_x              ~= nil then CONTENT.return_x              = data.return_x end
+  if data.return_y              ~= nil then CONTENT.return_y              = data.return_y end
   if data.fire_seen             ~= nil then CONTENT.fire_seen             = data.fire_seen end
   if data.cave_entered then
     CONTENT.cave_entered = {}
@@ -14607,6 +14648,7 @@ local function fire_victory_voice(class, scale_idx)
 end
 
 local function tick_victory_music()
+  -- Deliberately NOT detuned during the World of Silence: the party's own victory is theirs (same rule as player jam notes).
   victory_step = victory_step + 1
   if victory_step > VICTORY_PATTERN_LEN then return end
   for class, pat in pairs(VICTORY_PATTERN) do
@@ -15020,9 +15062,10 @@ local function try_random_encounter()
   if current_map_id == 1 and player.x <= 32 then return false end
   -- Cave interiors use their own per-step encounter rate, not the overworld one.
   -- Side dungeon (The Hollow, map 12) reuses Cave 1's encounter pool.
-  -- Suno's Domain caves (13, 14) use caves 6 and 7 pools.
+  -- Suno's Domain cave 13 uses cave 6's pool. Map 14 is deliberately
+  -- absent: Cave 7 has no minor pool -- Suno only via the tile-27 finale.
   local cave_for_map = { [7] = 1, [8] = 2, [9] = 3, [10] = 4, [11] = 5,
-                         [12] = 1, [13] = 6, [14] = 7 }
+                         [12] = 1, [13] = 6 }
   local cv = cave_for_map[current_map_id]
   if cv then
     if math.random() >= (CONTENT.encounter_step_chance or 0.12) then return false end
@@ -15386,10 +15429,6 @@ local function try_move(dx, dy)
       -- Lirael Ruins south exit → return to Western Region just east of
       -- the entry arch.
       travel_to(22, 2, 7)
-    elseif current_map_id == 24 then
-      -- Velthe Observatory south exit → return to the Northern Wilds
-      -- just south of the door.
-      travel_to(3, 25, 5)
     end
     redraw()
     return
@@ -15440,7 +15479,7 @@ local function try_move(dx, dy)
     -- Far Hills cave-mouth (mainland village, north of Alder's fire).
     -- Bidirectional: from mainland → Far Hills, and from Far Hills back.
     if current_map_id == 1 then
-      travel_to(26, 12, 13)   -- spawn at south edge of Far Hills
+      travel_to(26, 13, 11)   -- spawn on grass one tile north of the Far Hills return mountain (13,12); (12,13) was a tree
     else
       travel_to(1, 17, 2)     -- back to village, just south of the mountain
     end
@@ -15625,6 +15664,16 @@ local function try_move(dx, dy)
   if t == 79 and current_map_id == 3 then
     -- Northern Wilds → Observatory expanded interior (map 24).
     -- Tile 79 placed at row 4 col 22 in NORTHERN_WILDS.
+    -- Gate: same 3-shard requirement as the tile-52 entrance, so this
+    -- second door cannot bypass the observatory lock.
+    local owned = 0
+    for _, v in pairs(shards) do if v then owned = owned + 1 end end
+    if owned < 3 then
+      CONTENT.banner_text  = "* the door is sealed -- 3 shards needed *"
+      CONTENT.banner_ticks = 36
+      redraw()
+      return
+    end
     CONTENT.return_map = 3
     CONTENT.return_x = nx; CONTENT.return_y = ny
     travel_to(24, 11, 12)   -- spawn 1 tile above the south entry hall exit (row 13 col 11)
@@ -17616,17 +17665,22 @@ local function check_battle_end()
       end
     end
     -- (battle-end no longer calls flash_hit — same wash-out concern)
-    if enemy.visual == "echo"      then clear_boss(1, "lydian")
-    elseif enemy.visual == "sentinel"  then clear_boss(2, "dorian")
-    elseif enemy.visual == "tide"      then clear_boss(3, "mixolydian")
-    elseif enemy.visual == "dunerider" then clear_boss(4, "phrygian")
-    elseif enemy.visual == "snowgaunt" then clear_boss(5, "aeolian")
-    elseif enemy.visual == "locrius"   then clear_boss(6, "locrian")
-    elseif enemy.visual == "suno"      then
+    -- Rare encounters share visuals with cave bosses (Sage Sentinel →
+    -- "sentinel", Tideturner → "tide"), so mask the visual for rares:
+    -- a rare kill must NEVER trigger clear_boss / shard progression.
+    -- Rares fall through to the random_battle branch below instead.
+    local boss_visual = (not enemy.is_rare) and enemy.visual or nil
+    if boss_visual == "echo"      then clear_boss(1, "lydian")
+    elseif boss_visual == "sentinel"  then clear_boss(2, "dorian")
+    elseif boss_visual == "tide"      then clear_boss(3, "mixolydian")
+    elseif boss_visual == "dunerider" then clear_boss(4, "phrygian")
+    elseif boss_visual == "snowgaunt" then clear_boss(5, "aeolian")
+    elseif boss_visual == "locrius"   then clear_boss(6, "locrian")
+    elseif boss_visual == "suno"      then
       clear_boss(7, "ionian")
       -- final victory triggers the ENDING sequence in exit_battle
       ending_pending = true
-    elseif enemy.visual == "firstchord" then
+    elseif boss_visual == "firstchord" then
       -- Post-endgame superboss. No shard, no instrument; only the
       -- achievement and a one-shot banner. Mark cave 8 cleared so the
       -- player can re-fight via VoidEcho (the NPC stays visible) or
@@ -18074,17 +18128,17 @@ _G.travel_to = travel_to
 -- 4% chance per random encounter to roll rare instead of standard.
 -- Global to dodge the 200-local main-chunk cap.
 CAVE_RARES = {
-  [1] = {name="Elder Slime",     visual="slime",     hp=350, atk=8,
+  [1] = {name="Elder Slime",     visual="slime",     hp=350, atk=8, is_rare=true,
          drop="ether", attack_pattern={6,6,8,6}, attack_sound={class="warrior", note=24, vel=0.65, attack=0.003, release=0.20, wet=0.10}},
-  [2] = {name="Sage Sentinel",   visual="sentinel",  hp=420, atk=10,
+  [2] = {name="Sage Sentinel",   visual="sentinel",  hp=420, atk=10, is_rare=true,
          drop="tonic", attack_pattern={5,7,5,7,9}, attack_sound={class="cleric", note=41, vel=0.50, attack=0.05, release=0.80, wet=0.50}},
-  [3] = {name="Tideturner",      visual="tide",      hp=480, atk=12,
+  [3] = {name="Tideturner",      visual="tide",      hp=480, atk=12, is_rare=true,
          drop="key",   attack_pattern={4,4,8,4,4}, attack_sound={class="bard", note=48, vel=0.55, attack=0.005, release=0.40, wet=0.55}},
-  [4] = {name="Dune Sovereign",  visual="scorpion",  hp=520, atk=13,
+  [4] = {name="Dune Sovereign",  visual="scorpion",  hp=520, atk=13, is_rare=true,
          drop="ether", attack_pattern={4,6,4,8}, attack_sound={class="mage", note=72, vel=0.60, attack=0.002, release=0.30, wet=0.40}},
-  [5] = {name="Frostfather",     visual="yeti",      hp=600, atk=14,
+  [5] = {name="Frostfather",     visual="yeti",      hp=600, atk=14, is_rare=true,
          drop="tonic", attack_pattern={9,7,5,9}, attack_sound={class="warrior", note=21, vel=0.70, attack=0.005, release=0.50, wet=0.20}},
-  [6] = {name="Voidpriest",      visual="lich",      hp=700, atk=15,
+  [6] = {name="Voidpriest",      visual="lich",      hp=700, atk=15, is_rare=true,
          drop="star",  attack_pattern={5,5,5,5,11}, attack_sound={class="cleric", note=31, vel=0.60, attack=0.40, release=2.50, wet=0.85}},
 }
 
@@ -18173,6 +18227,11 @@ enter_battle = function(cave_id, force_random)
   -- doesn't make returns to old caves trivially boring.
   local lvl_ratio = avg_level / expected
   local lvl_mul = math.max(0.6, math.min(1.4, lvl_ratio))
+  -- Shallow-copy the attack pattern: battle effects (e.g. Scatter) mutate
+  -- enemy.attack_pattern in place, and sharing the def's table would
+  -- corrupt every later encounter with that enemy.
+  local pattern_copy = {}
+  for i, v in ipairs(e.attack_pattern or {}) do pattern_copy[i] = v end
   enemy = {
     name = e.name,
     hp     = math.floor(e.hp  * hp_mul * lvl_mul),
@@ -18181,7 +18240,7 @@ enter_battle = function(cave_id, force_random)
     level  = math.max(1, math.floor(avg_level + 0.5)),  -- displayed/audit only
     is_rare = is_rare,
     rare_drop = e.drop,
-    attack_pattern = e.attack_pattern,
+    attack_pattern = pattern_copy,
     attack_sound   = e.attack_sound,
     pattern_idx = 1,
     last_attack = tick,
@@ -18675,10 +18734,13 @@ function gamepad.button(button, state)
   -- so the player can jam before starting / continuing a game. The
   -- jam_prev_state remembers where we came from; SELECT a second time
   -- returns to that state. CUTSCENE/ENDING/VOYAGE remain off-limits to
-  -- avoid breaking those scripted flows mid-script.
+  -- avoid breaking those scripted flows mid-script; GAME_OVER/CREDITS
+  -- likewise (jamming out of them strands their return paths).
+  -- BATTLE/BATTLE_END stay allowed — mid-battle jam is a deliberate feature.
   if button == "SELECT"
      and game_state ~= "CUTSCENE"
-     and game_state ~= "ENDING" and game_state ~= "VOYAGE" then
+     and game_state ~= "ENDING" and game_state ~= "VOYAGE"
+     and game_state ~= "GAME_OVER" and game_state ~= "CREDITS" then
     if game_state == "JAM" then
       game_state = jam_prev_state or "OVERWORLD"
       jam_prev_state = nil
@@ -19598,9 +19660,13 @@ function key(n, z)
     end
     redraw()
   elseif game_state == "CUTSCENE" and n == 1 then
-    -- norns K1 acts as the "START" skip — jumps straight to the overworld
+    -- norns K1 acts as the "START" skip — jumps straight to the playable
+    -- prologue (mirrors the gamepad START path, incl. the warp to Miel's
+    -- Royal Quarters so the new-game starting state is consistent).
     game_state = "OVERWORLD"
+    params:set("clock_tempo", OVERWORLD_BPM)
     engine.drone_amp(0)
+    travel_to(28, 3, 2)   -- spawn in Miel's Royal Quarters (map 28), beside the bed
     update_camera()
     redraw()
     return
@@ -19608,8 +19674,11 @@ function key(n, z)
     cutscene_idx = cutscene_idx + 1
     CONTENT.cutscene_panel_start = tick
     if cutscene_idx > #CUTSCENE_LINES then
+      -- Mirrors the gamepad A/B finish: warp into the prologue start.
       game_state = "OVERWORLD"
+      params:set("clock_tempo", OVERWORLD_BPM)
       engine.drone_amp(0)
+      travel_to(28, 3, 2)   -- spawn in Miel's Royal Quarters (map 28), beside the bed
       update_camera()
     end
     redraw()
@@ -19742,6 +19811,14 @@ function key(n, z)
       params:set("clock_tempo", INTRO_BPM)
       engine.drone_amp(0)
       redraw()
+    end
+  elseif game_state == "CREDITS" and n == 3 then
+    -- Mirrors the gamepad A/START path: after the credits have rolled a
+    -- while, K3 begins NEW GAME + (preserve levels/instruments/gold,
+    -- reset shards/cave clears/quest progress).
+    local age = tick - (CONTENT.credits_t or tick)
+    if age > 600 then
+      if start_new_game_plus then start_new_game_plus() end
     end
   end
 end
@@ -24433,6 +24510,15 @@ NPC_SPRITES.Tofi = function(sx, sy)
     screen.level(6); screen.pixel(sx + 4, sy + 2); screen.pixel(sx + 5, sy + 2); screen.fill()
   end
 end
+
+-- Sheep (Far Hills flock): tiny wool body, dark face, stub legs
+NPC_SPRITES.Sheep = function(sx, sy)
+  screen.level(12); screen.rect(sx + 1, sy + 3, 6, 4); screen.fill()   -- wool body
+  screen.level(13); screen.pixel(sx + 2, sy + 2); screen.pixel(sx + 4, sy + 2); screen.pixel(sx + 6, sy + 3); screen.fill() -- wool tufts
+  screen.level(3);  screen.rect(sx + 6, sy + 4, 2, 2); screen.fill()   -- dark face
+  screen.level(3);  screen.pixel(sx + 2, sy + 7); screen.pixel(sx + 5, sy + 7); screen.fill() -- legs
+end
+NPC_SPRITES.Sheep2 = NPC_SPRITES.Sheep
 
 -- ── Castle prologue NPC sprites (Pass 60 overhaul) ────────────────────
 -- Page: young runner in queen's livery (blue tabard + small cap). A

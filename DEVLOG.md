@@ -2135,3 +2135,39 @@ lecture hall to match the restaged intro (player parks/returns at
 (7,3) / (7,4)). Grep confirms no (6,6) parks or teleports remain.
 Lesson for the audit method: "checked clean" must include walkability
 of the RETURN position, not just map bounds.
+
+## 2026-07-03 — recursive audit loop, waves 2-3
+
+Wave 2 (dialogue regions + restage verification): sage-quest name
+collisions (Phrygian Mira / Sunward Iolen / academy Aurin credited
+Tova's quest); start_dialogue set quest flags BEFORE scene closures
+ran, so every sage's choreographed first meeting was dead content;
+Aram/Strom rank inversion; Iolen's gender drift; 7 post-victory
+ionian reacts told the player to kill an already-dead Suno; Mira's
+wetland react imagery on a dunes sage; guide Sergei→Serik; Tide
+Stone + flat-second now real (granted once / actual grace note on
+LUTE); Miel's exile timeline reconciled; Iret/Vance/Tess campfire
+refs gated on meeting them; my own echo_recruit restage had put
+Strom INSIDE the sealed academy building (fixed east, cols 10-18);
+Theron/Aurin now hide during scenes.
+
+Wave 3 (areas + systems): the Observatory's ENTIRE upper floor was
+unreachable (orrery + 5 constellation scenes + trapped-Scout quest =
+dead content) — alcove wall opened at col 13; sealed east wing got a
+door + Velthe's draft shelf; Far Hills entry spawned in a tree;
+Cave 7 random encounters could spawn SUNO HIMSELF in a hallway
+(ending fired from a random encounter — pool removed); second
+observatory entrance ungated vs its twin; escape-cave wisps were
+embedded in walls; furniture-standing NPCs seated properly; Suno's
+Domain stray trees→ash; Far Hills gets its promised sheep (+sprite).
+Systems: rare-enemy visual collision granted FREE SHARDS via
+clear_boss (masked with is_rare); rares now pay real XP/gold;
+scatter no longer corrupts shared enemy attack-pattern templates
+(per-battle copy); tess_defected/tilde_paid/wisp_paid persisted
+(save-reload gold dupes); return_map trio persisted (cave exits
+after Continue no longer dump to the village); norns-key players
+can now leave CREDITS into NG+ and get the proper prologue warp on
+cutscene skip; NG+ resets pith quest, cave_entered, STORY.seen and
+the flag table (keeping learned gifts); JAM refuses GAME_OVER/
+CREDITS. Victory fanfare deliberately stays in tune during the
+Silence (same rule as player notes).
