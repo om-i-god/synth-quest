@@ -6394,9 +6394,13 @@ local cutscene_idx = 1
 -- 87 = lirael_blue_brick  (impassable; intact wall)
 -- 88 = cathedral_door     (walkable threshold)
 -- 89 = lirael_entry       (gated; mourning road west from Western Region)
+-- Terraced storefronts
+-- 93 = storefront_wall    (impassable; timber flank walls extending inn (13)
+--                          and shop (12) entrances into 3-wide facades)
 -- Map data is per-continent; active map swaps via travel_to().
 -- MAINLAND (64x16): cols 1-32 = Village; 33-48 = Hollow Woods; 49-64 = Sunward Coast.
 -- Mountain pass (id 15) at row 1 col 13 → Northern Wilds (current_map_id 3).
+-- Row 7: inn (4,7) + shop (6,7) terraced with storefront walls (93) at cols 3,5,7.
 local MAINLAND = {
   {1,1,1,1,1,1,1,1,1,1,1,0,15,0,1,1,56,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},  -- col 17 row 1: Far Hills cave-mouth (small mountain)
   {1,0,0,0,0,0,0,0,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1, 1,0,0,0,1,1,0,0,0,0,1,1,1,0,0,1, 1,0,0,0,0,0,0,0,8,8,0,0,0,1,0,1},
@@ -6404,7 +6408,7 @@ local MAINLAND = {
   {1,0,4,0,4,0,0,0,4,0,4,0,2,0,0,0,0,0,4,0,4,0,0,0,1,0,0,0,0,0,0,1, 0,0,0,0,0,0,36,1,0,0,43,0,0,0,1,1, 1,0,0,0,0,0,0,0,0,0,8,8,0,0,1,1},
   {1,0,4,5,4,0,0,0,4,5,4,0,2,0,0,0,0,0,4,5,4,2,2,2,2,2,2,2,2,2,1,1, 0,2,2,2,2,2,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
   {1,0,0,0,0,0,0,0,0,0,0,0,2,0,54,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,2,0,0,0,2,0,0,0,1,0,0,0,1,0,0, 1,0,0,0,0,1,0,0,0,0,0,0,1,0,0,1},  -- col 15 row 6: village plaza flag
-  {1,0,0,13,0,12,0,0,0,0,0,0,2,0,14,0,18,0,0,0,0,0,0,0,0,0,0,0,6,0,0,0, 0,2,0,0,0,2,2,2,2,2,2,2,7,0,0,0, 2,2,2,2,2,2,2,2,2,2,2,2,2,9,65,10},  -- col 63: Sunward Coast signpost (tile 65) between Cave 3 entry (col 62=9) and boat (col 64=10)
+  {1,0,93,13,93,12,93,0,0,0,0,0,2,0,14,0,18,0,0,0,0,0,0,0,0,0,0,0,6,0,0,0, 0,2,0,0,0,2,2,2,2,2,2,2,7,0,0,0, 2,2,2,2,2,2,2,2,2,2,2,2,2,9,65,10},  -- cols 3,5,7: storefront walls (93) terracing inn (4,7) + shop (6,7) into one block; col 63: Sunward Coast signpost (tile 65) between Cave 3 entry (col 62=9) and boat (col 64=10)
   {1,1,0,0,0,0,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1,1, 0,2,0,0,0,2,0,0,0,0,0,0,0,0,1,1, 0,0,0,0,2,0,0,0,0,0,0,0,8,8,0,1},
   {1,1,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4,5,4,0,57,0,0,0,1, 1,2,0,0,0,0,0,0,0,0,0,0,1,0,0,1, 1,0,0,0,2,0,0,0,0,0,0,0,8,8,0,1},  -- col 28: anvil tile next to Brann the smith (col 27 = Brann NPC)
   {1,0,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4,0,4,0,1,0,0,0,1, 1,2,0,0,0,0,0,0,0,0,0,1,0,0,0,1, 1,0,0,0,0,0,0,0,0,0,8,8,8,0,0,1},
@@ -6418,6 +6422,7 @@ local MAINLAND = {
 
 -- second continent: Eastern Reaches (32×16 desert/exotic)
 -- boat lands at (1,7); cave4 at (25,7); NPC Mira at (14,7)
+-- row 9: inn (3,9) + shop (5,9) terraced with storefront walls (93) at cols 2,4,6
 local EASTERN_REACHES = {
   {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},
   {1,0,0,0,8,8,8,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,8,8,8,0,0,0,0,0,0,1},
@@ -6427,7 +6432,7 @@ local EASTERN_REACHES = {
   {1,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,1},
   {1,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,0,0,0,11,0,0,0,0,0,0,1},
   {10,2,2,2,2,2,0,0,0,0,0,0,0,0,0,0,0,0,0,2,2,2,2,2,2,2,0,0,0,0,0,1},
-  {1,0,13,0,12,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+  {1,93,13,93,12,93,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},  -- cols 2,4,6: storefront walls (93) terracing inn (3,9) + shop (5,9)
   {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,8,8,8,8,8,0,0,0,0,0,0,0,0,0,0,1},
   {1,0,0,0,0,0,0,0,0,0,8,8,8,8,8,8,8,8,8,0,0,0,0,0,0,0,0,0,0,0,0,1},
   {1,0,0,1,0,0,0,0,0,8,8,8,8,8,8,8,8,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
@@ -6440,6 +6445,8 @@ local EASTERN_REACHES = {
 -- third continent: Northern Wilds (28x14 frozen highlands)
 -- Reached via mountain pass (id 15) at MAINLAND (13,1).
 -- Cave5 (id 16) at (21, 7); return pass at (5, 13).
+-- row 11: inn (3,11) flanked by storefront walls (93) at cols 2,4;
+-- shop (9,11) flanked at cols 8,10 (separate buildings, not one block).
 local NORTHERN_WILDS = {
   {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},
   {1,0,0,0,0,0,0,0,0,0,0,0,0,0,8,8,8,0,0,0,0,0,0,0,0,0,0,1},
@@ -6451,7 +6458,7 @@ local NORTHERN_WILDS = {
   {1,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1},
   {1,0,0,1,0,2,0,0,8,8,8,0,0,0,0,0,0,0,8,8,8,0,0,0,0,0,0,1},
   {1,0,0,0,0,2,0,8,8,0,0,0,0,0,0,0,0,0,8,8,8,8,0,0,0,1,0,1},
-  {1,0,13,0,0,2,0,8,12,0,0,0,0,0,0,0,0,0,0,0,8,8,8,0,0,0,0,1},
+  {1,93,13,93,0,2,0,93,12,93,0,0,0,0,0,0,0,0,0,0,8,8,8,0,0,0,0,1},  -- cols 2,4 + 8,10: storefront walls (93) flanking inn (3,11) and shop (9,11); col 8 was sand (8)
   {1,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,8,8,0,0,0,0,1},
   {1,0,0,0,15,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
   {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},
@@ -11941,7 +11948,9 @@ local EASTERN_NPCS = {
 
   -- Pass 21: Harbormaster of the Reaches' little port-town. Sela handles
   -- ferry rumors and Eastern flavor. Lives near the boat landing.
-  { x = 6, y = 9, name = "Sela",
+  -- (moved (6,9) → (7,9) when the shop's east storefront wall (93) took
+  -- her old spot in the terraced-storefronts pass)
+  { x = 7, y = 9, name = "Sela",
     dialogue = function()
       local lead = party[active] and party[active].class
       -- Sela's celebration is specifically about the Dune Rider — that's
@@ -22050,6 +22059,21 @@ TILE_DRAW[92] = function(px, py)
   screen.level(2); screen.rect(px, py, 8, 8); screen.fill()
   screen.level(0); screen.rect(px + 2, py + 1, 4, 7); screen.fill()   -- opening
   screen.level(5); screen.rect(px + 1, py, 6, 1); screen.fill()       -- lintel
+end
+
+TILE_DRAW[93] = function(px, py)
+  -- storefront_wall: timber flank wall that extends the inn (13) / shop
+  -- (12) entrance tiles into 3-wide terraced storefront facades, matching
+  -- the village houses. Impassable (deliberately NOT in is_walkable).
+  screen.level(6); screen.rect(px, py + 2, 8, 6); screen.fill()       -- wall body
+  screen.level(9); screen.rect(px, py + 1, 8, 2); screen.fill()       -- eaves line (matches inn roof height)
+  screen.level(4)                                                     -- dim plank seams
+  screen.move(px + 3, py + 3); screen.line(px + 3, py + 8)
+  screen.move(px + 6, py + 3); screen.line(px + 6, py + 8)
+  screen.stroke()
+  if (px + py) % 16 < 8 then                                          -- small lit window on some flanks
+    screen.level(11); screen.rect(px + 2, py + 4, 2, 2); screen.fill()
+  end
 end
 
 local SPRITE_BY_CLASS

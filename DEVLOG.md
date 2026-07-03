@@ -2233,3 +2233,10 @@ Verification loop caught this batch's bug: TOVA and BONK were
 standing on the only approach tiles of two house doors, sealing them
 — moved one tile aside. Also preserved the Sunward→mainland signpost
 warp across house visits (outer_return stash).
+
+Phase 2 (same pass): terraced storefronts — every town inn/shop
+entrance (1-square buildings) now sits flanked by matching
+storefront-wall tiles (new tile 93: timber, eaves, deterministic lit
+windows), so the village/eastern/northern inns and shops read as real
+multi-tile buildings consistent with the house facades. Sela stepped
+one tile off the eastern shop's new flank.
