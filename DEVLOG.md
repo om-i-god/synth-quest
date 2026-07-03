@@ -2280,3 +2280,18 @@ UI audit findings, all fixed:
   Echo charges and the Threefold window got HUD glyphs matching the
   Ring bell; ECHO's name now renders in status + XP summary.
 Verification pass: first batch to come back with zero blockers.
+
+## 2026-07-03 — wave 7: fresh-angles polish (engine surface verified clean)
+
+Unconstrained sweep took seven new angles (Lua↔SC command surface,
+audio lifecycle, JAM/MIDI, input ordering, viewer stream, draw-loop
+truthfulness). Zero blockers — all 33 engine commands match, every
+sq_trig call is arity-correct, drone lifecycle is sound. Polish
+fixes: MP-starved STIR falls back to ATK with the denial flash
+(was a silent wasted turn); wraith joins the FX-latch broadcast +
+gets its own MIDI channel; MIDI-in device is now a param (was
+hardwired port 1); JAM footer tells the truth (X mode, A latch);
+four music tickers had nil-guards after the arithmetic; HDMIMirror's
+retry hitch cut 0.5s→0.1s; bark bubbles clamp on-screen; title
+flash timing moved off the frame rate; dead battle_end_ticks chain
+and the unreachable battle-SELECT branch removed.

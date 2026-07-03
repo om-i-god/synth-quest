@@ -52,7 +52,11 @@ end
 local function try_connect()
   local s, err = socket.tcp()
   if not s then return nil, err end
-  s:settimeout(0.5)
+  -- Short connect timeout: connect() blocks the clock thread (and thus
+  -- the whole script) while the viewer is unreachable. 0.1s caps that
+  -- hitch at an acceptable blip once per RECONNECT_S; full non-blocking
+  -- select-polling would be overkill here.
+  s:settimeout(0.1)
   local ok, cerr = s:connect(M.host, M.port)
   if not ok then s:close(); return nil, cerr end
   -- Disable Nagle so each frame is flushed promptly. Use a short send

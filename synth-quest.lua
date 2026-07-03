@@ -27,8 +27,6 @@ local BATTLE_BPM    = 85
 local DRONE_FREQ_HZ = 110           -- A2
 local DRONE_AMP_BATTLE_END = 0.28
 
-local BATTLE_END_DURATION = 56      -- ticks held on outcome banner
-
 -- Victory fanfare — 32 steps (2 bars, ~6 sec @ 100 bpm). FF-style:
 -- bar 1 is Uematsu's iconic 3-stab hook (in A pentatonic: A A A | E . G | A held);
 -- bar 2 is an ascending pentatonic flourish A→C→D→E→G→A doubled at the
@@ -6306,7 +6304,6 @@ active = 1
 
 -- battle state
 local enemy = nil
-local battle_end_ticks = 0
 local battle_outcome = nil  -- "VICTORY" | "DEFEAT"
 
 -- per-cave progression
@@ -14068,7 +14065,7 @@ end
 -- Per-class MIDI channel mapping. 1-based; user can override via PARAMS.
 -- Default: each voice gets its own channel so external gear can route
 -- e.g. cleric-only to a pad synth, warrior-only to a bass.
-SQ_MIDI_CHANNEL = {warrior = 1, cleric = 2, mage = 3, bard = 4}
+SQ_MIDI_CHANNEL = {warrior = 1, cleric = 2, mage = 3, bard = 4, wraith = 5}
 
 function sq_trig(class, freq, vel, attack, release, ...)
   local oct = (SQ_VOICE_OCT and SQ_VOICE_OCT[class]) or 0
@@ -15057,8 +15054,9 @@ end
 
 local function fire_title_voice(class, scale_idx)
   if not scale_idx or scale_idx == 0 then return end
-  local note = active_scale()[scale_idx] + JAM.root
-  if not note then return end
+  local sc_val = active_scale()[scale_idx]
+  if not sc_val then return end   -- guard BEFORE arithmetic (nil + would crash the clock)
+  local note = sc_val + JAM.root
   local freq = midi_to_freq(note)
   local a = TITLE_ARTIC[class]
   local w = math.max(0, math.min(1, a.wet * (CONTENT.music_reverb_mix or 1.0)))
@@ -15074,8 +15072,9 @@ end
 
 local function fire_intro_voice(class, scale_idx)
   if not scale_idx or scale_idx == 0 then return end
-  local note = active_scale()[scale_idx] + JAM.root
-  if not note then return end
+  local sc_val = active_scale()[scale_idx]
+  if not sc_val then return end   -- guard BEFORE arithmetic (nil + would crash the clock)
+  local note = sc_val + JAM.root
   local freq = midi_to_freq(note)
   local a = INTRO_ARTIC[class]
   local w = math.max(0, math.min(1, a.wet * (CONTENT.music_reverb_mix or 1.0)))
@@ -15091,8 +15090,9 @@ end
 
 local function fire_victory_voice(class, scale_idx)
   if not scale_idx or scale_idx == 0 then return end
-  local note = active_scale()[scale_idx] + JAM.root
-  if not note then return end
+  local sc_val = active_scale()[scale_idx]
+  if not sc_val then return end   -- guard BEFORE arithmetic (nil + would crash the clock)
+  local note = sc_val + JAM.root
   local freq = midi_to_freq(note)
   local a = VICTORY_ARTIC[class]
   local w = math.max(0, math.min(1, a.wet * (CONTENT.music_reverb_mix or 1.0)))
@@ -15186,8 +15186,9 @@ local function tick_shop_music()
   for class, pat in pairs(SHOP.pattern) do
     local idx = pat[SHOP.step]
     if idx and idx > 0 then
-      local note = active_scale()[idx] + JAM.root
-      if note then
+      local sc_val = active_scale()[idx]
+      if sc_val then   -- guard BEFORE arithmetic (nil + would crash the clock)
+        local note = sc_val + JAM.root
         local a = SHOP.artic[class]
         local w = math.max(0, math.min(1, a.wet * (CONTENT.music_reverb_mix or 1.0)))
         sq_trig(class, midi_to_freq(note), a.vel, a.attack, a.release, w)
@@ -17452,6 +17453,17 @@ local function trigger_party_jam(except) end
 local function apply_player_action(p)
   -- Treat legacy "MAG" save data as the class's instrument.
   if p.queued == "MAG" then p.queued = CLASS_INSTRUMENT[p.class] or "ATK" end
+  -- STIR costs 6 MP (the only paid instrument action). If ECHO can't
+  -- afford it, fall back to a plain ATK so the turn isn't silently
+  -- wasted. Feedback reuses the Resonance-denial idiom: the dim flash
+  -- on her HUD glyph slot + the low-MP descending denial chord.
+  if p.queued == "STIR" and p.mp < 6 then
+    p.reso_denied_t = tick
+    sq_trig("cleric", midi_to_freq(36), 0.4,  0.005, 0.15, 0)
+    sq_trig("cleric", midi_to_freq(33), 0.35, 0.005, 0.15, 0)
+    sq_trig("cleric", midi_to_freq(28), 0.3,  0.005, 0.15, 0)
+    p.queued = "ATK"
+  end
   -- LIMIT BREAK: when a character is at <=25% HP and hasn't used theirs
   -- yet this battle, the next ATK fires as a class-specific limit
   -- instead. Single-use per battle. Cleric variant heals and revives
@@ -17707,7 +17719,7 @@ local function apply_player_action(p)
     -- unlike the other instrument actions (which are free), STIR draws
     -- on ECHO's large MP pool. Revisit in playtest if the asymmetry
     -- feels off.
-    if p.mp >= 6 then
+    if p.mp >= 6 then  -- always true here: MP-starved STIR was rewritten to ATK at the top of this function
       p.mp = p.mp - 6
       local sc = (JAM and JAM.scales and JAM.scales[JAM.mode]) or {0, 2, 4, 5, 7, 9, 11}
       local root = (JAM and JAM.root) or 0
@@ -18015,8 +18027,12 @@ end
 
 local function fire(p)
   apply_player_action(p)
+  -- p.queued is already articulation-correct here: apply_player_action
+  -- remaps legacy "MAG" to the class instrument and rewrites an
+  -- MP-starved STIR to plain ATK, so no insufficient-MP fixup is needed.
+  -- (Replaced a vestigial `action == "MAG" and p.mp < 0` check that
+  -- could never fire.)
   local action = p.queued
-  if action == "MAG" and p.mp < 0 then action = "ATK" end
   local a = ARTIC[action] or ARTIC.ATK
   local note = active_scale()[p.note_idx] + a.pitch + JAM.root
   local freq = midi_to_freq(note)
@@ -18153,7 +18169,6 @@ local function check_battle_end()
   if not enemy then return end
   if not enemy.alive then
     battle_outcome = "VICTORY"
-    battle_end_ticks = BATTLE_END_DURATION
     game_state = "BATTLE_END"
     -- Phase 1 = main reward window (shard / instrument / quip).
     -- Phase 2 = XP gain summary slide (advanced via A press).
@@ -18286,7 +18301,6 @@ local function check_battle_end()
     end
   elseif #alive_party() == 0 then
     battle_outcome = "DEFEAT"
-    battle_end_ticks = BATTLE_END_DURATION
     game_state = "BATTLE_END"
     engine.drone_amp(DRONE_AMP_BATTLE_END)   -- somber drone for defeat
     -- Story-arc retry hooks: if the defeated battle was a one-shot
@@ -19257,15 +19271,19 @@ function gamepad.button(button, state)
   if LEFT_CLICK or RIGHT_CLICK then
     local p = party[active]
     if p then
-      local ALL = {"warrior", "cleric", "bard", "mage"}
+      -- Every synth voice with engine FX prefixes: the core four party
+      -- voices plus wraith (ECHO). Wraith calls are guarded — an engine
+      -- loaded before SYSTEM > RESTART may predate the wraith commands
+      -- (same idiom as the wraith voice defaults in init).
+      local ALL = {"warrior", "cleric", "bard", "mage", "wraith"}
       if LEFT_CLICK then
         CONTENT.latch_left = not CONTENT.latch_left
         if CONTENT.latch_left then
           CONTENT.latched_wet = p.xwet or 0
           CONTENT.latched_dly = p.dly  or 0
           for _, v in ipairs(ALL) do
-            engine[v .. "_xwet"](CONTENT.latched_wet)
-            engine[v .. "_dly" ](CONTENT.latched_dly)
+            if engine[v .. "_xwet"] then engine[v .. "_xwet"](CONTENT.latched_wet) end
+            if engine[v .. "_dly"]  then engine[v .. "_dly" ](CONTENT.latched_dly) end
           end
         end
       else  -- right click
@@ -19275,8 +19293,8 @@ function gamepad.button(button, state)
           CONTENT.latched_cutoff = p.cutoff or (r.min * (r.max / r.min) ^ 0.5)
           CONTENT.latched_res    = p.resonance or 0.20
           for _, v in ipairs(ALL) do
-            engine[v .. "_cutoff"](CONTENT.latched_cutoff)
-            engine[v .. "_res"   ](CONTENT.latched_res)
+            if engine[v .. "_cutoff"] then engine[v .. "_cutoff"](CONTENT.latched_cutoff) end
+            if engine[v .. "_res"]    then engine[v .. "_res"   ](CONTENT.latched_res)    end
           end
         end
       end
@@ -19571,7 +19589,9 @@ function gamepad.button(button, state)
     elseif button == "A" then
       local p = party[active]
       if p then
-        local ALL = {"warrior", "cleric", "bard", "mage"}
+        -- All engine FX voices incl. wraith — guarded, same as the
+        -- stick-click latch broadcast (pre-RESTART engines lack wraith).
+        local ALL = {"warrior", "cleric", "bard", "mage", "wraith"}
         -- Toggle: if either side is currently latched, releasing both;
         -- otherwise latch both with the active voice's current values.
         local any_on = CONTENT.latch_left or CONTENT.latch_right
@@ -19587,10 +19607,10 @@ function gamepad.button(button, state)
           CONTENT.latched_cutoff = p.cutoff or (r.min * (r.max / r.min) ^ 0.5)
           CONTENT.latched_res    = p.resonance or 0.20
           for _, v in ipairs(ALL) do
-            engine[v .. "_xwet"  ](CONTENT.latched_wet)
-            engine[v .. "_dly"   ](CONTENT.latched_dly)
-            engine[v .. "_cutoff"](CONTENT.latched_cutoff)
-            engine[v .. "_res"   ](CONTENT.latched_res)
+            if engine[v .. "_xwet"]   then engine[v .. "_xwet"  ](CONTENT.latched_wet)    end
+            if engine[v .. "_dly"]    then engine[v .. "_dly"   ](CONTENT.latched_dly)    end
+            if engine[v .. "_cutoff"] then engine[v .. "_cutoff"](CONTENT.latched_cutoff) end
+            if engine[v .. "_res"]    then engine[v .. "_res"   ](CONTENT.latched_res)    end
           end
         end
         redraw()
@@ -19620,8 +19640,8 @@ function gamepad.button(button, state)
       redraw()
       return
     end
-    if button == "SELECT" then set_active(active + 1)
-    elseif button == "L1" then set_active(active - 1)
+    -- (No SELECT branch here: the global SELECT→JAM toggle above owns SELECT everywhere, including mid-battle; L1/R1 cycle the active character.)
+    if button == "L1" then set_active(active - 1)
     elseif button == "R1" then set_active(active + 1)
     elseif button == "A" or button == "B" or button == "X" or button == "Y" then
       queue_action(button)
@@ -19842,7 +19862,7 @@ function init()
 
   -- Pass 58: MIDI OUT. Optional emit of every sq_trig note as a real
   -- MIDI note_on/note_off so external gear can score the session.
-  -- Per-class channel mapping (warrior=1, cleric=2, mage=3, bard=4) —
+  -- Per-class channel mapping (warrior=1, cleric=2, mage=3, bard=4, wraith=5) —
   -- letting users route each voice to a different external synth.
   params:add_option("sq_midi_out", "MIDI out", {"off", "on"}, 1)
   params:set_action("sq_midi_out", function(v)
@@ -19854,6 +19874,19 @@ function init()
   params:add_number("sq_midi_out_dev", "MIDI out device", 1, 16, 2)
   params:set_action("sq_midi_out_dev", function(d)
     pcall(function() midi_out = midi.connect(d) end)
+  end)
+  -- MIDI-in device picker (mirrors the out-device param above). The
+  -- action reconnects and re-attaches the note/CC handler; the handler
+  -- itself (sq_midi_in_handler, global) is defined later in init, hence
+  -- the guard — a param bang before that point just reconnects.
+  params:add_number("sq_midi_in_dev", "MIDI in device", 1, 16, 1)
+  params:set_action("sq_midi_in_dev", function(d)
+    pcall(function()
+      midi_in = midi.connect(d)
+      if midi_in and sq_midi_in_handler then
+        midi_in.event = sq_midi_in_handler
+      end
+    end)
   end)
 
   -- Pass 58: CUSTOM SCALE picker. The player can swap a slot in
@@ -20029,8 +20062,10 @@ function init()
     end
     return cls or "bard"
   end
-  midi_in = midi.connect(1)
-  midi_in.event = function(data)
+  -- Named handler (global, like the other cross-section state) so the
+  -- "sq_midi_in_dev" param action can re-attach it after reconnecting
+  -- to a different device.
+  sq_midi_in_handler = function(data)
     local d = midi.to_msg(data)
     -- Notes still play through the dedicated MIDI voice (default bard) so
     -- you can layer melodies under whatever the party is doing.
@@ -20080,6 +20115,8 @@ function init()
       CONTENT.midi_active_t = tick
     end
   end
+  midi_in = midi.connect(params:get("sq_midi_in_dev") or 1)
+  midi_in.event = sq_midi_in_handler
 
   clock_id = clock.run(function()
     while true do
@@ -20092,10 +20129,12 @@ function init()
       if region_label_ticks > 0 then region_label_ticks = region_label_ticks - 1 end
       -- universal flash-text countdown (chest pickup / equip toast / etc.)
       if CONTENT.flash_ticks > 0 then CONTENT.flash_ticks = CONTENT.flash_ticks - 1 end
+      -- title-screen flash ("no save found") — decremented here so the
+      -- draw path stays read-only (redraw rate ≠ tick rate)
+      if TITLE.flash_ticks > 0 then TITLE.flash_ticks = TITLE.flash_ticks - 1 end
       if game_state == "BATTLE" then
         tick_battle()
       elseif game_state == "BATTLE_END" then
-        battle_end_ticks = battle_end_ticks - 1
         if battle_outcome == "VICTORY" then tick_victory_music() end
       elseif game_state == "OVERWORLD" or game_state == "DIALOGUE" then
         tick_overworld_music()
@@ -25860,15 +25899,23 @@ local function draw_overworld()
           local sx = (src.x - cam.x) * TILE + 4 + view_ox
           local sy = (src.y - cam.y) * TILE - 4 + view_oy
           local w = math.min(110, #b.line * 4 + 4)
+          -- truncate to the bubble's char capacity (~4px/char at this
+          -- font size) so a long bark can't spill past the border
+          local line = b.line
+          local cap = math.floor((w - 4) / 4)
+          if #line > cap then line = line:sub(1, cap) end
+          -- clamp the bubble center so the rect stays inside [0,128];
+          -- the tail below still points at the NPC's true position
+          local bx = math.max(w / 2, math.min(128 - w / 2, sx))
           -- bubble background (dark)
-          screen.level(0); screen.rect(sx - w / 2, sy - 6, w, 7); screen.fill()
+          screen.level(0); screen.rect(bx - w / 2, sy - 6, w, 7); screen.fill()
           -- bubble border + tail (fades with age)
           local lev = math.max(2, 11 - math.floor(age / 12))
-          screen.level(lev); screen.rect(sx - w / 2, sy - 6, w, 7); screen.stroke()
+          screen.level(lev); screen.rect(bx - w / 2, sy - 6, w, 7); screen.stroke()
           screen.pixel(sx, sy + 1); screen.pixel(sx, sy + 2); screen.fill()
           -- text
           screen.level(math.max(2, 15 - math.floor(age / 8)))
-          screen.move(sx, sy - 1); screen.text_center(b.line)
+          screen.move(bx, sy - 1); screen.text_center(line)
         end
       end
     end
@@ -30012,7 +30059,7 @@ local function draw_title()
   end
   -- Flash (e.g. "no save found")
   if TITLE.flash_ticks > 0 then
-    TITLE.flash_ticks = TITLE.flash_ticks - 1
+    -- (countdown happens on the main clock tick; draw only reads it)
     screen.level(0); screen.rect(28, 53, 72, 9); screen.fill()
     screen.level(15); screen.move(64, 60); screen.text_center(scrub_text(TITLE.flash_text or ""))
   end
@@ -30573,7 +30620,7 @@ local function draw_jam()
   else
     screen.move(126, 51); screen.text_right("UD scale LR root")
   end
-  screen.move(126, 57); screen.text_right("L1/R1 voice  A mode")
+  screen.move(126, 57); screen.text_right("L1/R1 voice  X mode  A latch")
   screen.move(126, 63); screen.text_right("B/SELECT exit")
   screen.font_face(1); screen.font_size(8)
 end
@@ -31155,9 +31202,9 @@ function items_use_selected()
   if (inv[id] or 0) <= 0 then
     CONTENT.items_flash = "(none left)"
     CONTENT.items_flash_ticks = 30
-    -- Soft refusal blip
+    -- Soft refusal blip — via sq_trig so octave shift + MIDI-out apply
     if engine.trig_warrior then
-      engine.trig_warrior(midi_to_freq(36), 0.30, 0.005, 0.10, 0.05)
+      sq_trig("warrior", midi_to_freq(36), 0.30, 0.005, 0.10, 0.05)
     end
     return
   end
