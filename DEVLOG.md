@@ -2240,3 +2240,19 @@ storefront-wall tiles (new tile 93: timber, eaves, deterministic lit
 windows), so the village/eastern/northern inns and shops read as real
 multi-tile buildings consistent with the house facades. Sela stepped
 one tile off the eastern shop's new flank.
+
+## 2026-07-03 — wave 5: Beck freed, region warps hardened, echo crystals
+
+- Tile 60 (wood dock) was never in is_walkable: Beck — his Tide
+  Cavern hint, the warrior job offer, the dock-gull ambient — was
+  unreachable since the Sunward Coast shipped. One token: or t == 60.
+- Region-warp trio hardened: outer_return persisted in saves and the
+  cave-3-from-Sunward / cave-4-from-Phrygian entries now stash it
+  like houses do; any interior pop restores it.
+- Chests/campfire sitting on impassable sand/tree tiles relocated
+  (north snow chest, northern campfire + scene key, woods chest).
+- Sunward market-cry ambient moved off an impassable stall tile.
+- Tavern bar gained a service gap: Hask reachable in 4 steps.
+- Cave 1 finally has its theme: echo crystals (new tile 94, shimmer
+  + slow glint) at four chamber positions. (Cave 5 ice / cave 6 crypt
+  deserve the same treatment in a later pass.)

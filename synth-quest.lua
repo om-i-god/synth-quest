@@ -2937,10 +2937,10 @@ CONTENT = {
   barks = {},
   chests = {
     {id = "ch_village_w",  map = 1, x = 30, y = 12, loot = {g = 30, item = "salve"}},
-    {id = "ch_woods_n",    map = 1, x = 47, y = 4,  loot = {g = 60, item = "vial"}},
+    {id = "ch_woods_n",    map = 1, x = 46, y = 4,  loot = {g = 60, item = "vial"}},  -- (47,4) was a tree; moved one west onto grass
     {id = "ch_coast_e",    map = 1, x = 60, y = 5,  loot = {g = 80}, locked = true},
     {id = "ch_east_dune",  map = 2, x = 26, y = 11, loot = {g = 120, item = "star"}},
-    {id = "ch_north_snow", map = 3, x = 22, y = 11, loot = {g = 150, item = "salve"}},
+    {id = "ch_north_snow", map = 3, x = 24, y = 11, loot = {g = 150, item = "salve"}},  -- (22,11) was impassable sand; moved to nearest grass east
     -- Pass 19: a deep-cave locked stash (Cave 1 interior at 10,8).
     {id = "ch_cave1_deep", map = 7, x = 10, y = 8,  loot = {g = 200, item = "tonic", instrument = "moog"}, locked = true},
     -- Pass 24: side-dungeon big-payoff chest in The Hollow (map 12).
@@ -2988,7 +2988,7 @@ CONTENT = {
     {map = 1, x = 16, y = 4},     -- Village clearing above Lyrik (Alder's prologue fire)
     {map = 1, x = 38, y = 9},     -- Hollow Woods
     {map = 1, x = 53, y = 8},     -- Sunward Coast
-    {map = 3, x = 10, y = 9},     -- Northern Wilds
+    {map = 3, x = 10, y = 8},     -- Northern Wilds ((10,9) was impassable sand; moved one north onto grass)
   },
   -- Return position used when exiting an interior (door tile 17).
   -- Set when entering an interior; consumed when exiting.
@@ -3356,7 +3356,7 @@ CONTENT = {
       map = {
         {4,4,4,4,41,4,4,4,4,4},        -- hanging sign over the bar
         {4,31,31,0,0,0,0,31,31,4},     -- bottle shelves behind the bar
-        {4,22,22,22,33,22,0,0,35,4},   -- long bar + brass till
+        {4,22,22,22,0,33,0,0,35,4},    -- long bar + brass till; service gap at col 5 so the player can step behind the bar to Hask in 4 steps from spawn (5,6)
         {4,0,0,0,0,0,0,0,0,4},
         {4,32,40,0,0,0,40,32,0,4},     -- two tables with chairs
         {4,24,0,0,0,0,0,0,35,4},
@@ -4747,22 +4747,26 @@ CONTENT = {
     { x = 10, y = 4, name = "Sheep2", kind = "pet", barks = {"(chews)", "baa?"}, dialogue = function() return {"(this one has opinions about your walking speed)", "(baa. baa.)"} end },
   },
   -- Cave 1 interior (map id 7). Tiles: 4=wall, 0=cave floor (walkable),
-  -- 17=exit door, 27=boss arena marker. Random encounters roll on step.
+  -- 17=exit door, 27=boss arena marker, 94=echo_crystal (impassable,
+  -- animated). Random encounters roll on step.
   -- 16x14: switchback corridors broken into stair-stepped chambers.
   -- Boss in upper-mid; player must serpentine up through three gap tiers.
+  -- Echo crystals (94) at (5,3), (12,6), (6,9), (13,12): one per tier,
+  -- placed clear of the wall gaps, Hollin (2,8), the chest (10,8), the
+  -- Voice (9,3), and the exit (7-8,14).
   cave1_map = {
     {4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4},
     {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4},
-    {4,0,0,0,0,0,0,0,27,0,0,0,0,0,0,4},
+    {4,0,0,0,94,0,0,0,27,0,0,0,0,0,0,4},
     {4,0,4,4,4,4,0,4,4,4,4,4,4,0,0,4},
     {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4},
-    {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4},
+    {4,0,0,0,0,0,0,0,0,0,0,94,0,0,0,4},
     {4,0,0,4,4,4,4,4,4,0,4,4,4,4,0,4},
     {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4},
-    {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4},
+    {4,0,0,0,0,94,0,0,0,0,0,0,0,0,0,4},
     {4,0,4,0,4,4,4,4,4,4,4,4,4,0,0,4},
     {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4},
-    {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4},
+    {4,0,0,0,0,0,0,0,0,0,0,0,94,0,0,4},
     {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4},
     {4,4,4,4,4,4,17,17,4,4,4,4,4,4,4,4},
   },
@@ -6397,6 +6401,7 @@ local cutscene_idx = 1
 -- Terraced storefronts
 -- 93 = storefront_wall    (impassable; timber flank walls extending inn (13)
 --                          and shop (12) entrances into 3-wide facades)
+-- 94 = echo_crystal       (impassable; Cave 1 angular crystal, animated shimmer)
 -- Map data is per-continent; active map swaps via travel_to().
 -- MAINLAND (64x16): cols 1-32 = Village; 33-48 = Hollow Woods; 49-64 = Sunward Coast.
 -- Mountain pass (id 15) at row 1 col 13 → Northern Wilds (current_map_id 3).
@@ -6421,7 +6426,7 @@ local MAINLAND = {
 }
 
 -- second continent: Eastern Reaches (32×16 desert/exotic)
--- boat lands at (1,7); cave4 at (25,7); NPC Mira at (14,7)
+-- boat tile 10 at (1,8), arrival spawn (2,8); cave4 at (25,7); NPC Mira at (14,7)
 -- row 9: inn (3,9) + shop (5,9) terraced with storefront walls (93) at cols 2,4,6
 local EASTERN_REACHES = {
   {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},
@@ -6649,8 +6654,8 @@ CAMPFIRE_SCENES = {
       "[Miel]    My nation never had a coast. I am told you can hear what isn't there in it.",
     }},
   },
-  -- Northern Wilds fire (map 3, 10, 9).
-  ["3:10:9"] = {
+  -- Northern Wilds fire (map 3, 10, 8).
+  ["3:10:8"] = {
     {requires = {"cleric", "warrior"}, lines = {
       "(Snow falls onto the fire and hisses out.)",
       "[Miel]    My grandmother walked these passes.",
@@ -9176,7 +9181,7 @@ function ambient_sunward_dock_gull()
   }
 end
 
--- Market cry: a brief overheard vendor shout. Dispatch tile (12, 5).
+-- Market cry: a brief overheard vendor shout. Dispatch tile (13, 5).
 function ambient_sunward_market_cry()
   return {
     {dialogue = {"\"FRESH MORNING CATCH — FRESH MORNING —\""}, npc = nil},
@@ -14090,6 +14095,7 @@ local function is_walkable(tx, ty)
       or t == 52   -- Velthe's Observatory door (Northern Wilds → map 24)
       or t == 56   -- Far Hills cave-mouth (mainland → map 26)
       or t == 58   -- Castle interior door (throne hall ↔ hallway ↔ rooms)
+      or t == 60   -- wood_dock (walkable; planks over water)
       or t == 65   -- Sunward Coast signpost (MAINLAND east coast ↔ Sunward Coast Town)
       or t == 68   -- Phrygian Night City prayer alcove (walkable; archway interior)
       or t == 69   -- Phrygian Night City desert sand path (walkable; lighter sand)
@@ -14398,6 +14404,9 @@ save_game = function()
   data.return_map            = CONTENT.return_map
   data.return_x              = CONTENT.return_x
   data.return_y              = CONTENT.return_y
+  -- Stashed outer return trio (set when an interior is entered while a
+  -- region-warp return is pending) — persists alongside return_map.
+  data.outer_return          = CONTENT.outer_return
   -- House-interior registry key (map 38 is shared by every home; the
   -- key is what tells load_game WHICH home the player saved inside).
   data.house_key             = CONTENT.house_key
@@ -14669,6 +14678,7 @@ local function load_game()
   if data.return_map            ~= nil then CONTENT.return_map            = data.return_map end
   if data.return_x              ~= nil then CONTENT.return_x              = data.return_x end
   if data.return_y              ~= nil then CONTENT.return_y              = data.return_y end
+  if data.outer_return          ~= nil then CONTENT.outer_return          = data.outer_return end
   if data.house_key             ~= nil then CONTENT.house_key             = data.house_key end
   if data.fire_seen             ~= nil then CONTENT.fire_seen             = data.fire_seen end
   if data.cave_entered then
@@ -15657,6 +15667,14 @@ local function try_move(dx, dy)
   end
   if t == 9 then
     -- Cave 3 entry: enter the explorable interior.
+    -- From Sunward Coast (35) the return trio holds the signpost warp
+    -- back to MAINLAND — stash it (same pattern as the house handler)
+    -- so the cave exit doesn't consume it.
+    if current_map_id == 35 and CONTENT.return_map and CONTENT.return_map ~= 38 then
+      CONTENT.outer_return = {m = CONTENT.return_map,
+                              x = CONTENT.return_x,
+                              y = CONTENT.return_y}
+    end
     CONTENT.return_map = current_map_id
     CONTENT.return_x = nx; CONTENT.return_y = ny + 1
     travel_to(9, 7, 12)
@@ -15713,6 +15731,14 @@ local function try_move(dx, dy)
     -- This handles both EASTERN_REACHES (map 2) direct entry and
     -- Phrygian Night City (map 36) north gate; return_map is set to
     -- current_map_id so the Cave 4 exit restores the correct overworld.
+    -- From Phrygian Night City (36) the return trio holds the waypost
+    -- warp back to EASTERN_REACHES — stash it (same pattern as the
+    -- house handler) so the cave exit doesn't consume it.
+    if current_map_id == 36 and CONTENT.return_map and CONTENT.return_map ~= 38 then
+      CONTENT.outer_return = {m = CONTENT.return_map,
+                              x = CONTENT.return_x,
+                              y = CONTENT.return_y}
+    end
     CONTENT.return_map = current_map_id
     CONTENT.return_x = nx; CONTENT.return_y = ny + 1
     travel_to(10, 7, 12)
@@ -16219,16 +16245,16 @@ local function try_move(dx, dy)
     -- Inn-rest (leaving map 5) is the canonical "campfire moment" that
     -- surfaces an unseen party-banter scene; shop / cave exits should not.
     local was_inn = (current_map_id == 5 or current_map_id == 17 or current_map_id == 18)
-    local was_house = (current_map_id == 38)
     local rm = CONTENT.return_map or 1
     local rx = CONTENT.return_x or 4
     local ry = CONTENT.return_y or 8
     CONTENT.return_map = nil
     CONTENT.return_x = nil; CONTENT.return_y = nil
-    -- Leaving a house: restore the OUTER warp (e.g. Sunward->mainland
-    -- signpost) that the house entry stashed, so region exits still
-    -- return the player to their original overworld position.
-    if was_house and CONTENT.outer_return then
+    -- Leaving any interior (house, cave, shop...): restore the OUTER
+    -- warp (e.g. Sunward->mainland signpost) that the interior entry
+    -- stashed, so region exits still return the player to their
+    -- original overworld position.
+    if CONTENT.outer_return then
       CONTENT.return_map = CONTENT.outer_return.m
       CONTENT.return_x   = CONTENT.outer_return.x
       CONTENT.return_y   = CONTENT.outer_return.y
@@ -16447,7 +16473,7 @@ local function try_move(dx, dy)
           sc = ambient_sunward_bandstand_practice and ambient_sunward_bandstand_practice()
         elseif nx == 9 and ny == 11 then
           sc = ambient_sunward_dock_gull and ambient_sunward_dock_gull()
-        elseif nx == 12 and ny == 5 then
+        elseif nx == 13 and ny == 5 then
           sc = ambient_sunward_market_cry and ambient_sunward_market_cry()
         elseif nx == 31 and ny == 7 then
           sc = ambient_sunward_cliff_reeds and ambient_sunward_cliff_reeds()
@@ -22076,6 +22102,18 @@ TILE_DRAW[93] = function(px, py)
   end
 end
 
+TILE_DRAW[94] = function(px, py, t)
+  -- echo_crystal: an angular crystal that answers footsteps. Slow
+  -- shimmer phase; a brighter glint every few seconds.
+  screen.level(5);  screen.move(px + 4, py + 1); screen.line(px + 7, py + 5)
+  screen.line(px + 4, py + 8); screen.line(px + 1, py + 5); screen.close(); screen.fill()
+  screen.level(9);  screen.move(px + 4, py + 2); screen.line(px + 6, py + 5)
+  screen.line(px + 4, py + 7); screen.stroke()
+  if ((t or 0) % 90) < 8 then
+    screen.level(14); screen.pixel(px + 4, py + 4); screen.fill()
+  end
+end
+
 local SPRITE_BY_CLASS
 do
 
@@ -25651,7 +25689,7 @@ local function draw_overworld()
         TILE_DRAW.cavefloor(sx, sy, tx + ty * MAP_W)
       else
         local fn = TILE_DRAW[t] or TILE_DRAW[0]
-        if t == 3 or t == 6 or t == 7 or t == 9 or t == 11 or t == 14 or t == 16 or t == 18 or t == 19 or t == 20 or t == 24 or t == 27 or t == 30 or t == 32 or t == 36 or t == 38 or t == 39 or t == 41 or t == 43 or t == 52 or t == 53 or t == 54 or t == 55 or t == 56 or t == 57 or t == 58 or t == 62 or t == 67 or t == 70 or t == 73 or t == 84 then fn(sx, sy, tick)
+        if t == 3 or t == 6 or t == 7 or t == 9 or t == 11 or t == 14 or t == 16 or t == 18 or t == 19 or t == 20 or t == 24 or t == 27 or t == 30 or t == 32 or t == 36 or t == 38 or t == 39 or t == 41 or t == 43 or t == 52 or t == 53 or t == 54 or t == 55 or t == 56 or t == 57 or t == 58 or t == 62 or t == 67 or t == 70 or t == 73 or t == 84 or t == 94 then fn(sx, sy, tick)
         elseif t == 0 or t == 8 then fn(sx, sy, tx + ty * MAP_W)
         else fn(sx, sy)
         end
