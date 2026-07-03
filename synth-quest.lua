@@ -1042,7 +1042,7 @@ SHARD_REACT_BY_NPC = {
     phrygian   = "[Elder] The Dune Rider rides no more. The east breathes easier.",
     aeolian    = "[Elder] Five reclaimed. The fountain found its key tonight.",
     locrian    = "[Elder] The crypt is silent. You have done what no Sage could.",
-    ionian     = "[Elder] The bright finish. Suno waits in his domain. Go.",
+    ionian     = "[Elder] The bright finish. The domain stands empty, and the fountain sings.",
   },
   Sergei = {
     lydian     = "[Sergei] One shard. The math is just starting to make sense.",
@@ -1051,7 +1051,7 @@ SHARD_REACT_BY_NPC = {
     phrygian   = "[Sergei] Desert resonance. Different timbre. Same coil under it.",
     aeolian    = "[Sergei] Cold-bend in the wave. North chord's shorter than I'd modeled.",
     locrian    = "[Sergei] Half-step. He hates that interval -- that's why he buried it.",
-    ionian     = "[Sergei] All seven on the wire. We can ring his silencers down. Tonight.",
+    ionian     = "[Sergei] Seven. The resonator hums in tune for the first time since I built it.",
   },
   Pip = {
     lydian     = "[Pip] You found one! Mama said a hum came through the floor at dawn.",
@@ -1069,7 +1069,7 @@ SHARD_REACT_BY_NPC = {
     phrygian   = "[Wina] (sand drifts onto the lake's edge) The desert came visiting in dream.",
     aeolian    = "[Wina] (mist gathers) North's note. Breath alone won't carry it. Voice will.",
     locrian    = "[Wina] (water pulls back from her feet) The half-step. The lake is afraid.",
-    ionian     = "[Wina] (the lake stills, glass-perfect) Sing it for him. He's earned it.",
+    ionian     = "[Wina] The lake gave back its echo this morning. It has not done that in years.",
   },
   Brann = {
     lydian     = "[Brann] (taps the shard with a hammer-tap) Rings true. First always does.",
@@ -1114,7 +1114,7 @@ SHARD_REACT_BY_NPC = {
     phrygian   = "[Marek] You took the Rider on his own ground. (Tessen kek-keks.) She approves.",
     aeolian    = "[Marek] Cold-shard. The North traders bring different songs now.",
     locrian    = "[Marek] (quiet) Six. Even Tessen sat still all morning.",
-    ionian     = "[Marek] (rises) All seven. Caravan's first stop tomorrow is Suno's gate. With you.",
+    ionian     = "[Marek] Caravans are singing on the road again. All seven notes. Bad for gossip, good for business.",
   },
   Skari = {
     lydian     = "[Skari] One. (...Vix opens an eye.) The pelts smell less of cold dust.",
@@ -1132,7 +1132,7 @@ SHARD_REACT_BY_NPC = {
     phrygian   = "[Iska] (sets down the cloak) The Dune Rider's hooves don't echo here anymore.",
     aeolian    = "[Iska] Five. Even the desert hears the cold music now.",
     locrian    = "[Iska] Six. The crypt's silence carried south. Stranger weather.",
-    ionian     = "[Iska] All seven. End it. The dunes will be quieter for the telling.",
+    ionian     = "[Iska] It is ended. The dunes hum it back at night now.",
   },
   Wenna = {
     lydian     = "[Wenna] (humming) One bright note in the cold.",
@@ -1141,15 +1141,15 @@ SHARD_REACT_BY_NPC = {
     phrygian   = "[Wenna] Phrygian. Strange -- the desert and the North share a key.",
     aeolian    = "[Wenna] (sings half a phrase) Aeolian. The Snowgaunt's waltz can't tolerate other meters. You drowned his time with yours.",
     locrian    = "[Wenna] Six shards. The world's almost right. I can sing whole verses now.",
-    ionian     = "[Wenna] (laughs softly) All seven. End this. Then I'll teach you the harmony.",
+    ionian     = "[Wenna] It is done. The north water sings both parts again.",
   },
   Tova = {
-    lydian     = "[Tova] The first hum. Lyssa at the inn says you spoke right.",
+    lydian     = "[Tova] The first hum. Pell at the inn says you spoke right.",
     dorian     = "[Tova] Two. The four sages will know within the week.",
     mixolydian = "[Tova] Tidewatch's silence reached us before you did. Aurin sent word.",
     phrygian   = "[Tova] Four. Veris was right; you would surprise us all.",
-    aeolian    = "[Tova] Five. Mira saw the storm break around the Snowgaunt's tower.",
-    locrian    = "[Tova] Six. Iolen lit the crypt's lamp. The dark stayed dark, but quieter.",
+    aeolian    = "[Tova] Five. Iolen saw the storm break around the Snowgaunt's tower.",
+    locrian    = "[Tova] Six. Word came up from the crypt road: the lamp is lit again. The dark stayed dark, but quieter.",
     ionian     = "[Tova] Seven. (...sits down.) The Sage-circle's work is done. Yours begins.",
   },
   Hens = {
@@ -1162,11 +1162,11 @@ SHARD_REACT_BY_NPC = {
     ionian     = "[Hens] All seven? Last round of items free. Don't tell the elder. (winks)",
   },
   Mira = {
-    lydian     = "[Mira] First shard. The reedbed bent to it. I'd never seen wind do that.",
-    dorian     = "[Mira] Two. The lake birds sang the same line twice in a row. Twice.",
-    mixolydian = "[Mira] Tidewatch's chord broke. The herring jumped at sunrise.",
-    phrygian   = "[Mira] Four reclaimed. The dunes stilled -- I felt it through the river ice.",
-    aeolian    = "[Mira] Cold-shard. The Snowgaunt's waltz used to bend the river. Not anymore.",
+    lydian     = "[Mira] First shard. The dune grass bent to it. I'd never seen wind do that.",
+    dorian     = "[Mira] Two. The sand larks sang the same line twice in a row. Twice.",
+    mixolydian = "[Mira] Tidewatch's chord broke. The salt caravans sang in at sunrise.",
+    phrygian   = "[Mira] Four reclaimed. The dunes stilled -- I felt it through the night frost.",
+    aeolian    = "[Mira] Cold-shard. The Snowgaunt's waltz used to bend the dunes. Not anymore.",
     locrian    = "[Mira] Six. The crypt let the half-step go. The earth stopped humming.",
     ionian     = "[Mira] Seven. Everything sings. Everything will keep singing.",
   },
@@ -1177,7 +1177,7 @@ SHARD_REACT_BY_NPC = {
     phrygian   = "[Iolen] Four. Phrygian is the brave one. The dust loved it.",
     aeolian    = "[Iolen] Five. Aeolian is the cold candle. It steadies the other flames.",
     locrian    = "[Iolen] (turns the lamp up) Six. The dark backs farther out of the room.",
-    ionian     = "[Iolen] (lamp blooms bright) Seven. The lamp burns clean. Go end this.",
+    ionian     = "[Iolen] The watch is over. I might finally sleep.",
   },
 }
 
@@ -3138,6 +3138,10 @@ CONTENT = {
     -- Master Theron — Academy headmaster (new character)
     {
       x = 5, y = 2, name = "Theron", kind = "npc",
+      -- Hide during scripted scenes: choir/intro/epilogue stage actors
+      -- in the lecture hall and he otherwise stands frozen in frame
+      -- (choir-Diegues at (5,2) would stack directly on him).
+      visible = function() return not (SCENE and SCENE.active) end,
       dialogue = function()
         local lead = party[active] and party[active].class
         if lead == "mage" then
@@ -3173,6 +3177,9 @@ CONTENT = {
     -- Aurin — junior scholar (from bible stub)
     {
       x = 14, y = 7, name = "Aurin", kind = "npc",
+      -- Hide during scripted scenes (she stands two tiles from the
+      -- astrolabe — a frozen bystander in the ECHO recruitment beat).
+      visible = function() return not (SCENE and SCENE.active) end,
       dialogue = function()
         local lead = party[active] and party[active].class
         if lead == "bard" then
@@ -4561,7 +4568,7 @@ local STORY = {
            and class_in_party("warrior") and class_in_party("mage")
       end,
       lines = {
-        "[Miel]    Slept on the road three years.",
+        "[Miel]    Slept on the road since Lirael fell.",
         "[Miel]    First mattress in months. I'd forgotten.",
         "[Strom]   I sleep light. The walls help, though.",
         "[Diegues] The old texts say the Crystal once",
@@ -4827,11 +4834,11 @@ local STORY = {
       id = "after_iret",
       trig = function()
         local n = 0; for _, v in pairs(shards) do if v then n = n + 1 end end
-        return n >= 1
+        return n >= 1 and flag.iret_met
       end,
       lines = {
         "[Miel]   The pale-coat in the plaza -- she greeted me by my old title.",
-        "[Miel]   I haven't been called Queen in two years. She knew. She wanted me to know she knew.",
+        "[Miel]   I haven't been called Queen since the coup. She knew. She wanted me to know she knew.",
         "[Strom]  Iret. Suno's diplomat.",
         "[Strom]  She came to my barracks once. Captain laughed her out the door. Two months later there were no barracks.",
         "[Diegues] So she's an opening move.",
@@ -4844,7 +4851,7 @@ local STORY = {
       id = "after_vance",
       trig = function()
         local n = 0; for _, v in pairs(shards) do if v then n = n + 1 end end
-        return n >= 2
+        return n >= 2 and flag.vance_met
       end,
       lines = {
         "[Strom]  Vance was at my captain's door.",
@@ -4862,7 +4869,7 @@ local STORY = {
       id = "alder_tess_history",
       trig = function()
         local n = 0; for _, v in pairs(shards) do if v then n = n + 1 end end
-        return n >= 3
+        return n >= 3 and flag.tess_met
       end,
       lines = {
         "[Alder]  Tess. She was our second voice.",
@@ -5146,7 +5153,7 @@ local STORY = {
       trig = function()
         if not STORY.seen.after_vance then return false end
         local n = 0; for _, v in pairs(shards) do if v then n = n + 1 end end
-        return n >= 4
+        return n >= 4 and flag.vance_met
       end,
       lines = {
         "[Strom]   Vance was waiting again. Knew our route.",
@@ -5224,8 +5231,8 @@ local STORY = {
       id = "enter_cave3",
       trig = function() return CONTENT and CONTENT.cave_entered and CONTENT.cave_entered[3] end,
       lines = {
-        "[Miel]    The Tidewater Grotto. Anwell warned us.",
-        "[Miel]    Don't trust the still pools.",
+        "[Miel]    The Tidewater Grotto.",
+        "[Miel]    The fishers warned us: don't trust the still pools.",
         "[Diegues] The Tidewatch keeps a face in each.",
         "[Strom]   (he tilts his lantern to the water.)",
         "[Strom]   ...mine looks angrier than I feel.",
@@ -5239,7 +5246,7 @@ local STORY = {
       lines = {
         "[Diegues] Dune Hall. Sand carries every footfall.",
         "[Diegues] He'll hear us before we see him.",
-        "[Miel]    Iska said: cut on the rest beat. Six-beats out, two back.",
+        "[Miel]    The dune-folk's rule: cut on the rest beat. Six out, two back.",
         "[Strom]   Six-and-two. We can keep that meter.",
         "[Alder]   I'll count us in. (he hums a quiet count.)",
       },
@@ -5252,7 +5259,7 @@ local STORY = {
         "[Strom]   Don't let the cold pull your tempo.",
         "[Strom]   He waltzes in three. We don't.",
         "[Alder]   I'll hold us in four. Solid four.",
-        "[Diegues] Wenna said: drown his time with ours.",
+        "[Diegues] The north singers' rule: drown his time with ours.",
         "[Miel]    Then let's drown it.",
       },
     },
@@ -5467,9 +5474,11 @@ local STORY = {
       id = "all_seven_assembled",
       trig = function()
         if not CHARACTERS then return false end
+        -- 'seven' reads wrong once ECHO makes eight
         return CHARACTERS.mage and CHARACTERS.cleric and CHARACTERS.warrior
            and CHARACTERS.bard and CHARACTERS.engineer and CHARACTERS.mathwiz
            and CHARACTERS.drummer
+           and not (CONTENT.recruits and CONTENT.recruits[4] and CONTENT.recruits[4].joined)
       end,
       lines = {
         "(The inn's common room. Seven travelers, two tables pulled together.)",
@@ -5568,7 +5577,7 @@ local STORY = {
       end,
       lines = {
         "(The bed is small. The blanket is rough. Miel touches it like it's a museum piece.)",
-        "[Miel]   (...) it's been a year and a month and seventeen days since I slept indoors.",
+        "[Miel]   (...) it's been a month and seventeen days since I slept indoors.",
         "[Miel]   I started counting on day eight. Force of habit.",
         "(She does not undress. She lies down in her cloak. The candle on the bedside table is small. She watches it.)",
         "[Miel]   (very softly) ...goodnight, Lirael. ...goodnight, grandmother.",
@@ -6375,7 +6384,7 @@ BOSS_APPROACH = {
   [3] = {  -- Cave 3: Tide
     "(The seawater laps higher than the deepest tide should allow.)",
     "(Faces appear in the surface. Then disappear. Then appear again, closer.)",
-    "[Aurin] (your memory of her voice) The Tidewatch chord answers prayers and traps both.",
+    "[Miel]    (remembering Aurin's warning) The Tidewatch chord answers prayers and traps both.",
     "(One of the faces in the water is yours. It does not look frightened.)",
     "(Tidewatch rises out of the pool. The chord pulls tight.)",
   },
@@ -6556,7 +6565,7 @@ function start_courtyard_breach_script()
     -- Actor coords can be outside the tile grid; the scene draw clips
     -- them until they walk into view. They emerge through the gate
     -- tiles at row 12. Columns picked to weave BETWEEN the guards
-    -- (guards STEP to cols 4/6/9/11 from spawns 3/5/9/11) so the lines
+    -- (gA/gB step to cols 4/6; gC/gD hold at 9/11) so the lines
     -- don't overlap at the clash.
     {spawn = "s1", class = "warrior", name = "Silencer1", x = 5, y = 13, facing = "up", bob = false, offmap = true},
     {spawn = "s2", class = "warrior", name = "Silencer2", x = 7, y = 13, facing = "up", bob = false, offmap = true},
@@ -6769,12 +6778,14 @@ function start_echo_recruit_scene()
     -- at the map-entry point (px,py) — entering from the south corridor
     -- (14,12) put the entire party below the visible window for the
     -- whole scene.
-    {spawn = "miel",    class = "cleric",  name = "Miel",    x = 11, y = 7, facing = "right", bob = false},
-    {spawn = "alder",   class = "bard",    name = "Alder",   x = 10, y = 7, facing = "right", bob = false},
-    {spawn = "diegues", class = "mage",    name = "Diegues", x = 9,  y = 7, facing = "right", bob = false},
+    -- (Open row-7 courtyard is cols 10-18: col 9 is the sealed
+    -- building's east wall — a prior staging put Strom INSIDE it.)
+    {spawn = "miel",    class = "cleric",  name = "Miel",    x = 12, y = 7, facing = "right", bob = false},
+    {spawn = "alder",   class = "bard",    name = "Alder",   x = 11, y = 7, facing = "right", bob = false},
+    {spawn = "diegues", class = "mage",    name = "Diegues", x = 10, y = 7, facing = "right", bob = false},
     -- Strom has no lines here, but the whole core four stand together
     -- for a major story beat (he was visually missing).
-    {spawn = "strom",   class = "warrior", name = "Strom",   x = 8,  y = 7, facing = "right", bob = false},
+    {spawn = "strom",   class = "warrior", name = "Strom",   x = 11, y = 8, facing = "up", bob = false},
     {spawn = "echo",    class = "wraith",  name = "ECHO",    x = ax,     y = ay, facing = "left",  bob = false},
     {wait = 12},
     -- ECHO's outline shudders — shown as an actual flicker (despawn/
@@ -6815,7 +6826,7 @@ function start_echo_recruit_scene()
     -- Miel steps toward her and offers her hand — a real step, not a
     -- caption. (One tile toward the astrolabe from her staged spot.)
     {look = "miel", toward = "echo"},
-    {move = "miel", to = {x = 12, y = 7}, ticks = 20},
+    {move = "miel", to = {x = 13, y = 7}, ticks = 20},
     {wait = 8},
     {dialogue = {
       "[Miel]    We will not let the silence have you.",
@@ -6998,8 +7009,8 @@ function start_prologue_throne_scene()
     -- "they came in through the front" instead of materialising in the
     -- middle of the room. Actor coords can be off-map for the spawn —
     -- only the walked-to destinations need to be on real tiles.
-    {spawn = "suno",  class = "warrior", name = "Suno",      x = 8, y = 10, facing = "up", bob = false, offmap = true},
-    {spawn = "sil_l", class = "warrior", name = "Silencer1", x = 7, y = 10, facing = "up", bob = false, offmap = true},
+    {spawn = "suno",  class = "warrior", name = "Suno",      x = 8, y = 10, facing = "up", bob = false},
+    {spawn = "sil_l", class = "warrior", name = "Silencer1", x = 7, y = 10, facing = "up", bob = false},
     {spawn = "sil_r", class = "warrior", name = "Silencer2", x = 8, y = 11, facing = "up", bob = false, offmap = true},
     {wait = 6},
     -- Step 1: through the doors. Suno + Sil_l onto the two door tiles
@@ -7770,7 +7781,7 @@ function start_diegues_study_scene()
       "[Diegues]  someone tried. Someone was wrong. They tried anyway.",
     }, npc = {name = "Diegues"}},
     {wait = 12},
-    -- Miel walks down to him.
+    -- Miel crosses the hall to him.
     {move = "miel", to = {x = 8, y = 3}, ticks = 32},
     {look = "miel", toward = "diegues"},
     {wait = 8},
@@ -8479,6 +8490,9 @@ function start_academy_iolas_letter_scene()
     {sfx = {class = "cleric", note = 52, vel = 0.5, attack = 1.0, release = 3.0, wet = 0.85}},
     {dialogue = {"— Velthe.\""}, npc = nil},
     {wait = 12},
+    -- Camera comes back to Iola for her goodbye (and so control
+    -- doesn't return with the camera parked on the library).
+    {focus = {x = 20, y = 2}, ticks = 20},
     {dialogue = {"Iola:", "Go when you're ready. She left the stair",
                  "in the Observatory unlocked for you."}, npc = {name = "Iola"}},
     {letterbox_out = true},
@@ -8651,7 +8665,7 @@ function start_phrygian_strom_confronted_scene()
     {focus = {x = 22, y = 5}, ticks = 18},
     {wait = 8},
     {dialogue = {
-      "[Aram]   You were my second.",
+      "[Aram]   I was your second.",
       "[Aram]   (his hand goes to where his blade used to be)",
       "[Aram]   You ran.",
     }, npc = {name = "Aram"}},
@@ -9302,9 +9316,9 @@ function start_boss_approach_scene(cv)
         "(Then appear again, closer.)",
       }, npc = nil},
       {dialogue = {
-        "[Aurin]   (your memory of her voice)",
-        "[Aurin]   The Tidewatch chord answers prayers and traps both.",
-      }, npc = {name = "Aurin"}},
+        "[Miel]    (remembering the sage's warning)",
+        "[Miel]    The Tidewatch chord answers prayers and traps both.",
+      }, npc = {name = "Miel"}},
       {dialogue = {
         "(One of the faces in the water is yours.)",
         "(It does not look frightened.)",
@@ -11050,6 +11064,7 @@ local MAINLAND_NPCS = {
       return n >= 1
     end,
     dialogue = function()
+      flag.iret_met = true
       local n = 0; for _, v in pairs(shards) do if v then n = n + 1 end end
       local lead = party[active] and party[active].class
       if shards.locrian then
@@ -11100,6 +11115,7 @@ local MAINLAND_NPCS = {
       return n >= 2
     end,
     dialogue = function()
+      flag.vance_met = true
       local n = 0; for _, v in pairs(shards) do if v then n = n + 1 end end
       local lead = party[active] and party[active].class
       if shards.locrian then
@@ -11140,6 +11156,7 @@ local MAINLAND_NPCS = {
       return n >= 3
     end,
     dialogue = function()
+      flag.tess_met = true
       local n = 0; for _, v in pairs(shards) do if v then n = n + 1 end end
       local lead = party[active] and party[active].class
       if shards.locrian and not CONTENT.tess_defected then
@@ -11844,7 +11861,7 @@ local NORTHERN_NPCS = {
         {wait = 14},
         {dialogue = {
           "(A pinprick of warm light moves through the snow.)",
-          "(A man with a candle. He has been out here longer than the candle should have lasted.)",
+          "(A woman with a candle. She has been out here longer than the candle should have lasted.)",
         }, npc = nil},
         {spawn = "miel", class = "cleric", name = "Miel", x = px, y = py, facing = "down", bob = false},
         {spawn = "iolen", class = "warrior", name = "Iolen",
@@ -11856,7 +11873,7 @@ local NORTHERN_NPCS = {
         {wait = 8},
         {dialogue = {
           "[Iolen]   Iolen, last of the highland watch.",
-          "[Iolen]   (he raises a small candle to your faces, examining each)",
+          "[Iolen]   (she raises a small candle to your faces, examining each)",
         }, npc = {name = "Iolen"}},
         {wait = 10},
         {dialogue = {
@@ -11935,6 +11952,13 @@ local SUNOS_NPCS = {
   { x = 21, y = 4, name = "Calder",
     dialogue = function()
       local lead = party[active] and party[active].class
+      if shards.ionian then
+        return with_shard_react("Calder", {
+          "[Calder]  (the soldier sets down his sword for the first time in years)",
+          "[Calder]  I will go home. I have one. I had forgotten.",
+          "[Calder]  My sister will not recognize me. (...) but she will let me in.",
+        })
+      end
       -- Calder served in the same northern campaigns as Strom; would
       -- recognise him.
       if lead == "warrior" then
@@ -11942,13 +11966,6 @@ local SUNOS_NPCS = {
           "[Calder]  Strom. Of all the gods' jokes -- you, here.",
           "[Calder]  We held the same line at Frostridge. (...) Reya was our captain.",
           "[Calder]  I owe you an evening of bad wine. After we finish this. (sets his sword down a moment)",
-        })
-      end
-      if shards.ionian then
-        return with_shard_react("Calder", {
-          "[Calder]  (the soldier sets down his sword for the first time in years)",
-          "[Calder]  I will go home. I have one. I had forgotten.",
-          "[Calder]  My sister will not recognize me. (...) but she will let me in.",
         })
       end
       if shards.locrian then
@@ -11970,20 +11987,20 @@ local SUNOS_NPCS = {
   { x = 12, y = 11, name = "Maren",
     dialogue = function()
       local lead = party[active] and party[active].class
-      if lead == "bard" then
-        return with_shard_react("Maren", {
-          "[Maren]   (her eyes find the lute on Alder's back; she touches her own throat)",
-          "[Maren]   Bard. He took my voice. He took the lute from my mother's hands.",
-          "[Maren]   We owe him no elegy.",
-          "[Maren]   Strike clean. Sing a true note. Mama sang in C. So can you.",
-        })
-      end
       if shards.ionian then
         return with_shard_react("Maren", {
           "[Maren]   It is over. I will not say I forgive him.",
           "[Maren]   But I will sing again. The first song shall be quiet.",
           "[Maren]   The second, less so. (...)",
           "[Maren]   By the seventh I will be loud. Loud and free and out of his shadow.",
+        })
+      end
+      if lead == "bard" then
+        return with_shard_react("Maren", {
+          "[Maren]   (her eyes find the lute on Alder's back; she touches her own throat)",
+          "[Maren]   Bard. He took my voice. He took the lute from my mother's hands.",
+          "[Maren]   We owe him no elegy.",
+          "[Maren]   Strike clean. Sing a true note. Mama sang in C. So can you.",
         })
       end
       return with_shard_react("Maren", {
@@ -13223,7 +13240,7 @@ CONTENT.sunward_coast_npcs = {
       elseif lead == "cleric" then
         return {
           "Princess. You won't remember me; I sang at",
-          "your mother's coronation. Bless this stand,",
+          "your grandmother's coronation. Bless this stand,",
           "if you would. It's all we have of him now.",
         }
       elseif lead == "warrior" then
@@ -13384,11 +13401,19 @@ CONTENT.sunward_coast_npcs = {
     dialogue = function()
       local lead = party[active] and party[active].class
       if lead == "warrior" then
+        if flag.iolen_stone_given then
+          return {
+            "[Iolen]  Tide's kept its promise today.",
+            "[Iolen]  Stone still warm? Good. It knows its work.",
+          }
+        end
+        flag.iolen_stone_given = true
+        SHOP.inv.star = (SHOP.inv.star or 0) + 1
         return {
           "(he stands straighter when he sees Strom)",
           "Sir. I keep the tide tally. Take this stone —",
           "it's smooth from a hundred high tides.",
-          "(adds Iolen's Tide Stone to party inventory)",
+          "(Iolen's Tide Stone added -- it settles in with the stars.)",
         }
       else
         return {
@@ -13419,7 +13444,7 @@ CONTENT.phrygian_city_npcs = {
         return {
           "(he steps out from behind the stall)",
           "(his hand goes to where his blade used to be)",
-          "...You were my second. You ran.",
+          "...I was your second. You ran.",
         }
       else
         return {
@@ -13436,9 +13461,9 @@ CONTENT.phrygian_city_npcs = {
       end
     end,
   },
-  -- Sergei — glass-cavern guide
+  -- Serik — glass-cavern guide
   {
-    x = 17, y = 4, name = "Sergei", kind = "npc",
+    x = 17, y = 4, name = "Serik", kind = "npc",
     dialogue = function()
       return {
         "Going to the Glass Cavern? Don't go alone.",
@@ -13453,6 +13478,13 @@ CONTENT.phrygian_city_npcs = {
     dialogue = function()
       local lead = party[active] and party[active].class
       if lead == "bard" then
+        if flag.mira_flat_second then
+          return {
+            "[Mira]    (hums the flat-second; you answer it)",
+            "[Mira]    Good. It stays with you.",
+          }
+        end
+        flag.mira_flat_second = true
         return {
           "(she hears you and stops mid-note)",
           "You shape your scale tempered. Try this.",
@@ -16165,27 +16197,37 @@ end
 start_dialogue = function(npc)
   if _dlg_start_tick == tick then return end
   _dlg_start_tick = tick
-  -- Tova's sidequest: track when player meets each regional sage
-  if npc and (npc.name == "Veris" or npc.name == "Aurin" or npc.name == "Mira" or npc.name == "Iolen") then
-    QUESTS.tova.spoke[npc.name] = true
-  end
-  -- An NPC may declare a `scene` (function returning a SCENE script). If
-  -- present, run it as a choreographed cutscene instead of the standard
-  -- text-only dialogue. The scene engine will route any dialogue steps
-  -- through DIALOGUE state internally.
+  -- An NPC may declare a `scene` (function returning a SCENE script).
+  -- Evaluate it BEFORE the quest-flag block below: first-meeting scenes
+  -- gate on QUESTS.tova.spoke flags, and setting the flag first made
+  -- every sage's choreographed first meeting bail straight to plain
+  -- dialogue — the scenes were dead content.
+  local scene_script = nil
   if npc.scene and type(npc.scene) == "function" then
     -- Defensive: if a scene function errors, fall through to standard
     -- dialogue rather than freezing the game.
     local ok, script = pcall(npc.scene)
-    if ok and script then
-      SCENE.start(script)
-      return
-    end
-    if not ok then
+    if ok then
+      scene_script = script
+    else
       CONTENT.banner_text  = "* scene err: " .. tostring(script):sub(1, 30) .. " *"
       CONTENT.banner_ticks = 60
       print("synth-quest: scene err for " .. tostring(npc.name) .. ": " .. tostring(script))
     end
+  end
+  -- Tova's sidequest: track when player meets each regional sage.
+  -- Keyed on name AND home map: other NPCs share these names (Mira in
+  -- Phrygian City, Iolen on the Sunward Coast, Aurin at the academy)
+  -- and were silently crediting the quest + suppressing the real
+  -- sages' first meetings.
+  local SAGE_HOME_MAP = {Veris = 1, Aurin = 1, Mira = 2, Iolen = 3}
+  if npc and SAGE_HOME_MAP[npc.name]
+     and current_map_id == SAGE_HOME_MAP[npc.name] then
+    QUESTS.tova.spoke[npc.name] = true
+  end
+  if scene_script then
+    SCENE.start(scene_script)
+    return
   end
   dlg.npc = npc
   dlg.line = 1
@@ -16987,6 +17029,12 @@ local function apply_player_action(p)
       if q.alive then
         q.buffed = true
       end
+    end
+    -- Mira's gift: the flat-second grace note rides every strum once
+    -- learned (Phrygian City, drone-singer Mira).
+    if flag.mira_flat_second then
+      sq_trig("bard", midi_to_freq(61), 0.30, 0.005, 0.5,
+              math.min(1, 0.6 * (CONTENT.combat_reverb_mix or 1.0)))
     end
   elseif p.queued == "MIX" then
     -- Sergei's MIX: remix the enemy's pattern (deal MAG damage, scramble its
@@ -22267,7 +22315,7 @@ SCENE.check_bounds = function(what, id, x, y, offmap_ok)
   if offmap_ok or not (x and y) then return end
   if x < 1 or y < 1 or x > (MAP_W or 999) or y > (MAP_H or 999) then
     print(string.format(
-      "synth-quest: SCENE %s '%s' OFF-MAP at (%d,%d); map is %dx%d (mark offmap=true if intended)",
+      "synth-quest: SCENE %s '%s' OFF-MAP at (%.0f,%.0f); map is %dx%d (mark offmap=true if intended)",
       what, tostring(id), x, y, MAP_W or -1, MAP_H or -1))
   end
 end
