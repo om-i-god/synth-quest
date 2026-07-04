@@ -2372,3 +2372,16 @@ man he commanded; the lamplighter's nightly score against the dark.
 One loud person per town (Marek/Coral/Brann; Northern stays quiet).
 ~55 of ~200 lines rewritten; villain cast + Suno's court kept
 verbatim (already FF-grade). Two stale merchant references fixed.
+
+## 2026-07-04 — FF dialogue wave D (bosses + pillars)
+
+Every cave boss now has a distinct register — the previously MUTE
+Sentinel ("I have outwaited mountains. I will outwait you.") and
+Tidewatch ("((Come down. Be kept.))") speak; Cave Echo says words
+Miel never said; the Dune Rider's courtesy ends; Locrius needles.
+Suno gained one line of intimate contempt ("I have heard every lie
+this family ever sang."); the Broken Cadence names Miel before "You
+must."; VoidEcho went full cosmic-superboss. Defeat banner:
+"* you fall back. the song is not over. *". Ending kept 26/26 —
+already FF-grade. Timeline guard caught a Snowgaunt line that
+contradicted the bible before it shipped.

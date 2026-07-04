@@ -1634,7 +1634,9 @@ present in the code.
       Role: Former cathedral chorister now playing Suno's
       instrument. Rises from the broken altar when the party
       approaches after Miel Walks Alone. Names Miel as the
-      queen's daughter; demands the last phrase. Boss fight (HP
+      queen's daughter ("You have her eyes") and remembers that
+      Miel's name was the last thing the queen sang before the
+      cathedral fell; demands the last phrase. Boss fight (HP
       ~1300, ATK ~12, cleric register). On defeat: drops the
       KEY OF LIRAEL (unlocks the Ice Grotto in Northern Wilds /
       Cave 5) and triggers the `lirael` theme's returning voice.

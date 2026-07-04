@@ -6827,6 +6827,8 @@ BOSS_APPROACH = {
     "(A voice -- her own voice -- comes back from the wall.)",
     "(It comes back twisted, to a different key.)",
     "[Cave Echo] ((It's listening.))",
+    "[Cave Echo] ((Stay. Say it again. Stay.))",
+    "(Miel never said that.)",
     "(Something at the back of the chamber takes a step. The party draws together.)",
   },
   [2] = {  -- Cave 2: Sentinel
@@ -6834,6 +6836,8 @@ BOSS_APPROACH = {
     "(It does not move. It has not moved in a very long time.)",
     "[Strom]  (a step backward) That's not a tree. Get back, get back --",
     "(The Sentinel raises a single arm. The forest goes still. Even the birds.)",
+    "[Sentinel] (a voice like roots parting stone) Loud, brief things.",
+    "[Sentinel] I have outwaited mountains. I will outwait you.",
     "(Beren said: \"The Sentinel sleeps for good now.\" That was a long time ago. He sleeps no more.)",
   },
   [3] = {  -- Cave 3: Tide
@@ -6842,6 +6846,9 @@ BOSS_APPROACH = {
     "[Miel]    (remembering Aurin's warning) The Tidewatch chord answers prayers and traps both.",
     "(One of the faces in the water is yours. It does not look frightened.)",
     "(Tidewatch rises out of the pool. The chord pulls tight.)",
+    "(Its voice is many voices, praying in unison.)",
+    "[Tidewatch] ((We keep every voice the sea was given.))",
+    "[Tidewatch] ((Come down. Be kept.))",
   },
   [4] = {  -- Cave 4: Dunerider
     "(Sand. Wind. Hoofprints in a six-beat rhythm, very fast, then two beats back.)",
@@ -6849,11 +6856,14 @@ BOSS_APPROACH = {
     "[Iska]  (your memory of her voice) Six beats out, two back. Strike on the rest.",
     "(He stops. The horse stops. The wind does not stop.)",
     "[Dune Rider] (low, almost a song) ...you are not what I was sent for. You will do.",
+    "[Dune Rider] (a small bow) Take the first beat. I will take the rest.",
   },
   [5] = {  -- Cave 5: Snowgaunt
     "(The snow stops falling. Even the wind stops.)",
     "(A figure in long white robes turns from the icicle wall. He is conducting silence.)",
     "[Snowgaunt] (a voice like wind off a lake) Three. Three is the meter. Three is the only meter.",
+    "[Snowgaunt] (slower) Winter on winter, I have kept the count.",
+    "[Snowgaunt] I am tired. Do not make me keep it alone.",
     "(You can feel your party's heartbeats trying to find his three-count.)",
     "[Wenna] (your memory of her voice) Drown his time with yours.",
   },
@@ -6862,6 +6872,8 @@ BOSS_APPROACH = {
     "(Locrius rises from the central plinth. His teeth are perfectly even.)",
     "[Locrius] (a voice exactly between two notes) You've come a long way to be wrong by half a step.",
     "[Locrius] My king has been waiting. He thinks you'll arrive tired.",
+    "[Locrius] (pleasantly) I could spare you the walk.",
+    "[Locrius] It is only half a step. Who would miss it?",
     "[Veris]  (your memory of her voice) He cannot hold off-time. Strike where he cannot follow.",
   },
   [7] = {  -- Cave 7: Suno (final)
@@ -7535,6 +7547,7 @@ function start_prologue_throne_scene()
       "[Suno]    Then sing one note and the silencers will believe you.",
       "[Suno]    The shard answers your blood.",
       "[Suno]    Lie to me with your voice and I will hear it.",
+      "[Suno]    I have heard every lie this family ever sang.",
     }, npc = {name = "Suno"}},
     -- Miel does not move. A held silence beat.
     {wait = 12},
@@ -9115,6 +9128,7 @@ function start_lirael_broken_cadence_scene()
     }, npc = {name = "The Broken Cadence"}},
     {wait = 8},
     {dialogue = {
+      "\"...Miel. That was the name she sang.\"",
       "\"She would not let it end.\"",
       "\"You must.\"",
     }, npc = nil},
@@ -9764,6 +9778,8 @@ function start_boss_approach_scene(cv)
         "(A voice -- her own voice -- comes back from the wall.)",
         "(It comes back twisted, to a different key.)",
         "[Cave Echo] ((It's listening.))",
+        "[Cave Echo] ((Stay. Say it again. Stay.))",
+        "(Miel never said that.)",
       }, npc = {name = "Cave Echo"}},
       {dialogue = {
         "(Something at the back of the chamber takes a step.)",
@@ -9783,7 +9799,10 @@ function start_boss_approach_scene(cv)
       {dialogue = {
         "(The Sentinel raises a single arm.)",
         "(The forest goes still. Even the birds.)",
-      }, npc = nil},
+        "[Sentinel] (a voice like roots parting stone)",
+        "[Sentinel] Loud, brief things.",
+        "[Sentinel] I have outwaited mountains. I will outwait you.",
+      }, npc = {name = "Sentinel"}},
       {dialogue = {
         "(Beren said: \"The Sentinel sleeps for good now.\")",
         "(That was a long time ago.)",
@@ -9807,7 +9826,10 @@ function start_boss_approach_scene(cv)
       {dialogue = {
         "(Tidewatch rises out of the pool.)",
         "(The chord pulls tight.)",
-      }, npc = nil},
+        "(Its voice is many voices, praying in unison.)",
+        "[Tidewatch] ((We keep every voice the sea was given.))",
+        "[Tidewatch] ((Come down. Be kept.))",
+      }, npc = {name = "Tidewatch"}},
     },
     [4] = {
       {dialogue = {
@@ -9830,6 +9852,8 @@ function start_boss_approach_scene(cv)
         "[Rider]   (low, almost a song)",
         "[Rider]   ...you are not what I was sent for.",
         "[Rider]   You will do.",
+        "[Rider]   (a small bow)",
+        "[Rider]   Take the first beat. I will take the rest.",
       }, npc = {name = "Rider"}},
     },
     [5] = {
@@ -9845,6 +9869,8 @@ function start_boss_approach_scene(cv)
         "[Snowgaunt] (a voice like wind off a lake)",
         "[Snowgaunt] Three. Three is the meter.",
         "[Snowgaunt] Three is the only meter.",
+        "[Snowgaunt] (slower) Winter on winter, I have kept the count.",
+        "[Snowgaunt] I am tired. Do not make me keep it alone.",
       }, npc = {name = "Snowgaunt"}},
       {dialogue = {
         "(You can feel your party's heartbeats trying to find his three-count.)",
@@ -9870,6 +9896,8 @@ function start_boss_approach_scene(cv)
       {dialogue = {
         "[Locrius] My king has been waiting.",
         "[Locrius] He thinks you'll arrive tired.",
+        "[Locrius] (pleasantly) I could spare you the walk.",
+        "[Locrius] It is only half a step. Who would miss it?",
       }, npc = {name = "Locrius"}},
       {dialogue = {
         "[Veris]   (your memory of her voice)",
@@ -11720,6 +11748,9 @@ local MAINLAND_NPCS = {
       return {
         "(A figure stands where there was none. A shape that does not lie still.)",
         "(It does not look at you, and yet it does.)",
+        "[VoidEcho] A silenced king. A mended chord. Small, bright things.",
+        "[VoidEcho] Before the first singer there was music no ear had heard.",
+        "[VoidEcho] It has not stopped. It has only been waiting.",
         "[VoidEcho] The seventh closed the door. (...) The door is not the wall.",
         "[VoidEcho] Come hear what Suno was only the echo of.",
       }
@@ -18152,10 +18183,11 @@ local function enemy_tick()
       echo      = "* the chamber inhales *",
       sentinel  = "* the moss falls away *",
       tide      = "* the water rises wrong *",
-      dunerider = "* the rhythm changes *",
+      dunerider = "* the courtesy ends *",
       snowgaunt = "* his three-count compresses *",
       locrius   = "* he steps out of time *",
       suno      = "* SUNO TURNS TO YOU *",
+      broken_cadence = "* the last phrase rises *",
     }
     CONTENT.banner_text  = ENRAGE_BANNERS[enemy.visual] or ("* " .. enemy.name .. " ENRAGES! *")
     CONTENT.banner_ticks = 42
@@ -19037,7 +19069,7 @@ exit_battle = function()
         p.mp = math.max(p.mp, math.floor(p.mp_max * 0.50))
         p.atb = 0
       end
-      CONTENT.banner_text  = "* you fall back. try again. *"
+      CONTENT.banner_text  = "* you fall back. the song is not over. *"
       CONTENT.banner_ticks = 48
       game_state = "OVERWORLD"
       params:set("clock_tempo", overworld_tempo())
