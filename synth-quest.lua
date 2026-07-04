@@ -21732,27 +21732,11 @@ TILE_DRAW[42] = function(px, py)
   screen.level(11); screen.move(px + 1, py + 6); screen.line(px + 4, py + 8); screen.stroke()
 end
 
--- Tile 32 — Lirael bell-tower base. A pale stone column with a thin
--- arched window slit; the tower rises out of the ruin and is the only
--- thing still pointing at the sky. Drawn at low brightness so the ash
--- overlay reads on top.
-TILE_DRAW[32] = function(px, py, t)
-  -- column body (stone) — uneven, pitted
-  screen.level(7); screen.rect(px, py, 8, 8); screen.fill()
-  screen.level(5); screen.rect(px + 1, py, 6, 8); screen.fill()
-  -- mortar lines (horizontal)
-  screen.level(3); screen.rect(px, py + 2, 8, 1); screen.fill()
-  screen.level(3); screen.rect(px, py + 5, 8, 1); screen.fill()
-  -- arched window slit (top center)
-  screen.level(0); screen.rect(px + 3, py + 1, 2, 2); screen.fill()
-  screen.level(2); screen.pixel(px + 3, py + 1); screen.fill()
-  -- subtle bell glint inside (pulses very slowly)
-  if ((t or 0) % 60) < 8 then
-    screen.level(11); screen.pixel(px + 3, py + 2); screen.fill()
-  end
-  -- pitted edge (black notch on left)
-  screen.level(0); screen.pixel(px, py + 4); screen.fill()
-end
+-- (A second TILE_DRAW[32] "Lirael bell-tower base" was deleted here
+-- 2026-07-04: it was a leftover from the old single-courtyard Lirael
+-- map — no current map uses 32 as a column — and it silently
+-- clobbered the inn/shop/house DINING TABLE drawer, so every table
+-- in the game rendered as a stone column.)
 
 -- Tile 53 — empty throne (Lirael ruins). Miel's grandmother's seat.
 -- Tall back panel with two crown finials at the top, armrest posts on

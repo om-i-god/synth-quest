@@ -2385,3 +2385,12 @@ must."; VoidEcho went full cosmic-superboss. Defeat banner:
 "* you fall back. the song is not over. *". Ending kept 26/26 —
 already FF-grade. Timeline guard caught a Snowgaunt line that
 contradicted the bible before it shipped.
+
+Final revamp verification: clean across all seven waves (renderer
+safety, dual-copy boss lines, 44-map width + BFS mega-check, tile
+kit isolation, want consistency). One pre-existing catch fixed on
+the spot: a leftover "Lirael bell-tower" TILE_DRAW[32] from the old
+courtyard map was clobbering the dining-table drawer — every table
+in every inn/shop/house rendered as a stone column. Deleted; tables
+are tables again. (Known cosmetic leftovers: dead legacy
+BOSS_APPROACH table, bible/code drift on one Brann line.)
