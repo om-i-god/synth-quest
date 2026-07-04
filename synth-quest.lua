@@ -4139,13 +4139,13 @@ CONTENT = {
     {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},   -- top wall
     {1,0,0,0,0,8,8,0,0,0,0,0,0,0,0,0,0,0,8,8,0,0,0,1},
     {1,0,8,8,0,0,8,0,0,0,0,0,0,0,0,0,0,0,8,0,0,8,0,1},
-    {1,0,0,0,0,0,0,0,0,4,4,4,4,4,4,0,0,0,0,0,0,0,0,1},   -- academy back wall
+    {1,0,0,0,0,103,0,0,0,4,4,4,4,4,4,0,0,0,0,0,0,0,0,1},   -- academy back wall; col 6: walkable flowers (103) on the north meadow
     {1,0,0,0,0,0,0,0,0,4,30,30,30,30,4,0,0,0,0,0,0,0,0,1},   -- fireplace
     {1,0,0,0,0,0,0,0,0,4, 0, 0, 0, 0,4,0,0,0,0,0,0,0,0,1},   -- building interior visible
     {1,0,0,0,0,0,0,0,0,4, 4, 4,50, 4,4,0,0,0,0,0,0,0,0,1},   -- front wall + entry tile 50
-    {1,51,8,0,0,0,0,0,0,0, 0, 0, 0, 0,0,0,0,0,0,0,0,0,0,1},  -- Lirael Ruins arch (col 1 row 7)
+    {1,51,8,0,0,0,0,0,0,0, 0,108, 0, 0,0,0,0,0,0,0,0,0,0,1},  -- Lirael Ruins arch (col 1 row 7); col 12: street lamp (108) by the academy door -- door approach (13,8) stays open, east-west route detours via row 10 (row 9 col 11 is VeltheStone)
     {1,0,8,8,0,0,0,0,0,0, 0, 0, 0,78,0,0,0,0,0,0,0,0,0,1},  -- academy_entry arch (col 14 row 8)
-    {1,0,0,0,0,0,8,8,8,0, 0, 0, 0, 0,0,0,0,0,8,8,8,0,0,1},
+    {1,0,112,0,0,0,8,8,8,0, 0, 0, 0, 0,0,0,103,0,8,8,8,0,0,1},  -- col 3: deco signpost (112) at the Lirael fork (arch 51 + mourning road 89 both stay reachable via col 2 and (4,10)->(4,11)); col 17: walkable flowers (103)
     {1,89,0,0,0,0,8,8,0,0, 0, 0, 0, 0,0,0,0,0,0,8,8,0,0,1},  -- lirael_entry (col 2 row 10; mourning road west)
     {1,1,1,1,1,1,1,1,1,1, 1, 1, 1, 1,1,1,1,1,1,1,1,1,47,1},   -- east-edge return tile
   },
@@ -6438,19 +6438,19 @@ local cutscene_idx = 1
 -- Row 7: inn (4,7) + shop (6,7) terraced with storefront walls (93) at cols 3,5,7.
 local MAINLAND = {
   {1,1,1,1,1,1,1,1,1,1,1,0,15,0,1,1,56,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},  -- col 17 row 1: Far Hills cave-mouth (small mountain)
-  {1,0,0,0,0,0,0,0,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1, 1,0,0,0,1,1,0,0,0,0,1,1,1,0,0,1, 1,0,0,0,0,0,0,0,8,8,0,0,0,1,0,1},  -- row 2 stays fully open: it is the ONLY east-west corridor across the house tops (row 3 is walls at cols 3-5/9-11/19-21)
+  {1,0,0,0,0,0,0,0,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1, 1,0,0,0,1,1,0,0,0,0,1,1,1,0,0,1, 1,0,0,103,0,0,0,0,8,8,0,0,0,1,0,1},  -- row 2 stays fully open: it is the ONLY east-west corridor across the house tops (row 3 is walls at cols 3-5/9-11/19-21); col 52: walkable flowers (103) on the coast meadow
   {1,0,4,4,4,107,0,0,4,4,4,101,2,0,0,0,0,0,4,4,4,101,103,103,0,0,0,0,0,0,0,1, 0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,1, 1,0,1,0,0,0,0,0,0,8,8,0,0,0,0,1},  -- col 6: well (107) at Tova's house corner; col 12: east-yard fence (101) for house 2; col 22: side-yard fence (101) for house 3; cols 23-24: flower patch (103)
   {1,0,4,0,4,0,0,0,4,0,4,101,2,0,103,0,0,0,4,0,4,101,0,0,1,0,0,0,0,0,0,1, 0,0,0,0,0,0,36,1,0,0,43,0,0,0,1,1, 1,0,0,0,0,0,0,0,0,0,8,8,0,0,1,1},  -- col 12 + col 22: house-2 / house-3 fence runs (101) continue; col 15: walkable flowers (103)
   {1,0,4,5,4,0,0,103,4,5,4,0,2,102,104,102,0,0,4,5,4,2,2,2,2,2,2,2,2,2,1,1, 0,2,2,2,2,2,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},  -- cols 14-16: flowerbed + bench + flowerbed crowning the plaza (flag 54 + fountain 14 below); col 8: flowers
-  {1,101,0,0,0,0,105,0,0,0,0,108,2,2,54,2,0,108,0,0,0,0,0,0,0,0,103,0,0,0,0,0, 0,2,0,0,0,2,0,0,0,1,0,0,0,1,0,0, 1,0,0,0,0,1,0,0,0,0,0,0,1,0,0,1},  -- col 15 row 6: village plaza flag; col 2: west-yard fence (101) by Tova; cols 14+16: plaza paving ring; cols 12+18: street lamps (108); col 7: crate behind shop; col 27: flowers
+  {1,101,0,0,0,0,105,0,0,0,0,108,2,2,54,2,0,108,0,0,0,0,0,0,0,0,103,0,0,0,0,0, 0,2,0,0,0,2,0,0,0,1,0,112,0,1,0,0, 1,0,0,0,0,1,0,0,0,0,0,0,1,0,0,1},  -- col 15 row 6: village plaza flag; col 2: west-yard fence (101) by Tova; cols 14+16: plaza paving ring; cols 12+18: street lamps (108); col 7: crate behind shop; col 27: flowers; col 44: deco signpost (112) on the road shoulder where the woods road passes Cave 2 (45,7) heading for the coast + Cave 3
   {1,101,93,13,93,12,93,0,0,0,0,0,2,2,14,2,18,0,0,0,0,0,0,0,0,0,0,0,6,0,0,0, 0,2,0,0,0,2,2,2,2,2,2,2,7,0,0,0, 2,2,2,2,2,2,2,2,2,2,2,2,2,9,65,10},  -- cols 3,5,7: storefront walls (93) terracing inn (4,7) + shop (6,7) into one block; col 2: west-yard fence run ends (was a walkable dead-end strip); cols 14+16: plaza paving ring around the fountain (15,7); col 63: Sunward Coast signpost (tile 65) between Cave 3 entry (col 62=9) and boat (col 64=10)
   {1,1,106,0,35,0,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1,1, 0,2,0,0,0,2,0,0,0,0,0,0,0,0,1,1, 0,0,0,0,2,0,0,0,0,0,0,0,8,8,0,1},  -- col 3: crate stack (106) + col 5: goods barrel (35) flanking the inn (4,8) / shop (6,8) door approaches — both approaches stay open from row 9
   {1,1,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4,5,4,0,57,0,0,0,1, 1,2,0,0,0,0,0,0,0,0,0,0,1,0,0,1, 1,0,0,0,2,0,0,0,0,0,0,0,8,8,0,1},  -- col 28: anvil tile next to Brann the smith (col 27 = Brann NPC)
-  {1,0,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,103,0,0,4,0,4,0,1,0,0,0,1, 1,2,0,0,0,0,0,0,0,0,0,1,0,0,0,1, 1,0,0,0,0,0,0,0,0,0,8,8,8,0,0,1},  -- col 21: walkable flowers (103) on the south green
-  {1,0,0,0,103,0,2,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,4,4,4,0,0,0,0,0,1, 1,1,0,0,0,0,0,0,0,0,1,1,0,0,1,1, 1,0,0,0,0,0,0,0,8,8,8,8,0,0,0,1},  -- col 5: walkable flowers (103) on the riverside meadow
+  {1,0,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,103,0,0,4,0,4,0,1,0,0,0,1, 1,2,0,103,0,0,0,0,0,0,0,1,0,0,0,1, 1,0,0,0,0,0,0,0,0,0,8,8,8,0,0,1},  -- col 21: walkable flowers (103) on the south green; col 36: walkable flowers (103) in the Hollow Woods meadow
+  {1,0,0,0,103,0,2,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,4,4,4,0,0,0,0,0,1, 1,1,0,0,0,0,103,0,0,0,1,1,0,0,1,1, 1,0,0,0,0,0,0,0,8,8,8,8,0,0,0,1},  -- col 5: walkable flowers (103) on the riverside meadow; col 39: walkable flowers (103) south of the woods campfire
   {1,0,1,0,0,0,0,0,45,45,45,3,3,3,3,3,3,3,3,3,3,3,3,3,3,0,0,0,0,0,0,1, 1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1, 1,1,0,0,0,0,8,8,8,8,0,0,0,0,0,1},
   {1,0,0,0,0,0,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,0,0,0,0,0,1, 1,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1, 1,1,1,0,0,8,8,8,0,0,0,0,0,0,0,1},
-  {1,47,0,0,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,0,0,0,1,1, 1,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1, 1,1,1,1,8,8,8,0,0,0,0,0,0,0,0,1},
+  {1,47,0,111,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,0,0,0,1,1, 1,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1, 1,1,1,1,8,8,8,0,0,0,0,0,0,0,0,1},  -- col 4: chord-sigil statue (111) waypoint beside the Western Region arch (47 at col 2) -- arch approach (3,14) + arrival tile (3,13) + Wina (3,13 area) all stay open
   {1,1,1,1,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,1,1,1,1,1, 1,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1, 1,1,1,1,8,8,8,0,0,0,0,0,0,0,0,1},
   {1,1,1,1,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,1,1,1, 1,1,0,0,1,1,1,1,1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},
 }
@@ -6532,7 +6532,7 @@ SUNWARD_COAST_MAP = {
   -- from the path row 3. Fisher cottage door (10,2); Harbormaster's
   -- house door (24,2). Both doors warp via CONTENT.HOUSES.
   {1,1,1,1,0,0,0,0,4,4,4,0,0,0,0,1,1,1,1,1,0,0,4,4,4,0,0,1,1,1,1,1},
-  {1,0,0,0,0,0,0,0,4,5,4,0,0,0,0,0,0,0,0,0,0,0,4,5,4,0,0,0,0,0,0,1},
+  {1,0,0,0,0,0,0,0,4,5,4,102,0,0,0,0,0,0,0,0,0,0,4,5,4,102,0,0,0,0,0,1},  -- cols 12+26: flower boxes (102) beside the fisher-cottage (10,2) and harbormaster (24,2) doors -- both door approaches from row 3 stay open
   {1,0,4,5,4,0,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,0,1},  -- col 4: Beck's cottage door (north face, reached from row 2)
   {1,0,4,4,4,0,2,64,64,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,1},  -- Beck's box closed (was 4,0,4 with an open south side)
   {0,0,0,0,0,0,2,0,0,2,64,64,2,0,0,62,62,62,0,0,0,0,0,4,5,4,0,0,0,2,0,0},  -- (25,5): tavern north door
@@ -6540,8 +6540,8 @@ SUNWARD_COAST_MAP = {
   {65,2,2,2,2,2,2,0,0,2,0,0,2,0,0,62,62,62,0,0,0,0,0,4,4,4,0,0,0,2,2,9},  -- col 1: Sunward Coast signpost (tile 65) — west-path return to MAINLAND
   {0,0,0,0,0,0,2,0,0,2,64,64,2,0,0,0,0,0,0,0,0,0,0,4,5,4,0,0,0,2,0,0},    -- (25,8): tavern south door
   {0,0,0,0,0,0,2,0,0,2,0,0,2,63,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,0},
-  {3,3,3,60,60,60,2,0,0,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,3,3},
-  {3,3,3,60,60,60,60,60,60,60,60,60,60,60,60,3,3,3,60,60,60,60,60,60,60,60,60,60,3,3,3,3},
+  {3,3,3,60,60,60,2,0,0,2,2,2,2,2,2,104,2,108,2,2,2,2,2,2,2,2,108,2,2,2,3,3},  -- promenade row: bench (104, col 16) + street lamp (108, col 18) flanking the water-gap viewpoint below the bandstand; second lamp (108) at col 27 by the tavern -- row 9 (open cols 15-29) bypasses every blocked cell, tavern south-door approach (25,9)->(25,10) untouched
+  {3,3,3,60,60,60,60,60,60,60,60,60,60,60,105,3,3,3,35,60,60,60,60,60,60,60,60,105,3,3,3,3},  -- dock-row edge clutter at the strip ends (dead-end planks only): crate (105) at col 15, goods barrel (35) at col 19, crate (105) at col 28 -- Beck (4,11) + gull ambient (9,11) planks untouched, both strips still entered anywhere from row 10
   {3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3},
   {3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3},
   {3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3},
@@ -6561,20 +6561,20 @@ PHRYGIAN_CITY_MAP = {
   {66,67,67,0,0,0,0,0,0,0,68,68,68,0,0,0,69,0,0,0,0,0,0,0,0,0,0,0,67,67,67,0,0,0,0,66},
   -- row 3
   {66,67,0,0,0,0,0,0,0,0,68,0,68,0,0,0,69,0,0,0,0,0,0,0,0,0,0,0,67,0,67,0,0,0,0,66},
-  -- row 4 (north bazaar row)
-  {66,0,0,0,0,64,64,64,0,0,68,0,68,0,0,0,69,0,0,0,0,64,64,64,0,0,0,0,0,0,0,0,0,0,0,66},
+  -- row 4 (north bazaar row; col 9: crate stack (106) spilling east of the NW stall, col 25: crate (105) east of the NE stall -- gap at (10,4) keeps the alcove-court approach open)
+  {66,0,0,0,0,64,64,64,106,0,68,0,68,0,0,0,69,0,0,0,0,64,64,64,105,0,0,0,0,0,0,0,0,0,0,66},
   -- row 5 (bazaar center with lanterns)
   {66,0,0,0,0,64,0,64,0,70,68,68,68,70,0,0,69,0,0,70,0,64,0,64,0,70,0,0,0,0,0,0,0,0,0,66},
   -- row 6
   {66,0,0,0,0,64,64,64,0,0,0,0,0,0,0,0,69,0,0,0,0,64,64,64,0,0,0,0,0,0,0,0,0,0,0,66},
   -- row 7 (main east-west path through bazaar)
   {66,0,69,69,69,69,69,69,69,69,69,69,69,69,69,69,69,69,69,69,69,69,69,69,69,69,69,69,69,69,69,69,69,69,0,66},
-  -- row 8
-  {66,0,0,0,0,64,64,64,0,0,0,0,0,0,0,0,69,0,0,0,0,64,64,64,0,0,0,0,0,0,0,0,0,0,0,66},
+  -- row 8 (cols 11+13: street lamps (108) in the prayer court between the north and south alcove blocks -- court center (12,8) stays open via the row-7 road; Veiled Mystic (12,5) approaches (12,4)/(12,6) untouched; col 18: chord-sigil statue (111) at the bazaar crossing SE corner)
+  {66,0,0,0,0,64,64,64,0,0,108,0,108,0,0,0,69,111,0,0,0,64,64,64,0,0,0,0,0,0,0,0,0,0,0,66},
   -- row 9 (south bazaar row)
   {66,0,0,0,0,64,0,64,0,70,0,0,0,70,0,0,69,0,0,70,0,64,0,64,0,70,0,0,0,0,0,0,0,0,0,66},
-  -- row 10
-  {66,0,0,0,0,64,64,64,0,0,0,0,0,0,0,0,69,0,0,0,0,64,64,64,0,0,0,0,0,0,0,0,0,0,0,66},
+  -- row 10 (col 21: crate (105) as stall spillover west of the SE stall block -- (21,9)/(21,8) above stay open)
+  {66,0,0,0,0,64,64,64,0,0,0,0,0,0,0,0,69,0,0,0,105,64,64,64,0,0,0,0,0,0,0,0,0,0,0,66},
   -- row 11
   {66,67,0,0,0,0,0,0,0,0,68,0,68,0,0,0,69,0,0,0,0,0,0,0,0,0,0,0,67,0,67,0,0,0,0,66},
   -- row 12 (drumhall archway at col 35 — collapsed entrance on the city's east edge)
@@ -11264,7 +11264,9 @@ local MAINLAND_NPCS = {
     end,
   },
   -- Hidden NPC: lakeside oracle in the village (sits at the very edge of the lake)
-  { x = 3, y = 13, name = "Wina",
+  -- (One tile north of the Western Region arrival tile (3,13) — she
+  -- stood ON it, stacking under the player on every arrival.)
+  { x = 3, y = 12, name = "Wina",
     dialogue = function()
       local lead = party[active] and party[active].class
       -- Wina is an old lake-keeper; she remembers Miel's grandmother
@@ -14142,6 +14144,9 @@ local function is_walkable(tx, ty)
       or t == 56   -- Far Hills cave-mouth (mainland → map 26)
       or t == 58   -- Castle interior door (throne hall ↔ hallway ↔ rooms)
       or t == 60   -- wood_dock (walkable; planks over water)
+      or t == 62   -- bandstand (walkable; raised platform — legend always
+                   -- said walkable but it was never added; Coral stood
+                   -- on it unreachable, same bug class as tile 60)
       or t == 65   -- Sunward Coast signpost (MAINLAND east coast ↔ Sunward Coast Town)
       or t == 68   -- Phrygian Night City prayer alcove (walkable; archway interior)
       or t == 69   -- Phrygian Night City desert sand path (walkable; lighter sand)

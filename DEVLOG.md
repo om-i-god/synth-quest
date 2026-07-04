@@ -2347,3 +2347,15 @@ ears."); Pip as the village's one loud person (chalk tally, IT IS
 NOT CROOKED); Wren picking towns by where music died last; Pell
 confidently wrong about the fountain's key. ~21 branches rewritten,
 ~55 kept verbatim (27%). All quest mechanics untouched.
+
+## 2026-07-04 — FF area wave 3 (Sunward, Phrygian, overworld routes)
+
+Sunward promenade: cottage flower boxes, bench + lamp at the water
+viewpoint, tavern lamp, dock-end crates/barrels. Phrygian (doorless
+language kept): prayer-court lamps, bazaar statue, stall spillover.
+Overworld: road-fork signposts, meadow flowers, a waypoint statue at
+the Western arch; Western Region: academy lamp, Lirael-fork
+signpost. 171 scripted checks green. Also fixed two flags the wave
+surfaced: tile 62 (bandstand) was never in is_walkable despite its
+legend — Coral was unreachable (the tile-60/Beck bug class again);
+Wina stood ON the Western→Mainland arrival tile.
