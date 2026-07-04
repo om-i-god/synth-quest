@@ -2295,3 +2295,19 @@ four music tickers had nil-guards after the arithmetic; HDMIMirror's
 retry hitch cut 0.5s→0.1s; bark bubbles clamp on-screen; title
 flash timing moved off the frame rate; dead battle_end_ticks chain
 and the unreachable battle-SELECT branch removed.
+
+## 2026-07-03 — FF revamp: style guides + area wave 1 (village)
+
+Two specs committed: docs/specs/2026-07-03-ff-dialogue-style.md
+(character verbal signatures, FF punctuation, banter texture,
+melodrama at the pillars — amplify the existing voice, never
+flatten) and -ff-area-style.md (composition, layered density,
+water features, district texture + the decorative tile kit).
+
+Wave 1 shipped: 13 new decorative tiles (fences, flowerbeds,
+walkable flowers, bench, crates, well, night-glowing street lamp,
+hedge, walkable bridge, statue, deco signpost) and the village
+composed FF-style: fountain plaza with paving ring/lamps/bench/
+flowerbeds, picket side-yards on the three houses, market clutter
+behind the storefronts, a well by Tova's, flower meadows. BFS
+verified: zero unreachable cells, every door/arrival/NPC clear.

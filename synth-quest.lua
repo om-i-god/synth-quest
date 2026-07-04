@@ -6413,22 +6413,36 @@ local cutscene_idx = 1
 -- 94 = echo_crystal       (impassable; Cave 1 angular crystal, animated shimmer)
 -- 95 = ice_pillar         (impassable; Cave 5 pale ice column, animated glint)
 -- 96 = crypt_candle       (impassable; Cave 6 gravestone candle, animated flame)
+-- FF-revamp decorative kit (Area Wave 1; ids 100+; impassable unless noted)
+-- 100 = fence_h           (impassable; low picket fence, horizontal run)
+-- 101 = fence_v           (impassable; low picket fence, vertical run)
+-- 102 = flowerbed         (impassable; tended blossom bed with soil border)
+-- 103 = flowers_walk      (walkable; sparse blossoms on open grass)
+-- 104 = bench             (impassable; village side bench)
+-- 105 = crate             (impassable; market crate with X brace)
+-- 106 = crate_stack       (impassable; two stacked crates)
+-- 107 = well              (impassable; village well with roof beam)
+-- 108 = street_lamp       (impassable; tall lamp, animated; brighter at night)
+-- 109 = hedge             (impassable; clipped hedge block, softer than tree 1)
+-- 110 = bridge_h          (walkable; plank bridge over water)
+-- 111 = statue            (impassable; small chord-sigil statue for plazas)
+-- 112 = signpost_deco     (impassable; non-routing wooden sign; 65 stays routed)
 -- Map data is per-continent; active map swaps via travel_to().
 -- MAINLAND (64x16): cols 1-32 = Village; 33-48 = Hollow Woods; 49-64 = Sunward Coast.
 -- Mountain pass (id 15) at row 1 col 13 → Northern Wilds (current_map_id 3).
 -- Row 7: inn (4,7) + shop (6,7) terraced with storefront walls (93) at cols 3,5,7.
 local MAINLAND = {
   {1,1,1,1,1,1,1,1,1,1,1,0,15,0,1,1,56,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},  -- col 17 row 1: Far Hills cave-mouth (small mountain)
-  {1,0,0,0,0,0,0,0,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1, 1,0,0,0,1,1,0,0,0,0,1,1,1,0,0,1, 1,0,0,0,0,0,0,0,8,8,0,0,0,1,0,1},
-  {1,0,4,4,4,0,0,0,4,4,4,0,2,0,0,0,0,0,4,4,4,0,0,0,0,0,0,0,0,0,0,1, 0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,1, 1,0,1,0,0,0,0,0,0,8,8,0,0,0,0,1},
-  {1,0,4,0,4,0,0,0,4,0,4,0,2,0,0,0,0,0,4,0,4,0,0,0,1,0,0,0,0,0,0,1, 0,0,0,0,0,0,36,1,0,0,43,0,0,0,1,1, 1,0,0,0,0,0,0,0,0,0,8,8,0,0,1,1},
-  {1,0,4,5,4,0,0,0,4,5,4,0,2,0,0,0,0,0,4,5,4,2,2,2,2,2,2,2,2,2,1,1, 0,2,2,2,2,2,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
-  {1,0,0,0,0,0,0,0,0,0,0,0,2,0,54,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,2,0,0,0,2,0,0,0,1,0,0,0,1,0,0, 1,0,0,0,0,1,0,0,0,0,0,0,1,0,0,1},  -- col 15 row 6: village plaza flag
-  {1,0,93,13,93,12,93,0,0,0,0,0,2,0,14,0,18,0,0,0,0,0,0,0,0,0,0,0,6,0,0,0, 0,2,0,0,0,2,2,2,2,2,2,2,7,0,0,0, 2,2,2,2,2,2,2,2,2,2,2,2,2,9,65,10},  -- cols 3,5,7: storefront walls (93) terracing inn (4,7) + shop (6,7) into one block; col 63: Sunward Coast signpost (tile 65) between Cave 3 entry (col 62=9) and boat (col 64=10)
-  {1,1,0,0,0,0,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1,1, 0,2,0,0,0,2,0,0,0,0,0,0,0,0,1,1, 0,0,0,0,2,0,0,0,0,0,0,0,8,8,0,1},
+  {1,0,0,0,0,0,0,0,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1, 1,0,0,0,1,1,0,0,0,0,1,1,1,0,0,1, 1,0,0,0,0,0,0,0,8,8,0,0,0,1,0,1},  -- row 2 stays fully open: it is the ONLY east-west corridor across the house tops (row 3 is walls at cols 3-5/9-11/19-21)
+  {1,0,4,4,4,107,0,0,4,4,4,101,2,0,0,0,0,0,4,4,4,101,103,103,0,0,0,0,0,0,0,1, 0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,1, 1,0,1,0,0,0,0,0,0,8,8,0,0,0,0,1},  -- col 6: well (107) at Tova's house corner; col 12: east-yard fence (101) for house 2; col 22: side-yard fence (101) for house 3; cols 23-24: flower patch (103)
+  {1,0,4,0,4,0,0,0,4,0,4,101,2,0,103,0,0,0,4,0,4,101,0,0,1,0,0,0,0,0,0,1, 0,0,0,0,0,0,36,1,0,0,43,0,0,0,1,1, 1,0,0,0,0,0,0,0,0,0,8,8,0,0,1,1},  -- col 12 + col 22: house-2 / house-3 fence runs (101) continue; col 15: walkable flowers (103)
+  {1,0,4,5,4,0,0,103,4,5,4,0,2,102,104,102,0,0,4,5,4,2,2,2,2,2,2,2,2,2,1,1, 0,2,2,2,2,2,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},  -- cols 14-16: flowerbed + bench + flowerbed crowning the plaza (flag 54 + fountain 14 below); col 8: flowers
+  {1,101,0,0,0,0,105,0,0,0,0,108,2,2,54,2,0,108,0,0,0,0,0,0,0,0,103,0,0,0,0,0, 0,2,0,0,0,2,0,0,0,1,0,0,0,1,0,0, 1,0,0,0,0,1,0,0,0,0,0,0,1,0,0,1},  -- col 15 row 6: village plaza flag; col 2: west-yard fence (101) by Tova; cols 14+16: plaza paving ring; cols 12+18: street lamps (108); col 7: crate behind shop; col 27: flowers
+  {1,101,93,13,93,12,93,0,0,0,0,0,2,2,14,2,18,0,0,0,0,0,0,0,0,0,0,0,6,0,0,0, 0,2,0,0,0,2,2,2,2,2,2,2,7,0,0,0, 2,2,2,2,2,2,2,2,2,2,2,2,2,9,65,10},  -- cols 3,5,7: storefront walls (93) terracing inn (4,7) + shop (6,7) into one block; col 2: west-yard fence run ends (was a walkable dead-end strip); cols 14+16: plaza paving ring around the fountain (15,7); col 63: Sunward Coast signpost (tile 65) between Cave 3 entry (col 62=9) and boat (col 64=10)
+  {1,1,106,0,35,0,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1,1, 0,2,0,0,0,2,0,0,0,0,0,0,0,0,1,1, 0,0,0,0,2,0,0,0,0,0,0,0,8,8,0,1},  -- col 3: crate stack (106) + col 5: goods barrel (35) flanking the inn (4,8) / shop (6,8) door approaches — both approaches stay open from row 9
   {1,1,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4,5,4,0,57,0,0,0,1, 1,2,0,0,0,0,0,0,0,0,0,0,1,0,0,1, 1,0,0,0,2,0,0,0,0,0,0,0,8,8,0,1},  -- col 28: anvil tile next to Brann the smith (col 27 = Brann NPC)
-  {1,0,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4,0,4,0,1,0,0,0,1, 1,2,0,0,0,0,0,0,0,0,0,1,0,0,0,1, 1,0,0,0,0,0,0,0,0,0,8,8,8,0,0,1},
-  {1,0,0,0,0,0,2,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,4,4,4,0,0,0,0,0,1, 1,1,0,0,0,0,0,0,0,0,1,1,0,0,1,1, 1,0,0,0,0,0,0,0,8,8,8,8,0,0,0,1},
+  {1,0,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,103,0,0,4,0,4,0,1,0,0,0,1, 1,2,0,0,0,0,0,0,0,0,0,1,0,0,0,1, 1,0,0,0,0,0,0,0,0,0,8,8,8,0,0,1},  -- col 21: walkable flowers (103) on the south green
+  {1,0,0,0,103,0,2,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,4,4,4,0,0,0,0,0,1, 1,1,0,0,0,0,0,0,0,0,1,1,0,0,1,1, 1,0,0,0,0,0,0,0,8,8,8,8,0,0,0,1},  -- col 5: walkable flowers (103) on the riverside meadow
   {1,0,1,0,0,0,0,0,45,45,45,3,3,3,3,3,3,3,3,3,3,3,3,3,3,0,0,0,0,0,0,1, 1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1, 1,1,0,0,0,0,8,8,8,8,0,0,0,0,0,1},
   {1,0,0,0,0,0,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,0,0,0,0,0,1, 1,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1, 1,1,1,0,0,8,8,8,0,0,0,0,0,0,0,1},
   {1,47,0,0,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,0,0,0,1,1, 1,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1, 1,1,1,1,8,8,8,0,0,0,0,0,0,0,0,1},
@@ -14120,6 +14134,8 @@ local function is_walkable(tx, ty)
       or t == 88   -- cathedral_door (walkable threshold)
       or t == 89   -- lirael_entry (walkable; gate enforced in routing handler)
       or t == 92   -- drumhall door (Phrygian 36 <-> Ruined Drum-Hall 37)
+      or t == 103  -- flowers_walk (walkable; sparse blossoms on open grass)
+      or t == 110  -- bridge_h (walkable; plank bridge over water)
 end
 
 -- True when an NPC is currently rendered + interactable. NPCs may have
@@ -22263,6 +22279,174 @@ TILE_DRAW[96] = function(px, py, t)
   screen.pixel(px + 3, py); screen.fill()
 end
 
+-- ── FF-revamp decorative kit (Area Wave 1, ids 100-112) ────────────────────
+
+-- Tile 100 — fence_h (impassable). Low picket fence running left-right;
+-- grass shows above and below so yards read open, not walled.
+TILE_DRAW[100] = function(px, py)
+  screen.level(2); screen.rect(px, py, 8, 8); screen.fill()           -- grass under
+  screen.level(7); screen.rect(px, py + 2, 8, 1); screen.fill()       -- upper rail
+  screen.level(7); screen.rect(px, py + 4, 8, 1); screen.fill()       -- lower rail
+  screen.level(9)                                                     -- pickets
+  screen.rect(px + 1, py + 1, 1, 5); screen.rect(px + 4, py + 1, 1, 5)
+  screen.rect(px + 7, py + 1, 1, 5); screen.fill()
+  screen.level(11)                                                    -- picket tips
+  screen.pixel(px + 1, py + 1); screen.pixel(px + 4, py + 1)
+  screen.pixel(px + 7, py + 1); screen.fill()
+end
+
+-- Tile 101 — fence_v (impassable). Picket fence running top-bottom; two
+-- rails with cross-boards so stacked 101s chain into one run.
+TILE_DRAW[101] = function(px, py)
+  screen.level(2); screen.rect(px, py, 8, 8); screen.fill()           -- grass under
+  screen.level(7)                                                     -- rails
+  screen.rect(px + 2, py, 1, 8); screen.rect(px + 4, py, 1, 8); screen.fill()
+  screen.level(9)                                                     -- cross-boards
+  screen.rect(px + 1, py + 1, 5, 1); screen.rect(px + 1, py + 5, 5, 1); screen.fill()
+  screen.level(11); screen.pixel(px + 1, py + 1); screen.pixel(px + 5, py + 5); screen.fill()  -- nail glints
+end
+
+-- Tile 102 — flowerbed (impassable). Tended bed: light border, dark
+-- soil, three blossoms. The walkable scatter variant is tile 103.
+TILE_DRAW[102] = function(px, py)
+  screen.level(2); screen.rect(px, py, 8, 8); screen.fill()           -- grass under
+  screen.level(6); screen.rect(px, py + 1, 8, 6); screen.fill()       -- bed border
+  screen.level(1); screen.rect(px + 1, py + 2, 6, 4); screen.fill()   -- soil
+  screen.level(13); screen.pixel(px + 2, py + 3); screen.pixel(px + 5, py + 3); screen.fill()  -- blossoms
+  screen.level(15); screen.pixel(px + 3, py + 4); screen.fill()       -- bright center bloom
+  screen.level(4);  screen.pixel(px + 2, py + 4); screen.pixel(px + 5, py + 4); screen.fill()  -- leaves
+end
+
+-- Tile 103 — flowers_walk (WALKABLE; in is_walkable). Sparse blossoms on
+-- open grass: tuft speckles + two blooms, no background fill, so it reads
+-- as grass the player can cross.
+TILE_DRAW[103] = function(px, py)
+  screen.level(3)                                                     -- grass tufts
+  screen.pixel(px + 1, py + 6); screen.pixel(px + 2, py + 6)
+  screen.pixel(px + 6, py + 2); screen.fill()
+  screen.level(11)                                                    -- petals (4 around center)
+  screen.pixel(px + 2, py + 2); screen.pixel(px + 4, py + 2)
+  screen.pixel(px + 3, py + 1); screen.pixel(px + 3, py + 3); screen.fill()
+  screen.level(15); screen.pixel(px + 3, py + 2); screen.fill()       -- bright center
+  screen.level(13); screen.pixel(px + 6, py + 5); screen.fill()       -- second small bloom
+  screen.level(4);  screen.pixel(px + 5, py + 6); screen.fill()       -- its leaf
+end
+
+-- Tile 104 — bench (impassable). Village side bench seen from the south:
+-- backrest rails, bright seat plank, two legs.
+TILE_DRAW[104] = function(px, py)
+  screen.level(2); screen.rect(px, py, 8, 8); screen.fill()           -- grass under
+  screen.level(9); screen.rect(px + 1, py + 2, 6, 1); screen.fill()   -- backrest top rail
+  screen.level(6); screen.rect(px + 1, py + 3, 6, 1); screen.fill()   -- backrest lower rail
+  screen.level(11); screen.rect(px, py + 4, 8, 2); screen.fill()      -- seat plank
+  screen.level(5)                                                     -- legs
+  screen.rect(px + 1, py + 6, 1, 2); screen.rect(px + 6, py + 6, 1, 2); screen.fill()
+end
+
+-- Tile 105 — crate (impassable). Market crate with an X brace.
+TILE_DRAW[105] = function(px, py)
+  screen.level(2); screen.rect(px, py, 8, 8); screen.fill()           -- ground under
+  screen.level(7); screen.rect(px + 1, py + 1, 6, 6); screen.fill()   -- box
+  screen.level(10); screen.rect(px + 1, py + 1, 6, 1); screen.fill()  -- lid highlight
+  screen.level(4)                                                     -- X brace
+  screen.move(px + 1, py + 1); screen.line(px + 7, py + 7)
+  screen.move(px + 7, py + 1); screen.line(px + 1, py + 7)
+  screen.stroke()
+end
+
+-- Tile 106 — crate_stack (impassable). Small crate stacked off-center on
+-- a wide one, so market rows don't repeat a single silhouette.
+TILE_DRAW[106] = function(px, py)
+  screen.level(2); screen.rect(px, py, 8, 8); screen.fill()           -- ground under
+  screen.level(7); screen.rect(px, py + 4, 8, 4); screen.fill()       -- lower crate
+  screen.level(4); screen.move(px, py + 4); screen.line(px + 8, py + 8); screen.stroke()  -- brace
+  screen.level(9); screen.rect(px + 2, py, 5, 4); screen.fill()       -- upper crate (offset)
+  screen.level(11); screen.rect(px + 2, py, 5, 1); screen.fill()      -- upper lid highlight
+  screen.level(5); screen.pixel(px + 3, py + 2); screen.pixel(px + 5, py + 2); screen.fill()  -- panel nails
+end
+
+-- Tile 107 — well (impassable). Stone ring with a dark shaft under a
+-- roof beam; bucket hangs from the crossbar.
+TILE_DRAW[107] = function(px, py)
+  screen.level(2); screen.rect(px, py, 8, 8); screen.fill()           -- grass under
+  screen.level(5)                                                     -- roof posts
+  screen.rect(px + 1, py + 1, 1, 4); screen.rect(px + 6, py + 1, 1, 4); screen.fill()
+  screen.level(9); screen.rect(px, py, 8, 1); screen.fill()           -- roof beam
+  screen.level(11); screen.pixel(px + 3, py + 2); screen.fill()       -- bucket on the rope
+  screen.level(8); screen.rect(px + 1, py + 4, 6, 3); screen.fill()   -- stone ring
+  screen.level(0); screen.rect(px + 2, py + 5, 4, 1); screen.fill()   -- dark water shaft
+  screen.level(3); screen.pixel(px + 1, py + 7); screen.pixel(px + 6, py + 7); screen.fill()  -- base shadow
+end
+
+-- Tile 108 — street_lamp (impassable; ANIMATED — in the tick dispatch
+-- list). Taller than the wall lantern (24): full-height post with the
+-- lamp head near the tile top. Gentle flicker by day; at night the head
+-- burns bright with a wide halo so plazas play off the night cue.
+TILE_DRAW[108] = function(px, py, t)
+  screen.level(2); screen.rect(px, py, 8, 8); screen.fill()           -- ground under
+  screen.level(5); screen.rect(px + 3, py + 3, 1, 5); screen.fill()   -- post
+  screen.level(6); screen.rect(px + 2, py + 7, 3, 1); screen.fill()   -- base foot
+  local lit = ((t or 0) % 12) < 8
+  if sq_is_night and sq_is_night() then
+    screen.level(15); screen.circle(px + 3, py + 2, 1); screen.fill() -- burning head
+    screen.level(lit and 9 or 7)                                      -- wide night halo
+    screen.circle(px + 3, py + 2, 2); screen.stroke()
+  else
+    screen.level(lit and 12 or 9)                                     -- soft day glow
+    screen.circle(px + 3, py + 2, 1); screen.fill()
+  end
+end
+
+-- Tile 109 — hedge (impassable). Clipped hedge block: rounder and softer
+-- than the wild tree (1), with a trimmed lit top edge.
+TILE_DRAW[109] = function(px, py)
+  screen.level(2); screen.rect(px, py, 8, 8); screen.fill()           -- grass under
+  screen.level(4); screen.rect(px, py + 1, 8, 6); screen.fill()       -- hedge body
+  screen.level(6); screen.rect(px + 1, py + 1, 6, 1); screen.fill()   -- trimmed lit top
+  screen.level(6)                                                     -- leaf texture
+  screen.pixel(px + 2, py + 3); screen.pixel(px + 5, py + 4)
+  screen.pixel(px + 3, py + 5); screen.fill()
+  screen.level(1); screen.rect(px + 1, py + 7, 6, 1); screen.fill()   -- root shadow
+end
+
+-- Tile 110 — bridge_h (WALKABLE; in is_walkable). Plank bridge over
+-- water: deck boards with seams, low rails top and bottom, dark water
+-- peeking through the gaps.
+TILE_DRAW[110] = function(px, py)
+  screen.level(2); screen.rect(px, py, 8, 8); screen.fill()           -- water under
+  screen.level(11); screen.rect(px, py, 8, 1); screen.fill()          -- upper rail
+  screen.level(11); screen.rect(px, py + 7, 8, 1); screen.fill()      -- lower rail
+  screen.level(3); screen.rect(px, py + 1, 8, 1); screen.fill()       -- shadow gap
+  screen.level(3); screen.rect(px, py + 6, 8, 1); screen.fill()       -- shadow gap
+  screen.level(8); screen.rect(px, py + 2, 8, 4); screen.fill()       -- plank deck
+  screen.level(5)                                                     -- plank seams
+  screen.rect(px + 2, py + 2, 1, 4); screen.rect(px + 5, py + 2, 1, 4); screen.fill()
+end
+
+-- Tile 111 — statue (impassable). Small chord-sigil statue for plazas:
+-- stone plinth carrying a carved note glyph.
+TILE_DRAW[111] = function(px, py)
+  screen.level(2); screen.rect(px, py, 8, 8); screen.fill()           -- ground under
+  screen.level(6); screen.rect(px + 1, py + 6, 6, 2); screen.fill()   -- plinth base
+  screen.level(8); screen.rect(px + 2, py + 5, 4, 1); screen.fill()   -- plinth cap
+  screen.level(11); screen.rect(px + 4, py + 1, 1, 4); screen.fill()  -- note stem
+  screen.level(11); screen.pixel(px + 5, py + 1); screen.fill()       -- note flag
+  screen.level(13); screen.pixel(px + 3, py + 4); screen.pixel(px + 3, py + 3); screen.fill()  -- note head
+  screen.level(15); screen.pixel(px + 4, py + 1); screen.fill()       -- glint
+end
+
+-- Tile 112 — signpost_deco (impassable). Non-routing wooden sign: angled
+-- plank on a post with scratch-writing dashes. Deliberately distinct from
+-- 65 (the routed Sunward signpost), which stays travel-wired.
+TILE_DRAW[112] = function(px, py)
+  screen.level(2); screen.rect(px, py, 8, 8); screen.fill()           -- ground under
+  screen.level(5); screen.rect(px + 3, py + 3, 1, 5); screen.fill()   -- post
+  screen.level(9); screen.rect(px + 1, py + 1, 6, 3); screen.fill()   -- plank
+  screen.level(3)                                                     -- scratch writing
+  screen.rect(px + 2, py + 2, 3, 1); screen.fill()
+  screen.pixel(px + 6, py + 2); screen.fill()
+end
+
 local SPRITE_BY_CLASS
 do
 
@@ -25838,7 +26022,7 @@ local function draw_overworld()
         TILE_DRAW.cavefloor(sx, sy, tx + ty * MAP_W)
       else
         local fn = TILE_DRAW[t] or TILE_DRAW[0]
-        if t == 3 or t == 6 or t == 7 or t == 9 or t == 11 or t == 14 or t == 16 or t == 18 or t == 19 or t == 20 or t == 24 or t == 27 or t == 30 or t == 32 or t == 36 or t == 38 or t == 39 or t == 41 or t == 43 or t == 52 or t == 53 or t == 54 or t == 55 or t == 56 or t == 57 or t == 58 or t == 62 or t == 67 or t == 70 or t == 73 or t == 84 or t == 94 or t == 95 or t == 96 then fn(sx, sy, tick)
+        if t == 3 or t == 6 or t == 7 or t == 9 or t == 11 or t == 14 or t == 16 or t == 18 or t == 19 or t == 20 or t == 24 or t == 27 or t == 30 or t == 32 or t == 36 or t == 38 or t == 39 or t == 41 or t == 43 or t == 52 or t == 53 or t == 54 or t == 55 or t == 56 or t == 57 or t == 58 or t == 62 or t == 67 or t == 70 or t == 73 or t == 84 or t == 94 or t == 95 or t == 96 or t == 108 then fn(sx, sy, tick)
         elseif t == 0 or t == 8 then fn(sx, sy, tx + ty * MAP_W)
         else fn(sx, sy)
         end
