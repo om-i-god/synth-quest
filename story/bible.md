@@ -1374,11 +1374,34 @@ Velthe, Iola, Locrius, the Harbormaster) appear in their own
 sections above. The list below covers the rest of the named cast
 present in the code.
 
+   VILLAGE "WANTS" (2026-07-03 FF dialogue pass, Wave B): every
+   mainland-village NPC carries one petty, particular want that
+   threads their branches. Established in this pass (in addition
+   to the Elder/Anvel notes below): PIP — the village's one loud
+   voice; counts everything (shard tally in chalk, days, Mama's
+   happy-cries) and worships Uncle Brann. HENS — reads the town's
+   health in her till; an empty shelf means the road's alive.
+   LYRIK — keeps a sad final verse drafted for the chronicle and
+   wants to be made to rewrite it. TOVA — the academy dean called
+   her seven-nations map "speculative"; she is petty enough to
+   enjoy being right. WREN — nine years picking towns by where
+   the music died; wants, once, to pick one for the weather.
+   OWLFLUTE — certain the moon plays the seventh nightly; mildly
+   judgmental that the village sleeps through it. PELL (village
+   inn tale-spinner; distinct from Sunward Pell) — insists the
+   fountain hums F sharp and that Tova (who says D) is wrong.
+   MARA (village innkeeper; distinct from Sunward Mara) — feeds
+   people as care; nobody saves a world on an empty stomach.
+
    ELDER (Village Clearing)
       Role: village elder, opens the troupe quest hook for the
       first Lydian shard. STATUS: IN CODE. Backstory: STUB —
       probably the oldest living singer in the Clearing; may have
       heard a true Held Chord fragment as a child.
+      Want (2026-07-03 dialogue pass): keeps a ledger of what
+      returns as the shards come home (swallows, the baker's
+      off-key singing, the fountain) and insists he is not
+      sentimental about it. He is.
 
    CAPT. REN (location TBD)
       Role: a captain — likely military or harbor. STATUS: STUB.
@@ -1569,6 +1592,11 @@ present in the code.
       is the warrior's natural meter. Recognizes warrior-lead as
       ex-army. At six shards, the iron starts singing under his
       hand. (Renamed 2026-07-02 from an accidental second "Bren".)
+      Want (2026-07-03 dialogue pass): a wholly one-sided rivalry
+      with village-Brann — swears Brann's anvil rings a hair flat
+      ("it is not my ears"). Brann, serene, credits his quench
+      water and lets him think it. At six shards Anvel privately
+      concedes Brann's rings true now.
       STATUS: IN CODE.
 
    ARAM (Phrygian Night City)

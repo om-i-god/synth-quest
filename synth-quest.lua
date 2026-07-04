@@ -10575,12 +10575,13 @@ local MAINLAND_NPCS = {
       elseif shards.lydian then
         return with_shard_react("Tova", {
           "I once charted seven nations. Each held a shard. Each fell silent.",
-          "When Suno turned the world quiet, I retired to my books. Until now.",
+          "The academy called my map 'speculative.' The dean signed the review.",
+          "Now the roads match my ink. I am petty enough to enjoy that.",
           "(Quest: meet the four regional sages.)",
         })
       end
       return with_shard_react("Tova", {
-        "I am Tova. I read the old runes.",
+        "I am Tova. I read the old runes. Correctly, unlike some.",
         "The Crystal Synth was a chord -- seven notes ringing as one.",
         "Suno hunts each note alone. Find them before they go cold.",
         "(Quest: meet the four regional sages.)",
@@ -10640,35 +10641,38 @@ local MAINLAND_NPCS = {
         })
       elseif n == 5 then
         return with_shard_react("Elder", {
-          "Five shards. The fountain in the plaza sings again at night.",
+          "Five shards. The fountain sings at night now. I go and listen.",
+          "I tell people I'm checking the stonework. I am not.",
           "Two more. Suno feels every one of them slip from his grasp.",
         })
       elseif n == 4 then
         return with_shard_react("Elder", {
-          "Four shards. Halfway. The world hums differently now.",
+          "Four shards. Halfway. The fountain cleared its throat at dawn.",
+          "Don't tell Pip. He'll sit there a week waiting for the rest.",
           "Three remain. Press on -- Suno's strength is not infinite.",
         })
       elseif n == 3 then
         return with_shard_react("Elder", {
-          "Three shards reclaimed. Suno's grip on Modalia weakens.",
+          "Three shards. The baker sings to her dough again. Off-key.",
+          "I noted it in the ledger anyway. A note is a note.",
           "Four still scattered. The deeper caves call to you next.",
         })
       elseif n == 2 then
         return with_shard_react("Elder", {
-          "Two shards. Truly remarkable. The Hollow Woods lie quiet now.",
-          "But Suno gathers his armies. Five shards remain, scattered.",
-          "Press on, heroes.",
+          "Two shards. The swallows came back to the bell-eave this week.",
+          "I keep a ledger of what returns. Someone in this village has to.",
+          "Suno gathers his armies. Five shards remain, scattered.",
         })
       elseif n == 1 then
         return with_shard_react("Elder", {
-          "You found the Lydian Shard. But Suno hunts six more.",
+          "The Lydian, home. First entry in my ledger in nineteen years.",
           "The Hollow Woods lie east. Veris waits within.",
           "She knows of the next shard.",
         })
       end
       return with_shard_react("Elder", {
-        "Travelers from afar? Suno's shadow grows.",
-        "He hunts the Crystal Synth, shattered when Modalia formed.",
+        "Travelers. I know every face in this village by its grandmother's.",
+        "Yours are new. So is Suno's shadow. I care for neither, frankly.",
         "A shard sleeps east in the cave. Recover it before he does.",
       })
     end,
@@ -10708,6 +10712,7 @@ local MAINLAND_NPCS = {
       elseif q.claimed then
         return with_shard_react("Brann", {
           "Anvil's quiet today. Good road work?",
+          "Anvel says my quench water's the secret. Let him think it.",
           "Bring me anything weird from the deeps. I always have a forge waiting.",
         })
       elseif q.wins > 0 then
@@ -10760,27 +10765,30 @@ local MAINLAND_NPCS = {
       local n = 0; for _, v in pairs(shards) do if v then n = n + 1 end end
       if n >= 7 then
         return with_shard_react("Pip", {
-          "The fountain's singing again! Mama said it hadn't sung in years.",
-          "She cried when she heard it. Did you bring the songs back?",
+          "THE FOUNTAIN'S SINGING! It did it again this morning! I COUNTED!",
+          "Mama cried TWICE. Happy crying, she said. That's a real kind!",
+          "You brought the songs back. I KNEW you would. I told EVERYONE.",
         })
       elseif n >= 4 then
         return with_shard_react("Pip", {
-          "I tried to sing the Lydian last night. Mama said I sounded close.",
-          "She says I'll sing better when all the shards come home.",
+          "FOUR! I'm keeping count on my wall in chalk. Four marks!",
+          "Uncle Brann says my tally's crooked. IT IS NOT CROOKED.",
+          "I tried to sing the Lydian last night. Mama said I was CLOSE.",
         })
       elseif n >= 1 then
         -- After your first shard but still early
         return with_shard_react("Pip", {
-          "I heard a humming this morning. Mama said the wind sounded different.",
-          "Was that you? Did you find one? Keep going! Bring more songs back!",
+          "I heard humming this morning! Mama said it was just the wind.",
+          "The wind doesn't hum IN TUNE. Was that you? Did you find one?",
+          "Keep going! Bring ALL the songs back! I'm counting them!",
         })
       end
       -- Pre-first-shard: cycle through 3 sets so Pip doesn't repeat the same
-      -- line every time you talk to her at the very beginning.
+      -- line every time you talk to him at the very beginning.
       local variants = {
         {
-          "Hi! I'm Pip. Are you the new musicians?",
-          "Mama said you'd come. She didn't say when.",
+          "Hi! I'm Pip! Are you the new musicians?",
+          "Mama said you'd come. She didn't say WHEN. I've been counting days.",
         },
         {
           "Have you been to the cave yet? I'm not allowed to go.",
@@ -10873,11 +10881,11 @@ local MAINLAND_NPCS = {
       end
       return with_shard_react("Lyrik", {
         "[Lyrik]  (a wandering chronicler, harp slung across her back)",
-        "[Lyrik]  Greetings, musicians. I sing the old chronicles when anyone will listen.",
+        "[Lyrik]  I sing the old chronicles. Every verse checked twice.",
         "[Lyrik]  When the Crystal Synth split, each shard found a nation.",
         "[Lyrik]  The Lydian to the south. The Aeolian to the western shore.",
-        "[Lyrik]  All seven scattered. All seven still singing, faintly, where they fell.",
-        "[Lyrik]  Modalia waits for heroes. Travel well, friends.",
+        "[Lyrik]  I have a last verse drafted for how this ends. It is sad.",
+        "[Lyrik]  Make me rewrite it, musicians. I keep good ink for that.",
       })
     end,
   },
@@ -10925,11 +10933,11 @@ local MAINLAND_NPCS = {
         })
       end
       return with_shard_react("Wren", {
-        "[Wren]   Wren. Wandering minstrel.",
-        "[Wren]   I follow the music when it lasts. Lately it doesn't last long.",
-        "[Wren]   The Ionian shard -- the seventh -- is locked in Suno's tower itself.",
-        "[Wren]   Six others lie scattered, one to each of the old musical nations. Find them, if you can.",
-        "[Wren]   I'll be here when you do. Or down the road. The road and I are old friends.",
+        "[Wren]   Wren. Wandering minstrel. Nine years on the road.",
+        "[Wren]   Nine years picking towns by where the music died last.",
+        "[Wren]   The Ionian shard -- the seventh -- is locked in Suno's tower.",
+        "[Wren]   Six others lie scattered, one to each of the old nations.",
+        "[Wren]   Find them. I'd like, once, to pick a town for the weather.",
       })
     end,
   },
@@ -11720,8 +11728,10 @@ local MAINLAND_NPCS = {
     barks = {"hush...", "(watches the sky)", "the moon hums.", "..."},
     dialogue = function()
       return {
-        "[Owlflute] You came up the road by night. That is rare.",
-        "[Owlflute] The moon plays the seventh tonight. Listen for it.",
+        "[Owlflute] Hush. The moon is mid-phrase.",
+        "[Owlflute] It plays the seventh tonight. It always has.",
+        "[Owlflute] The whole village sleeps through it. Every night.",
+        "[Owlflute] You came up the road by dark. So. Not everyone.",
         "[Owlflute] (returns to watching)",
       }
     end,
@@ -11834,7 +11844,7 @@ local MAINLAND_NPCS = {
   -- here). His hammer-strike pattern is the warrior's natural meter
   -- (4-on-the-floor). Lore deepens as the chord assembles.
   { x = 29, y = 9, name = "Anvel",
-    barks = {"(hammer falls)", "iron is honest.", "(hisses quench)", "mornin'.", "(clang) (clang)"},
+    barks = {"(hammer falls)", "hear THAT ring?", "(hisses quench)", "mornin'.", "(clang) (clang)"},
     dialogue = function()
       local n = 0; for _, v in pairs(shards) do if v then n = n + 1 end end
       local lead = party[active] and party[active].class
@@ -11844,7 +11854,7 @@ local MAINLAND_NPCS = {
         return with_shard_react("Anvel", {
           "[Anvel]   (sets the hammer down for the first time today)",
           "[Anvel]   The iron's been singing under my hand. It hasn't done that in years.",
-          "[Anvel]   Bring back the seventh and I'll forge you something that remembers.",
+          "[Anvel]   Even Brann's rings true now. (...) don't tell him I said it.",
         })
       end
       if lead == "warrior" then
@@ -11855,9 +11865,9 @@ local MAINLAND_NPCS = {
         })
       end
       return with_shard_react("Anvel", {
-        "[Anvel]   (clang) Mornin'. (clang) Don't mind the noise. (clang)",
-        "[Anvel]   Iron is honest. It tells you exactly what it is, every time you hit it.",
-        "[Anvel]   (clang) People aren't iron. (clang) Pity, sometimes.",
+        "[Anvel]   (clang) Hear that ring? Dead true. (clang)",
+        "[Anvel]   Now go stand by Brann's. His rings a hair flat.",
+        "[Anvel]   He says it's my ears. (clang) It is not my ears.",
       })
     end,
   },
@@ -12535,7 +12545,7 @@ CONTENT.inn_npcs = {
       elseif n >= 3 then
         opener = "[Mara]   You bring the music back, three notes at a time. The bread rises better when you're in town."
       else
-        opener = "[Mara]   Rest a while. The road outside has been louder than usual lately."
+        opener = "[Mara]   Sit. Eat. Nobody saves a world on an empty stomach."
       end
       if lead == "warrior" then
         return {
@@ -12601,8 +12611,8 @@ CONTENT.inn_npcs = {
           "Funny how things find new uses, no?",
         },
         {
-          "The fountain in the plaza? Listen close. The water hums in F sharp.",
-          "It has done so since I was a boy.",
+          "The fountain hums in F sharp. Tova says it's a D. Tova is wrong.",
+          "I've been listening to it since before she had books.",
         },
         {
           "They say Suno was a child once. A small voice in a small choir.",
@@ -12944,7 +12954,7 @@ CONTENT.shop_npcs = {
       elseif q.discount then
         return with_shard_react("Hens", {
           "Step right up -- 25% off, as promised.",
-          "Buy more, the chest empties faster, and faster I restock the goods.",
+          "An empty shelf is a happy shelf. It means the road's alive.",
         })
       elseif q.wins > 0 then
         return with_shard_react("Hens", {
@@ -12960,7 +12970,8 @@ CONTENT.shop_npcs = {
         })
       end
       return with_shard_react("Hens", {
-        "Welcome to my shop, traveler. Strings, reeds, rosin, lantern oil.",
+        "Welcome in. Strings, reeds, rosin, lantern oil. The essentials.",
+        "A town's health is in its till. Ours has coughed for years.",
         "Survive five road fights for me and I'll cut you a discount for life.",
         "(Quest: 5 random-encounter wins.)",
       })
@@ -12969,7 +12980,7 @@ CONTENT.shop_npcs = {
   { x = 3, y = 5, name = "Rook", kind = "pet",
     dialogue = function()
       local lines = {
-        {"Rook wags. He sniffs your boots", "and decides you are acceptable."},
+        {"Rook sits by the till, watching you browse.", "He appears to work on commission."},
         {"Rook drops a chewed wooden coin", "at your feet. Generous of him."},
         {"Rook rolls onto his back, paws up.", "(...he wants belly scritches...)"},
       }

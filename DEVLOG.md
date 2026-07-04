@@ -2335,3 +2335,15 @@ storefront row, wood-pile yard by the shop, hearth-side bench,
 stone cairn marking the observatory turn). BFS-verified both maps;
 two route hazards caught during placement (Hask's boat-road squeeze,
 the northern inn's mandatory corridor) and avoided.
+
+## 2026-07-04 — FF dialogue wave B (village NPCs)
+
+Every village NPC now has one vivid want, threaded through their
+shard/lead branches (recorded in the bible): the Elder's ledger of
+returning things; Tova's petty scholarly vindication; Lyrik's
+drafted sad verse he wants to be forced to rewrite; Anvel's
+one-sided anvil rivalry with the serene Brann ("It is not my
+ears."); Pip as the village's one loud person (chalk tally, IT IS
+NOT CROOKED); Wren picking towns by where music died last; Pell
+confidently wrong about the fountain's key. ~21 branches rewritten,
+~55 kept verbatim (27%). All quest mechanics untouched.
