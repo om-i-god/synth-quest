@@ -2311,3 +2311,16 @@ composed FF-style: fountain plaza with paving ring/lamps/bench/
 flowerbeds, picket side-yards on the three houses, market clutter
 behind the storefronts, a well by Tova's, flower meadows. BFS
 verified: zero unreachable cells, every door/arrival/NPC clear.
+
+## 2026-07-03 — FF dialogue wave A (party voices)
+
+48 scenes reviewed; 22 touched. The existing writing was already
+well-voiced (as the guide predicted), so the wave was surgical:
+17 substantive rewrites (Diegues now quantifies badly and corrects
+himself; Strom got terser; Alder's deflections sharpened), 4
+anti-goal violations fixed ("English, please" / "the bits with no
+plot" fourth-wall breaks, modern slang), 6 single-line banter beats
+added at pillar scenes (Miel finally speaks in the Strom epilogue:
+"Then rise, captain. We watch together."; ECHO answers "We will not
+let the silence have you" with "...have you. (...) You. You have
+me."). ~445 lines kept verbatim.

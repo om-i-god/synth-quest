@@ -4995,7 +4995,7 @@ local STORY = {
         "[Diegues] I dreamed the chord last night. Almost held it.",
         "[Alder]   You weren't dreaming. You were humming.",
         "[Alder]   ...wasn't bad. We could find that chord.",
-        "[Miel]    Then let's go find it. Together, this time.",
+        "[Miel]    Then we go and find it. Together. (...) I would like that.",
         "[Strom]   ...I'll carry the lantern.",
       },
     },
@@ -5017,7 +5017,7 @@ local STORY = {
       lines = {
         "[Diegues] The Academy taught: never split the chord.",
         "[Diegues] We split it anyway. To study.",
-        "[Alder]  What did you find?",
+        "[Alder]  And what did it sound like, apart?",
         "[Diegues] That a chord apart is not a chord.",
         "[Diegues] Just notes. Cold ones.",
       },
@@ -5028,8 +5028,9 @@ local STORY = {
       lines = {
         "[Miel]  My nation fell on a Tuesday. The silencers came at dawn.",
         "[Miel]  I held the throne three years before that. Three quiet years.",
-        "[Alder] So you're not really -- you're a queen?",
+        "[Alder] Wh-what?! A queen. And I let you carry the packs.",
         "[Miel]  I was. I rule no land now. I rule what I carry.",
+        "[Miel]  (a small smile) Including, it seems, your packs.",
         "[Strom] We answer to better names now.",
       },
     },
@@ -5062,11 +5063,11 @@ local STORY = {
       id = "after_locrian",
       trig = function() return shards.locrian end,
       lines = {
-        "[Diegues] Six shards. The chord is nearly whole.",
+        "[Diegues] Six shards. Six sevenths of a chord. Nearly whole.",
         "[Miel]  Tomorrow it ends. One way or another.",
         "[Alder] If we lose tomorrow —",
         "[Strom] We lose every song.",
-        "[Diegues] Then let's not lose.",
+        "[Diegues] Then we do not lose. Ninety percent certain. Perhaps eighty.",
       },
     },
     {
@@ -5076,7 +5077,7 @@ local STORY = {
         "[Miel]  Two notes, sounded together — almost a chord.",
         "[Alder] I can hear the air listening for the next.",
         "[Diegues] Five to go. Five harder roads.",
-        "[Strom] We've already gone harder than I thought we could.",
+        "[Strom] Then we walk harder.",
       },
     },
     {
@@ -5086,7 +5087,7 @@ local STORY = {
         return n >= 4
       end,
       lines = {
-        "[Diegues] Four shards. Halfway through the chord.",
+        "[Diegues] Four of seven. Not halfway. Fifty-seven percent, roughly.",
         "[Alder] Doesn't feel halfway.",
         "[Miel]  It rarely does, when you're inside it.",
         "[Strom] Keep walking.",
@@ -5100,7 +5101,7 @@ local STORY = {
       end,
       lines = {
         "[Strom] Suno's tower is open. Six shards. One missing.",
-        "[Alder] Tomorrow we walk in.",
+        "[Alder] Tomorrow we play the biggest room of our lives.",
         "[Miel]  Tonight we sleep. The chord can wait one night.",
         "[Diegues] One night. And then — the seventh note.",
       },
@@ -5242,7 +5243,7 @@ local STORY = {
         "[Strom]  Quieter than I expected.",
         "[Sergei] That's the trick of a real band.",
         "[Sergei] Loud on stage, hush in the green room.",
-        "[Paj]    Tomorrow we'll be loud in both.",
+        "[Paj]    Tomorrow: loud in both. The ratio inverts.",
       },
     },
 
@@ -5257,9 +5258,11 @@ local STORY = {
       end,
       lines = {
         "[Miel]   The pale-coat in the plaza -- she greeted me by my old title.",
-        "[Miel]   I haven't been called Queen since the coup. She knew. She wanted me to know she knew.",
+        "[Miel]   I haven't been called Queen since the coup.",
+        "[Miel]   She knew. She wanted me to know she knew.",
         "[Strom]  Iret. Suno's diplomat.",
-        "[Strom]  She came to my barracks once. Captain laughed her out the door. Two months later there were no barracks.",
+        "[Strom]  She came to my barracks once. Captain laughed her out.",
+        "[Strom]  Two months later there were no barracks.",
         "[Diegues] So she's an opening move.",
         "[Diegues] Suno tests every door before he kicks it.",
       },
@@ -5334,7 +5337,7 @@ local STORY = {
         "[Strom]  And the crown?",
         "[Miel]   I left it on the throne. With a note.",
         "[Miel]   It said: a kingdom is not a chord. It does not need a holder.",
-        "[Alder]  ...Miel. That's heavy.",
+        "[Alder]  ...I have no joke for that. First time for everything.",
         "[Miel]   I was twenty-two. I rule what I carry now. I carry less.",
       },
     },
@@ -5419,7 +5422,7 @@ local STORY = {
         "[Paj]    Closed-form. But unstable on the boundary.",
         "[Paj]    A counter-chord — major seventh, root A —",
         "[Paj]    drops it into a divide-by-zero.",
-        "[Alder]  English, please.",
+        "[Alder]  Again, but for bards.",
         "[Paj]    We sing him into a paradox. He stops working.",
         "[Strom]  ...I love a good paradox.",
       },
@@ -5523,7 +5526,7 @@ local STORY = {
         "[Diegues] The Crystal was the seventh's witness.",
         "[Miel]    Witness — not source?",
         "[Diegues] Source is us. The Crystal only listens.",
-        "[Alder]   Then we have to keep singing.",
+        "[Alder]   Then the encore never stops.",
         "[Strom]   Even when no one's listening.",
         "[Miel]    Especially then.",
       },
@@ -5560,9 +5563,9 @@ local STORY = {
         "[Miel]    I held one for years. It went unanswered.",
         "[Strom]   And now?",
         "[Miel]    Now I am the answer. To someone else's note.",
-        "[Diegues] ...that's the prettiest thing anyone's said this week.",
-        "[Alder]   Don't make it weird, Diegues.",
-        "[Diegues] Too late.",
+        "[Diegues] That is... statistically the finest sentence this month.",
+        "[Alder]   He's grading it. Miel, he is giving you marks.",
+        "[Diegues] Nine of ten. (...) Ten. Ten of ten.",
       },
     },
 
@@ -5595,8 +5598,8 @@ local STORY = {
       lines = {
         "[Alder]   You ever miss the road being just a road?",
         "[Strom]   Every day.",
-        "[Alder]   ...me too. Especially the bits with no plot.",
-        "[Strom]   (almost smiles.) The bits with no plot were the best.",
+        "[Alder]   ...me too. Especially the days when nothing happened.",
+        "[Strom]   (almost smiles.) The nothing was the best part.",
         "[Alder]   We'll have those again.",
         "[Strom]   ...promise?",
         "[Alder]   Promise.",
@@ -5690,7 +5693,8 @@ local STORY = {
       lines = {
         "[Miel]    The crypt smells of nothing. That isn't right.",
         "[Diegues] Crypts are loud with rot. This one is silent.",
-        "[Strom]   Locrius. He took the half-step from the chord. He keeps it under his tongue.",
+        "[Strom]   Locrius. He took the half-step from the chord.",
+        "[Strom]   Keeps it under his tongue.",
         "[Alder]   We can give it back to him.",
         "[Miel]    Quietly, then. So he hears us late.",
       },
@@ -5701,7 +5705,8 @@ local STORY = {
       trig = function() return CONTENT and CONTENT.cave_entered and CONTENT.cave_entered[7] end,
       lines = {
         "[Diegues] (closes his notebook for the first time in months)",
-        "[Diegues] I won't need to write what happens next. We'll either remember it or we won't.",
+        "[Diegues] I won't need to write what happens next.",
+        "[Diegues] We'll either remember it or we won't.",
         "[Strom]   I followed his orders for thirty years. Today I deliver them back.",
         "[Alder]   I've been picking the chord for weeks. It's almost in tune.",
         "[Miel]    (cups her hand to her ear. Listens to the room.)",
@@ -6740,7 +6745,8 @@ function start_academy_intro()
       "(Smoke pours through the doorway. Bookshelves are toppled. Pages drift in the bad light.)",
       "(A man in cracked spectacles stands his ground over a stack of papers — a chair-leg in one hand, a count in his head.)",
       "[Diegues] (sees you, eyes wide) Don't come in -- the silencers --",
-      "[Diegues] They want this hall as a tower. A silencing one. They want the chord here.",
+      "[Diegues] They want this hall as a tower. A silencing one.",
+      "[Diegues] They want the chord here. They cannot have it.",
     }, npc = {name = "Diegues"}},
     -- Strom enters along the corridor from the west, hammer dragging.
     {spawn = "strom", class = "warrior", name = "Strom", x = 3, y = 4, facing = "right", bob = false},
@@ -7277,6 +7283,7 @@ function start_echo_recruit_scene()
     {wait = 8},
     {dialogue = {
       "[Miel]    We will not let the silence have you.",
+      "[ECHO]    ...have you. (...) You. You have me.",
     }, npc = {name = "Miel"}},
     {wait = 10},
     {sfx = {class = "wraith", note = 72, vel = 0.7, attack = 0.05, release = 4.0, wet = 0.9}},
@@ -7802,6 +7809,7 @@ function finish_academy_arc()
       "[Strom]   (rises, slowly. Wipes ash from his cheek.)",
       "[Strom]   I owe Suno a dishonorable retirement.",
       "[Strom]   Where you go, I will keep watch.",
+      "[Miel]    (offers her hand) Then rise, captain. We watch together.",
     }, npc = {name = "Strom"}},
     -- Strom + Diegues take their formation positions beside Miel.
     {move = "strom",   to = {x = 8, y = 3}, ticks = 18},
@@ -7931,6 +7939,7 @@ function start_six_shards_scene()
     table.insert(script, {dialogue = {
       "[Alder]    The water didn't run like this when I wrote my last song.",
       "[Alder]    I'll need a new last song.",
+      "[Miel]     Make it a long one.",
     }, npc = {name = "Alder"}})
   end
   if class_in_party("warrior") then
@@ -13626,6 +13635,7 @@ CONTENT.hollow_npcs = {
         {dialogue = {
           "[Niko]    I've been waiting for a band worth keeping time for.",
           "[Niko]    You'll do.",
+          "[Miel]    (a breath of a laugh) High praise. We will try to keep up.",
         }, npc = {name = "Niko"}},
         -- A 4-on-the-floor pulse (kick drum analog) — four warrior hits.
         {sfx = {class = "warrior", note = 36, vel = 0.85, attack = 0.001, release = 0.20, wet = 0.10}},
@@ -17422,6 +17432,7 @@ local function damage_party(p, amount)
         "(They breathe. The water in the tidepool runs back, then forward, on the right beat.)",
         "(Around them: the sound of broken machinery suddenly remembering how to work.)",
         "[Sergei]  Right. Now finish it. I'll watch the door.",
+        "[Miel]    (finding her feet) ...thank you anyway.",
         "(Sergei joins your reserve. You can swap him in from the Party menu.)",
       }, nil)
       dlg.line = 1
