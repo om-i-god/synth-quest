@@ -2324,3 +2324,14 @@ added at pillar scenes (Miel finally speaks in the Strom epilogue:
 "Then rise, captain. We watch together."; ECHO answers "We will not
 let the silence have you" with "...have you. (...) You. You have
 me."). ~445 lines kept verbatim.
+
+## 2026-07-03 — FF area wave 2 (Eastern + Northern towns)
+
+Eastern: caravan-market texture (stall crates + rope-fence edge by
+Sela, storefront clutter + street lamp between the doors, bench at
+the boat landing, road signpost toward the waypost, dune ripples in
+open ground). Northern: hearth-village (lamps flanking the
+storefront row, wood-pile yard by the shop, hearth-side bench,
+stone cairn marking the observatory turn). BFS-verified both maps;
+two route hazards caught during placement (Hask's boat-road squeeze,
+the northern inn's mandatory corridor) and avoided.
