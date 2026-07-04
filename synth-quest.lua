@@ -3382,6 +3382,8 @@ CONTENT = {
               return {
                 "Refinery's hidden behind the headlands now.",
                 "You can hear it if the wind comes wrong.",
+                "Everything said in this room, I keep. Like stock.",
+                "Some of it appreciates.",
               }
             end
           end,
@@ -11992,7 +11994,8 @@ local EASTERN_NPCS = {
         "[Hask]   (an old fisherman, gnarled hands threading line)",
         "[Hask]   Welcome to the Reaches. Sea's been quiet lately. Quiet bad.",
         "[Hask]   Used to be the herring would sing back when you sang to them.",
-        "[Hask]   Now they just stare. (he flicks the line) Bring the chord home and I'll teach you to fish properly.",
+        "[Hask]   Now they just stare. (he flicks the line)",
+        "[Hask]   Bring the chord home. I'll teach you to fish properly.",
       })
     end,
   },
@@ -12018,13 +12021,15 @@ local EASTERN_NPCS = {
       end
       if lead == "engineer" then
         return with_shard_react("Sela", {
-          "An engineer? Take a look at the dock boards before you walk west, would you?",
+          "An engineer! Look at the dock boards before you walk west.",
           "Salt's chewing them faster than I can mend.",
+          "I'm losing by one board a season. It knows. I know.",
         })
       end
       return with_shard_react("Sela", {
         "Welcome to the Reaches. Inn's east of the dock;",
-        "Hens keeps a stall just past it.",
+        "Marek trades out of the caravan-stop past it.",
+        "Mind the third plank on the pier. Salt won that round.",
         "Don't wander to cave four 'til your boots dry.",
       })
     end,
@@ -12122,6 +12127,8 @@ local EASTERN_NPCS = {
       return with_shard_react("Mira", {
         "[Mira]    The Phrygian Shard sleeps east, in the deep cavern of glass.",
         "[Mira]    The Dune Rider prowls within. Old. Patient. Hungry.",
+        "[Mira]    I mark the dunes at dawn. They move when he does.",
+        "[Mira]    Lately they move often.",
       })
     end,
   },
@@ -12301,8 +12308,10 @@ local NORTHERN_NPCS = {
         }
       end
       return {
-        "First time up the pass? Inn's behind me; Hens keeps a stall beside it.",
+        "First time up the pass? Inn's behind me;",
+        "Skari's outpost trades beside it.",
         "Cave 5 is east. Don't go without a Vial.",
+        "And my knee says snow by dusk. My knee has never lied.",
       }
     end,
   },
@@ -12422,6 +12431,8 @@ local NORTHERN_NPCS = {
       return with_shard_react("Iolen", {
         "[Iolen]   Cave above holds the Aeolian Shard.",
         "[Iolen]   Step lightly. The cold listens.",
+        "[Iolen]   I took this watch as a girl. I will not pass it on.",
+        "[Iolen]   I mean to be the last of it. Make me the last.",
       })
     end,
   },
@@ -12737,6 +12748,7 @@ CONTENT.eastern_inn_npcs = {
       end
       return {
         "Off the boats, are you. Half the world ends up here off the boats.",
+        "(he reads your coat, your boots, your story. Nods.)",
         "Bunk's the one against the wall. Chowder's on the table.",
         "(party fully restored)",
       }
@@ -13023,20 +13035,23 @@ CONTENT.eastern_shop_npcs = {
       if q.wins >= q.target then
         q.discount = true
         return with_shard_react("Marek", {
-          "[Marek] Five wins on the road, eh? Hens sent word. Caravans gossip.",
+          "[Marek] Five wins on the road! Hens sent word -- caravans gossip.",
+          "[Marek] Hawks gossip FASTER. I knew before she finished writing.",
           "[Marek] I'll honor the same cut. Twenty-five off, every time you come east.",
         })
       end
       if q.wins > 0 then
         return with_shard_react("Marek", {
-          "[Marek] You've fought " .. q.wins .. "/" .. q.target .. " on the road. Keep at it.",
+          "[Marek] " .. q.wins .. " of " .. q.target .. " road fights -- yes, I heard! The hawk beat you here!",
           "[Marek] Hens cuts you a discount at five. I'll match her.",
         })
       end
       return with_shard_react("Marek", {
-        "[Marek] Welcome to my caravan-stop, traveler. Wares from three roads.",
+        "[Marek] Welcome, welcome! Wares from three roads, news from five!",
+        "[Marek] Ask me anything. I heard it yesterday. By hawk. Twice!",
         "[Marek] Tessen there hunts dawn rabbits -- don't startle her.",
-        "[Marek] Suno's collectors came through last winter. Took half my saffron.",
+        "[Marek] Suno's collectors took half my saffron last winter.",
+        "[Marek] I have OPINIONS. Buy something and I'll share them.",
       })
     end,
   },
@@ -13110,7 +13125,8 @@ CONTENT.northern_shop_npcs = {
       end
       return with_shard_react("Skari", {
         "[Skari] Welcome. I trade what the south won't carry up the pass.",
-        "[Skari] Pelts, dried fish, lantern oil rated for cold. Vix sleeps through it all.",
+        "[Skari] Pelts, dried fish, lantern oil rated for cold.",
+        "[Skari] Vix naps on whatever sells best. She's not been wrong yet.",
         "[Skari] Suno's snow-officers came north once. Once was enough.",
       })
     end,
@@ -13517,6 +13533,7 @@ CONTENT.cave4_npcs = {
       return with_shard_react("Iska", {
         "Sand carries every footstep miles. He hears you coming.",
         "He always does. Strike on the pattern, not the silence.",
+        "Then come tell me. I want one night of hearing nothing.",
       })
     end,
   },
@@ -13752,14 +13769,16 @@ CONTENT.sunward_coast_npcs = {
         }
       elseif lead == "cleric" then
         return {
-          "Princess. You won't remember me; I sang at",
-          "your grandmother's coronation. Bless this stand,",
-          "if you would. It's all we have of him now.",
+          "Princess. I sang at your grandmother's coronation.",
+          "You won't remember me. He did. He remembered everyone.",
+          "Bless the bandstand, if you would.",
+          "It's the loudest thing he left me.",
         }
       elseif lead == "warrior" then
         return {
-          "You walk like he did. The same weight in",
-          "the shoulders. Don't tell me he sent you.",
+          "You walk like he did. Same weight in the shoulders.",
+          "(she looks past you at the water, then back)",
+          "Forgive me. The sea returns things. Never the right ones.",
         }
       elseif lead == "mage" then
         return {
@@ -13769,9 +13788,9 @@ CONTENT.sunward_coast_npcs = {
         }
       else
         return {
-          "Welcome to Sunward Coast. We don't",
-          "see many travelers since the refinery",
-          "took the Harbormaster.",
+          "Welcome to Sunward Coast.",
+          "I still keep the harbor ledger. Every tide, every hull.",
+          "When he asks for it, it will be correct.",
         }
       end
     end,
@@ -13802,14 +13821,16 @@ CONTENT.sunward_coast_npcs = {
       local lead = party[active] and party[active].class
       if lead == "bard" then
         return {
-          "Are you a real bard? Can I try? I can sing",
-          "the Mara-song already. Most of it.",
+          "A REAL bard! Wait right there. Don't move. Listen!",
           "(she sings two notes, almost in tune)",
+          "That's the Mara-song! Most of it. The rest is high notes.",
+          "Teach me the high notes. Please please please.",
         }
       else
         return {
-          "(she watches the bandstand from a stair)",
-          "(she's mouthing words to herself)",
+          "(a girl on the stair, mouthing words at the bandstand)",
+          "When I'm big I'm singing up there. On the REAL stage.",
+          "Two more weeks. Maybe three. My voice still wobbles.",
         }
       end
     end,
@@ -13822,11 +13843,14 @@ CONTENT.sunward_coast_npcs = {
         return {
           "Strong arms. Want to haul nets at dawn?",
           "Pay's three coppers and a flask of cider.",
+          "No? Nobody ever does. The offer stands anyway.",
         }
       else
         return {
+          "(he coils a line without looking at it)",
           "At low tide, listen east of the cavern mouth.",
           "Sometimes the old bandleader still calls back.",
+          "I answer. Quietly. In case it's rude not to.",
         }
       end
     end,
@@ -13843,9 +13867,9 @@ CONTENT.sunward_coast_npcs = {
         }
       else
         return {
-          "I'm passing through. The Harbormaster's",
-          "duels were the reason I came. He's gone,",
-          "but the cavern still answers.",
+          "I came for the Harbormaster's duels. Too late.",
+          "But the cavern still answers a well-shaped phrase.",
+          "I collect them. Phrases. The sad ones transpose best.",
         }
       end
     end,
@@ -13856,6 +13880,7 @@ CONTENT.sunward_coast_npcs = {
       return {
         "Salted fish, two coppers. Kelp tea, one.",
         "Healing draught, twelve. Take it or leave it.",
+        "The fish IS the medicine. The draught's for tourists.",
       }
     end,
   },
@@ -13883,9 +13908,9 @@ CONTENT.sunward_coast_npcs = {
         }
       else
         return {
-          "(a kid watching the water)",
-          "Tide's high in an hour. You can tell by",
-          "the gulls — they go quiet first.",
+          "(a kid watching the water, lips moving with a count)",
+          "Tide's high in an hour. The gulls go quiet first.",
+          "The tide keeps its promises. I keep the tally.",
         }
       end
     end,
@@ -13908,13 +13933,15 @@ CONTENT.phrygian_city_npcs = {
       local lead = party[active] and party[active].class
       if lead == "warrior" then
         return {
-          "(he steps out from behind the stall)",
-          "(his hand goes to where his blade used to be)",
-          "...I was your second. You ran.",
+          "(he straightens when he sees you. Old habit.)",
+          "Strom. We said what needed saying.",
+          "What's left, we carry. Soldiers carry.",
+          "Walk well. I find I mean it now.",
         }
       else
         return {
-          "(an old soldier, marking something on a slate)",
+          "(an old soldier, marking names on a slate)",
+          "Every man of my old command, written somewhere.",
           "Phrygian doesn't forgive what it teaches.",
           "I learned that twice.",
         }
@@ -13934,6 +13961,7 @@ CONTENT.phrygian_city_npcs = {
       return {
         "Going to the Glass Cavern? Don't go alone.",
         "Three silver and I'll walk you to the dune-line.",
+        "Cheap. Ask around what the sand charges.",
         "I lose people who go without me.",
       }
     end,
@@ -13959,8 +13987,9 @@ CONTENT.phrygian_city_npcs = {
         }
       else
         return {
-          "(a drone-singer, holding one note for a long time)",
-          "(she nods when you pass)",
+          "(a drone-singer, holding one note a long time)",
+          "(she nods as you pass. The note does not waver.)",
+          "(she is outlasting the wind. She is winning.)",
         }
       end
     end,
@@ -13981,8 +14010,10 @@ CONTENT.phrygian_city_npcs = {
     x = 6, y = 5, name = "Brann", kind = "shop",
     dialogue = function()
       return {
-        "Phrygian goods, traveler. Sand-cured trinkets,",
-        "water flasks, dried fig cake. Take what you need.",
+        "Brann's caravan! Finest goods on three roads!",
+        "Sand-cured trinkets! Water flasks! Dried fig cake!",
+        "Yes, THE Brann. No, not the smith. Better beard.",
+        "Take him my fig cake! Branns look out for Branns!",
       }
     end,
   },
@@ -14015,13 +14046,14 @@ CONTENT.phrygian_city_npcs = {
       if lead == "bard" then
         return {
           "(she lights a wick and smiles)",
-          "I heard there's a town by the sea where they",
-          "sing on a stage. Is it true?",
+          "Is it true there's a sea-town that sings on a stage?",
+          "When every lantern here is lit, I'm going to see it.",
         }
       else
         return {
           "(a small child, tending a flame)",
           "Night isn't dark when the lanterns are lit.",
+          "I've lit forty-one tonight. The dark is losing.",
         }
       end
     end,
@@ -14044,6 +14076,7 @@ CONTENT.phrygian_city_npcs = {
       else
         return {
           "(she watches the bazaar with hungry eyes)",
+          "Not buying. Practicing. Watching is a soldier's first job.",
         }
       end
     end,

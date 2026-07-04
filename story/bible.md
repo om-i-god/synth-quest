@@ -1393,6 +1393,77 @@ present in the code.
    MARA (village innkeeper; distinct from Sunward Mara) — feeds
    people as care; nobody saves a world on an empty stomach.
 
+   EASTERN WANTS (2026-07-04 FF dialogue pass, Wave C): the
+   region-town casts each carry one petty, particular want.
+   Eastern's one loud voice is MAREK (caravan-stop merchant) —
+   gossip arrives to him by hawk before it happens; he has
+   OPINIONS and sells them bundled with saffron. HASK (Reaches
+   fisherman) — the herring used to sing back; he keeps the
+   third pier post reserved and means to teach the party to
+   fish properly. SELA (port harbormaster) — mends the dock
+   boards one plank slower than the salt eats them; keeps
+   score. KAROO (dune wanderer) — wants one person to finish
+   the line he keeps forgetting. MIRA (eastern sage) — marks
+   the dunes at dawn; they move when the Rider does. TARN
+   (eastern innkeeper) — reads every guest's story off their
+   coat before they speak; never collects Lirael debts. LIN
+   (net-mender) — knits songs into her nets; helps her, not
+   the catch. ISKA (Cave 4 guide) — counted the Rider's
+   hoofbeats in her sleep so long she wants one night of
+   hearing nothing. IRET/VANCE/TESS (Suno's watchers) — kept
+   menacing, untouched this pass.
+
+   NORTHERN WANTS (Wave C): the quiet town — nobody loud, by
+   design. IOLEN (highland watch; a woman) — took the watch as
+   a girl and refuses to pass it on; she means to be the last
+   of it. OLEN (wood-cutter) — keeps the paths clear; hates
+   lying weather; lost his brother to the three-count. BRACKEN
+   (pass guide) — forecasts by his knee, which has never lied.
+   SNOW (silent figure) — kept as-is; her silence is the want.
+   HALLA (innkeeper) — her brother sells, she keeps people
+   alive. EYVI (ranger) — the unmapped pass; two fingers and a
+   friend who is "still up there." SKARI (outpost trader) —
+   defers stocking decisions to Vix, who naps on whatever
+   sells best and has not been wrong yet.
+
+   SUNWARD WANTS (Wave C): the one loud voice is CORAL
+   (12-year-old bandstand hopeful) — knows most of the
+   Mara-song, all but the high notes; gives her voice two more
+   weeks (maybe three) to stop wobbling before she takes the
+   REAL stage. MARA (harbormaster's widow) — still keeps the
+   harbor ledger, every tide, every hull, so it will be
+   correct when he asks for it; grief carried with dignity,
+   never spoken as loss. BECK (fisherman) — answers the old
+   bandleader's call at low tide, quietly, in case it's rude
+   not to. WYNNE (traveling bard) — collects phrases; the sad
+   ones transpose best. PELL (fishmonger; distinct from
+   village Pell) — insists the fish IS the medicine; sells
+   draughts for tourists under protest. IOLEN (tide-watcher
+   kid; distinct from northern sage) — the tide keeps its
+   promises and he keeps the tally. HASK (tavern keeper;
+   distinct from Reaches fisherman) — keeps everything said in
+   his room like stock; some of it appreciates. VESA (Sage
+   Circle archivist) — kept: names are how we remember.
+
+   PHRYGIAN WANTS (Wave C): the one loud voice is BRANN
+   (caravan master; distinct from the village smith — yes, THE
+   Brann, no, not the smith, better beard) — a market caller
+   who wants his fig cake carried to his name-twin because
+   Branns look out for Branns. ARAM (war veteran) — keeps
+   every man of his old command written on a slate; with Strom
+   (post-confrontation) he carries the rest without speaking
+   of it: "Walk well. I find I mean it now." SERIK (cavern
+   guide) — three silver is cheap; ask what the sand charges.
+   MIRA (drone-singer; distinct from eastern sage) — holds one
+   note against the wind and is winning. LAMPLIGHTER — has lit
+   forty-one lanterns tonight; the dark is losing; saving the
+   sea-town stage for when every wick here is lit. SCOUT —
+   isn't buying, is practicing; watching is a soldier's first
+   job. DUSK (fortune-teller) — kept: no readings before the
+   cavern. VEILED MYSTIC — kept cryptic. LYSSA/CALDER/MAREN
+   (Suno's court, map 4) — untouched; their post-victory
+   branches and precedence preserved exactly.
+
    ELDER (Village Clearing)
       Role: village elder, opens the troupe quest hook for the
       first Lydian shard. STATUS: IN CODE. Backstory: STUB —

@@ -2359,3 +2359,16 @@ signpost. 171 scripted checks green. Also fixed two flags the wave
 surfaced: tile 62 (bandstand) was never in is_walkable despite its
 legend — Coral was unreachable (the tile-60/Beck bug class again);
 Wina stood ON the Western→Mainland arrival tile.
+
+## 2026-07-04 — FF dialogue wave C (region towns)
+
+Twenty NPCs across Eastern/Northern/Sunward/Phrygian got their one
+vivid want (bible-recorded): Marek's hawk-delivered gossip and
+bundled OPINIONS; Mara keeping the harbor ledger correct for when
+her husband asks; Coral needing "two more weeks, maybe three" before
+the REAL stage; Phrygian Brann embracing the name collision ("Yes,
+THE Brann. No, not the smith. Better beard."); Aram's slate of every
+man he commanded; the lamplighter's nightly score against the dark.
+One loud person per town (Marek/Coral/Brann; Northern stays quiet).
+~55 of ~200 lines rewritten; villain cast + Suno's court kept
+verbatim (already FF-grade). Two stale merchant references fixed.
