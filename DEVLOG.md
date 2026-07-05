@@ -2394,3 +2394,20 @@ courtyard map was clobbering the dining-table drawer — every table
 in every inn/shop/house rendered as a stone column. Deleted; tables
 are tables again. (Known cosmetic leftovers: dead legacy
 BOSS_APPROACH table, bible/code drift on one Brann line.)
+
+## 2026-07-04 — JAM mode-cycling was inaudible (user report)
+
+"Changing the scale in jam mode during the opening castle sequence
+doesn't change what's playing." Diagnosis: THREE things conspired,
+all by design, none with feedback: (1) JAM MIDI input is chromatic
+passthrough (correct — never snap a musician's keyboard); (2)
+nothing else in JAM plays scale notes, so the MODE readout had no
+audible consumer inside JAM at all; (3) the castle raid theme is
+deliberately scale-locked to aeolian ("the raid always plays
+minor"), so even after exiting JAM the zone ignores the mode.
+
+Fixes: cycling the mode in JAM (X or dpad) now auditions the new
+scale — a quick 1-3-5 strum on the active voice — so the change is
+instantly audible; and the JAM screen shows "(zone key locked)"
+next to MODE when the current zone theme won't follow (castle).
+NOT yet deployed — norns is away; deploy on return.

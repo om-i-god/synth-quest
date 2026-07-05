@@ -4973,6 +4973,31 @@ local function active_scale()
   return JAM.scales[JAM.mode] or JAM.scales.pentatonic
 end
 
+-- Audible feedback when the mode changes in JAM: strum degrees 1-3-5
+-- of the NEW scale on the active voice. Without this, cycling modes
+-- was inaudible in JAM (MIDI notes are deliberately chromatic
+-- passthrough, and the zone theme only follows the mode after exit —
+-- or never, in scale-locked zones like the castle raid).
+function jam_audition_scale()
+  local sc = JAM.scales[JAM.mode] or JAM.scales.pentatonic
+  local p = party and party[active]
+  local voice = (p and p.class) or "cleric"
+  if voice ~= "warrior" and voice ~= "cleric" and voice ~= "bard"
+     and voice ~= "mage" and voice ~= "wraith" then
+    voice = "cleric"   -- recruits without their own synth voice
+  end
+  clock.run(function()
+    for k, deg in ipairs({1, 3, 5}) do
+      local v = sc[deg]
+      if v then
+        sq_trig(voice, midi_to_freq(v + (JAM.root or 0)),
+                0.45, 0.005, 0.8, 0.35)
+      end
+      clock.sleep(0.09)
+    end
+  end)
+end
+
 -- Story / party-banter scenes shown at the inn. Each scene plays once when its
 -- trig() condition is true. Persisted via STORY.seen in the save file.
 local STORY = {
@@ -19335,6 +19360,7 @@ function gamepad.dpad(axis, sign)
         for i, m in ipairs(JAM.mode_order) do if m == cur then idx = i; break end end
         local n = #JAM.mode_order
         JAM.mode = JAM.mode_order[((idx - 1 + sign) % n + n) % n + 1]
+        if jam_audition_scale then jam_audition_scale() end
         redraw()
       elseif axis == "X" then
         JAM.root = math.max(-12, math.min(12, (JAM.root or 0) + sign))
@@ -19730,6 +19756,7 @@ function gamepad.button(button, state)
       for i, m in ipairs(JAM.mode_order) do if m == cur then idx = i; break end end
       local n = #JAM.mode_order
       JAM.mode = JAM.mode_order[(idx % n) + 1]
+      if jam_audition_scale then jam_audition_scale() end
       redraw()
     elseif button == "B" or button == "START" then
       game_state = jam_prev_state or "OVERWORLD"
@@ -30863,6 +30890,15 @@ local function draw_jam()
   -- Mode (current scale) at footer-left, A to cycle through unlocked modes
   screen.level(11); screen.move(2, 63); screen.text("MODE")
   screen.level(15); screen.move(26, 63); screen.text(JAM.mode:upper())
+  -- Scale-locked zones (castle raid etc.) ignore the mode on exit —
+  -- say so, or mode-cycling there reads as broken.
+  do
+    local th = OW_THEMES and current_theme and OW_THEMES[current_theme]
+    if th and th.scale then
+      screen.level(5); screen.move(60, 63)
+      screen.text("(zone key locked)")
+    end
+  end
   -- Stick visualizers (only shown in debug mode — kept the jam UI cluttered).
   if debug_visible then
     local lx, ly, rx, ry = 0, 0, 0, 0
