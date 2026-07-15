@@ -2493,3 +2493,60 @@ bible leftovers (Queen's Echo retitle at the signature-scene list,
 Snowgaunt's courier in the Cave 5 bestiary, "Princess Miel" in the
 Act 1 dossier, Act 3 Arsen block now marked superseded). Noted for
 the future: the file sits near Lua's 200 top-level local cap.
+
+## 2026-07-15 — Wave 9: saves / critical-path / audio-engine audits
+
+Three parallel auditors on domains no prior wave owned end-to-end.
+Two of them independently found the same top blocker.
+
+### Blockers fixed
+- **The six-shards beat (World of Silence + ECHO) could be silently
+  lost forever by a reload.** The 6th-shard autosave fired BEFORE the
+  scene was queued, and `queued_scene` was never persisted — loading
+  that autosave meant the n==6 edge could never re-fire, so the whole
+  Act 3 beat and the 4th recruit vanished with no error. Fixed three
+  ways: autosave moved below the queue-set, `queued_scene` now saved/
+  restored, and load_game re-derives + immediately plays the beat for
+  older saves (6 banked, no ionian, beat unseen).
+- **A recruit's limit break froze the game.** Sergei/Paj/Niko at ≤25%
+  HP firing ATK called `engine.trig_engineer` (doesn't exist) inside
+  the music-clock coroutine — clock dies, hard freeze. Fixed with the
+  standard voice-family alias (+ bespoke limit banner names:
+  "SERGEI: FULL PATCH", "PAJ: PROOF BY VOLUME", "NIKO: DOWNBEAT"),
+  plus a nil-guard inside sq_trig so any future missing engine command
+  degrades to silence instead of death.
+- **Beating the Broken Cadence left Lirael's 48-BPM theme at 100 BPM**
+  (the victory path bypasses exit_battle and wrote the global tempo;
+  the theme-transition writer never re-fires within a zone). Whole
+  wrong-tempo family swept: Broken Cadence + Strom-arc bypasses,
+  Jam Pad exits, JAM BPM nudge (which could also stomp a battle it
+  was opened from), Sergei-intervention resume (lost the battle_speed
+  multiplier), and Continue-from-title (new `resync_zone_tempo()`
+  snaps theme+tempo to the loaded map; the old writes played themed
+  zones at the global 100 whenever the stale theme matched).
+
+### Also
+- SAVE_VERSION 3: migration relocates a pre-gate save made inside
+  Suno's antechamber (5 shards) to outside the chamber door so the
+  wave-8 six-shard gate binds.
+- Confirmed by gate-math trace: locrian-BEFORE-aeolian is genuinely
+  reachable (Iola's letter opens the crypt at 3 shards + mage lead),
+  so the wave-8 cave-7 gate is load-bearing, not belt-and-braces. The
+  six-shards scene's "before the tower" / "opens at five" lines now
+  branch when the tower was already entered.
+- NG+: ECHO's recruit beat pre-seeded when she carried over (run 2 no
+  longer re-arms the Silence and re-recruits her mid-party);
+  JAM.mode resets to pentatonic (a carried mode couldn't be
+  re-selected once cycled off).
+- Hygiene: cleanup() closes the viewer TCP stream; ambient weather
+  particles no longer render frozen over battles/menus; norns-key
+  GAME_OVER dismiss mirrors the gamepad scene-clear; jam audition
+  plays recruits' own voice family; story-flag restore replaces
+  instead of merges; six-shards warp clears the stale interior return
+  target; "music ducks" comment corrected (no duck exists).
+
+### Deliberately not fixed
+HDMIMirror's blocking connect (documented tradeoff, ~100ms hitch every
+5s only while the stream is on and the viewer unreachable), the
+victory-fanfare-at-journey-rate (intentional), shake duration varying
+with redraw rate, legacy pre-characters save restore (ancient saves).

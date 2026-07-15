@@ -5015,9 +5015,16 @@ function jam_audition_scale()
   local sc = JAM.scales[JAM.mode] or JAM.scales.pentatonic
   local p = party and party[active]
   local voice = (p and p.class) or "cleric"
+  -- Recruits alias to their engine voice family (same mapping the
+  -- battle layer uses) so auditioning as Sergei/Paj/Niko plays their
+  -- own timbre, not Miel's.
+  voice = (voice == "engineer" and "mage")
+       or (voice == "mathwiz"  and "bard")
+       or (voice == "drummer"  and "warrior")
+       or voice
   if voice ~= "warrior" and voice ~= "cleric" and voice ~= "bard"
      and voice ~= "mage" and voice ~= "wraith" then
-    voice = "cleric"   -- recruits without their own synth voice
+    voice = "cleric"
   end
   clock.run(function()
     for k, deg in ipairs({1, 3, 5}) do
@@ -7898,7 +7905,9 @@ function finish_broken_cadence()
   enemy = nil
   battle_outcome = nil
   game_state = "OVERWORLD"
-  params:set("clock_tempo", OVERWORLD_BPM)
+  -- Zone tempo, not the global: this runs inside 48-BPM Lirael, and
+  -- the theme-transition writer won't re-fire (theme didn't change).
+  params:set("clock_tempo", overworld_tempo())
   redraw()
 end
 
@@ -7913,7 +7922,11 @@ end
 function start_six_shards_scene()
   -- Force-warp to the mainland village fountain area regardless of where
   -- the player just won the battle. Fountain is at mainland (15, 7);
-  -- spawn Miel just south of it.
+  -- spawn Miel just south of it. The pre-battle interior return target
+  -- is stale after the warp — clear it so a later house/shop entry
+  -- doesn't stash it as an outer return.
+  CONTENT.return_map = nil; CONTENT.return_x = nil; CONTENT.return_y = nil
+  CONTENT.outer_return = nil
   travel_to(1, 15, 8)
   player.facing = "up"
   update_camera()
@@ -7961,7 +7974,14 @@ function start_six_shards_scene()
     }, npc = {name = "Alder"}})
   end
   if class_in_party("warrior") then
-    table.insert(script, {dialogue = {
+    -- The locrian-early order reaches this beat with the tower already
+    -- entered — "opens at five" would be stale news. Branch on it.
+    local tower_seen = CONTENT.scene_seen and CONTENT.scene_seen.tower_entry
+    table.insert(script, {dialogue = tower_seen and {
+      "[Strom]    Six. The tower already let us in once.",
+      "[Strom]    Suno is a long walk away.",
+      "[Strom]    But it is a walk.",
+    } or {
       "[Strom]    The tower opens at five. We have six.",
       "[Strom]    Suno is a long walk away.",
       "[Strom]    But it is a walk.",
@@ -8049,16 +8069,20 @@ function start_six_shards_scene()
         "[Diegues]  Pitch is the surface of music, not the substance. I always suspected.",
         "[Diegues]  I hated suspecting it.",
       }, npc = {name = "Diegues"}})
+      local tower_seen = CONTENT.scene_seen and CONTENT.scene_seen.tower_entry
       table.insert(script, {dialogue = {
         "[Diegues]  The Academy's astrolabe turns on mathematics, not pitch.",
         "[Diegues]  If anything still remembers the true tuning -- it is Echo.",
-        "[Diegues]  We go there before the tower.",
+        tower_seen and "[Diegues]  We go there before we return to the tower."
+                    or "[Diegues]  We go there before the tower.",
       }, npc = {name = "Diegues"}})
     else
+      local tower_seen = CONTENT.scene_seen and CONTENT.scene_seen.tower_entry
       table.insert(script, {dialogue = {
         "[Miel]     The Academy's astrolabe. The figure who lives beside it.",
         "[Miel]     If the silence is eating the world's edges -- what is it doing to hers?",
-        "[Miel]     We go to the Academy before the tower.",
+        tower_seen and "[Miel]     We go to the Academy before we return to the tower."
+                    or "[Miel]     We go to the Academy before the tower.",
       }, npc = {name = "Miel"}})
     end
     table.insert(script, {set = function()
@@ -8101,6 +8125,17 @@ function start_new_game_plus()
   CONTENT.queued_scene = nil   -- stale queued beats don't carry into NG+
   CONTENT.events_seen = {}   -- ambient one-shot events refire on NG+
   CONTENT.act3_silence = false   -- world starts NG+ in tune (six-shards re-arms it)
+  -- ECHO stays in the party across NG+ (recruits carry like levels do),
+  -- so seed her recruit beat as already-seen: otherwise run 2's
+  -- six-shards scene re-arms the Silence and the Academy replays her
+  -- full recruitment while she's standing in the party.
+  if CONTENT.recruits and CONTENT.recruits[4] and CONTENT.recruits[4].joined then
+    CONTENT.scene_seen.echo_recruit = true
+  end
+  -- Run 2 starts with zero shards, so drop the JAM back to the always-
+  -- unlocked default — a carried mode couldn't be re-selected once
+  -- cycled off, and it also drives battle weak/resist.
+  JAM.mode = "pentatonic"
   -- First-entry beats + party scenes replay in NG+, matching the
   -- scene_seen policy above.
   CONTENT.cave_entered = {}
@@ -9053,7 +9088,9 @@ end
 -- scene in Lirael Ruins (map 23). Fires the first time the player steps
 -- onto the cathedral_door tile (88, row 8 cols 19-20) from the south,
 -- regardless of active lead. Miel separates from the party and walks into
--- the nave alone. Quiet: long fades, music ducks, one line of dialogue.
+-- the nave alone. Quiet: long fades, one line of dialogue. (The zone
+-- theme keeps playing under it — at Lirael's 48 BPM it reads as a hush;
+-- there is no actual music duck.)
 -- Her mother's echo briefly manifests behind her, no dialogue. (Canon:
 -- Miel's mother died young and never reigned — the crown passed from
 -- the grandmother to Miel. She is entombed in the cathedral nave.)
@@ -9076,7 +9113,7 @@ function start_lirael_miel_walks_alone_scene()
     -- the line, and the mother's echo all played ABOVE the visible
     -- window (same staging class as the courtyard-silencer bug).
     {focus = {x = 18, y = 4}, ticks = 24},
-    -- Music ducks to silence; sustained low cleric drone
+    -- Sustained low cleric drone under the (still-playing) zone theme
     {sfx = {class = "cleric", note = 36, vel = 0.2, attack = 2.0, release = 6.0, wet = 0.9}},
     {wait = 16},
     -- Miel arrives at the broken altar (row 2 col 18)
@@ -14214,7 +14251,13 @@ function sq_trig(class, freq, vel, attack, release, ...)
       pcall(function() if midi_out then midi_out:note_off(note, 0, ch) end end)
     end)
   end
-  return engine["trig_" .. class](out_freq, vel, attack, release, ...)
+  -- Guard the engine lookup: an unknown class (unaliased recruit) or a
+  -- not-yet-registered command (wraith voice before SYSTEM > RESTART)
+  -- would otherwise call nil INSIDE the music/battle clock coroutine
+  -- and kill it — hard freeze. Silence beats death.
+  local fn = engine["trig_" .. class]
+  if not fn then return end
+  return fn(out_freq, vel, attack, release, ...)
 end
 
 local function tile_at(tx, ty)
@@ -14291,8 +14334,6 @@ local function obtain_shard(name)
   if shards[name] then return end
   shards[name] = true
   last_obtained_shard = name
-  -- Auto-save on every shard collection (story milestone).
-  if save_game then save_game() end
   -- Mode-specific 4-note "shard sting": play a quick chord/arpeggio in
   -- the mode's scale to musically announce which shard you just earned.
   local sc = JAM.scales[name] or JAM.scales.pentatonic
@@ -14344,6 +14385,12 @@ local function obtain_shard(name)
   if n == 6 and not (CONTENT.scene_seen and CONTENT.scene_seen.six_shards) then
     CONTENT.queued_scene = "six_shards"
   end
+  -- Auto-save on every shard collection (story milestone). AFTER the
+  -- queue-set above: the 6th-shard autosave must contain the pending
+  -- six-shards beat, or a reload from it would silently lose the World
+  -- of Silence and ECHO (queued_scene is also persisted; load_game has
+  -- a re-derive backstop for older saves).
+  if save_game then save_game() end
 end
 
 -- adjust tempo settings; immediately apply if relevant state is active
@@ -14354,7 +14401,14 @@ end
 
 local function adjust_journey_bpm(delta)
   OVERWORLD_BPM = math.max(BPM_MIN, math.min(BPM_MAX, OVERWORLD_BPM + delta))
-  if game_state ~= "BATTLE" then params:set("clock_tempo", OVERWORLD_BPM) end
+  -- Apply live only when we're truly on the overworld clock: not in
+  -- battle, and not in a JAM overlay opened FROM a battle (SELECT
+  -- mid-fight) — the fight would resume at the wrong tempo. Themed
+  -- zones keep their own bpm (overworld_tempo falls back to the
+  -- global only when the zone defines none).
+  if game_state ~= "BATTLE" and jam_prev_state ~= "BATTLE" then
+    params:set("clock_tempo", overworld_tempo())
+  end
 end
 
 -- ============================================================ SAVE / LOAD
@@ -14415,7 +14469,7 @@ local travel_to       -- forward decl (defined later)
 --     -- chamber-wake scene was rewritten -- let it replay
 --     if data.scene_seen then data.scene_seen.chamber_wake = nil end
 --   end
-SAVE_VERSION = 2
+SAVE_VERSION = 3
 SAVE_MIGRATIONS = {
   -- v0 -> v1: page_warning scene was rewritten (Page now ends at his
   -- static post at (8,8) instead of running back to the door), and the
@@ -14444,6 +14498,22 @@ SAVE_MIGRATIONS = {
       data.act3_silence = (seen.six_shards and not seen.echo_recruit
                            and not data.endgame_done
                            and not (data.shards and data.shards.ionian)) or false
+    end
+  end,
+  -- v3 (wave 9): Cave 7's chamber door now requires six shards, but the
+  -- door gate can't reach a save made INSIDE the antechamber (map 14)
+  -- before the gate existed. Relocate such saves to the door's outside
+  -- (their stashed return point, or the Tower base) so the gate binds.
+  [3] = function(data)
+    if data.current_map_id == 14 and not data.endgame_done then
+      local n = 0
+      for _, v in pairs(data.shards or {}) do if v then n = n + 1 end end
+      if n < 6 then
+        data.current_map_id = data.return_map or 4
+        data.player = {x = data.return_x or 12, y = data.return_y or 12,
+                       facing = "down"}
+        data.return_map = nil; data.return_x = nil; data.return_y = nil
+      end
     end
   end,
 }
@@ -14538,6 +14608,10 @@ save_game = function()
   data.senna_seen            = CONTENT.senna_seen or false
   data.endgame_done          = CONTENT.endgame_done or false
   data.act3_silence          = CONTENT.act3_silence or false
+  -- Pending story beat (e.g. "six_shards" between the 6th-shard drop
+  -- and the next battle exit). Without this, reloading the 6th-shard
+  -- autosave lost the World of Silence + ECHO for the whole run.
+  data.queued_scene          = CONTENT.queued_scene
   data.total_wins            = CONTENT.total_wins or 0
   data.tess_defected         = CONTENT.tess_defected or false
   data.tilde_paid            = CONTENT.tilde_paid or false
@@ -14609,7 +14683,7 @@ local function load_game()
     SCENE.fade = 0; SCENE.fade_target = 0; SCENE.fade_speed = 0
     SCENE.hide_player = false; SCENE.cam_tween = nil
     SCENE.letterbox = 0; SCENE.letterbox_target = 0
-    SCENE.panel = nil
+    SCENE.panel = nil; SCENE.panel_t = 0; SCENE.on_complete = nil
   end
   if PARTICLES then PARTICLES.pool = {} end
   -- Reset dialogue typewriter state so a load mid-dialogue doesn't show
@@ -14844,9 +14918,27 @@ local function load_game()
   -- (CONTENT.resonances was already initialized at module load with all 8
   -- ids set to false, so missing data.resonances on a legacy save just
   -- leaves the defaults in place.)
-  -- story flags (safe merge: new flags default to false if absent in old saves)
+  -- story flags. Replace, don't merge: save_game dumps the whole table,
+  -- so any key absent from the save is genuinely unset — a merge would
+  -- let flags from the in-memory session (post-credits TITLE → Continue)
+  -- leak into the loaded game. Mutate in place: closures hold `flag`.
   if data.flag then
+    for k in pairs(flag) do flag[k] = nil end
     for k, v in pairs(data.flag) do flag[k] = v end
+  end
+  -- Pending story beat (persisted since wave 9). For saves from before
+  -- that, re-derive the one load-bearing case: six shards banked but the
+  -- six-shards beat never seen means the beat was queued in a session
+  -- that never drained it — without this, the World of Silence and
+  -- ECHO's recruitment are silently unreachable for the whole run.
+  -- Unconditional (replace, don't merge — same policy as `flag`): a
+  -- key absent from the save means no beat is pending.
+  CONTENT.queued_scene = data.queued_scene
+  if not CONTENT.queued_scene
+     and count_shards() >= 6 and not shards.ionian
+     and not CONTENT.endgame_done
+     and not (CONTENT.scene_seen and CONTENT.scene_seen.six_shards) then
+    CONTENT.queued_scene = "six_shards"
   end
   if data.inv then
     SHOP.inv.salve = data.inv.salve or 0
@@ -14875,15 +14967,26 @@ local function load_game()
   player.x = ld_x
   player.y = ld_y
   player.facing = ld_facing
-  -- apply current tempo for the active state
-  if game_state == "BATTLE" then
-    params:set("clock_tempo", BATTLE_BPM)
-  else
-    params:set("clock_tempo", OVERWORLD_BPM)
-  end
+  -- Snap theme + tempo to the loaded map. (Load only happens from
+  -- TITLE, never mid-battle; the old unconditional OVERWORLD_BPM write
+  -- played themed zones at the wrong tempo when the session's stale
+  -- theme matched the loaded zone — no transition ever re-applied it.)
+  if resync_zone_tempo then resync_zone_tempo()
+  else params:set("clock_tempo", OVERWORLD_BPM) end
   update_camera()
   save_flash_ticks = 24
   save_flash_text = "Game Loaded"
+  -- Drain a pending six-shards beat immediately: the queue's normal
+  -- consumer is exit_battle, but a just-loaded player can reach the
+  -- Cave 7 door without ever exiting another battle. Mirrors the
+  -- exit_battle consumer (mark seen, clear, fire; the scene self-warps
+  -- to the village fountain).
+  if CONTENT.queued_scene == "six_shards" and start_six_shards_scene then
+    CONTENT.queued_scene = nil
+    CONTENT.scene_seen = CONTENT.scene_seen or {}
+    CONTENT.scene_seen.six_shards = true
+    start_six_shards_scene()
+  end
   return true
 end
 
@@ -15084,6 +15187,18 @@ local function active_theme_id()
   elseif r == "woods" then return "woods"
   else return "coast"
   end
+end
+
+-- Snap the music state to the current map's theme + tempo. Used by
+-- load_game and other out-of-band relocations (the normal transition
+-- writer in tick_overworld_music only fires when the theme CHANGES —
+-- if a load lands in the same theme the session already had, the zone
+-- tempo would otherwise never be re-applied and e.g. Lirael's 48 BPM
+-- theme would play at the global 100).
+function resync_zone_tempo()
+  current_theme = active_theme_id()
+  overworld_step = 0
+  params:set("clock_tempo", overworld_tempo())
 end
 
 local function fire_ow_voice(class, scale_idx, artic_override, scale_override)
@@ -17157,7 +17272,7 @@ local function damage_enemy(amount, is_crit)
       enemy = nil
       battle_outcome = nil
       game_state = "OVERWORLD"
-      params:set("clock_tempo", OVERWORLD_BPM)
+      params:set("clock_tempo", overworld_tempo())  -- academy runs 110
       finish_academy_arc()
       return
     end
@@ -17174,7 +17289,7 @@ local function damage_enemy(amount, is_crit)
       enemy = nil
       battle_outcome = nil
       game_state = "OVERWORLD"
-      params:set("clock_tempo", OVERWORLD_BPM)
+      params:set("clock_tempo", overworld_tempo())  -- Lirael runs 48
       finish_broken_cadence()
       return
     end
@@ -17554,7 +17669,8 @@ local function damage_party(p, amount)
       game_state = "DIALOGUE"
       CONTENT.post_dialogue = function()
         game_state = "BATTLE"
-        params:set("clock_tempo", BATTLE_BPM)
+        params:set("clock_tempo",
+                   math.floor(BATTLE_BPM * (CONTENT.battle_speed or 1.0)))
         if enemy then enemy._paused_for_sergei = nil end
         -- Bonus: a healing chord rings once as combat resumes — Sergei's
         -- parting "stay alive" gift.
@@ -17661,13 +17777,23 @@ local function apply_player_action(p)
       local label = (cls == "warrior") and "STROM: ANTHEM"
                  or (cls == "bard")    and "ALDER: BREAKING CHORD"
                  or (cls == "mage")    and "DIEGUES: LOOP CRASH"
+                 or (cls == "engineer") and "SERGEI: FULL PATCH"
+                 or (cls == "mathwiz")  and "PAJ: PROOF BY VOLUME"
+                 or (cls == "drummer")  and "NIKO: DOWNBEAT"
                  or (cls .. ": LIMIT")
       CONTENT.banner_text  = "* " .. label:upper() .. " *"
       CONTENT.banner_ticks = 60
-      -- Broken-chord SFX: ring class voice + a fifth above.
-      local note = active_scale()[p.note_idx] + JAM.root
-      sq_trig(cls, midi_to_freq(note),     0.85, 0.001, 2.0, 1.0)
-      sq_trig(cls, midi_to_freq(note + 7), 0.65, 0.005, 2.5, 1.0)
+      -- Broken-chord SFX: ring class voice + a fifth above. Recruits
+      -- must alias to their engine voice family (engineer→mage,
+      -- mathwiz→bard, drummer→warrior) — engine.trig_engineer doesn't
+      -- exist, and an unaliased call here killed the main game clock.
+      local voice = (cls == "engineer" and "mage")
+                 or (cls == "mathwiz"  and "bard")
+                 or (cls == "drummer"  and "warrior")
+                 or cls
+      local note = (active_scale()[p.note_idx] or 12) + JAM.root
+      sq_trig(voice, midi_to_freq(note),     0.85, 0.001, 2.0, 1.0)
+      sq_trig(voice, midi_to_freq(note + 7), 0.65, 0.005, 2.5, 1.0)
     end
     p.last_fire = tick
     p.last_action = "ATK"
@@ -19474,7 +19600,7 @@ function gamepad.button(button, state)
         -- Continue: try to load. If no save, fall back to a flash + stay on title.
         if load_game() then
           game_state = "OVERWORLD"
-          params:set("clock_tempo", OVERWORLD_BPM)
+          -- (tempo already resynced to the loaded zone inside load_game)
           engine.drone_amp(0)
           update_camera()
           redraw()
@@ -19783,7 +19909,7 @@ function gamepad.button(button, state)
       enemy = nil
       battle_outcome = nil
       game_state = "OVERWORLD"
-      params:set("clock_tempo", OVERWORLD_BPM)
+      params:set("clock_tempo", overworld_tempo())  -- Jam Pad opens in any zone
       redraw()
       return
     end
@@ -19824,6 +19950,7 @@ function gamepad.button(button, state)
       if SCENE then
         SCENE.active = false; SCENE.script = nil; SCENE.actors = {}
         SCENE.fade = 0; SCENE.hide_player = false
+        SCENE.panel = nil; SCENE.panel_t = 0; SCENE.on_complete = nil
       end
       game_state = "TITLE"
       TITLE.idx = 1   -- park the cursor on Continue (load save)
@@ -20375,7 +20502,7 @@ function key(n, z)
       if TITLE.idx == 1 then
         if load_game() then
           game_state = "OVERWORLD"
-          params:set("clock_tempo", OVERWORLD_BPM)
+          -- (tempo already resynced to the loaded zone inside load_game)
           engine.drone_amp(0)
           update_camera()
           redraw()
@@ -20537,7 +20664,7 @@ function key(n, z)
       enemy = nil
       battle_outcome = nil
       game_state = "OVERWORLD"
-      params:set("clock_tempo", OVERWORLD_BPM)
+      params:set("clock_tempo", overworld_tempo())  -- Jam Pad opens in any zone
       redraw()
       return
     end
@@ -20555,6 +20682,12 @@ function key(n, z)
     end
   elseif game_state == "GAME_OVER" and n == 3 then
     if (tick - (GAME_OVER_TICK or 0)) > 80 then
+      -- Mirror the gamepad path's defensive scene-state clear.
+      if SCENE then
+        SCENE.active = false; SCENE.script = nil; SCENE.actors = {}
+        SCENE.fade = 0; SCENE.hide_player = false
+        SCENE.panel = nil; SCENE.panel_t = 0; SCENE.on_complete = nil
+      end
       game_state = "TITLE"
       TITLE.idx = 1
       params:set("clock_tempo", INTRO_BPM)
@@ -20694,6 +20827,10 @@ function cleanup()
   if clock_id then clock.cancel(clock_id) end
   if scene_clock_id then clock.cancel(scene_clock_id) end
   engine.drone_amp(0)
+  -- Close the viewer stream's TCP socket — otherwise the fd lingers
+  -- half-open after a script clear and the Mac viewer sees a dead
+  -- connection until GC.
+  if HDMIMirror and HDMIMirror.stop then pcall(HDMIMirror.stop) end
 end
 
 -- ============================================================ DRAWING — TILES
@@ -32024,7 +32161,10 @@ function redraw()
   if SCENE and SCENE.draw_letterbox then SCENE.draw_letterbox() end
   if SCENE and SCENE.draw_fade then SCENE.draw_fade() end
   -- Particle pool overlay (region-ambient, e.g. snow / leaves / ash).
-  if PARTICLES and PARTICLES.draw then PARTICLES.draw() end
+  -- Only in the states that also TICK the pool — otherwise up to 60
+  -- frozen weather pixels overlay battles and menus.
+  if (game_state == "OVERWORLD" or game_state == "DIALOGUE")
+     and PARTICLES and PARTICLES.draw then PARTICLES.draw() end
   -- Reset shake translate so the next frame starts clean.
   if shake_dx ~= 0 or shake_dy ~= 0 then
     screen.translate(-shake_dx, -shake_dy)
