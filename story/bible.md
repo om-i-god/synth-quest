@@ -1903,6 +1903,28 @@ Ending panels. ENDING_LINES filters by actual party at ending
    time: Sergei/Niko/Paj/ECHO beats only play if recruited; the
    names panel lists the real roster. IN CODE 2026-07-14.
 
+Boss mechanics (reality check, 2026-07-15 wave-10 audit). The bespoke
+   per-boss battle mechanics described in the cave sections (Tidewatch
+   call-and-response, Dune Rider evasion/tilting floor, Snowgaunt's
+   three-count, Locrius's sustained-third, Suno's voice-stripping
+   phases) are VISION ONLY. In code every boss shares one mechanical
+   frame: HP/ATK + beat pattern + a 30%-HP enrage (faster cadence,
+   +25% ATK, bespoke enrage banner). The bespoke content lives in
+   dialogue, bestiary text, enrage banners, and the two scripted
+   exits (Strom arc, Broken Cadence) plus Sergei's Tidewatch rescue.
+
+Ionian affinities. Several late enemies (Suno's court, Locrius, the
+   Broken Cadence) are WEAK to ionian — a mode the player cannot hold
+   until the seventh shard returns. INTENTIONAL flavor ("he fears the
+   seventh most of all"): the weakness only becomes exploitable
+   post-game (all seven held, pre-NG+), e.g. against the First Chord
+   superboss run.
+
+DEF is live as of wave 10. Incoming party damage is reduced
+   multiplicatively: x100/(100+def*2) (def 10 = -17%, def 25 = -33%),
+   applied after party-size scaling/block/shield. Before this, def was
+   displayed and levelled but never read by any damage path.
+
 ================================================================
                 END OF BIBLE (work in progress)
 ================================================================

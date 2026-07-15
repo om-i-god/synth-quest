@@ -2550,3 +2550,74 @@ HDMIMirror's blocking connect (documented tradeoff, ~100ms hitch every
 5s only while the stream is on and the viewer unreachable), the
 victory-fanfare-at-journey-rate (intentional), shake duration varying
 with redraw rate, legacy pre-characters save restore (ancient saves).
+
+## 2026-07-15 — Wave 10: battle system / input parity / economy audits
+
+Three auditors on the last unowned domains. Two independently found
+the dead DEF stat and the superboss's missing boss treatment.
+
+### Battle
+- **Niko's DRUM was a mechanical no-op** — the action existed in
+  CLASS_ACTIONS/ARTIC but apply_player_action had no branch for it;
+  his special burned turns on a sound with zero combat effect. Now:
+  ATK x1.3 (crit-able) + knocks the enemy off its count (attack-gap
+  timer rebased) + short ATK debuff.
+- **DEF is now a real stat** (was granted by levels, shown on
+  STATUS/EQUIP, and never read anywhere): multiplicative reduction
+  x100/(100+def*2), bounded so high-def can't scale into immunity.
+- **The First Chord now gets boss treatment**: it was missing from all
+  three duplicated boss_visuals sets, so the ultimate fight played the
+  trash-encounter theme, never enraged, and used trash status rates.
+  Plus explicit 0 XP / 0 gold entries ("the chord is its own reward" —
+  it was falling through to the +5/+3 defaults).
+- RESO MP economy unified: charged at fire time only (R2-queue used to
+  pay-then-lose on cycle-away; dpad-queue was free); after firing,
+  queued falls back to ATK (was silently dead-turning forever).
+- Bypass victories (Strom arc, Broken Cadence) now scrub battle state —
+  poison/sleep/tonic/reso arms used to resume in the NEXT battle.
+  exit_battle also clears regen/dmg-reduce/rhythm-charge leaks.
+- Scripted battles reset limit_used (a limit spent earlier stayed
+  spent vs Broken Cadence), give the standard first-hit grace
+  (last_attack = tick, was -99 = instant hit), and honor the
+  battle-speed multiplier.
+- Sergei's Tidewatch rescue no longer fires on the Tideturner rare.
+  Cleric limit revives reset ATB like every other revive. ECHO got
+  victory quips (the only class missing from the pool).
+
+### Input parity (norns-only playability)
+- **Norns-only players could not move** — try_move was reachable only
+  from gamepad.dpad. E2 now walks east/west, E3 north/south.
+- **CREDITS was a one-way door into NG+** (destructive shard wipe, no
+  alternative, no visible prompt for ~2 min). B/K2 now returns to
+  title non-destructively; the prompt reads "A/K3: NEW GAME+  B/K2:
+  title".
+- **JAM mode was gamepad-only to enter** — K2 in the overworld now
+  toggles it (K2 inside already exits); E2 cycles scale, E3 moves
+  root. The SELECT/K2 jam toggle is now also blocked mid-scene (the
+  overlay froze choreography under it).
+- **The Jam Pad practice mode was unreachable by ANY input** — zero
+  call sites; its achievement was unobtainable. Now a pause-menu
+  entry.
+- Battle E2 action cycle includes RESO when attuned (resonances were
+  gamepad-only in battle); PARTYSEL E3 cycles the active slot (norns
+  had no lead-change outside battle); returning from mid-battle JAM
+  rebases the enemy attack timer (no more guaranteed instant hit);
+  shop cursor clamps after buying the last visible instrument; MIDI
+  notes clamp to 24..108; footer hints advertise the norns keys.
+
+### Economy/progression
+- Rare-encounter gate lowered to 60% of CAVE_EXPECTED — the natural
+  no-grind curve sits at ~50-60% of that table, so rares 3-6 (and
+  their guaranteed drops) were effectively unreachable.
+- norns_sampler (Diegues' tier-3, defined + sprited, granted NOWHERE)
+  is now purchasable (200g, Hens' shop). Field Lute: 120g -> 60g +
+  spd 2 (was strictly dominated by the free cave-1 drop).
+- Recruits now join at party-average-minus-one (Sergei arrived at L1 /
+  24 HP against a ~L5 party), applying real CLASS_GROWTH gains.
+- GEAR tab lists in stable sorted order (was pairs() hash order) and
+  includes recruit classes.
+
+### Documented, not changed
+Vestigial bespoke boss mechanics (bible reality-check note), ionian
+weaknesses as intentional post-game flavor, gamepad-only rhythm-crit,
+free-inn source-heavy economy (cozy by design), Heal stays OP (canon).

@@ -616,6 +616,7 @@ local function enemy_xp(name)
     Lich=55, Voidcrawler=42, ["Echo of Suno"]=60, ["Mute Warden"]=70,
     ["Cave Echo"]=60, ["Forest Sentinel"]=90, Tidewatch=120, ["Dune Rider"]=160,
     Snowgaunt=200, Locrius=260, Suno=400,
+    ["The First Chord"]=0,  -- explicit: the chord is its own reward
     -- Rare encounters (CAVE_RARES) — scaled by HP, 350→700.
     ["Elder Slime"]=80, ["Sage Sentinel"]=95, Tideturner=110,
     ["Dune Sovereign"]=120, Frostfather=140, Voidpriest=160,
@@ -636,6 +637,7 @@ local function enemy_gold(name)
     Lich=28, Voidcrawler=22, ["Echo of Suno"]=30, ["Mute Warden"]=36,
     ["Cave Echo"]=80, ["Forest Sentinel"]=140, Tidewatch=200, ["Dune Rider"]=260,
     Snowgaunt=320, Locrius=420, Suno=999,
+    ["The First Chord"]=0,  -- explicit: drops nothing by design
     -- Rare encounters (CAVE_RARES) — scaled by HP, 350→700.
     ["Elder Slime"]=45, ["Sage Sentinel"]=55, Tideturner=65,
     ["Dune Sovereign"]=70, Frostfather=80, Voidpriest=95,
@@ -718,7 +720,7 @@ local INSTRUMENTS = {
   -- between the starter and the cave-2 boss drop, so gold has a use
   -- early and players who want to skip Cave 2 grinding for an upgrade
   -- can buy in. One-time purchase; cost set at SHOP.items[].cost.
-  field_lute       = { name="Field Lute",       class="bard",    atk=1, def=0, mag=0, spd=0,
+  field_lute       = { name="Field Lute",       class="bard",    atk=1, def=0, mag=0, spd=2,
                        wet_add=0.05, atk_mul=1.00, rel_mul=1.10 },
   bowed_psaltery   = { name="Bowed Psaltery",   class="cleric",  atk=0, def=1, mag=1, spd=0,
                        wet_add=0.05, atk_mul=1.10, rel_mul=1.20 },
@@ -2914,7 +2916,7 @@ local last_input = ""
 local last_input_at = 0
 
 -- pause menu
-local MENU_OPTIONS = {"Save Game", "Party Status", "Party", "Items", "Equipment", "Quests", "Map", "Bestiary", "Shards", "Achievements", "Debug"}
+local MENU_OPTIONS = {"Save Game", "Party Status", "Party", "Items", "Equipment", "Quests", "Map", "Bestiary", "Shards", "Achievements", "Jam Pad", "Debug"}
 local menu_idx = 1
 local save_flash_ticks = 0
 local save_flash_text = ""
@@ -6246,7 +6248,7 @@ end
 -- true while in a random overworld encounter (not a cave fight)
 local random_battle = false
 -- chance per overworld step to spawn a random encounter (outside the village)
--- Pass 35: bumped from 0.04 → 0.07 (more frequent road encounters).
+-- (History: 0.04 → 0.07 in Pass 35, later settled back to 0.03.)
 local ENCOUNTER_CHANCE = 0.03
 
 -- Bundled shop/economy state (kept in one table to stay under Lua's 200-local cap)
@@ -6269,10 +6271,13 @@ local SHOP = {
     -- entries already owned (see UI.draw_shop) so the menu doesn't
     -- bloat. is_instrument routes the purchase through instruments_owned
     -- instead of the consumable inv counter.
-    field_lute     = { name="Field Lute",     cost=120, desc="bard upgrade",    is_instrument=true },
+    field_lute     = { name="Field Lute",     cost=60,  desc="bard upgrade (fast)", is_instrument=true },
     bowed_psaltery = { name="Bowed Psaltery", cost=120, desc="cleric upgrade",  is_instrument=true },
     tinker_fork    = { name="Tinker Fork",    cost=120, desc="warrior upgrade", is_instrument=true },
     field_recorder = { name="Field Recorder", cost=120, desc="mage upgrade",    is_instrument=true },
+    -- Diegues' tier-3 (was defined + sprited but granted NOWHERE —
+    -- dead content until wave 10). Priced as a late-game luxury.
+    norns_sampler  = { name="Norns",          cost=200, desc="mage tier 3",     is_instrument=true },
     -- Quest reward: Aram's Token (Phrygian, Strom Confronted scene)
     arams_token    = { name="Aram's Token",   cost=0,   desc="iron disc; Strom's keep", is_instrument=true },
     -- Quest reward: Velthe's Letter (Academy, Iola's Letter scene)
@@ -6292,7 +6297,8 @@ local SHOP = {
     },
   },
   order = {"salve", "vial", "ether", "star", "tonic", "key",
-           "field_lute", "bowed_psaltery", "tinker_fork", "field_recorder"},
+           "field_lute", "bowed_psaltery", "tinker_fork", "field_recorder",
+           "norns_sampler"},
 }
 -- Mirror SHOP into _ENV so closures created BEFORE the `local SHOP`
 -- decl above can resolve it at call time. Without this, NPC dialogue
@@ -7656,7 +7662,7 @@ function start_prologue_silencer(idx)
     hp = 28, hp_max = 28,
     atk = 4, def = 4,
     alive = true,
-    last_attack = -99,
+    last_attack = tick,   -- full gap before first hit (matches enter_battle)
     pattern_idx = 1,
     attack_pattern = {8, 8, 12},
     attack_sound = {class="warrior", note=24, vel=0.65, attack=0.005, release=0.20, wet=0.10},
@@ -7666,9 +7672,10 @@ function start_prologue_silencer(idx)
   enemy.confused_until = -99
   battle_outcome = nil
   game_state = "BATTLE"
-  params:set("clock_tempo", BATTLE_BPM)
+  params:set("clock_tempo",
+             math.floor(BATTLE_BPM * (CONTENT.battle_speed or 1.0)))
   for _, p in ipairs(party) do
-    p.atb = 0; p.shield = false; p.buffed = false; p.ring_armed = false; p.blocking = false; p.reflect = false; p.reflect_ticks = 0; p.long_echo_charges = 0; p.threefold_until = -99
+    p.atb = 0; p.shield = false; p.buffed = false; p.ring_armed = false; p.blocking = false; p.reflect = false; p.reflect_ticks = 0; p.long_echo_charges = 0; p.threefold_until = -99; p.limit_used = false
   end
   TITLE.battle_step = 0
   redraw()
@@ -7691,7 +7698,7 @@ function start_prologue_cave_monster(idx)
     hp = 22, hp_max = 22,
     atk = 3, def = 2,
     alive = true,
-    last_attack = -99,
+    last_attack = tick,   -- full gap before first hit (matches enter_battle)
     pattern_idx = 1,
     attack_pattern = {10, 10, 14},
     attack_sound = {class="mage", note=84, vel=0.45, attack=0.002, release=0.40, wet=0.55},
@@ -7701,9 +7708,10 @@ function start_prologue_cave_monster(idx)
   enemy.confused_until = -99
   battle_outcome = nil
   game_state = "BATTLE"
-  params:set("clock_tempo", BATTLE_BPM)
+  params:set("clock_tempo",
+             math.floor(BATTLE_BPM * (CONTENT.battle_speed or 1.0)))
   for _, p in ipairs(party) do
-    p.atb = 0; p.shield = false; p.buffed = false; p.ring_armed = false; p.blocking = false; p.reflect = false; p.reflect_ticks = 0; p.long_echo_charges = 0; p.threefold_until = -99
+    p.atb = 0; p.shield = false; p.buffed = false; p.ring_armed = false; p.blocking = false; p.reflect = false; p.reflect_ticks = 0; p.long_echo_charges = 0; p.threefold_until = -99; p.limit_used = false
   end
   TITLE.battle_step = 0
   redraw()
@@ -7724,7 +7732,7 @@ function start_strom_battle()
     hp = 240, hp_max = 240,
     atk = 14, def = 10,
     alive = true,
-    last_attack = -99,
+    last_attack = tick,   -- full gap before first hit (matches enter_battle)
     pattern_idx = 1,
     attack_pattern = {6, 6, 8, 6, 10},   -- mostly 6-tick gaps, occasional bigger
     attack_sound = {class="warrior", note=28, vel=0.85, attack=0.005, release=0.30, wet=0.18},
@@ -7735,10 +7743,11 @@ function start_strom_battle()
   enemy.confused_until = -99
   battle_outcome = nil
   game_state = "BATTLE"
-  params:set("clock_tempo", BATTLE_BPM)
+  params:set("clock_tempo",
+             math.floor(BATTLE_BPM * (CONTENT.battle_speed or 1.0)))
   -- reset everyone's ATB
   for _, p in ipairs(party) do
-    p.atb = 0; p.shield = false; p.buffed = false; p.ring_armed = false; p.blocking = false; p.reflect = false; p.reflect_ticks = 0; p.long_echo_charges = 0; p.threefold_until = -99
+    p.atb = 0; p.shield = false; p.buffed = false; p.ring_armed = false; p.blocking = false; p.reflect = false; p.reflect_ticks = 0; p.long_echo_charges = 0; p.threefold_until = -99; p.limit_used = false
     if p.alive then p.hp = math.max(p.hp, math.floor(p.hp_max * 0.5)) end
   end
   TITLE.battle_step = 0
@@ -7872,7 +7881,7 @@ function start_broken_cadence_battle()
     hp      = 1300, hp_max = 1300,
     atk     = 12,   def    = 4,
     alive   = true,
-    last_attack  = -99,
+    last_attack  = tick,  -- full gap before first hit (matches enter_battle)
     pattern_idx  = 1,
     attack_pattern = {20, 14, 10, 14, 18},  -- measured, one beat short each phrase
     attack_sound   = {class="cleric", note=28, vel=0.65, attack=0.10, release=2.50, wet=0.85},
@@ -7881,10 +7890,12 @@ function start_broken_cadence_battle()
   enemy.confused_until = -99
   battle_outcome = nil
   game_state = "BATTLE"
-  params:set("clock_tempo", BATTLE_BPM)
+  params:set("clock_tempo",
+             math.floor(BATTLE_BPM * (CONTENT.battle_speed or 1.0)))
   for _, p in ipairs(party) do
     p.atb = 0; p.shield = false; p.buffed = false; p.ring_armed = false
     p.blocking = false; p.reflect = false; p.reflect_ticks = 0; p.long_echo_charges = 0; p.threefold_until = -99
+    p.limit_used = false
   end
   TITLE.battle_step = 0
   redraw()
@@ -15014,7 +15025,7 @@ function build_starter_record(t, queued_default)
 end
 
 function build_recruit_record(r)
-  return {
+  local rec = {
     class=r.class, spd=r.spd, atb=0, queued="ATK",
     note_idx=11, note_lo=8, note_hi=20,
     cutoff=2000, resonance=0.30,
@@ -15025,6 +15036,30 @@ function build_recruit_record(r)
     last_fire=-99, last_hit=-99,
     stick={lx=0,ly=0,rx=0,ry=0}, xwet=0, dly=0,
   }
+  -- Catch-up seeding: recruits used to join at level 1 regardless of
+  -- story point (Sergei arrives post-cave-3 with 24 HP against a ~L5
+  -- party). Seed to one below the current party average, applying the
+  -- same CLASS_GROWTH gains a levelled character would have earned.
+  local sum, cnt = 0, 0
+  for _, q in ipairs(party or {}) do
+    sum = sum + (q.level or 1); cnt = cnt + 1
+  end
+  local target = math.max(1, (cnt > 0 and math.floor(sum / cnt) or 1) - 1)
+  local g = CLASS_GROWTH[rec.class] or {hp=4, mp=2, atk=1, def=1, mag=1, spd_every=6}
+  while rec.level < target do
+    rec.level = rec.level + 1
+    rec.hp_max = rec.hp_max + g.hp
+    rec.mp_max = rec.mp_max + g.mp
+    rec.atk    = rec.atk    + g.atk
+    rec.def    = rec.def    + g.def
+    rec.mag    = rec.mag    + g.mag
+    if g.spd_every and (rec.level % g.spd_every) == 0 then
+      rec.spd = (rec.spd or 1) + 1
+    end
+  end
+  rec.hp = rec.hp_max
+  rec.mp = rec.mp_max
+  return rec
 end
 
 -- ensure_recruit_character(idx) — make sure the recruit in
@@ -17273,6 +17308,10 @@ local function damage_enemy(amount, is_crit)
       battle_outcome = nil
       game_state = "OVERWORLD"
       params:set("clock_tempo", overworld_tempo())  -- academy runs 110
+      -- Bypass exits skip exit_battle, so scrub battle state here or
+      -- poison/sleep/tonic/reso arms picked up in this fight resume at
+      -- the start of the NEXT battle.
+      if scrub_battle_statuses then scrub_battle_statuses() end
       finish_academy_arc()
       return
     end
@@ -17290,6 +17329,7 @@ local function damage_enemy(amount, is_crit)
       battle_outcome = nil
       game_state = "OVERWORLD"
       params:set("clock_tempo", overworld_tempo())  -- Lirael runs 48
+      if scrub_battle_statuses then scrub_battle_statuses() end
       finish_broken_cadence()
       return
     end
@@ -17588,6 +17628,17 @@ local function damage_party(p, amount)
   if (p.dmg_reduce_ticks or 0) > 0 then
     amount = math.max(1, math.floor(amount / 2))
   end
+  -- DEF: mild multiplicative reduction — def 10 ≈ -17%, def 25 ≈ -33%.
+  -- Multiplicative (not subtractive) so a high-def warrior can't scale
+  -- into immunity against fixed enemy ATK. Until wave 10, def was a
+  -- fully dead stat: granted by levels, shown on STATUS/EQUIP, and
+  -- never read by any damage path.
+  do
+    local def = (INST and INST.def and INST.def(p)) or 0
+    if def > 0 then
+      amount = math.max(1, math.floor(amount * 100 / (100 + def * 2)))
+    end
+  end
   p.hp = math.max(0, p.hp - amount)
   p.last_hit = tick
   if p.hp == 0 then
@@ -17602,7 +17653,8 @@ local function damage_party(p, amount)
   -- apply a status effect to the hit character. Bosses use higher rates.
   if enemy and p.alive then
     local boss_visuals = {echo=true, sentinel=true, tide=true, dunerider=true,
-                          snowgaunt=true, locrius=true, suno=true, broken_cadence=true}
+                          snowgaunt=true, locrius=true, suno=true, broken_cadence=true,
+                          firstchord=true}
     local poison_chance = boss_visuals[enemy.visual] and 0.18 or 0.06
     local sleep_chance  = boss_visuals[enemy.visual] and 0.10 or 0.03
     if math.random() < poison_chance then
@@ -17618,7 +17670,7 @@ local function damage_party(p, amount)
   -- joins the recruits roster permanently.
   if not CONTENT.sergei_intervened
      and game_state == "BATTLE" and current_cave == 3
-     and enemy and enemy.visual == "tide" then
+     and enemy and enemy.visual == "tide" and not enemy.is_rare then
     local any_alive = false
     for _, q in ipairs(party) do if q.alive then any_alive = true; break end end
     if not any_alive then
@@ -17734,6 +17786,7 @@ local function apply_player_action(p)
     if cls == "cleric" then
       -- Full party revive + heal-to-full. No damage.
       for _, q in ipairs(party) do
+        if not q.alive then q.atb = 0 end  -- revived members restart their turn (matches Star/HEAL/SMPL)
         q.alive = true
         q.hp = q.hp_max
         q.mp = q.mp_max
@@ -17924,6 +17977,24 @@ local function apply_player_action(p)
           end
           enemy.pattern_idx = 1
         end
+      end
+    end
+  elseif p.queued == "DRUM" then
+    -- Niko's DRUM: hit ON the one. ATK-scaled damage, and the impact
+    -- knocks the enemy off its own count — its attack-gap timer
+    -- restarts (last_attack rebased) plus a short ATK debuff. (This
+    -- branch was missing entirely: Niko's special was a sound with no
+    -- combat effect.)
+    if enemy and enemy.alive then
+      local dmg = math.floor(INST.atk(p) * 1.3)
+      local crit = math.random() < ANIM.crit
+      if crit then dmg = dmg * 2 end
+      local mv_drum = reso_fx_active("masked_voice")
+      if mv_drum then dmg = math.floor(dmg * (mv_drum.mult or 1.25)) end
+      damage_enemy(dmg, crit)
+      if enemy then
+        enemy.last_attack = tick   -- stolen beat: full gap before its next hit
+        enemy.atk_debuff_ticks = math.max(enemy.atk_debuff_ticks or 0, 16)
       end
     end
   elseif p.queued == "CODE" then
@@ -18131,7 +18202,23 @@ local function apply_player_action(p)
     -- See docs/specs/2026-05-19-resonance-fluid-invocation-design.md.
     local rid = p.queued_resonance
     local r   = rid and RESONANCES[rid]
+    -- MP is charged HERE (the single fire point), not at queue time.
+    -- The R2 path pre-checks affordability; the dpad/encoder cycles
+    -- don't — either way, can't-afford at fire = denial chord, and the
+    -- NEXT auto-turn attacks normally (this turn itself deals no
+    -- damage — unlike STIR's top-of-function rewrite).
+    if r and p.mp < (r.mp_cost or 0) then
+      p.reso_denied_t = tick
+      sq_trig("cleric", midi_to_freq(36), 0.4,  0.005, 0.15, 0)
+      sq_trig("cleric", midi_to_freq(33), 0.35, 0.005, 0.15, 0)
+      sq_trig("cleric", midi_to_freq(28), 0.3,  0.005, 0.15, 0)
+      r = nil
+      p.queued_resonance = nil
+      p._was_reso = true
+      p.queued = "ATK"
+    end
     if r then
+      p.mp = p.mp - (r.mp_cost or 0)
       -- Signature SFX
       local sig = RESONANCE_SITES[rid] and RESONANCE_SITES[rid].shrine and RESONANCE_SITES[rid].shrine.signature
       if sig and sig.sound then
@@ -18150,9 +18237,16 @@ local function apply_player_action(p)
       -- Per-character 6-tick cooldown — separate from firing slot.
       p.reso_cooldown_until = tick + 6
       p.queued_resonance = nil
-      -- NOTE: deliberately do NOT set p.last_fire. RESO is fluid; the
-      -- character can immediately queue another action in the same tick.
+      -- (Historical note says "do NOT set p.last_fire" but fire() has
+      -- always set it unconditionally after this returns — RESO is
+      -- fluid in UI terms, not in the firing-slot sense.)
       p.last_action = "RESO"
+      -- Fall back to ATK: leaving queued="RESO" with the id consumed
+      -- made every subsequent auto-turn a silent no-op. Mark the call
+      -- so fire() doesn't read the fallback as a REAL attack and
+      -- register a chord-combo entry for a resonance invoke.
+      p._was_reso = true
+      p.queued = "ATK"
     end
   end
   -- Threefold (Resonance): while active, every party action feeds the caster.
@@ -18216,6 +18310,30 @@ function reso_clear_all()
   RESO_FX = {}
   RESO_QUEUE = {}
   CONTENT.spring_echo = false
+end
+
+-- Per-battle state scrub shared by exit_battle and the bypass-victory
+-- exits (Strom arc / Broken Cadence), which skip exit_battle entirely.
+-- Global to dodge the 200-local main-chunk cap.
+function scrub_battle_statuses()
+  reso_clear_all()
+  for _, p in ipairs(party) do
+    p.tonic_ticks = 0
+    p.poison_ticks = 0
+    p.sleep_ticks = 0
+    p.reflect = false
+    p.reflect_ticks = 0
+    p.reso_cooldown_until = 0
+    p.reso_denied_t = -99
+    p.ring_armed = false
+    p.long_echo_charges = 0
+    p.threefold_until = -99
+    p.regen_hp_ticks = 0
+    p.regen_mp_ticks = 0
+    p.dmg_reduce_ticks = 0
+    p.rhythm_charged = false
+    p.buffed = false
+  end
 end
 
 -- Score a single interval (semitones, mod 12) for consonance:
@@ -18315,7 +18433,11 @@ local function fire(p)
   if p.note_idx > p.note_hi then p.note_idx = p.note_lo end
   -- Combo registration: only ATK fires count toward the chord. Other
   -- actions (HEAL/LUTE/MIX/CODE) have their own narrative weight.
-  if action == "ATK" then
+  -- RESO invokes rewrite queued to "ATK" mid-call (fallback for the
+  -- next turn) — the _was_reso marker keeps them out of the chord.
+  local was_reso = p._was_reso
+  p._was_reso = nil
+  if action == "ATK" and not was_reso then
     combo_window[#combo_window + 1] = {t = tick, p = p, note = note}
     trigger_combo_check()
   end
@@ -18328,7 +18450,8 @@ local function enemy_tick()
   -- Pass 51: boss phase 2. When a boss drops below 30% HP, it ENRAGES:
   -- attack gaps cut in half + atk +25%. One-shot banner on the trigger.
   local boss_visuals = {echo=true, sentinel=true, tide=true, dunerider=true,
-                        snowgaunt=true, locrius=true, suno=true, broken_cadence=true}
+                        snowgaunt=true, locrius=true, suno=true, broken_cadence=true,
+                        firstchord=true}
   if boss_visuals[enemy.visual] and not enemy.phase2
      and enemy.hp_max > 0 and enemy.hp <= enemy.hp_max * 0.30 then
     enemy.phase2 = true
@@ -18348,6 +18471,7 @@ local function enemy_tick()
       locrius   = "* he steps out of time *",
       suno      = "* SUNO TURNS TO YOU *",
       broken_cadence = "* the last phrase rises *",
+      firstchord = "* the first chord remembers being whole *",
     }
     CONTENT.banner_text  = ENRAGE_BANNERS[enemy.visual] or ("* " .. enemy.name .. " ENRAGES! *")
     CONTENT.banner_ticks = 42
@@ -18611,7 +18735,8 @@ function tick_battle_music()
   --   in enter_battle separates them sonically from real bosses.
   -- - everything else → BATTLE_THEMES.encounter (the standard random fight).
   local boss_visuals = {echo=true, sentinel=true, tide=true, dunerider=true,
-                        snowgaunt=true, locrius=true, suno=true, broken_cadence=true}
+                        snowgaunt=true, locrius=true, suno=true, broken_cadence=true,
+                        firstchord=true}
   local theme
   if boss_visuals[enemy.visual] then
     theme = BATTLE_THEMES.boss
@@ -19016,7 +19141,12 @@ enter_battle = function(cave_id, force_random)
     -- AND only when the party has reached the cave's expected level so
     -- newcomers don't get one-shot by Elder Slime in their first fight.
     local rare = CAVE_RARES[current_cave]
-    if rare and avg_level >= expected and math.random() < 0.04 then
+    -- Gate at 60% of the expected level: the natural (no-grind) curve
+    -- runs well under CAVE_EXPECTED from cave 3 on, so the old hard
+    -- >= gate made rares 3-6 (and their guaranteed drops) effectively
+    -- unreachable without ~100 fights of grinding.
+    if rare and avg_level >= math.max(2, math.floor(expected * 0.6))
+       and math.random() < 0.04 then
       e = rare
       is_rare = true
     else
@@ -19130,7 +19260,8 @@ enter_jam_pad = function()
   reset_party_for_battle()
   battle_outcome = nil
   game_state = "BATTLE"
-  params:set("clock_tempo", BATTLE_BPM)
+  params:set("clock_tempo",
+             math.floor(BATTLE_BPM * (CONTENT.battle_speed or 1.0)))
   engine.drone_amp(0)
   redraw()
 end
@@ -19175,6 +19306,10 @@ exit_battle = function()
                  "Niko: Pocket. Stay in pocket.",
                  "Niko: Snare-side, forever.",
                  "Niko: Kick-snare-kick-snare. Easy."},
+      wraith  = {"ECHO: ...it is quiet now. The good quiet.",
+                 "ECHO: I held. We held.",
+                 "ECHO: Their note ended. Ours did not.",
+                 "ECHO: ...one more voice, kept."},
     }
     -- Boss-specific quip wins over the random class pool. clear_boss
     -- stashes it in CONTENT.boss_quip_pending so the bespoke line lands
@@ -19210,6 +19345,13 @@ exit_battle = function()
     p.ring_armed = false
     p.long_echo_charges = 0
     p.threefold_until = -99
+    -- Buffs are per-battle too — regen (lyre/limit) and TUNE's damage
+    -- halving used to resume in the next fight.
+    p.regen_hp_ticks = 0
+    p.regen_mp_ticks = 0
+    p.dmg_reduce_ticks = 0
+    p.rhythm_charged = false
+    p.buffed = false
   end
   -- DEFEAT branch: tutorial/scripted fights (prologue silencers, escape-cave
   -- wisps, the academy Strom duel) get a soft reset — full-HP revive +
@@ -19587,7 +19729,14 @@ function gamepad.button(button, state)
     if game_state == "JAM" then
       game_state = jam_prev_state or "OVERWORLD"
       jam_prev_state = nil
-    else
+      -- Rebase the enemy attack clock when returning to a battle: the
+      -- global tick kept advancing while JAM was open (tick_battle
+      -- didn't), so without this the enemy lands a guaranteed instant
+      -- hit on re-entry.
+      if game_state == "BATTLE" and enemy then enemy.last_attack = tick end
+    elseif not (SCENE and SCENE.active) then
+      -- No jam overlay mid-choreography — the scene clock would freeze
+      -- under it and the JAM UI draws over the staging.
       jam_prev_state = game_state
       game_state = "JAM"
     end
@@ -19707,6 +19856,11 @@ function gamepad.button(button, state)
         game_state = "BESTIARY"
       elseif opt == "Shards" then
         game_state = "SHARDS"
+      elseif opt == "Jam Pad" then
+        -- Practice battle vs the invincible dummy. This was the ONLY
+        -- missing call site — the feature (and its achievement) was
+        -- unreachable by any input.
+        enter_jam_pad()
       elseif opt == "Debug" then
         debug_visible = not debug_visible
       end
@@ -19749,14 +19903,22 @@ function gamepad.button(button, state)
       local it = SHOP.items[id]
       local price = it and (QUESTS.hens.discount and math.floor(it.cost * 0.75) or it.cost) or 0
       -- Block re-purchase of an already-owned instrument.
-      if it and it.is_instrument and instruments_owned[id] then
+      if not it then
+        -- Buying the last visible instrument shrinks the list; a stale
+        -- idx used to resolve nil and claim "Not enough gold".
+        SHOP.idx = 1
+        SHOP.flash_text = ""
+      elseif it.is_instrument and instruments_owned[id] then
         SHOP.flash_text = "Already owned"
         SHOP.flash_ticks = 24
-      elseif it and SHOP.gold >= price then
+      elseif SHOP.gold >= price then
         SHOP.gold = SHOP.gold - price
         if it.is_instrument then
           instruments_owned[id] = true
           SHOP.flash_text = "+ " .. it.name
+          -- The owned instrument vanishes from the visible list — keep
+          -- the cursor in range.
+          SHOP.idx = math.min(SHOP.idx, math.max(1, #shop_visible_order()))
         else
           SHOP.inv[id] = SHOP.inv[id] + 1
           SHOP.flash_text = "+1 " .. it.name
@@ -19811,6 +19973,18 @@ function gamepad.button(button, state)
         -- shards/cave clears/quest progress, return to overworld at the
         -- escape-cave exit (canonical game start spot post-prologue).
         if start_new_game_plus then start_new_game_plus() end
+      end
+    elseif button == "B" then
+      -- Non-destructive exit: back to the title screen WITHOUT starting
+      -- NEW GAME+ (the save on disk is the finished game). CREDITS was
+      -- previously NG+-or-nothing — a one-way door into a shard wipe.
+      local age = tick - (CONTENT.credits_t or tick)
+      if age > 600 then
+        game_state = "TITLE"
+        TITLE.idx = 1
+        params:set("clock_tempo", INTRO_BPM)
+        engine.drone_amp(0)
+        redraw()
       end
     end
   elseif game_state == "ACHIEVEMENTS" then
@@ -19899,6 +20073,7 @@ function gamepad.button(button, state)
     elseif button == "B" or button == "START" then
       game_state = jam_prev_state or "OVERWORLD"
       jam_prev_state = nil
+      if game_state == "BATTLE" and enemy then enemy.last_attack = tick end
       redraw()
     end
   elseif game_state == "DIALOGUE" then
@@ -20024,10 +20199,12 @@ function gamepad.analog(sensor_axis, val, half_reso)
               sq_trig("cleric", midi_to_freq(32), 0.3, 0.005, 0.12, 0)
             end
           else
-            -- Success path: deduct MP and queue RESO
+            -- Success path: queue RESO. MP is deducted when the action
+            -- actually FIRES (apply_player_action) — deducting here let
+            -- queue-then-cycle-away drain MP for nothing, while the
+            -- dpad/encoder cycle paths queued RESO for free.
             p.queued = "RESO"
             p.queued_resonance = rid
-            p.mp = p.mp - RESONANCES[rid].mp_cost
             p.prev_queued = nil
             p.jamming = false
           end
@@ -20349,7 +20526,9 @@ function init()
     local sel_p = party[active]
     local sel_voice = voice_for_class(sel_p and sel_p.class or "bard")
     if d.type == "note_on" and d.vel > 0 then
-      local freq = midi_to_freq(d.note)
+      -- Clamp to a playable register — unfiltered note 0 is an 8 Hz thud.
+      local nn = math.max(24, math.min(108, d.note or 60))
+      local freq = midi_to_freq(nn)
       local vel = math.max(0.05, math.min(0.95, d.vel / 127))
       -- In JAM mode the four party SynthDefs act as a 4-voice polyphonic
       -- pool: each new note steals the oldest voice in round-robin order
@@ -20561,6 +20740,16 @@ function key(n, z)
   elseif game_state == "OVERWORLD" and n == 3 then
     local npc = find_facing_npc()
     if npc then start_dialogue(npc) end
+  elseif game_state == "OVERWORLD" and n == 2 then
+    -- K2 toggles JAM mode (norns mirror of the gamepad SELECT toggle —
+    -- JAM was previously gamepad-only to enter). K2 inside JAM already
+    -- exits, so the same key opens and closes it. Same scene guard as
+    -- the SELECT path.
+    if not (SCENE and SCENE.active) then
+      jam_prev_state = "OVERWORLD"
+      game_state = "JAM"
+      redraw()
+    end
   elseif game_state == "OVERWORLD" and n == 1 then
     game_state = "MENU"
     menu_idx = 1
@@ -20581,6 +20770,7 @@ function key(n, z)
       elseif opt == "Achievements" then game_state = "ACHIEVEMENTS"
       elseif opt == "Bestiary" then game_state = "BESTIARY"
       elseif opt == "Shards" then game_state = "SHARDS"
+      elseif opt == "Jam Pad" then enter_jam_pad()
       elseif opt == "Debug" then debug_visible = not debug_visible
       end
       redraw()
@@ -20634,14 +20824,22 @@ function key(n, z)
       local id = (shop_visible_order())[SHOP.idx]
       local it = SHOP.items[id]
       local price = it and (QUESTS.hens.discount and math.floor(it.cost * 0.75) or it.cost) or 0
-      if it and it.is_instrument and instruments_owned[id] then
+      if not it then
+        -- Buying the last visible instrument shrinks the list; a stale
+        -- idx used to resolve nil and claim "Not enough gold".
+        SHOP.idx = 1
+        SHOP.flash_text = ""
+      elseif it.is_instrument and instruments_owned[id] then
         SHOP.flash_text = "Already owned"
         SHOP.flash_ticks = 24
-      elseif it and SHOP.gold >= price then
+      elseif SHOP.gold >= price then
         SHOP.gold = SHOP.gold - price
         if it.is_instrument then
           instruments_owned[id] = true
           SHOP.flash_text = "+ " .. it.name
+          -- The owned instrument vanishes from the visible list — keep
+          -- the cursor in range.
+          SHOP.idx = math.min(SHOP.idx, math.max(1, #shop_visible_order()))
         else
           SHOP.inv[id] = SHOP.inv[id] + 1
           SHOP.flash_text = "+1 " .. it.name
@@ -20702,6 +20900,16 @@ function key(n, z)
     if age > 600 then
       if start_new_game_plus then start_new_game_plus() end
     end
+  elseif game_state == "CREDITS" and n == 2 then
+    -- K2 mirrors gamepad B: back to title WITHOUT starting NG+.
+    local age = tick - (CONTENT.credits_t or tick)
+    if age > 600 then
+      game_state = "TITLE"
+      TITLE.idx = 1
+      params:set("clock_tempo", INTRO_BPM)
+      engine.drone_amp(0)
+      redraw()
+    end
   elseif game_state == "QUESTS" or game_state == "SHARDS"
       or game_state == "BESTIARY" or game_state == "ACHIEVEMENTS"
       or game_state == "MAP" then
@@ -20749,11 +20957,49 @@ function key(n, z)
     -- from (norns had no way out of a gamepad-initiated jam session).
     game_state = jam_prev_state or "OVERWORLD"
     jam_prev_state = nil
+    if game_state == "BATTLE" and enemy then enemy.last_attack = tick end
     redraw()
   end
 end
 
 function enc(n, d)
+  -- OVERWORLD movement — norns-only players previously could not move
+  -- at all (try_move was reachable only from gamepad.dpad). E2 walks
+  -- east/west, E3 north/south, one tile per detent. Same scene guard
+  -- as the dpad path.
+  if game_state == "OVERWORLD" and (n == 2 or n == 3) then
+    if SCENE and SCENE.active then return end
+    local sign = (d > 0) and 1 or -1
+    if n == 2 then try_move(sign, 0) else try_move(0, sign) end
+    return
+  end
+  -- JAM: E2 cycles the scale mode, E3 moves the root (mirrors dpad
+  -- UD/LR). Voice select/latch stay gamepad-side; BPM stays behind the
+  -- L2 modifier by design.
+  if game_state == "JAM" then
+    if n == 2 then
+      local cur = JAM.mode
+      local idx = 1
+      for i, m in ipairs(JAM.mode_order) do if m == cur then idx = i; break end end
+      local cnt = #JAM.mode_order
+      local sign = (d > 0) and 1 or -1
+      JAM.mode = JAM.mode_order[((idx - 1 + sign) % cnt + cnt) % cnt + 1]
+      if jam_audition_scale then jam_audition_scale() end
+      redraw()
+    elseif n == 3 then
+      JAM.root = math.max(-12, math.min(12, (JAM.root or 0) + ((d > 0) and 1 or -1)))
+      redraw()
+    end
+    return
+  end
+  -- PARTYSEL: E3 cycles the active slot (gamepad has dpad-LR/L1/R1 for
+  -- this; norns previously had no way to change the active member
+  -- outside battle).
+  if game_state == "PARTYSEL" and n == 3 then
+    set_active(active + ((d > 0) and 1 or -1))
+    redraw()
+    return
+  end
   if game_state == "MENU" and n == 2 then
     menu_idx = ((menu_idx - 1 + d) % #MENU_OPTIONS) + 1
     redraw()
@@ -20813,10 +21059,24 @@ function enc(n, d)
     local p = party[active]
     if not p.alive then return end
     local ca = CLASS_ACTIONS[p.class]
+    -- Mirror the gamepad dpad-Y cycle exactly, including RESO as a 5th
+    -- option when this character has an attuned Resonance — norns
+    -- players previously had no path to resonances in battle at all.
     local action_list = {ca.A, ca.B, ca.X, ca.Y}
+    local reso_id = nil
+    for id, r in pairs(RESONANCES) do
+      if r.character == p.class
+         and CONTENT.resonances[id]
+         and CONTENT.resonances[id].attuned then
+        reso_id = id; break
+      end
+    end
+    if reso_id then action_list[5] = "RESO" end
+    local cnt = #action_list
     local cur = 1
     for i, a in ipairs(action_list) do if a == p.queued then cur = i end end
-    p.queued = action_list[((cur - 1 + d) % 4) + 1]
+    p.queued = action_list[((cur - 1 + d) % cnt) + 1]
+    p.queued_resonance = (p.queued == "RESO") and reso_id or nil
     p.prev_queued = nil
     p.jamming = false
     redraw()
@@ -26436,7 +26696,7 @@ local function draw_overworld()
     local verb = "talk"
     if fnpc.kind == "object" then verb = "check"
     elseif fnpc.kind == "pet" then verb = "pet" end
-    screen.text_center("A: " .. verb)
+    screen.text_center("A/K3: " .. verb)
   elseif ftile == 5 and (tick % 8) < 5 then
     screen.level(15)
     screen.move(64, 60)
@@ -28469,7 +28729,7 @@ function draw_battle_end_xp()
   screen.level(4); screen.move(2, 58); screen.line(126, 58); screen.stroke()
   if (tick % 6) < 4 then
     screen.font_face(25); screen.font_size(6)
-    screen.level(12); screen.move(64, 63); screen.text_center("press A to leave")
+    screen.level(12); screen.move(64, 63); screen.text_center("A/K3 to leave")
     screen.font_face(1); screen.font_size(8)
   end
 end
@@ -28601,7 +28861,7 @@ local function draw_battle_end()
 
   -- ── FOOTER ──
   if (tick % 6) < 4 then
-    screen.level(12); screen.move(64, 61); screen.text_center("press A to leave")
+    screen.level(12); screen.move(64, 61); screen.text_center("A/K3 to leave")
   end
 end
 
@@ -28641,7 +28901,7 @@ function draw_game_over()
   if age > 80 and (tick % 12) < 8 then
     screen.font_face(25); screen.font_size(6)
     screen.level(11)
-    screen.move(64, 58); screen.text_center("A  return to title")
+    screen.move(64, 58); screen.text_center("A/K3  return to title")
     screen.font_face(1); screen.font_size(8)
   end
 end
@@ -28695,7 +28955,7 @@ local function draw_menu()
   -- (y=11..16) clear the divider at y=8.
   local SHORT_LBL = {["Save Game"] = "Save", ["Party Status"] = "Status",
                      ["Equipment"] = "Equip", ["Bestiary"] = "Beasts",
-                     ["Achievements"] = "Awards"}
+                     ["Achievements"] = "Awards", ["Jam Pad"] = "Jam"}
   for i, opt in ipairs(MENU_OPTIONS) do
     local col_b = (i > 6)
     local x = col_b and (mx + 33) or (mx + 3)
@@ -30767,6 +31027,14 @@ SHOP.sprites.field_recorder = function(sx, sy)
   screen.level(15); screen.pixel(sx + 4, sy + 5); screen.fill()                -- meter pointer
 end
 
+-- Norns (mage tier 3): reuse the equip-screen instrument sprite — same
+-- (sx, sy) 8x8 contract.
+SHOP.sprites.norns_sampler = function(sx, sy)
+  if INST and INST.sprites and INST.sprites.norns_sampler then
+    INST.sprites.norns_sampler(sx, sy)
+  end
+end
+
 -- ── KEY ITEM SPRITES ───────────────────────────────────────────────────
 -- Trophy / quest-item sprites for the KEY tab of the items menu. 8×8 each,
 -- (sx, sy) is top-left of the cell. Table is global (no `local`) to dodge
@@ -31352,7 +31620,7 @@ UI.draw_credits = function()
     screen.level(0); screen.rect(0, 50, 128, 14); screen.fill()
     screen.font_face(25); screen.font_size(6)
     screen.level(lev); screen.move(64, 60)
-    screen.text_center("press A for NEW GAME +")
+    screen.text_center("A/K3: NEW GAME +   B/K2: title")
     screen.font_face(1); screen.font_size(8)
   end
 end
@@ -31774,10 +32042,17 @@ function items_rows_for_tab(tab_idx)
       }
     end
   elseif tab_idx == 2 then
-    local CLASS_ABBR  = {bard="BRD", cleric="CLR", warrior="WAR", mage="MAG"}
-    local CLASS_ORDER = {"bard", "cleric", "warrior", "mage"}
+    local CLASS_ABBR  = {bard="BRD", cleric="CLR", warrior="WAR", mage="MAG",
+                         engineer="ENG", mathwiz="MTH", drummer="DRM", wraith="ECH"}
+    local CLASS_ORDER = {"bard", "cleric", "warrior", "mage",
+                         "engineer", "mathwiz", "drummer", "wraith"}
+    -- Stable listing: pairs() hash order shuffled rows between sessions.
+    local ids = {}
+    for id in pairs(INSTRUMENTS) do ids[#ids + 1] = id end
+    table.sort(ids)
     for _, cls in ipairs(CLASS_ORDER) do
-      for id, inst in pairs(INSTRUMENTS) do
+      for _, id in ipairs(ids) do
+        local inst = INSTRUMENTS[id]
         if inst.class == cls and instruments_owned[id] then
           local equipped_mark = (equipped[cls] == id) and "*" or " "
           rows[#rows + 1] = {
