@@ -1250,7 +1250,10 @@ local CUTSCENE_LINES = {
 -- ENDING cutscene panels (run after defeating Suno). Long-form FF4-style
 -- denouement: each character gets a quiet beat, then the world inhales,
 -- then the fountain sings, then the credits roll like wind.
-local ENDING_LINES = {
+-- Panels with a `req` class only play if that character was recruited;
+-- the `names` panel is rebuilt from the actual party. ENDING_LINES is
+-- reassigned to the filtered list when the ending starts.
+local ENDING_LINES_ALL = {
   {text = "Suno's tower fell silent at last. Not the silence he wanted -- the other one.", scene = "dark"},
   {text = "The kind that comes after a chord finally resolves.", scene = "dark"},
   {text = "(He does not move. He does not need to. It is over.)", scene = "dark"},
@@ -1267,20 +1270,46 @@ local ENDING_LINES = {
   {text = "A child stopped to listen. Then her mother. Then her mother's mother.", scene = "village"},
   -- Character beats
   {text = "Strom set his hammer down beside Reya's grave and did not pick it up again.", scene = "village"},
-  {text = "Diegues carried his notebook back to where the Academy had stood. He started a new one.", scene = "village"},
+  {text = "Diegues carried his notebook back to the Academy. He shelved it, finished, and started a new one.", scene = "village"},
   {text = "Alder taught the lullaby his mother had hummed to anyone who'd listen. Many did.", scene = "village"},
   {text = "Miel walked west, alone, to the Aeolian shore. Lirael's stones were warm again.", scene = "village"},
   {text = "She left her grandmother's book open on a windowsill. The wind read a page.", scene = "village"},
-  {text = "Sergei rebuilt the resonator. He said it sounded like an apology. Niko played a beat under it.", scene = "village"},
-  {text = "Paj wrote down the function for what they had done. It would not fit on the page.", scene = "village"},
-  {text = "She drew a circle around it instead, and labeled the circle: HELD.", scene = "village"},
-  {text = "ECHO kept her promise. Somewhere under everything, one note held, and holds still.", scene = "village"},
+  {text = "Sergei rebuilt the resonator. He said it sounded like an apology.", scene = "village", req = "engineer"},
+  {text = "Niko sat by the fountain and kept time. The town kept it with him.", scene = "village", req = "drummer"},
+  {text = "Paj wrote down the function for what they had done. It would not fit on the page.", scene = "village", req = "mathwiz"},
+  {text = "She drew a circle around it instead, and labeled the circle: HELD.", scene = "village", req = "mathwiz"},
+  {text = "ECHO kept her promise. Somewhere under everything, one note held, and holds still.", scene = "village", req = "wraith"},
   -- The song travels
-  {text = "Alder, Miel, Strom, Diegues, Sergei, Paj, Niko, ECHO --", scene = "cosmic"},
+  {text = "Alder, Miel, Strom, Diegues, Sergei, Paj, Niko, ECHO --", scene = "cosmic", names = true},
   {text = "your names became a song.", scene = "cosmic"},
   {text = "And the song was carried on every wind.", scene = "cosmic"},
   {text = "FIN.", scene = "cosmic"},
 }
+
+-- Active (filtered) panel list. Defaults to the full set so every
+-- ENDING_LINES read stays valid; rebuilt from the real party when the
+-- ending fires (recruits 1-3 and ECHO are optional).
+local ENDING_LINES = ENDING_LINES_ALL
+
+local function build_ending_lines()
+  local have = {}
+  for _, m in ipairs(party) do have[m.class] = true end
+  local out = {}
+  for _, p in ipairs(ENDING_LINES_ALL) do
+    if not p.req or have[p.req] then
+      if p.names then
+        local names = {}
+        for _, m in ipairs(party) do
+          names[#names + 1] = CHAR_NAME[m.class] or m.class
+        end
+        out[#out + 1] = {text = table.concat(names, ", ") .. " --", scene = p.scene}
+      else
+        out[#out + 1] = p
+      end
+    end
+  end
+  return out
+end
 
 -- INTRO MUSIC — cinematic slow theme played throughout the cutscene
 local INTRO_BPM = 70
@@ -4284,8 +4313,10 @@ CONTENT = {
         if lead == "cleric" then
           return {
             "(he goes still when he sees Miel)",
-            "Princess. You have her face, exactly.",
-            "I served at her coronation. I never thought —",
+            "Princess. Forgive me -- Queen.",
+            "The habit is older than your crown.",
+            "You have your grandmother's face, exactly.",
+            "I served at HER coronation. I never thought —",
             "I never thought a Lirael would walk these",
             "streets again.",
           }
@@ -4423,7 +4454,7 @@ CONTENT = {
         end
       end,
     },
-    -- Queen's Echo is NOT a standing NPC — she is spawned and despawned
+    -- The mother's echo is NOT a standing NPC — she is spawned and despawned
     -- during the Miel Walks Alone scene (Task 4.5).
   },
   -- Velthe's Observatory (map id 24) — a circular tower interior. The
@@ -4534,8 +4565,10 @@ CONTENT = {
     { x = 9, y = 5, name = "Iola",
       -- Hide during scripted scenes (the first-visit scene spawns its
       -- own Iola actor — two Iolas stood side by side otherwise).
-      visible = function() return not (SCENE and SCENE.active) end,
-      visible = function() return CONTENT.scene_seen and CONTENT.scene_seen.observatory_first end,
+      visible = function()
+        return (CONTENT.scene_seen and CONTENT.scene_seen.observatory_first)
+          and not (SCENE and SCENE.active)
+      end,
       dialogue = function()
         local lead = party[active] and party[active].class
         -- Iola was Velthe's apprentice and remembers Miel as a child running
@@ -5014,8 +5047,7 @@ local STORY = {
            and class_in_party("warrior") and class_in_party("mage")
       end,
       lines = {
-        "[Miel]    Slept on the road since Lirael fell.",
-        "[Miel]    First mattress in months. I'd forgotten.",
+        "[Miel]    A real roof again. I keep listening for tent canvas.",
         "[Strom]   I sleep light. The walls help, though.",
         "[Diegues] The old texts say the Crystal once",
         "[Diegues] sang every dawn. Woke villages with it.",
@@ -5055,8 +5087,9 @@ local STORY = {
       lines = {
         "[Miel]  My nation fell on a Tuesday. The silencers came at dawn.",
         "[Miel]  I held the throne three years before that. Three quiet years.",
-        "[Alder] Wh-what?! A queen. And I let you carry the packs.",
-        "[Miel]  I was. I rule no land now. I rule what I carry.",
+        "[Alder] ...I knew the word. I hadn't done the arithmetic.",
+        "[Alder] Three years of a country. And I let you carry the packs.",
+        "[Miel]  I rule no land now. I rule what I carry.",
         "[Miel]  (a small smile) Including, it seems, your packs.",
         "[Strom] We answer to better names now.",
       },
@@ -5088,7 +5121,13 @@ local STORY = {
     },
     {
       id = "after_locrian",
-      trig = function() return shards.locrian end,
+      -- Locrian alone isn't enough: under the Lirael-mandatory flow
+      -- aeolian commonly lands AFTER locrian, and this scene announces
+      -- six shards. Require the count, not the shard.
+      trig = function()
+        local n = 0; for _, v in pairs(shards) do if v then n = n + 1 end end
+        return shards.locrian and n >= 6
+      end,
       lines = {
         "[Diegues] Six shards. Six sevenths of a chord. Nearly whole.",
         "[Miel]  Tomorrow it ends. One way or another.",
@@ -5129,6 +5168,7 @@ local STORY = {
       lines = {
         "[Strom] Suno's tower is open. Six shards. One missing.",
         "[Alder] Tomorrow we play the biggest room of our lives.",
+        "[ECHO]  ...an 'us'. I have never been part of an 'us' before. I will hold.",
         "[Miel]  Tonight we sleep. The chord can wait one night.",
         "[Diegues] One night. And then — the seventh note.",
       },
@@ -5226,8 +5266,8 @@ local STORY = {
         return CONTENT and CONTENT.recruits[1].joined and shards.phrygian
       end,
       lines = {
-        "[Sergei] Tonight I'm remixing the campfire.",
-        "[Alder]  You can't remix a campfire.",
+        "[Sergei] Tonight I'm re-rigging the campfire.",
+        "[Alder]  You can't re-rig a campfire.",
         "[Sergei] Watch me.",
         "[Miel]   He's adjusting the kindling rhythm.",
         "[Diegues] ...it does sound better.",
@@ -5237,7 +5277,7 @@ local STORY = {
       id = "paj_first_night",
       trig = function() return CONTENT and CONTENT.recruits[2].joined end,
       lines = {
-        "[Paj]    I solved your travel times. You'd save 11%.",
+        "[Paj]    I solved your travel times. We waste one road in nine.",
         "[Alder]  By doing what?",
         "[Paj]    Skipping the pretty path through the woods.",
         "[Alder]  ...I like the pretty path.",
@@ -5448,7 +5488,7 @@ local STORY = {
         "[Diegues] Closed-form?",
         "[Paj]    Closed-form. But unstable on the boundary.",
         "[Paj]    A counter-chord — major seventh, root A —",
-        "[Paj]    drops it into a divide-by-zero.",
+        "[Paj]    asks it to divide by zero. Nothing answers.",
         "[Alder]  Again, but for bards.",
         "[Paj]    We sing him into a paradox. He stops working.",
         "[Strom]  ...I love a good paradox.",
@@ -5636,7 +5676,12 @@ local STORY = {
     -- PRE-FINALE: the night before Suno's chamber.
     {
       id = "pre_finale_night",
-      trig = function() return shards.locrian end,
+      -- Needs the full six (see after_locrian): locrian is often the
+      -- 5th shard under the Lirael-mandatory flow.
+      trig = function()
+        local n = 0; for _, v in pairs(shards) do if v then n = n + 1 end end
+        return shards.locrian and n >= 6
+      end,
       lines = {
         "[Diegues] Six shards on the table. Ionian remains.",
         "[Strom]   The Chamber's gate is across the bridge.",
@@ -6063,6 +6108,7 @@ local STORY = {
 STORY.SPEAKER_CLASS = {
   Miel = "cleric", Strom = "warrior", Diegues = "mage", Alder = "bard",
   Sergei = "engineer", Paj = "mathwiz", Niko = "drummer",
+  ECHO = "wraith",
 }
 
 -- Filter a STORY scene's lines so we don't have Strom delivering a line
@@ -6176,6 +6222,9 @@ ANIM.dust_puff = function(cx, cy)
   ANIM.dust[#ANIM.dust + 1] = {x = cx, y = cy, t = tick}
 end
 
+-- Afterimage marker. `class` is stored for potential class-shaped
+-- rendering, but the renderer currently draws a plain 8x8 outline for
+-- every class — a deliberate "ghost box" read, not the full sprite.
 ANIM.ghost_sprite = function(class, x, y, brightness, ticks)
   ANIM.particles[#ANIM.particles + 1] = {
     kind = "ghost_sprite",
@@ -6759,14 +6808,15 @@ function start_academy_intro()
     {letterbox_in = true},
     {wait = 12},
     -- Diegues beside the westmost lectern (tile 75 at (6,2)).
-    {spawn = "diegues", class = "mage", name = "Diegues", x = 7, y = 2, facing = "down"},
+    {spawn = "diegues", class = "mage", name = "Diegues", x = 7, y = 2, facing = "down", bob = false},
     -- Spawn Miel in the corridor south of the hall, facing up.
-    {spawn = "miel", class = "cleric", name = "Miel", x = 7, y = 4, facing = "up"},
+    {spawn = "miel", class = "cleric", name = "Miel", x = 7, y = 4, facing = "up", bob = false},
     {wait = 8},
-    -- Diegues spots Miel — "shock" turn + small upward bump.
+    -- Diegues spots Miel — sting FIRST, then the "shock" turn + bump
+    -- (bump blocks, so sfx after it would land late).
     {look = "diegues", toward = "miel"},
-    {bump = "diegues", dir = "up", ticks = 3},
     {sfx = {class = "mage", note = 72, vel = 0.55, attack = 0.005, release = 0.40, wet = 0.55}},
+    {bump = "diegues", dir = "up", ticks = 3},
     {wait = 8},
     {dialogue = {
       "(Smoke pours through the doorway. Bookshelves are toppled. Pages drift in the bad light.)",
@@ -6839,80 +6889,6 @@ function start_academy_intro()
     start_strom_battle()
   end)
 end
-
--- ── Cave-boss approach scenes ──────────────────────────────────────────
--- One per boss. Played the first time the player crosses the boss
--- arena tile; subsequent attempts skip straight to combat. FF4-style
--- atmospheric build with a moment of party reaction.
-BOSS_APPROACH = {
-  [1] = {  -- Cave 1: Echo
-    "(The cave widens into a chamber. The drip from the ceiling hits the floor a half-beat too late.)",
-    "(...far back in the dark, the drip answers itself.)",
-    "[Miel]   It's listening.",
-    "(A voice -- her own voice -- comes back from the wall.)",
-    "(It comes back twisted, to a different key.)",
-    "[Cave Echo] ((It's listening.))",
-    "[Cave Echo] ((Stay. Say it again. Stay.))",
-    "(Miel never said that.)",
-    "(Something at the back of the chamber takes a step. The party draws together.)",
-  },
-  [2] = {  -- Cave 2: Sentinel
-    "(The grove opens. In its center, a wooden figure three meters tall, covered in moss.)",
-    "(It does not move. It has not moved in a very long time.)",
-    "[Strom]  (a step backward) That's not a tree. Get back, get back --",
-    "(The Sentinel raises a single arm. The forest goes still. Even the birds.)",
-    "[Sentinel] (a voice like roots parting stone) Loud, brief things.",
-    "[Sentinel] I have outwaited mountains. I will outwait you.",
-    "(Beren said: \"The Sentinel sleeps for good now.\" That was a long time ago. He sleeps no more.)",
-  },
-  [3] = {  -- Cave 3: Tide
-    "(The seawater laps higher than the deepest tide should allow.)",
-    "(Faces appear in the surface. Then disappear. Then appear again, closer.)",
-    "[Miel]    (remembering Aurin's warning) The Tidewatch chord answers prayers and traps both.",
-    "(One of the faces in the water is yours. It does not look frightened.)",
-    "(Tidewatch rises out of the pool. The chord pulls tight.)",
-    "(Its voice is many voices, praying in unison.)",
-    "[Tidewatch] ((We keep every voice the sea was given.))",
-    "[Tidewatch] ((Come down. Be kept.))",
-  },
-  [4] = {  -- Cave 4: Dunerider
-    "(Sand. Wind. Hoofprints in a six-beat rhythm, very fast, then two beats back.)",
-    "(The Dune Rider crests the dune. He has been riding for years to reach this exact moment.)",
-    "[Iska]  (your memory of her voice) Six beats out, two back. Strike on the rest.",
-    "(He stops. The horse stops. The wind does not stop.)",
-    "[Dune Rider] (low, almost a song) ...you are not what I was sent for. You will do.",
-    "[Dune Rider] (a small bow) Take the first beat. I will take the rest.",
-  },
-  [5] = {  -- Cave 5: Snowgaunt
-    "(The snow stops falling. Even the wind stops.)",
-    "(A figure in long white robes turns from the icicle wall. He is conducting silence.)",
-    "[Snowgaunt] (a voice like wind off a lake) Three. Three is the meter. Three is the only meter.",
-    "[Snowgaunt] (slower) Winter on winter, I have kept the count.",
-    "[Snowgaunt] I am tired. Do not make me keep it alone.",
-    "(You can feel your party's heartbeats trying to find his three-count.)",
-    "[Wenna] (your memory of her voice) Drown his time with yours.",
-  },
-  [6] = {  -- Cave 6: Locrius
-    "(The crypt smells of nothing. Crypts are usually loud with rot. This one is silent.)",
-    "(Locrius rises from the central plinth. His teeth are perfectly even.)",
-    "[Locrius] (a voice exactly between two notes) You've come a long way to be wrong by half a step.",
-    "[Locrius] My king has been waiting. He thinks you'll arrive tired.",
-    "[Locrius] (pleasantly) I could spare you the walk.",
-    "[Locrius] It is only half a step. Who would miss it?",
-    "[Veris]  (your memory of her voice) He cannot hold off-time. Strike where he cannot follow.",
-  },
-  [7] = {  -- Cave 7: Suno (final)
-    "(The chord that holds Suno's domain pulls tight as a wire over your heads.)",
-    "(The Tuning King stands at the center of the chamber, exactly where he was when last you saw him -- larger.)",
-    "[Suno]   (without turning) You should be a wagon-print in the road by now. A small one.",
-    "[Suno]   And yet. Six shards in your pack. A queen who walks instead of sings.",
-    "[Suno]   (a slow breath) I underestimated the room I left you in.",
-    "[Miel]   You left me in my grandmother's room.",
-    "[Miel]   I came here so I could sing for it.",
-    "[Suno]   (turns, slowly) Then sing.",
-    "(The six shards in your pack ring once, all together. The seventh is in the room with you.)",
-  },
-}
 
 -- ── First-arrival story scenes ─────────────────────────────────────────
 -- Generic "play this beat the first time the player arrives at <id>" hook.
@@ -7123,8 +7099,10 @@ function start_courtyard_breach_script()
     -- 40-tick runs land on screen (they previously arrived while the
     -- camera still framed the barracks door).
     {focus = {x = 7, y = 11}, ticks = 20},
-    {move = "hova",  to = {x = 6,  y = 11}, ticks = 40},
+    -- Borin's run plays first (moves block, so whoever moves first
+    -- arrives first) — the next line says he reaches the gate first.
     {move = "borin", to = {x = 9,  y = 11}, ticks = 40},
+    {move = "hova",  to = {x = 6,  y = 11}, ticks = 40},
     {wait = 8},
     -- Borin reaches the gate first; brittle and brave.
     {dialogue = {
@@ -7603,8 +7581,8 @@ function start_prologue_throne_scene()
     {move = "sil_r", to = {x = 9, y = 4}, ticks = 18},
     {wait = 22},
     {move = "suno", to = {x = 8, y = 10}, ticks = 32, offmap = true},
-    {wait = 32},
-    -- Suno crosses the threshold. Doors thud. He's gone.
+    -- Suno crosses the threshold. Doors thud. He's gone. (The move
+    -- above already blocks its full 32 ticks — no extra wait.)
     {despawn = "suno"},
     {sfx = {class = "warrior", note = 24, vel = 0.85, attack = 0.001, release = 0.30, wet = 0.05}},
     {shake = {mag = 2, ticks = 6}},
@@ -7782,7 +7760,7 @@ function finish_academy_arc()
     {letterbox_in = true},
     {spawn = "miel",    class = "cleric",  name = "Miel",    x = 7, y = 3, facing = "down", bob = false},
     {spawn = "strom",   class = "warrior", name = "Strom",   x = 6, y = 4, facing = "up", bob = false},
-    {spawn = "diegues", class = "mage",    name = "Diegues", x = 7, y = 2, facing = "down"},
+    {spawn = "diegues", class = "mage",    name = "Diegues", x = 7, y = 2, facing = "down", bob = false},
     {wait = 12},
     -- Hammer falls (loud SFX + shake).
     {sfx = {class = "warrior", note = 24, vel = 0.95, attack = 0.001, release = 0.30, wet = 0.10}},
@@ -7849,7 +7827,7 @@ function finish_academy_arc()
       "[Strom]   (rises, slowly. Wipes ash from his cheek.)",
       "[Strom]   I owe Suno a dishonorable retirement.",
       "[Strom]   Where you go, I will keep watch.",
-      "[Miel]    (offers her hand) Then rise, captain. We watch together.",
+      "[Miel]    (takes his hand) Stand with me, captain. We watch together.",
     }, npc = {name = "Strom"}},
     -- Strom + Diegues take their formation positions beside Miel.
     {move = "strom",   to = {x = 8, y = 3}, ticks = 18},
@@ -8427,7 +8405,7 @@ function start_village_arrival_scene()
     }, npc = nil},
     {wait = 10},
     {dialogue = {
-      "[Miel]    (sets the hood back; the sun is on her face for the first time in a year)",
+      "[Miel]    (sets the hood back; the sun is on her face for the first time since Lirael fell)",
     }, npc = {name = "Miel"}},
     -- A long pause before the line.
     {wait = 24},
@@ -8770,7 +8748,7 @@ function start_sunos_arrival_scene()
   end
   table.insert(script, {wait = 12})
   table.insert(script, {dialogue = {
-    "[Miel]    (touches the shard at her throat) Six. The seventh is in this room somewhere.",
+    "[Miel]    (touches the shard at her throat) The last note is close. I can hear it.",
     "[Miel]    Let's go finish it.",
   }, npc = {name = "Miel"}})
   table.insert(script, {wait = 18})
@@ -9076,7 +9054,9 @@ end
 -- onto the cathedral_door tile (88, row 8 cols 19-20) from the south,
 -- regardless of active lead. Miel separates from the party and walks into
 -- the nave alone. Quiet: long fades, music ducks, one line of dialogue.
--- Queen's Echo briefly manifests behind her, no dialogue.
+-- Her mother's echo briefly manifests behind her, no dialogue. (Canon:
+-- Miel's mother died young and never reigned — the crown passed from
+-- the grandmother to Miel. She is entombed in the cathedral nave.)
 -- Sets flag.miel_walks_alone_done = true on completion; gates Task 4.6's
 -- Broken Cadence and makes the Royal Quarters door accessible.
 function start_lirael_miel_walks_alone_scene()
@@ -9093,7 +9073,7 @@ function start_lirael_miel_walks_alone_scene()
     {move = "miel_alone", to = {x = 18, y = 4}, ticks = 50},
     -- Re-anchor the camera at the altar: the one-shot actor focus above
     -- was taken while Miel was at (19,9), so without this the arrival,
-    -- the line, and the Queen's Echo all played ABOVE the visible
+    -- the line, and the mother's echo all played ABOVE the visible
     -- window (same staging class as the courtyard-silencer bug).
     {focus = {x = 18, y = 4}, ticks = 24},
     -- Music ducks to silence; sustained low cleric drone
@@ -9106,7 +9086,7 @@ function start_lirael_miel_walks_alone_scene()
     -- The single line
     {dialogue = {"Miel:", "\"Mother. I'm here.\""}, npc = {name = "Miel"}},
     {wait = 30},
-    -- Queen's Echo briefly manifests behind her, no dialogue
+    -- Her mother's echo briefly manifests behind her, no dialogue
     {spawn = "queens_echo", class = "cleric", name = "", x = 18, y = 4, facing = "down", bob = false},
     {sfx = {class = "cleric", note = 60, vel = 0.3, attack = 1.5, release = 3.0, wet = 0.95}},
     {wait = 36},
@@ -9143,17 +9123,18 @@ function start_lirael_broken_cadence_scene()
     {wait = 20},
     {dialogue = {
       "The Broken Cadence:",
-      "\"...the queen's daughter.\"",
+      "\"...the old queen's blood.\"",
       "\"You have her eyes.\"",
     }, npc = {name = "The Broken Cadence"}},
     {wait = 12},
     {dialogue = {
       "\"She would not let it end.\"",
+      "\"She sang the north into my keeping. The key. The cold door.\"",
       "\"Sing with me. The last phrase.\"",
     }, npc = {name = "The Broken Cadence"}},
     {wait = 8},
     {dialogue = {
-      "\"...Miel. That was the name she sang.\"",
+      "\"...Miel. That was the name she sang, at the end.\"",
       "\"She would not let it end.\"",
       "\"You must.\"",
     }, npc = nil},
@@ -9849,7 +9830,7 @@ function start_boss_approach_scene(cv)
         "(It does not look frightened.)",
       }, npc = nil},
       {dialogue = {
-        "(Tidewatch rises out of the pool.)",
+        "(Tidewatch stands taller in the pool.)",
         "(The chord pulls tight.)",
         "(Its voice is many voices, praying in unison.)",
         "[Tidewatch] ((We keep every voice the sea was given.))",
@@ -9919,8 +9900,8 @@ function start_boss_approach_scene(cv)
         "[Locrius] You've come a long way to be wrong by half a step.",
       }, npc = {name = "Locrius"}},
       {dialogue = {
-        "[Locrius] My king has been waiting.",
-        "[Locrius] He thinks you'll arrive tired.",
+        "[Locrius] The note has been waiting.",
+        "[Locrius] Suno thinks you'll arrive tired.",
         "[Locrius] (pleasantly) I could spare you the walk.",
         "[Locrius] It is only half a step. Who would miss it?",
       }, npc = {name = "Locrius"}},
@@ -10069,6 +10050,7 @@ function start_finale_scene()
     {wait = 16},
     {dialogue = {
       "[Suno]    Then sing.",
+      "[Suno]    The seventh note was mine once. I will not wear it again.",
     }, npc = {name = "Suno"}},
     -- The shards ring. Camera pulls back wide to take in both characters.
     {focus = {x = 8, y = 5}, ticks = 18},
@@ -10310,8 +10292,8 @@ function start_lirael_first_visit()
   script[#script + 1] = {wait = 8}
   script[#script + 1] = {dialogue = {
     "[Miel]    Grandmother.",
-    "[Miel]    The chord is six notes.",
-    "[Miel]    I am bringing the seventh home.",
+    "[Miel]    The chord is not yet whole.",
+    "[Miel]    I am bringing it home. Every note.",
   }, npc = {name = "Miel"}}
   -- Optional reactions from companions. We add them only if the
   -- character is present, so the scene scales with whoever's in the party.
@@ -10765,11 +10747,18 @@ local MAINLAND_NPCS = {
           "(+200 gold, +1 Star)",
         })
       elseif q.claimed then
-        return with_shard_react("Brann", {
+        local lines = {
           "Anvil's quiet today. Good road work?",
           "Anvel says my quench water's the secret. Let him think it.",
           "Bring me anything weird from the deeps. I always have a forge waiting.",
-        })
+        }
+        -- Close the fig-cake loop from the Phrygian Brann (name-twin,
+        -- not kin) once the party has plausibly passed through there.
+        if shards.phrygian then
+          lines[#lines + 1] = "A Brann out east sent a fig cake with my name on it. Never met the man."
+          lines[#lines + 1] = "Ate the cake. Branns look out for Branns, apparently."
+        end
+        return with_shard_react("Brann", lines)
       elseif q.wins > 0 then
         return with_shard_react("Brann", {
           "Heard you've cleared " .. q.wins .. "/" .. q.target .. " road fights.",
@@ -10969,8 +10958,8 @@ local MAINLAND_NPCS = {
       if n >= 7 then
         return with_shard_react("Wren", {
           "[Wren]   You did it. The seven are one.",
-          "[Wren]   I have walked this country for nine years following the music.",
-          "[Wren]   Tonight I'll sleep in a town I picked. Not one I had to flee to.",
+          "[Wren]   Nine years picking towns by where the music died last.",
+          "[Wren]   Tonight I picked this one for the weather. (laughs) The WEATHER.",
           "[Wren]   Thank you. The road thanks you.",
         })
       elseif n >= 6 then
@@ -12037,7 +12026,8 @@ local EASTERN_NPCS = {
         return with_shard_react("Hask", {
           "[Hask]   The sea is finally singing back. I'd forgotten what it sounded like answering.",
           "[Hask]   My net came up full this morning. Three different colors of fish. Three.",
-          "[Hask]   (sets the line down) Sit a minute. The water owes you a story.",
+          "[Hask]   (sets the line down) Sit. I promised to teach you to fish properly.",
+          "[Hask]   Lesson one: some days the water owes you a story instead. Listen.",
         })
       elseif n >= 3 then
         return with_shard_react("Hask", {
@@ -12546,7 +12536,7 @@ local SUNOS_NPCS = {
         return with_shard_react("Calder", {
           "[Calder]  Locrius held the door for centuries.",
           "[Calder]  Strange to mourn a thing that hated us.",
-          "[Calder]  He believed in his master to the end. I think -- in his way -- he was loyal.",
+          "[Calder]  He believed in his charge to the end. I think -- in his way -- he was loyal.",
           "[Calder]  Loyalty is not the same as right. I am only just learning that.",
         })
       end
@@ -12901,7 +12891,7 @@ CONTENT.northern_inn_npcs = {
       if lead == "warrior" then
         return {
           "[Halla]  Old soldier. The lodge has a hot bath you'll appreciate.",
-          "[Halla]  My brother fought at Frostridge. He didn't come back. (...) you might have known him.",
+          "[Halla]  My eldest brother fought at Frostridge. He didn't come back. (...) you might have known him.",
           "(party fully restored)",
         }
       end
@@ -13875,6 +13865,17 @@ CONTENT.sunward_coast_npcs = {
   { x = 17, y = 6, name = "Coral", kind = "npc",
     dialogue = function()
       local lead = party[active] and party[active].class
+      -- Whole-chord payoff: Coral finally gets her stage. (She was
+      -- the one Sunward voice with no shard reaction.)
+      local n = 0
+      for _, v in pairs(shards) do if v then n = n + 1 end end
+      if n >= 7 then
+        return {
+          "(she's ON the bandstand, mid-song, and does not stop for you)",
+          "(the high notes are there. All of them.)",
+          "(between verses, without looking down:) I told you. Two weeks.",
+        }
+      end
       if lead == "bard" then
         return {
           "A REAL bard! Wait right there. Don't move. Listen!",
@@ -15769,7 +15770,6 @@ local function try_move(dx, dy)
                            [13] = 6, [14] = 7 }
     local cv = cave_for_map[current_map_id] or 1
     local scene_id = "boss_approach_" .. cv
-    local lines = BOSS_APPROACH and BOSS_APPROACH[cv]
     CONTENT.scene_seen = CONTENT.scene_seen or {}
     -- All caves now get full choreographed approach scenes. cave 7
     -- routes to start_finale_scene; caves 1-6 use the generic
@@ -15777,24 +15777,12 @@ local function try_move(dx, dy)
     -- attempts skip straight to combat.
     if not CONTENT.scene_seen[scene_id] then
       CONTENT.scene_seen[scene_id] = true
-      if cv == 7 and start_finale_scene then
+      if cv == 7 then
         start_finale_scene()
         return
       end
-      if start_boss_approach_scene then
-        start_boss_approach_scene(cv)
-        return
-      end
-      -- Fallback: legacy dialogue-only path if helper is missing.
-      if lines then
-        dlg.lines = pack_dialogue_lines(lines, nil)
-        dlg.line = 1
-        dlg.npc = nil
-        game_state = "DIALOGUE"
-        CONTENT.post_dialogue = function() enter_battle(cv) end
-        redraw()
-        return
-      end
+      start_boss_approach_scene(cv)
+      return
     end
     enter_battle(cv)
     return
@@ -15941,7 +15929,23 @@ local function try_move(dx, dy)
     return
   end
   if t == 20 then
-    -- Cave 7 (Suno's Chamber) entry — small antechamber interior
+    -- Cave 7 (Suno's Chamber) entry — small antechamber interior.
+    -- Gated on six shards: the tower itself opens at five (the Locrian
+    -- crypt is inside), but the finale text, Suno's "six shards in
+    -- your pack", and the six-shards/World-of-Silence beat all assume
+    -- the full six. Without this gate a five-shard run could skip the
+    -- Silence entirely.
+    if count_shards() < 6 then
+      dlg.lines = pack_dialogue_lines({
+        "(The chamber door does not answer.)",
+        "(Six notes must sound together before the seventh will listen.)",
+      }, nil)
+      dlg.line = 1
+      dlg.npc = nil
+      game_state = "DIALOGUE"
+      redraw()
+      return
+    end
     CONTENT.return_map = current_map_id
     CONTENT.return_x = nx; CONTENT.return_y = ny + 1
     travel_to(14, 6, 5)
@@ -16298,7 +16302,7 @@ local function try_move(dx, dy)
       queue_first_arrival("village_arrival", {
         "(Light. Real light, not torch-light. The cave mouth opens onto a village she has never seen.)",
         "(Smoke rises from breakfast fires. Somewhere a child laughs at something a chicken did.)",
-        "[Miel]   (sets the hood back; the sun is on her face for the first time in a year)",
+        "[Miel]   (sets the hood back; the sun is on her face for the first time since Lirael fell)",
         "[Miel]   (...quietly...) Queen of nothing, then.",
         "(She walks down the path. Her hum is small but it carries. A bard at a fire looks up.)",
       })
@@ -16808,6 +16812,10 @@ function pack_dialogue_lines(raw, npc_name)
   -- too long on its own.
   local function split_long(s)
     if #s <= MAX_CHARS_PRE then return {s} end
+    -- Protect "..." from the sentence pattern below, which would read
+    -- it as three sentence ends (orphan "." pages, mangled ellipses).
+    -- \1 is unused in dialogue text; three of them keep lengths exact.
+    s = s:gsub("%.%.%.", "\1\1\1")
     local out, buf = {}, ""
     local pieces = pieces_by(s, "[^.!?]+[.!?]?")
     -- Re-split any piece that's too big using the finer-grained cascade.
@@ -16833,6 +16841,7 @@ function pack_dialogue_lines(raw, npc_name)
       end
     end
     if #buf > 0 then out[#out + 1] = buf end
+    for i = 1, #out do out[i] = out[i]:gsub("\1\1\1", "...") end
     return out
   end
   -- Preserve speaker prefix across splits: if the source line is tagged
@@ -19135,6 +19144,9 @@ exit_battle = function()
   if ending_pending then
     ending_pending = false
     ending_idx = 1
+    -- Drop panels for characters who were never recruited and rebuild
+    -- the names panel from the actual party.
+    ENDING_LINES = build_ending_lines()
     -- The ending supersedes any queued beat; credits chain directly
     -- from ENDING now (see the ENDING-dismiss handlers).
     CONTENT.queued_scene = nil
@@ -22008,6 +22020,7 @@ end
 
 -- Tile 62 — Bandstand (walkable; raised platform with ambient light flicker).
 TILE_DRAW[62] = function(px, py, t)
+  t = t or 0
   -- raised platform with one ambient light flicker
   screen.level(8)
   screen.rect(px, py, 8, 8); screen.fill()
@@ -22058,6 +22071,7 @@ end
 
 -- Tile 67 — Tower base (impassable; tall sand-brick with breathing window light).
 TILE_DRAW[67] = function(px, py, t)
+  t = t or 0
   -- tower_base: tall sand-brick with one window that breathes
   screen.level(8)
   screen.rect(px, py, 8, 8); screen.fill()
@@ -22092,6 +22106,7 @@ end
 
 -- Tile 70 — Lantern post (impassable; flickering flame atop a narrow post).
 TILE_DRAW[70] = function(px, py, t)
+  t = t or 0
   -- lantern_post: post with a flickering flame
   screen.level(4)
   screen.rect(px+3, py+2, 2, 6); screen.fill()
@@ -22129,6 +22144,7 @@ end
 
 -- Tile 73 — Astrolabe (impassable; Academy courtyard, animated rotating ring).
 TILE_DRAW[73] = function(px, py, t)
+  t = t or 0
   -- astrolabe: rotating ring + glowing center
   screen.level(3)
   screen.rect(px, py, 8, 8); screen.fill()
@@ -22244,6 +22260,7 @@ TILE_DRAW[83] = function(px, py)
 end
 
 TILE_DRAW[84] = function(px, py, t)
+  t = t or 0
   -- broken_altar: pale stone slab with crack + ash particle falling overhead
   screen.level(9)
   screen.rect(px, py+2, 8, 6); screen.fill()
@@ -23457,7 +23474,7 @@ SCENE.advance = function()
     if step.despawn_all then SCENE.despawn_all() end
     -- Full-screen panel overlay (SCENE_DRAW key). show_panel = "<key>"
     -- displays it until hide_panel (or scene end / new scene).
-    if step.show_panel then SCENE.panel = step.show_panel end
+    if step.show_panel then SCENE.panel = step.show_panel; SCENE.panel_t = 0 end
     if step.hide_panel then SCENE.panel = nil end
     if step.set then pcall(step.set) end
     -- Letterbox bars in / out (FF-style cutscene framing). 6px top + 6px
@@ -23585,6 +23602,11 @@ end
 
 SCENE.tick = function()
   if not SCENE.active then return end
+  -- Scene-time counter for the shrine-panel drawers. The global `tick`
+  -- they'd otherwise use advances on the MUSIC clock (tempo-dependent,
+  -- ~3/s in 48-BPM Lirael) — panels read near-static there. This one
+  -- runs at the fixed 15 Hz scene rate.
+  SCENE.panel_t = (SCENE.panel_t or 0) + 1
   -- Run tweens TWICE per scene tick so movements + camera pans + fades
   -- finish in half the apparent time. Combined with the 2-step wait
   -- countdown below, scenes flow at "natural conversation" speed
@@ -24419,6 +24441,10 @@ NPC_SPRITES.Rider = function(sx, sy, t)
     screen.level(15); screen.pixel(sx + 4, sy); screen.fill()
   end
 end
+-- The boss-approach scene spawns this actor under its full display
+-- name, so alias it — without this the lookup falls through to the
+-- generic warrior sprite.
+NPC_SPRITES["Dune Rider"] = NPC_SPRITES.Rider
 
 NPC_SPRITES.Snowgaunt = function(sx, sy, t)
   -- Snowgaunt: tall white-robed figure. Faint conducting motion (one
@@ -29717,6 +29743,8 @@ function draw_scene_lirael_gate()
 end
 
 function draw_scene_lirael_bell_alcove()
+  -- Animate on scene time (15 Hz), not the tempo-dependent music tick.
+  local tick = (SCENE and SCENE.panel_t) or tick
   -- Tapestry alcove with a slow-swinging bell silhouette growing larger
   -- as the attunement reaches its peak. Background is the alcove
   -- (dark tapestry), foreground is the bell.
@@ -29748,6 +29776,8 @@ function draw_scene_lirael_bell_alcove()
 end
 
 function draw_scene_academy_astrolabe_resonant()
+  -- Animate on scene time (15 Hz), not the tempo-dependent music tick.
+  local tick = (SCENE and SCENE.panel_t) or tick
   -- Academy courtyard with the astrolabe at center. Concentric rings
   -- expand outward from it; ECHO's silhouette stands beside it at solid
   -- (no-trail) brightness, confirming she's anchored.
@@ -29776,6 +29806,8 @@ end
 
 
 function draw_scene_phrygian_drumhall_resonant()
+  -- Animate on scene time (15 Hz), not the tempo-dependent music tick.
+  local tick = (SCENE and SCENE.panel_t) or tick
   -- The great war-drum centered; on the strike beat, concentric shockwave
   -- rings punch outward and the floor jumps (handled by ANIM.shake at the
   -- scene's sfx beat). Sand-stone Phrygian palette. Niko stands beside it.
@@ -29803,6 +29835,8 @@ function draw_scene_phrygian_drumhall_resonant()
 end
 
 function draw_scene_observatory_masked_voice()
+  -- Animate on scene time (15 Hz), not the tempo-dependent music tick.
+  local tick = (SCENE and SCENE.panel_t) or tick
   -- Velthe's study: tall arched star-window, the desk, and a mask
   -- floating over it. Beneath the mask, the voice-line redraws itself
   -- in a different shape every half-cycle — the same phrase, sung as
@@ -29843,6 +29877,8 @@ function draw_scene_observatory_masked_voice()
 end
 
 function draw_scene_sunward_bandstand_resonant()
+  -- Animate on scene time (15 Hz), not the tempo-dependent music tick.
+  local tick = (SCENE and SCENE.panel_t) or tick
   -- The Sunward bandstand at golden hour: posts + canopy, sea horizon
   -- behind. The Spring wells up through the boards — bright droplets
   -- rise, and every ring the fountain-water makes is answered by a
@@ -29879,6 +29915,8 @@ function draw_scene_sunward_bandstand_resonant()
 end
 
 function draw_scene_phrygian_scatter()
+  -- Animate on scene time (15 Hz), not the tempo-dependent music tick.
+  local tick = (SCENE and SCENE.panel_t) or tick
   -- The Phrygian bazaar at night: awning lines and stall shapes in the
   -- sand-stone palette. Sergei's rig sits center; the Scatter throws a
   -- handful of bright points into NEW positions on every beat — order
@@ -29913,6 +29951,8 @@ function draw_scene_phrygian_scatter()
 end
 
 function draw_scene_sunward_slow_wheel()
+  -- Animate on scene time (15 Hz), not the tempo-dependent music tick.
+  local tick = (SCENE and SCENE.panel_t) or tick
   -- The harbor capstan: a great wheel that turns on its own — slow,
   -- even, unhurried — over the water. Strom stands with a hand on it.
   screen.level(1); screen.rect(0, 0, 128, 64); screen.fill()
@@ -29943,6 +29983,8 @@ function draw_scene_sunward_slow_wheel()
 end
 
 function draw_scene_academy_threefold()
+  -- Animate on scene time (15 Hz), not the tempo-dependent music tick.
+  local tick = (SCENE and SCENE.panel_t) or tick
   -- The Academy: three tuning forks stand on the lectern table, struck
   -- as one — three ring-sets bloom from three mouths and meet in the
   -- middle as a single chord. Paj beside the table.
@@ -30890,15 +30932,6 @@ local function draw_jam()
   -- Mode (current scale) at footer-left, A to cycle through unlocked modes
   screen.level(11); screen.move(2, 63); screen.text("MODE")
   screen.level(15); screen.move(26, 63); screen.text(JAM.mode:upper())
-  -- Scale-locked zones (castle raid etc.) ignore the mode on exit —
-  -- say so, or mode-cycling there reads as broken.
-  do
-    local th = OW_THEMES and current_theme and OW_THEMES[current_theme]
-    if th and th.scale then
-      screen.level(5); screen.move(60, 63)
-      screen.text("(zone key locked)")
-    end
-  end
   -- Stick visualizers (only shown in debug mode — kept the jam UI cluttered).
   if debug_visible then
     local lx, ly, rx, ry = 0, 0, 0, 0
@@ -30917,7 +30950,14 @@ local function draw_jam()
     screen.move(126, 51); screen.text_right("UD scale LR root")
   end
   screen.move(126, 57); screen.text_right("L1/R1 voice  X mode  A latch")
-  screen.move(126, 63); screen.text_right("B/SELECT exit")
+  -- Scale-locked zones (castle raid etc.) ignore the mode on exit —
+  -- say so, or mode-cycling there reads as broken. Shares the y=63
+  -- footer row with the exit hint (same anchor — draw one string, not
+  -- two overlapping ones).
+  local zone_locked = OW_THEMES and current_theme and OW_THEMES[current_theme]
+    and OW_THEMES[current_theme].scale
+  screen.move(126, 63)
+  screen.text_right(zone_locked and "KEY LOCKED  B/SEL exit" or "B/SELECT exit")
   screen.font_face(1); screen.font_size(8)
 end
 

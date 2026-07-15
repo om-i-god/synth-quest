@@ -159,6 +159,12 @@ proposals.
    = full damage; wrong = stagger. Sound design: his voice is a wet
    echo, half-drowned, with a brass-band undertone that only resolves
    when the player answers correctly. Drops the MIXOLYDIAN SHARD.
+   CODE DRIFT NOTE (2026-07-14): shipped dialogue voices Tidewatch
+   as a PLURAL drowned congregation ("We keep every voice the sea
+   was given. Come down. Be kept."), not the single bandleader-
+   ghost above; the Sunward town's Harbormaster setup (Mara's
+   bandstand, Beck's "old bandleader's call") still points at the
+   older read. Treat the plural-congregation voice as canon.
 
    FF reference: FF5 Walse / FF9 Treno's gentler face.
 
@@ -181,7 +187,9 @@ proposals.
 
 -------- 4. PHRYGIAN — THE EASTERN REACHES --------
 
-   STATUS: IN CODE (Cave 4 = GLASS CAVERN; named area = Eastern Reaches)
+   STATUS: PARTIAL (Cave 4 = GLASS CAVERN; named area = Eastern
+   Reaches). Dune Rider is IN CODE and drops the Phrygian shard;
+   THE FIRST CALL is VISION ONLY (no second boss in code).
 
    Mode character: minor with flat second. Tense, exotic, ritual.
    Spanish in our world. Eastern in Modalia.
@@ -258,12 +266,27 @@ proposals.
    verse, formal mourning songs. The royal cathedral at the capital
    was, for generations, where the Aeolian shard was held.
 
-   By the time of the game, LIRAEL IS RUINS. Suno's forces — engineered
-   by CONDUCTOR ARSEN — detonated the cathedral refinery and tore the
-   kingdom's tonal center out. This catastrophe is the Act 3 reveal
-   (see ACT 3 — THE WORLD OF SILENCE). Lirael's last queen, Miel's
-   mother, anticipated the strike and sent the Aeolian shard north
-   for safekeeping before the cathedral fell.
+   By the time of the game, LIRAEL IS RUINS. CODE CANON (2026-07-14,
+   supersedes the older Arsen/courier draft below): Suno personally
+   led the raid that fell Lirael in the PLAYABLE PROLOGUE — the fall
+   IS the game's opening night, and MIEL herself is the deposed
+   queen (she held the throne three years; see ROYAL LINE below).
+   Conductor Arsen does not exist in code. The Aeolian shard has
+   been in the north far longer than the fall: the old queen
+   (Miel's grandmother) "sang the north into the keeping" of the
+   cathedral chorister who became the BROKEN CADENCE — the shard
+   went north generations back, and the Key of Lirael stayed with
+   the Cadence in the nave.
+
+   ── ROYAL LINE (canon, 2026-07-14) ──
+   Grandmother (the "old queen"; predecessor Miel addresses at the
+   ruined throne; died before the fall) → Miel's MOTHER (died
+   young; NEVER reigned; entombed in the cathedral nave — the
+   "Mother. I'm here." beat and the silent echo in the
+   miel-walks-alone scene are hers) → MIEL (queen for three years;
+   deposed the night of the prologue). Old retainers (Bren, Winna,
+   the Veiled Mystic) still say "Princess" out of habit — they knew
+   her as a child; the habit is older than her crown.
 
    When the player reaches Lirael (Act 3), they walk the burned
    capital. The cathedral is rubble. The shard is not here.
@@ -279,17 +302,19 @@ proposals.
    ── THE ICE GROTTO — WHERE THE SHARD HID ──
 
    Cave 5 proper in the code: the ICE GROTTO of the NORTHERN WILDS.
-   A frozen sea-cave at the top of the world, where Lirael's last
-   queen sent the Aeolian shard with a single trusted courier. The
+   A frozen sea-cave at the top of the world, where the old queen
+   (Miel's grandmother) sent the Aeolian shard generations ago. The
    shard's grief made the surrounding rock cold, then colder; what
-   was once tundra is now permafrost glass. The shard has been
-   waiting here, alone, for as long as Lirael has been ruins.
+   was once tundra is now permafrost glass. The shard has waited
+   far longer than Lirael has been ruins (Snowgaunt: "Winter on
+   winter, I have kept the count").
 
    Boss of the Ice Grotto: SNOWGAUNT — what the shard's loneliness
-   has shaped from the courier and her dogs. Tall, narrow, made of
-   frost-fused bone and antler. Sound signature: an Aeolian breath
-   passed through a flute of ice. Fights with patience, not fury;
-   long pauses between blows. Drops the AEOLIAN SHARD.
+   shaped from its long-dead keepers. Tall, narrow, frost-fused
+   bone and antler (CODE DRIFT: shipped sprite/voice reads as a
+   white-robed conductor counting in threes). Sound signature: an
+   Aeolian breath passed through a flute of ice. Fights with
+   patience, not fury. Drops the AEOLIAN SHARD.
 
    Note: the cathedral catastrophe and the Ice Grotto recovery are
    sequential, both Act 3. Miel's grief arc weaves through both.
@@ -324,7 +349,7 @@ proposals.
    SIGNATURE SCENES:
    - MIEL WALKS ALONE: triggered when the party first approaches
      the cathedral door from the south. Miel separates from the
-     party and walks alone into the nave. The Queen's Echo
+     party and walks alone into the nave. Her mother's echo
      briefly manifests at the altar. Single line: "Mother. I'm
      here." Long fade. Sets flag.miel_walks_alone_done.
 
@@ -395,9 +420,11 @@ proposals.
 
 -------- 7. IONIAN — SUNO'S CHAMBER & THE HELD CHORD --------
 
-   STATUS: IN CODE (Cave 7 = SUNO'S CHAMBER inside The Tower; Suno
-   is the final boss; the Held Chord ceremony gates the Ionian
-   shard reward).
+   STATUS: PARTIAL — Suno-as-final-boss is IN CODE (Cave 7 = SUNO'S
+   CHAMBER inside The Tower; six-shard gate on the chamber door is
+   IN CODE as of 2026-07-14). The HELD CHORD ceremony (Stage 2) is
+   VISION ONLY — in shipped code, defeating Suno grants the Ionian
+   shard directly and chains to the ENDING.
 
    Mode character: pure major. The cadence home. The mode of
    triumph and arrival.
@@ -660,7 +687,7 @@ For dossier-canon roles, voices, and inspirations, see Dossier
    Inspiration (per Dossier): FF9 ZIDANE.
 
 
--------- MIEL (Cleric / Princess) --------
+-------- MIEL (Cleric / Queen) --------
 
    Stat block (level 1, proposed):
       HP 100   MP  60   ATK 3   DEF 5   MAG 6   SPD 1
@@ -876,7 +903,8 @@ read for each act.
 
    Shape: Alder performs at the Village Clearing. Suno's scouts
    raid mid-performance; the clearing scatters. Alder flees east
-   with Princess Miel. In the Hollow Woods they encounter Diegues
+   with Miel (the deposed queen, incognito — dossier draft said
+   "Princess"; superseded, see ROYAL LINE). In the Hollow Woods they encounter Diegues
    already studying the local shard, and the three are ambushed
    by a Suno patrol led by Strom — who, mid-fight, stops, sees
    what he has been ordered to do, and turns. The four enter the
@@ -966,7 +994,9 @@ read for each act.
 
    Foregrounded: MIEL — and her absence.
 
-   Shape: Suno's forces strike Aeolian country (Miel's homeland).
+   Shape (UNCOMPRESSED VISION — superseded by the LIRAEL CODE
+   CANON block: no Arsen, the fall is the playable prologue):
+   Suno's forces strike Aeolian country (Miel's homeland).
    Conductor Arsen detonates the cathedral refinery. The Aeolian
    shard's tonal center fractures and the world goes atonal —
    pitch loses meaning across the entire planet for several in-game
@@ -1196,8 +1226,9 @@ All `STATUS: PROPOSED`; pattern values are placeholders.
 
 -------- CAVE 4 — GLASS CAVERN / PHRYGIAN SHARD --------
 
-   STATUS: IN CODE. Eastern Reaches; glass-vitrified buried palace.
-   TWO BOSSES — Dune Rider (above) and The First Call (below).
+   STATUS: PARTIAL. Eastern Reaches; glass-vitrified buried palace.
+   Dune Rider IN CODE (drops the Phrygian shard); The First Call
+   VISION ONLY.
 
    SAND-SINGER   HP 140  atk 5   pattern {4,4,8,4}        bard drone
    JACKAL        HP 120  atk 7   pattern {2,2,2,2,4}      warrior bite
@@ -1253,9 +1284,10 @@ All `STATUS: PROPOSED`; pattern values are placeholders.
 
    SHARD BOSS:
    SNOWGAUNT    HP 1500  atk 13  pattern {12,8,16,8}      cleric breath
-              What the shard's loneliness has shaped from a dead
-              courier and her dogs. Tall, narrow, made of frost-
-              fused bone and antler. Aeolian breath through an
+              What the shard's loneliness has shaped from its
+              long-dead keepers (no courier — superseded, see
+              LIRAEL CODE CANON). Tall, narrow, frost-fused
+              bone and antler. Aeolian breath through an
               ice flute. Fights with patience: long pauses between
               blows. Drops the AEOLIAN SHARD.
 
@@ -1273,7 +1305,8 @@ All `STATUS: PROPOSED`; pattern values are placeholders.
    UNRESOLVED    HP 150  atk 6   pattern {7,7,7}          mage tritone
    SILENT THING  HP 280  atk 8   pattern {16,4}           --(no sound)
 
-   MID-BOSS (opens descent):
+   MID-BOSS (opens descent) — VISION ONLY, not in code (the
+   Observatory upper floor exists; no boss floor is wired):
    THE TRITONE  HP 1500  atk 13  pattern {6,6,6,6}        mage augmented
               Two voices that refuse to resolve. Player must hold
               a third voice for a full bar to force the cadence;
@@ -1288,15 +1321,19 @@ All `STATUS: PROPOSED`; pattern values are placeholders.
               A Sage-Circle scholar who descended centuries ago
               to stabilize the shard and was stabilized BY it.
               The diminished chord made man — three pitches that
-              refuse to be a triad. Recognizes Diegues' notation
-              on sight; was Velthe's contemporary. Drops the
-              LOCRIAN SHARD.
+              refuse to be a triad. Drops the LOCRIAN SHARD.
+              CODE DRIFT NOTE (2026-07-14): in shipped dialogue his
+              devotion is to the SHARD ("The note has been
+              waiting"), not to Suno — he predates Suno by
+              centuries. The Diegues-notation recognition beat is
+              VISION ONLY (not in the fight text).
 
 
 -------- CAVE 7 — SUNO'S CHAMBER & THE HELD CHORD / IONIAN SHARD --------
 
-   STATUS: IN CODE. Top of The Tower. TWO STAGES — Suno fight, then
-   Held Chord ceremony. Ionian shard granted by ceremony, not loot.
+   STATUS: PARTIAL. Top of The Tower. Stage 1 (Suno fight) IN CODE;
+   Stage 2 (Held Chord ceremony) VISION ONLY — code grants the
+   Ionian shard on Suno's defeat and chains to the ENDING.
 
    (No standard enemies. The Tower's lower floors carry the
    approach encounters. Suno's Chamber itself plays a piece of
@@ -1507,7 +1544,8 @@ present in the code.
 
    MARA (Sunward Coast)
       Role: Widow of the Harbormaster. Runs the bandstand in his
-      memory. Invites Alder to perform; recognizes Miel's mother.
+      memory. Invites Alder to perform; remembers Miel's mother
+      (who visited the coast as a girl; never reigned).
       STATUS: IN CODE.
 
    HASK (Sunward Coast)
@@ -1623,8 +1661,10 @@ present in the code.
       note.
       STATUS: IN CODE.
 
-   THE QUEEN'S ECHO (Lirael Ruins, Ruined Nave)
-      Role: Ghostly figure of Miel's mother. Manifests only
+   THE MOTHER'S ECHO (Lirael Ruins, Ruined Nave)
+      Role: Ghostly figure of Miel's MOTHER — who died young and
+      never reigned (see ROYAL LINE; formerly titled "The Queen's
+      Echo," retitled 2026-07-14 to match canon). Manifests only
       during the Miel Walks Alone signature scene; not a standing
       NPC. Briefly appears behind Miel at the broken altar after
       her "Mother. I'm here." line, then fades. No dialogue.
@@ -1633,10 +1673,12 @@ present in the code.
    THE BROKEN CADENCE (Lirael Ruins, broken altar, boss)
       Role: Former cathedral chorister now playing Suno's
       instrument. Rises from the broken altar when the party
-      approaches after Miel Walks Alone. Names Miel as the
-      queen's daughter ("You have her eyes") and remembers that
-      Miel's name was the last thing the queen sang before the
-      cathedral fell; demands the last phrase. Boss fight (HP
+      approaches after Miel Walks Alone. Names Miel as the OLD
+      queen's blood ("You have her eyes" — the grandmother's) and
+      remembers that Miel's name was the last thing the old queen
+      sang, at the end; says the old queen "sang the north into my
+      keeping" (Key of Lirael provenance); demands the last
+      phrase. Boss fight (HP
       ~1300, ATK ~12, cleric register). On defeat: drops the
       KEY OF LIRAEL (unlocks the Ice Grotto in Northern Wilds /
       Cave 5) and triggers the `lirael` theme's returning voice.
@@ -1650,7 +1692,8 @@ present in the code.
    BREN (Lirael Ruins steward)
       Role: Lirael steward who refused to leave after the fall.
       Still wears Lirael colors. Walks the party through the
-      cathedral; recognized Miel's mother by sight.
+      cathedral; served at the GRANDMOTHER's coronation and knows
+      Miel's face as hers ("Princess. Forgive me -- Queen.").
       Note: renamed from the original stub "Brann" to avoid
       collision with Phrygian Night City's Brann (caravan master).
       Both characters now coexist in canon. (2026-07-02: a later
@@ -1822,6 +1865,43 @@ Pacing rules.
    elder can imply a war in two lines if he says them right. The
    game's job is to let players overhear their own story.
 
+
+-------- CANON CLARIFICATIONS (2026-07-14 audit) --------
+
+Royal line. Grandmother (the "old queen") -> mother (died young,
+   NEVER reigned, entombed in the cathedral nave) -> Miel (queen
+   for three years, deposed the night of the playable prologue).
+   Old retainers say "Princess" from habit only. See the ROYAL
+   LINE block under LIRAEL for the scene-by-scene mapping.
+
+Key of Lirael. Granted by the Broken Cadence's defeat; the Cadence
+   fiction: the old queen "sang the north into my keeping" — she
+   holds the Ice Grotto key because she was trusted with the
+   shard's road north. NG+ NOTE: instruments_owned carries across
+   New Game+, including key_of_lirael — the Lirael-mandatory gate
+   therefore only binds on a first playthrough. This is INTENDED
+   ("earned" carryover; a returning player may sequence freely).
+
+Cave 7 gate. The chamber door (tile 20) requires SIX shards even
+   though the Tower opens at five — guarantees the six-shards /
+   World of Silence beat cannot be skipped and keeps Suno's "Six
+   shards in your pack" true. IN CODE 2026-07-14.
+
+Suno's title. Code calls him "the Tuning King" throughout
+   (bestiary, Calder, Locrius's "king" is NOT Suno — his devotion
+   is to the shard). Adopted as canon.
+
+Halla's brothers. Her ELDEST brother fell at Frostridge; Skari,
+   a younger brother, runs the shop next door. Both true.
+
+Name near-collision (do not confuse): WINA is the lake seer on the
+   mainland; WINNA is the Lirael court librarian. One letter apart,
+   both mystic women, deliberately distinct people. Any future
+   rename should touch Wina (the seer), not Winna.
+
+Ending panels. ENDING_LINES filters by actual party at ending
+   time: Sergei/Niko/Paj/ECHO beats only play if recruited; the
+   names panel lists the real roster. IN CODE 2026-07-14.
 
 ================================================================
                 END OF BIBLE (work in progress)

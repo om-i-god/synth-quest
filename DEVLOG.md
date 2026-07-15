@@ -2411,3 +2411,85 @@ scale — a quick 1-3-5 strum on the active voice — so the change is
 instantly audible; and the JAM screen shows "(zone key locked)"
 next to MODE when the current zone theme won't follow (castle).
 NOT yet deployed — norns is away; deploy on return.
+
+## 2026-07-14 — Recursive audit wave 8: animation + dialogue + story
+
+Three parallel read-only auditors (animation choreography, post-revamp
+dialogue web, end-to-end story spine), then one fix batch.
+
+### Blockers fixed
+- **Dune Rider rendered as a generic warrior** in his boss-approach
+  scene — sprite registered as `NPC_SPRITES.Rider` but the actor spawns
+  as "Dune Rider". Added the alias.
+- **JAM "(zone key locked)" collided with the mode name** and could
+  overrun the right edge (worst on default PENTATONIC). Now
+  right-aligned `text_right(126)` reading "KEY LOCKED".
+- **Split canon on who was queen when Lirael fell.** Canonized: Miel
+  reigned three years; predecessor was her GRANDMOTHER (the "old
+  queen"); her mother died young, never reigned, is entombed in the
+  cathedral nave (the "Mother. I'm here." beat). Bren, the Broken
+  Cadence, and the (renamed) Mother's Echo all re-aimed; ROYAL LINE
+  block + canon addendum written into the bible.
+- **Old shard-order assumptions.** `after_locrian` and
+  `pre_finale_night` inn scenes announced "six shards" on
+  `shards.locrian` alone — under the Lirael-mandatory flow locrian is
+  commonly 5th. Both now require count >= 6. Miel's first-visit throne
+  speech and the Suno's-Domain arrival line went count-free (player can
+  arrive with 4/5).
+- **Cave 7 door now requires six shards** (tower opens at five) — a
+  five-shard run could previously reach Suno, skip the six-shards scene
+  and the whole World of Silence, and see an ECHO ending beat for an
+  ECHO never met.
+
+### Ending is party-aware
+`ENDING_LINES` filters at ending time: Sergei/Niko/Paj/ECHO panels only
+play if recruited; the name-roll panel lists the actual roster.
+Academy panel no longer claims the (standing, restored) Academy "had
+stood".
+
+### Scene/choreo polish
+- Suno's throne exit: removed doubled wait (1.1 s dead air).
+- Courtyard: Borin now visibly reaches the gate first, as the next
+  line says.
+- Academy intro: shock sting fires WITH the bump, not after; all
+  scene spawns uniformly bob=false.
+- Shrine panels animate on a fixed 15 Hz `SCENE.panel_t` instead of
+  the tempo-dependent music tick (they were near-static in 48-BPM
+  Lirael).
+- nil-t guards on tile drawers 62/67/70/73/84.
+
+### Dialogue web
+- Halla's brothers reconciled ("eldest" fell at Frostridge; Skari
+  sells next door). Fig cake from Phrygian Brann now acknowledged by
+  village Brann post-quest. Miel no longer tells an already-standing
+  Strom to rise. Alder's queenship "reveal" reworked to scale-of-it
+  (he's known since his join line). Exile timeline standardized (no
+  more "a year"/"months" vs the 47-day count). Locrius serves the
+  note, not "my king". Modern idiom scrubbed (remix, divide-by-zero,
+  11%). Wren/Hask/Coral n>=7 payoffs now land their own setups.
+- Dialogue splitter is ellipsis-aware: "..." no longer parses as three
+  sentence ends (orphan-"." pages, mangled "…" seams).
+- Dead `BOSS_APPROACH` table + unreachable fallback deleted (~85
+  lines, double-maintenance hazard).
+
+### Bible sync
+Cave 4/7 statuses → PARTIAL (First Call, Held Chord = vision-only),
+Tritone marked not-in-code, Tidewatch/Snowgaunt/Locrius voice-drift
+notes, Lirael history rewritten to match the shipped prologue (no
+Conductor Arsen; shard went north generations ago), Wina/Winna
+distinctness recorded, NG+ key-of-lirael carryover ruled intentional.
+
+### Verify pass (wave 8)
+Adversarial verifier confirmed 26/29 items and caught three breaks
+before commit: (1) "KEY LOCKED" shared the exact right-aligned anchor
+with the unconditional "B/SELECT exit" footer hint (an inherited
+collision — the old indicator overlapped it too); the y=63 row now
+draws ONE string, "KEY LOCKED  B/SEL exit" when the zone is locked.
+(2) Locrius's next line "He thinks you'll arrive tired" lost its
+antecedent when "My king" became "The note" — now "Suno thinks...".
+(3) Alder's "You can't remix a campfire" was left answering a line
+nobody said after Sergei's re-rig change — now "re-rig". Plus four
+bible leftovers (Queen's Echo retitle at the signature-scene list,
+Snowgaunt's courier in the Cave 5 bestiary, "Princess Miel" in the
+Act 1 dossier, Act 3 Arsen block now marked superseded). Noted for
+the future: the file sits near Lua's 200 top-level local cap.
