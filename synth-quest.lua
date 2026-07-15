@@ -1294,15 +1294,30 @@ local ENDING_LINES_ALL = {
 local ENDING_LINES = ENDING_LINES_ALL
 
 local function build_ending_lines()
-  local have = {}
-  for _, m in ipairs(party) do have[m.class] = true end
+  -- Roster = active party (slot order) + every RECRUITED character
+  -- sitting in reserve. Filtering on the 4-slot party alone dropped a
+  -- recruited-but-benched Sergei/Paj/Niko/ECHO from their own ending
+  -- panel and from the names line.
+  local have, roster = {}, {}
+  for _, m in ipairs(party) do
+    if not have[m.class] then
+      have[m.class] = true
+      roster[#roster + 1] = m.class
+    end
+  end
+  for _, r in ipairs((CONTENT and CONTENT.recruits) or {}) do
+    if r.joined and not have[r.class] then
+      have[r.class] = true
+      roster[#roster + 1] = r.class
+    end
+  end
   local out = {}
   for _, p in ipairs(ENDING_LINES_ALL) do
     if not p.req or have[p.req] then
       if p.names then
         local names = {}
-        for _, m in ipairs(party) do
-          names[#names + 1] = CHAR_NAME[m.class] or m.class
+        for _, cls in ipairs(roster) do
+          names[#names + 1] = CHAR_NAME[cls] or cls
         end
         out[#out + 1] = {text = table.concat(names, ", ") .. " --", scene = p.scene}
       else
@@ -7409,7 +7424,7 @@ function build_resonance_attunement_script(id)
     {hide_panel = true},
     -- Banner + flag flip.
     {set = function()
-      CONTENT.banner_text  = "* Resonance learned -- " .. r.name .. " *"
+      CONTENT.banner_text  = "* learned -- " .. r.name .. " *"
       CONTENT.banner_ticks = 90
       CONTENT.resonances[id].attuned = true
     end},
@@ -7911,7 +7926,7 @@ function finish_broken_cadence()
   -- Brief banner + award XP before dropping back to overworld.
   if gain_xp then gain_xp(320) end
   SHOP.gold = (SHOP.gold or 0) + 80
-  CONTENT.banner_text  = "* The Broken Cadence falls   +320 XP  +80g *"
+  CONTENT.banner_text  = "* +320 XP  +80g *"
   CONTENT.banner_ticks = 48
   enemy = nil
   battle_outcome = nil
@@ -8268,6 +8283,13 @@ function start_endgame_scene()
     -- transition to the CREDITS game state which renders the roll
     -- and waits for A → NG+ confirm.
     CONTENT.endgame_done = true
+    -- SAVE the finished game. Without this, no save exists anywhere in
+    -- the ENDING → endgame → CREDITS chain: the disk still held the
+    -- 7th-shard autosave (cave_state[7].cleared, endgame_done=false),
+    -- from which Suno could never be re-fought — Continue after the
+    -- CREDITS title-exit (or a power-off mid-ending) permanently
+    -- stranded the run out of its own ending and all post-game.
+    if save_game then save_game() end
     game_state = "CREDITS"
     CONTENT.credits_t = tick
   end})
@@ -8909,6 +8931,10 @@ function start_sunward_bandstand_scene()
     {set = function() SCENE.fade = 15 end},
     {letterbox_in = true},
     {focus = {x = 16, y = 5}, ticks = 24},
+    -- Fade back in — this was the ONE fade=15 scene with no fade_in
+    -- step: the whole beat (pan, spawns, dialogue) played behind
+    -- solid black.
+    {fade_in = 24},
     {wait = 10},
     -- Mara on the bandstand; Alder steps up as a scene actor.
     {spawn = "mara_stage",  class = "bard",  name = "Mara",  x = 15, y = 5, facing = "right", bob = false},
@@ -14704,6 +14730,9 @@ local function load_game()
     dlg.line_start_tick = nil; dlg.line_start_time = nil
     dlg.complete = false; dlg.snap_to_complete = false
   end
+  -- Tolerate a truncated/hand-edited save missing the player block —
+  -- indexing nil here crashed the title-screen key handler.
+  data.player = data.player or {x = 6, y = 6, facing = "down"}  -- new-game spawn (12,12 was water)
   player.x = data.player.x
   player.y = data.player.y
   player.facing = data.player.facing
@@ -16042,7 +16071,7 @@ local function try_move(dx, dy)
     -- aeolian shard, so hard-gating cave 5 behind Lirael (itself a
     -- 4-shard gate) is the intended progression change.
     if not (instruments_owned and instruments_owned.key_of_lirael) then
-      CONTENT.banner_text  = "* frozen shut -- the Key of Lirael *"
+      CONTENT.banner_text  = "* needs the Key of Lirael *"
       CONTENT.banner_ticks = 48
       redraw()
       return
@@ -16253,7 +16282,7 @@ local function try_move(dx, dy)
     -- Gated by lirael_is_unlocked (4 shards + veiled mystic) — same
     -- gate + refusal banner as the twin tile-89 entry.
     if not (lirael_is_unlocked and lirael_is_unlocked()) then
-      CONTENT.banner_text  = "* The road west is closed in mourning. No one passes. *"
+      CONTENT.banner_text  = "* the west road is closed *"
       CONTENT.banner_ticks = 48
       redraw()
       return
@@ -16272,7 +16301,7 @@ local function try_move(dx, dy)
     local owned = 0
     for _, v in pairs(shards) do if v then owned = owned + 1 end end
     if owned < 3 then
-      CONTENT.banner_text  = "* the door is sealed -- 3 shards needed *"
+      CONTENT.banner_text  = "* sealed -- needs 3 shards *"
       CONTENT.banner_ticks = 36
       redraw()
       return
@@ -16344,7 +16373,7 @@ local function try_move(dx, dy)
     if current_map_id == 37 and p and p.class == "drummer"
        and not CONTENT.resonances.heavy_hand.item then
       CONTENT.resonances.heavy_hand.item = true
-      CONTENT.banner_text  = "* obtained: the Iron Hand-Guard *"
+      CONTENT.banner_text  = "* got: Iron Hand-Guard *"
       CONTENT.banner_ticks = 60
       dlg.lines = pack_dialogue_lines({
         "(Niko lifts the iron guard off the plinth. Heavier than it looks.)",
@@ -16477,7 +16506,7 @@ local function try_move(dx, dy)
     local owned = 0
     for _, v in pairs(shards) do if v then owned = owned + 1 end end
     if owned < 3 then
-      CONTENT.banner_text  = "* the door is sealed -- 3 shards needed *"
+      CONTENT.banner_text  = "* sealed -- needs 3 shards *"
       CONTENT.banner_ticks = 36
       redraw()
       return
@@ -16496,7 +16525,7 @@ local function try_move(dx, dy)
       CONTENT.return_x = nx; CONTENT.return_y = ny
       travel_to(23, 14, 10)   -- enter at street entry, one tile above exit row 11 col 14
     else
-      CONTENT.banner_text  = "* The road west is closed in mourning. No one passes. *"
+      CONTENT.banner_text  = "* the west road is closed *"
       CONTENT.banner_ticks = 48
     end
     redraw()
@@ -16509,7 +16538,7 @@ local function try_move(dx, dy)
     if current_map_id == 36 then
       -- Entering: gated on Niko (recruits[3]) having joined.
       if not (CONTENT.recruits and CONTENT.recruits[3] and CONTENT.recruits[3].joined) then
-        CONTENT.banner_text  = "* the archway is choked with rubble *"
+        CONTENT.banner_text  = "* choked with rubble *"
         CONTENT.banner_ticks = 48
         redraw()
         return
@@ -16534,7 +16563,7 @@ local function try_move(dx, dy)
         CONTENT.cave_entered[6] = true; if STORY.play_id("enter_cave6") then return end
       end
     else
-      CONTENT.banner_text  = "* The stair is sealed. Velthe's mark is on the lock. *"
+      CONTENT.banner_text  = "* sealed by Velthe's mark *"
       CONTENT.banner_ticks = 48
     end
     redraw()
@@ -17677,13 +17706,17 @@ local function damage_party(p, amount)
       CONTENT.sergei_intervened = true
       CONTENT.recruits[1].joined = true   -- Sergei
       if ensure_recruit_character then ensure_recruit_character(1) end
-      if save_game then save_game() end   -- autosave on recruit
       for _, q in ipairs(party) do
         q.alive = true
         q.hp = math.max(1, math.floor(q.hp_max * 0.50))
         q.atb = 0
         q.last_hit = tick
       end
+      -- Autosave AFTER the revive loop: saving first captured a fully
+      -- dead party (alive=false, hp=0) — reloading that save booted to
+      -- the overworld with everyone KO'd.
+      if save_game then save_game() end
+
       CONTENT.banner_text  = "* SERGEI INTERVENES *"
       CONTENT.banner_ticks = 42
       -- A wrench-against-bell SFX punctuates the moment. Three quick
@@ -18418,8 +18451,18 @@ local function fire(p)
   -- (Replaced a vestigial `action == "MAG" and p.mp < 0` check that
   -- could never fire.)
   local action = p.queued
+  -- RESO turns (success or denial) rewrite queued to "ATK" mid-call as
+  -- the NEXT turn's fallback; the invoke already made its own sound
+  -- (signature SFX or denial chord). Don't also play an attack-
+  -- articulated note for an attack that didn't happen.
+  if p._was_reso then
+    p._was_reso = nil
+    p.last_fire = tick
+    p.last_action = "RESO"
+    return
+  end
   local a = ARTIC[action] or ARTIC.ATK
-  local note = active_scale()[p.note_idx] + a.pitch + JAM.root
+  local note = (active_scale()[p.note_idx] or 0) + a.pitch + JAM.root
   local freq = midi_to_freq(note)
   -- apply equipped instrument's tone overrides
   local inst = INST.of(p)
@@ -18433,11 +18476,9 @@ local function fire(p)
   if p.note_idx > p.note_hi then p.note_idx = p.note_lo end
   -- Combo registration: only ATK fires count toward the chord. Other
   -- actions (HEAL/LUTE/MIX/CODE) have their own narrative weight.
-  -- RESO invokes rewrite queued to "ATK" mid-call (fallback for the
-  -- next turn) — the _was_reso marker keeps them out of the chord.
-  local was_reso = p._was_reso
-  p._was_reso = nil
-  if action == "ATK" and not was_reso then
+  -- (RESO turns can't reach here — the _was_reso early-return above
+  -- exits before the note/combo stage.)
+  if action == "ATK" then
     combo_window[#combo_window + 1] = {t = tick, p = p, note = note}
     trigger_combo_check()
   end
@@ -18471,7 +18512,7 @@ local function enemy_tick()
       locrius   = "* he steps out of time *",
       suno      = "* SUNO TURNS TO YOU *",
       broken_cadence = "* the last phrase rises *",
-      firstchord = "* the first chord remembers being whole *",
+      firstchord = "* it remembers being whole *",
     }
     CONTENT.banner_text  = ENRAGE_BANNERS[enemy.visual] or ("* " .. enemy.name .. " ENRAGES! *")
     CONTENT.banner_ticks = 42
@@ -18637,7 +18678,7 @@ local function check_battle_end()
       -- track it in the journal.
       cave_state[8].cleared = true
       unlock_achievement("first_chord_silenced", "First Chord Silenced")
-      CONTENT.banner_text  = "* THE FIRST CHORD IS SILENCED *"
+      CONTENT.banner_text  = "* THE FIRST CHORD FALLS *"
       CONTENT.banner_ticks = 90
     elseif enemy.is_prologue_silencer or enemy.is_prologue_cave then
       -- Prologue tutorial kills: no cave-progress increment, no item
@@ -18792,7 +18833,9 @@ local function tick_battle()
   if enemy and (enemy.atk_debuff_ticks or 0) > 0 then
     enemy.atk_debuff_ticks = enemy.atk_debuff_ticks - 1
   end
-  if CONTENT.banner_ticks > 0 then CONTENT.banner_ticks = CONTENT.banner_ticks - 1 end
+  -- (banner_ticks countdown moved to the universal tick section of the
+  -- main clock — banners fire from overworld gates/pickups/scenes too,
+  -- and decrementing only in battle froze them there.)
   local sw = reso_fx_active("slow_wheel")
   for _, p in ipairs(party) do
     if p.alive then
@@ -19141,11 +19184,13 @@ enter_battle = function(cave_id, force_random)
     -- AND only when the party has reached the cave's expected level so
     -- newcomers don't get one-shot by Elder Slime in their first fight.
     local rare = CAVE_RARES[current_cave]
-    -- Gate at 60% of the expected level: the natural (no-grind) curve
-    -- runs well under CAVE_EXPECTED from cave 3 on, so the old hard
-    -- >= gate made rares 3-6 (and their guaranteed drops) effectively
-    -- unreachable without ~100 fights of grinding.
-    if rare and avg_level >= math.max(2, math.floor(expected * 0.6))
+    -- Gate at 60% of the expected level +1: the natural (no-grind)
+    -- curve runs well under CAVE_EXPECTED from cave 3 on, so the old
+    -- hard >= gate made rares 3-6 (and their guaranteed drops)
+    -- effectively unreachable without ~100 fights of grinding — but AT
+    -- the bare 60% mark a rare (2.5x HP tier) is a 70-hit slog with no
+    -- flee and no Sergei rescue. One extra level ≈ +30% party output.
+    if rare and avg_level >= math.max(2, math.floor(expected * 0.6) + 1)
        and math.random() < 0.04 then
       e = rare
       is_rare = true
@@ -19194,6 +19239,12 @@ enter_battle = function(cave_id, force_random)
   -- corrupt every later encounter with that enemy.
   local pattern_copy = {}
   for i, v in ipairs(e.attack_pattern or {}) do pattern_copy[i] = v end
+  -- A def that omits attack_pattern must not become a %0 crash in
+  -- enemy_tick — give it a plain 8-beat gap and complain loudly.
+  if #pattern_copy == 0 then
+    pattern_copy = {8}
+    print("synth-quest: enemy '" .. tostring(e.name) .. "' has no attack_pattern")
+  end
   enemy = {
     name = e.name,
     hp     = math.floor(e.hp  * hp_mul * lvl_mul),
@@ -19214,8 +19265,13 @@ enter_battle = function(cave_id, force_random)
   -- Wipe any in-flight overworld banner (ambient events leave a 48-60
   -- tick countdown; without this the "lute far off" banner can bleed
   -- into the first frame of combat and look like a battle line).
-  CONTENT.banner_text = ""
-  CONTENT.banner_ticks = 0
+  -- Clear stale overworld banners/toasts — but NOT the BOSS/RARE intro
+  -- banner this very function set 50 lines up (the unconditional wipe
+  -- meant boss intros never displayed once, ever).
+  if not (is_boss or is_rare) then
+    CONTENT.banner_text = ""
+    CONTENT.banner_ticks = 0
+  end
   CONTENT.flash_text = ""
   CONTENT.flash_ticks = 0
   battle_outcome = nil
@@ -19333,26 +19389,10 @@ exit_battle = function()
       end
     end
   end
-  -- Tonic buff lasts only the current battle. Statuses also clear on exit.
-  for _, p in ipairs(party) do
-    p.tonic_ticks = 0
-    p.poison_ticks = 0
-    p.sleep_ticks = 0
-    p.reflect = false
-    p.reflect_ticks = 0
-    p.reso_cooldown_until = 0
-    p.reso_denied_t = -99
-    p.ring_armed = false
-    p.long_echo_charges = 0
-    p.threefold_until = -99
-    -- Buffs are per-battle too — regen (lyre/limit) and TUNE's damage
-    -- halving used to resume in the next fight.
-    p.regen_hp_ticks = 0
-    p.regen_mp_ticks = 0
-    p.dmg_reduce_ticks = 0
-    p.rhythm_charged = false
-    p.buffed = false
-  end
+  -- Tonic buff lasts only the current battle. Statuses/buffs clear on
+  -- exit via the shared per-battle scrub (same helper the bypass exits
+  -- use — the inline copy here had already drifted once).
+  scrub_battle_statuses()
   -- DEFEAT branch: tutorial/scripted fights (prologue silencers, escape-cave
   -- wisps, the academy Strom duel) get a soft reset — full-HP revive +
   -- return to overworld so the player can retry the scripted scene. Every
@@ -19371,7 +19411,7 @@ exit_battle = function()
         p.mp = math.max(p.mp, math.floor(p.mp_max * 0.50))
         p.atb = 0
       end
-      CONTENT.banner_text  = "* you fall back. the song is not over. *"
+      CONTENT.banner_text  = "* the song is not over *"
       CONTENT.banner_ticks = 48
       game_state = "OVERWORLD"
       params:set("clock_tempo", overworld_tempo())
@@ -20085,6 +20125,7 @@ function gamepad.button(button, state)
       battle_outcome = nil
       game_state = "OVERWORLD"
       params:set("clock_tempo", overworld_tempo())  -- Jam Pad opens in any zone
+      if scrub_battle_statuses then scrub_battle_statuses() end  -- tonic etc. don't leak out
       redraw()
       return
     end
@@ -20572,8 +20613,10 @@ function init()
   midi_in.event = sq_midi_in_handler
 
   clock_id = clock.run(function()
+    local _last_tick_err = nil
     while true do
       clock.sync(1/4)
+      local ok, err = xpcall(function()
       tick = tick + 1
       if save_flash_ticks > 0 then save_flash_ticks = save_flash_ticks - 1 end
       if SHOP.flash_ticks > 0 then SHOP.flash_ticks = SHOP.flash_ticks - 1 end
@@ -20585,6 +20628,9 @@ function init()
       -- title-screen flash ("no save found") — decremented here so the
       -- draw path stays read-only (redraw rate ≠ tick rate)
       if TITLE.flash_ticks > 0 then TITLE.flash_ticks = TITLE.flash_ticks - 1 end
+      -- story/gate/pickup banner — universal (was battle-only, which
+      -- made every overworld banner invisible AND frozen)
+      if CONTENT.banner_ticks > 0 then CONTENT.banner_ticks = CONTENT.banner_ticks - 1 end
       if game_state == "BATTLE" then
         tick_battle()
       elseif game_state == "BATTLE_END" then
@@ -20621,6 +20667,21 @@ function init()
         end
       end
       redraw()
+      end, debug.traceback)
+      -- One uncaught error in any tick/draw path used to kill music,
+      -- battle logic, AND screen updates together, silently, for the
+      -- rest of the session. Degrade instead: log once per distinct
+      -- error, flash a banner, keep the clock alive.
+      if not ok then
+        if err ~= _last_tick_err then
+          _last_tick_err = err
+          print("synth-quest: tick error:\n" .. tostring(err))
+          CONTENT.banner_text  = "* script error -- see maiden *"
+          CONTENT.banner_ticks = 60
+        end
+      else
+        _last_tick_err = nil
+      end
     end
   end)
   -- Scenes + dialogue run on a FIXED-rate clock, decoupled from the
@@ -20639,8 +20700,21 @@ function init()
       clock.sleep(1 / 15)
       if game_state == "OVERWORLD" or game_state == "DIALOGUE" then
         if SCENE and SCENE.active then
-          SCENE.tick()
-          redraw()
+          local ok, err = xpcall(function()
+            SCENE.tick()
+            redraw()
+          end, debug.traceback)
+          if not ok then
+            -- Don't let one bad scene step freeze the scene clock (and
+            -- the player) forever: log, abort the scene cleanly.
+            print("synth-quest: scene error:\n" .. tostring(err))
+            SCENE.active = false; SCENE.script = nil; SCENE.actors = {}
+            SCENE.fade = 0; SCENE.hide_player = false
+            SCENE.panel = nil; SCENE.panel_t = 0; SCENE.on_complete = nil
+            if game_state == "DIALOGUE" then game_state = "OVERWORLD" end
+            CONTENT.banner_text  = "* scene error -- skipped *"
+            CONTENT.banner_ticks = 60
+          end
         elseif game_state == "DIALOGUE" then
           redraw()
         end
@@ -20863,6 +20937,7 @@ function key(n, z)
       battle_outcome = nil
       game_state = "OVERWORLD"
       params:set("clock_tempo", overworld_tempo())  -- Jam Pad opens in any zone
+      if scrub_battle_statuses then scrub_battle_statuses() end  -- tonic etc. don't leak out
       redraw()
       return
     end
@@ -21110,43 +21185,55 @@ local function draw_grass(px, py, seed)
     -- mossy dark with little leaf-litter dots
     screen.level(1)
     screen.pixel(px + a, py + 6); screen.pixel(px + a + 1, py + 6)
+    screen.fill()
     screen.level(3)
     screen.pixel(px + b, py + 2); screen.pixel(px + b, py + 3)
     screen.pixel(px + c, py + 4)
+    screen.fill()
     if (seed % 5) == 0 then
       screen.level(0)
       screen.pixel(px + 4, py + 4); screen.pixel(px + 5, py + 4)
+      screen.fill()
     end
   elseif region == "coast" then
     -- bright, sun-bleached, occasional sand grain glint
     screen.level(4)
     screen.pixel(px + a, py + 5); screen.pixel(px + a + 1, py + 5)
+    screen.fill()
     screen.level(2)
     screen.pixel(px + b, py + 1)
+    screen.fill()
     screen.level(6)
     screen.pixel(px + c, py + 3)
+    screen.fill()
     if (seed % 11) == 0 then
       screen.level(15)
       screen.pixel(px + 3, py + 6)
+      screen.fill()
     end
   else
     -- village: warm green tufts as little V-shapes, occasional flower
     screen.level(3)
     screen.pixel(px + a, py + 6); screen.pixel(px + a + 1, py + 6)
     screen.pixel(px + a, py + 5); screen.pixel(px + a + 2, py + 5)
+    screen.fill()
     screen.level(2)
     screen.pixel(px + b, py + 2); screen.pixel(px + b + 1, py + 3)
+    screen.fill()
     if (seed % 7) == 0 then
       -- yellow flower (4 petals around bright center)
       screen.level(15)
       screen.pixel(px + 5, py + 4)
+      screen.fill()
       screen.level(11)
       screen.pixel(px + 4, py + 4); screen.pixel(px + 6, py + 4)
       screen.pixel(px + 5, py + 3); screen.pixel(px + 5, py + 5)
+      screen.fill()
     elseif (seed % 13) == 0 then
       -- red flower (single bright pixel)
       screen.level(13)
       screen.pixel(px + 2, py + 1); screen.pixel(px + 3, py + 1)
+      screen.fill()
     end
   end
 end
@@ -21165,18 +21252,22 @@ local function draw_tree(px, py)
     -- snow tips
     screen.level(15)
     screen.pixel(px + 4, py); screen.pixel(px + 1, py + 5); screen.pixel(px + 7, py + 5)
+    screen.fill()
     -- trunk
     screen.level(4)
     screen.rect(px + 3, py + 5, 2, 3); screen.fill()
     screen.level(2)
     screen.pixel(px + 3, py + 6)
+    screen.fill()
   elseif region == "coast" then
     -- palm: curved trunk + arching fronds + coconut cluster
     screen.level(5)
     screen.pixel(px + 3, py + 3); screen.pixel(px + 3, py + 4)
     screen.pixel(px + 4, py + 5); screen.pixel(px + 4, py + 6); screen.pixel(px + 4, py + 7)
+    screen.fill()
     screen.level(3)
     screen.pixel(px + 4, py + 4); screen.pixel(px + 3, py + 5)
+    screen.fill()
     -- fronds (4 arching strokes)
     screen.level(9)
     screen.move(px + 3, py + 2); screen.line(px, py + 1); screen.stroke()
@@ -21188,6 +21279,7 @@ local function draw_tree(px, py)
     -- coconuts cluster
     screen.level(13)
     screen.pixel(px + 3, py + 3); screen.pixel(px + 4, py + 3)
+    screen.fill()
   else
     -- oak: full canopy with shading + visible trunk + gentle wind sway
     local sway = ((tick + px) % 48 < 24) and 0 or 1
@@ -21198,11 +21290,13 @@ local function draw_tree(px, py)
     -- canopy highlight
     screen.level(11)
     screen.pixel(px + 4 + sway, py + 1); screen.pixel(px + 5, py + 2)
+    screen.fill()
     -- trunk
     screen.level(4)
     screen.rect(px + 3, py + 5, 2, 3); screen.fill()
     screen.level(2)
     screen.pixel(px + 3, py + 6)
+    screen.fill()
   end
 end
 
@@ -21215,8 +21309,10 @@ local function draw_path(px, py)
   -- scattered pebbles
   screen.level(3)
   screen.pixel(px + 2, py + 3); screen.pixel(px + 5, py + 5); screen.pixel(px + 3, py + 6)
+  screen.fill()
   screen.level(9)
   screen.pixel(px + 4, py + 2); screen.pixel(px + 6, py + 4)
+  screen.fill()
 end
 
 local function draw_water(px, py, t)
@@ -21231,8 +21327,10 @@ local function draw_water(px, py, t)
   local o = math.floor((t or 0) / 3) % 8
   screen.level(11)
   screen.pixel(px + ((1 + o) % 8), py + 2); screen.pixel(px + ((2 + o) % 8), py + 2)
+  screen.fill()
   screen.level(15)
   screen.pixel(px + ((4 + o) % 8), py + 5); screen.pixel(px + ((5 + o) % 8), py + 5)
+  screen.fill()
 end
 
 local function draw_wall(px, py)
@@ -21252,6 +21350,7 @@ local function draw_wall(px, py)
   screen.level(11)
   screen.pixel(px + 1, py); screen.pixel(px + 5, py)
   screen.pixel(px + 1, py + 4); screen.pixel(px + 6, py + 4)
+  screen.fill()
 end
 
 local function draw_door(px, py)
@@ -21281,6 +21380,7 @@ local function draw_cave(px, py, t)
   if (t % 8) < 4 then
     screen.level(15)
     screen.pixel(px + 4, py + 3)
+    screen.fill()
   end
 end
 
@@ -21303,6 +21403,7 @@ local function draw_cave2(px, py, t)
     screen.level(11)
     screen.pixel(px + 3, py + 5)
     screen.pixel(px + 5, py + 5)
+    screen.fill()
   end
 end
 
@@ -21316,6 +21417,7 @@ local function draw_sand(px, py, seed)
   local b = (seed * 5 + 4) % 8
   screen.pixel(px + a, py + 3)
   screen.pixel(px + b, py + 6)
+  screen.fill()
 end
 
 local function draw_cave3(px, py, t)
@@ -21337,6 +21439,7 @@ local function draw_cave3(px, py, t)
     screen.level(13)
     screen.pixel(px + 3, py + 6)
     screen.pixel(px + 5, py + 6)
+    screen.fill()
   end
 end
 
@@ -21381,6 +21484,7 @@ local function draw_cave4(px, py, t)
   if (tick % 10) < 5 then
     screen.level(15)
     screen.pixel(px + 4, py + 4)
+    screen.fill()
   end
 end
 
@@ -21413,12 +21517,15 @@ local function draw_inn(px, py)
   end
   screen.pixel(px + 1, py + 5)
   screen.pixel(px + 6, py + 5)
+  screen.fill()
   -- chimney smoke wisp (rises from peak, fades)
   local sm = (tick // 3) % 6
   screen.level(7)
   screen.pixel(px + 4, py - sm)
+  screen.fill()
   screen.level(4)
   screen.pixel(px + 5, py - sm + 1)
+  screen.fill()
 end
 
 local function draw_fountain(px, py, t)
@@ -21480,6 +21587,7 @@ local function draw_tower(px, py, t)
   screen.pixel(px + 2, py)
   screen.pixel(px + 4, py)
   screen.pixel(px + 5, py)
+  screen.fill()
   -- lit window pulses
   if (t or 0) % 16 < 8 then
     screen.level(15)
@@ -21488,6 +21596,7 @@ local function draw_tower(px, py, t)
   end
   screen.pixel(px + 3, py + 3)
   screen.pixel(px + 4, py + 3)
+  screen.fill()
   -- dark base outline
   screen.level(7)
   screen.move(px + 1, py + 7)
@@ -21513,6 +21622,7 @@ local function draw_cave6(px, py, t)
   if (t or 0) % 12 < 6 then
     screen.level(15)
     screen.pixel(px + 4, py + 5)
+    screen.fill()
   end
 end
 
@@ -21547,6 +21657,7 @@ local function draw_cave7(px, py, t)
     screen.pixel(px + 3, py + 1)
     screen.pixel(px + 4, py + 1)
   end
+  screen.fill()
 end
 
 local function draw_cave5(px, py, t)
@@ -21573,6 +21684,7 @@ local function draw_cave5(px, py, t)
     screen.level(13)
     screen.pixel(px + 3, py + 5)
     screen.pixel(px + 5, py + 4)
+    screen.fill()
   end
 end
 
@@ -21598,6 +21710,7 @@ local function draw_mountain_pass(px, py)
   screen.level(15)
   screen.pixel(px + 2, py + 1)
   screen.pixel(px + 6, py + 2)
+  screen.fill()
   -- pass mouth (dark center)
   screen.level(0)
   screen.rect(px + 3, py + 5, 2, 3)
@@ -21637,7 +21750,7 @@ TILE_DRAW[12] = function(px, py)
   screen.level(6); screen.rect(px + 1, py + 3, 6, 5); screen.fill()
   screen.level(13); screen.rect(px, py + 2, 8, 1); screen.fill()
   screen.level(8);  screen.rect(px, py + 3, 8, 1); screen.fill()
-  screen.level(11); screen.pixel(px + 1, py + 5); screen.pixel(px + 1, py + 6)
+  screen.level(11); screen.pixel(px + 1, py + 5); screen.pixel(px + 1, py + 6); screen.fill()
   screen.level(0);  screen.rect(px + 3, py + 5, 2, 3); screen.fill()
   screen.level(11); screen.pixel(px + 6, py + 5); screen.pixel(px + 6, py + 6); screen.fill()
 end
@@ -23963,7 +24076,13 @@ SCENE.advance = function()
       return
     end
     if step.dialogue then
-      dlg.lines = pack_dialogue_lines(step.dialogue, step.npc and step.npc.name)
+      -- pcall for the same reason the NPC path does: a Lua-pattern edge
+      -- in authored text would otherwise kill the SCENE CLOCK mid-
+      -- cutscene (frozen scene, softlocked player).
+      local ok, packed = pcall(pack_dialogue_lines, step.dialogue,
+                               step.npc and step.npc.name)
+      dlg.lines = ok and packed or {"(error packing dialogue)"}
+      if not ok then print("synth-quest: scene pack err: " .. tostring(packed)) end
       dlg.line = 1
       dlg.line_start_tick = tick
       dlg.line_start_time = nil   -- real-time typewriter re-inits on next draw
@@ -24319,6 +24438,7 @@ local function draw_npc_at(sx, sy)
   if (tick % 8) < 4 then
     screen.level(0)
     screen.pixel(sx + 4, sy + 1)
+    screen.fill()
   end
 end
 
@@ -24337,10 +24457,12 @@ local function draw_npc_elder(sx, sy)
   screen.level(11)
   screen.pixel(sx + 3, sy + 3)
   screen.pixel(sx + 4, sy + 3)
+  screen.fill()
   -- beard hint
   screen.level(13)
   screen.pixel(sx + 3, sy + 4)
   screen.pixel(sx + 4, sy + 4)
+  screen.fill()
   -- staff
   screen.level(7)
   screen.rect(sx + 7, sy + 1, 1, 7)
@@ -24348,6 +24470,7 @@ local function draw_npc_elder(sx, sy)
   -- staff orb (pulses)
   screen.level((tick % 16) < 8 and 15 or 8)
   screen.pixel(sx + 7, sy)
+  screen.fill()
 end
 
 -- Lyrik: musician with curls and a small lute held in front
@@ -24363,6 +24486,7 @@ local function draw_npc_lyrik(sx, sy)
   screen.pixel(sx + 2, sy)
   screen.pixel(sx + 5, sy)
   screen.pixel(sx + 4, sy)
+  screen.fill()
   -- vest body
   screen.level(8)
   screen.rect(sx + 2, sy + 3, 4, 3)
@@ -24374,10 +24498,12 @@ local function draw_npc_lyrik(sx, sy)
   -- soundhole
   screen.level(0)
   screen.pixel(sx + 4, sy + 6)
+  screen.fill()
   -- legs
   screen.level(5)
   screen.pixel(sx + 3, sy + 7)
   screen.pixel(sx + 5, sy + 7)
+  screen.fill()
 end
 
 -- Veris: forest sage with leaf-crown and earth-toned robe
@@ -24402,6 +24528,7 @@ local function draw_npc_veris(sx, sy)
   screen.pixel(sx + 3, sy + 5)
   screen.pixel(sx + 4, sy + 6)
   screen.pixel(sx + 3, sy + 7)
+  screen.fill()
 end
 
 -- Aurin: sailor with white cap and striped shirt
@@ -24441,12 +24568,14 @@ local function draw_npc_tova(sx, sy)
   screen.level(13)
   screen.pixel(sx + 3, sy + 3)
   screen.pixel(sx + 4, sy + 3)
+  screen.fill()
   -- book in hand
   screen.level(15)
   screen.rect(sx + 5, sy + 5, 2, 2)
   screen.fill()
   screen.level(0)
   screen.pixel(sx + 6, sy + 6)
+  screen.fill()
 end
 
 -- Hens (shopkeep): apron and cap
@@ -24471,6 +24600,7 @@ local function draw_npc_hens(sx, sy)
   screen.level(3)
   screen.pixel(sx + 3, sy + 6)
   screen.pixel(sx + 4, sy + 6)
+  screen.fill()
 end
 
 -- Brann (smith): heavy build, leather apron, hammer
@@ -24496,6 +24626,7 @@ local function draw_npc_brann(sx, sy)
   screen.fill()
   screen.level(15)
   screen.pixel(sx, sy + 4)
+  screen.fill()
 end
 
 -- Iolen (highland watch): heavy cloak, fur-rimmed hood
@@ -24511,6 +24642,7 @@ local function draw_npc_iolen(sx, sy)
   screen.level(13)
   screen.pixel(sx + 3, sy + 2)
   screen.pixel(sx + 4, sy + 2)
+  screen.fill()
   -- thick cloak (gray)
   screen.level(7)
   screen.rect(sx + 1, sy + 3, 6, 5)
@@ -24521,6 +24653,7 @@ local function draw_npc_iolen(sx, sy)
   -- breath plume (shifts with tick — approximate via static for sprite)
   screen.level(11)
   screen.pixel(sx, sy + 3)
+  screen.fill()
 end
 
 -- Wren (wandering minstrel): traveler's hat, small flute at hip
@@ -24551,6 +24684,7 @@ local function draw_npc_wren(sx, sy)
   -- legs
   screen.level(5)
   screen.pixel(sx + 3, sy + 7); screen.pixel(sx + 4, sy + 7)
+  screen.fill()
 end
 
 -- Pip (village child): small body, ponytail tied with bow, simple dress
@@ -24567,6 +24701,7 @@ local function draw_npc_pip(sx, sy)
   -- eyes
   screen.level(0)
   screen.pixel(sx + 3, sy + 2); screen.pixel(sx + 4, sy + 2)
+  screen.fill()
   -- pinafore dress (simple A-line)
   screen.level(11)
   screen.rect(sx + 3, sy + 4, 2, 2); screen.fill()
@@ -24575,6 +24710,7 @@ local function draw_npc_pip(sx, sy)
   -- legs
   screen.level(5)
   screen.pixel(sx + 3, sy + 7); screen.pixel(sx + 4, sy + 7)
+  screen.fill()
 end
 
 -- Mara (innkeeper): apron, kerchief on head
@@ -26755,12 +26891,14 @@ local function draw_overworld()
       local ly = (i * 17 + tick) % 64
       screen.level(7)
       screen.pixel(lx, ly)
+      screen.fill()
     end
     -- dim mist stipple
     screen.level(2)
     for i = 0, 9 do
       screen.pixel((i * 13 + tick) % 128, (i * 7 + 3) % 64)
     end
+    screen.fill()
   elseif region == "coast" then
     -- sun rays from upper-right corner
     screen.level(13)
@@ -26769,6 +26907,7 @@ local function draw_overworld()
       screen.pixel(x, i * 2)
       screen.pixel(x - 1, i * 2 + 1)
     end
+    screen.fill()
     -- shimmer sparkles
     for i = 1, 3 do
       local sx = (i * 53 + tick * 3) % 128
@@ -26776,6 +26915,7 @@ local function draw_overworld()
       if (tick + i * 7) % 8 < 3 then
         screen.level(15)
         screen.pixel(sx, sy)
+        screen.fill()
       end
     end
   end
@@ -26914,7 +27054,8 @@ local function draw_overworld()
   -- top-right corner cues the player.
   if sq_is_night and sq_is_night()
      and (current_map_id == 1 or current_map_id == 2 or current_map_id == 3
-          or current_map_id == 22 or current_map_id == 26)
+          or current_map_id == 22 or current_map_id == 26
+          or current_map_id == 35)  -- Sunward hosts the night-gated bandstand
      and not (SCENE and SCENE.active) then
     -- Soft "it is night" cue, no screen-wide stipple — the dense
     -- pattern was reading as visual noise and made sprites hard to
@@ -26931,6 +27072,12 @@ local function draw_overworld()
     screen.level(11); screen.pixel(120, 4); screen.pixel(121, 3)
     screen.pixel(122, 3); screen.pixel(122, 4); screen.pixel(122, 5); screen.fill()
   end
+
+  -- Weather particle pool (region-ambient snow/leaves/ash). Drawn here
+  -- (world layer) so it sits UNDER dialogue boxes, scene panels, and
+  -- the redraw-tail scene fade — it used to draw at the very end of
+  -- redraw(), landing on top of dialogue text and full-black fades.
+  if PARTICLES and PARTICLES.draw then PARTICLES.draw() end
 
   -- Full-screen scene panel (attunement signature visuals). Drawn OVER
   -- the world/HUD but UNDER the dialogue box (draw_dialogue calls
@@ -26976,7 +27123,16 @@ local DLG_NAME_TO_CLASS = {
 }
 
 local function draw_dialogue()
-  draw_overworld()
+  -- Backdrop: normally the overworld, but mid-battle dialogue (Sergei's
+  -- intervention pauses the Tidewatch fight) should show the paused
+  -- battle, not the map the fight is standing on. `_paused_for_sergei`
+  -- is self-cleaning (nil'd when combat resumes). draw_battle is a
+  -- later local, reached via its _G mirror.
+  if enemy and enemy._paused_for_sergei and _G.draw_battle then
+    _G.draw_battle()
+  else
+    draw_overworld()
+  end
   -- Single dialogue box for ALL dialogue (NPC + scene). Same size
   -- everywhere so the player isn't seeing two different UIs.
   -- Box: y=26..63 = 38px tall.
@@ -27170,7 +27326,7 @@ function DRAW_ENEMY.silencer(cx, cy)
   -- resonator coil on the chest (faint hum pulse) + trailing wire
   screen.level(10 + hum * 3)
   screen.circle(cx, cy + 3, 3); screen.stroke()
-  screen.level(13); screen.pixel(cx, cy + 3)
+  screen.level(13); screen.pixel(cx, cy + 3); screen.fill()
   screen.level(6);  screen.move(cx, cy + 6); screen.line(cx, cy + 11); screen.stroke()
 end
 
@@ -27250,6 +27406,7 @@ function DRAW_ENEMY.wisp(cx, cy)
     screen.pixel(cx + 4, cy - 2)
     screen.pixel(cx - 3, cy + 3)
   end
+  screen.fill()
 end
 
 function DRAW_ENEMY.wolf(cx, cy)
@@ -27305,6 +27462,7 @@ function DRAW_ENEMY.echo(cx, cy)
     screen.pixel(cx + 4, cy - 1)
     screen.pixel(cx - 1, cy + 3)
   end
+  screen.fill()
 end
 
 function DRAW_ENEMY.sprite(cx, cy)
@@ -27319,6 +27477,7 @@ function DRAW_ENEMY.sprite(cx, cy)
   screen.pixel(cx + 4, cy + 1)
   screen.pixel(cx - 2, cy + 3)
   screen.pixel(cx + 3, cy - 3)
+  screen.fill()
 end
 
 function DRAW_ENEMY.treant(cx, cy)
@@ -27456,6 +27615,7 @@ function DRAW_ENEMY.tide(cx, cy)
     screen.level(15)
     screen.pixel(cx - 3, cy + 4)
     screen.pixel(cx + 3, cy + 4)
+    screen.fill()
   end
 end
 
@@ -27607,11 +27767,13 @@ function DRAW_ENEMY.frostwisp(cx, cy)
   -- core
   screen.level(15)
   screen.pixel(cx, cy)
+  screen.fill()
   -- drifting snowflakes around
   screen.level(13)
   screen.pixel(cx - 12, cy - 4 + d)
   screen.pixel(cx + 13, cy + 6 - d)
   screen.pixel(cx - 9, cy + 8 - d)
+  screen.fill()
 end
 
 -- The First Chord — post-endgame superboss. A shifting cluster of
@@ -27737,6 +27899,7 @@ function DRAW_ENEMY.crow(cx, cy)
   screen.level(15)
   screen.pixel(cx - 2, cy - 7)
   screen.pixel(cx + 1, cy - 7)
+  screen.fill()
   -- beak
   screen.level(11)
   screen.move(cx - 1, cy - 4); screen.line(cx + 2, cy - 2); screen.line(cx - 1, cy - 2); screen.close(); screen.fill()
@@ -27770,6 +27933,7 @@ function DRAW_ENEMY.snowgaunt(cx, cy)
   -- two glowing icy eyes
   screen.pixel(cx - 2, cy - 14); screen.pixel(cx - 3, cy - 14)
   screen.pixel(cx + 2, cy - 14); screen.pixel(cx + 3, cy - 14)
+  screen.fill()
   -- jaw line
   screen.level(0)
   screen.move(cx - 4, cy - 11); screen.line(cx + 4, cy - 11); screen.stroke()
@@ -27778,11 +27942,13 @@ function DRAW_ENEMY.snowgaunt(cx, cy)
   screen.rect(cx + 16, cy - 16, 1, 30); screen.fill()
   screen.level(15)
   screen.pixel(cx + 16, cy - 17)
+  screen.fill()
   -- snow swirl around base (animates)
   local s = (tick // 3) % 6
   screen.level(15)
   screen.pixel(cx - 12 + s, cy + 18)
   screen.pixel(cx + 12 - s, cy + 16)
+  screen.fill()
 end
 
 -- ── Ice Grotto canon set (Cave 5 / story bible) ──────────────────────────
@@ -27898,11 +28064,11 @@ function DRAW_ENEMY.lich(cx, cy)
   screen.level(15); screen.rect(cx - 5, cy - 14, 10, 8); screen.fill()
   screen.level(8);  screen.rect(cx - 5, cy - 7, 10, 1); screen.fill()
   screen.level(0)
-  screen.pixel(cx - 2, cy - 11); screen.pixel(cx + 2, cy - 11)   -- eye sockets
+  screen.pixel(cx - 2, cy - 11); screen.pixel(cx + 2, cy - 11); screen.fill()   -- eye sockets
   screen.move(cx - 3, cy - 8); screen.line(cx + 3, cy - 8); screen.stroke()
   -- bone staff
   screen.level(11); screen.rect(cx + 12, cy - 16, 1, 30); screen.fill()
-  screen.level(15); screen.pixel(cx + 12, cy - 17)
+  screen.level(15); screen.pixel(cx + 12, cy - 17); screen.fill()
 end
 
 function DRAW_ENEMY.voidcrawler(cx, cy)
@@ -28039,6 +28205,7 @@ function DRAW_ENEMY.suno(cx, cy)
   screen.pixel(cx - 18 + s, cy - 8)
   screen.pixel(cx + 18 - s, cy + 4)
   screen.pixel(cx - 14, cy + 12 - s)
+  screen.fill()
   -- arms outstretched
   screen.level(7)
   screen.move(cx - 18, cy + 4); screen.line(cx - 22, cy + 14); screen.stroke()
@@ -28071,6 +28238,7 @@ function DRAW_ENEMY.broken_cadence(cx, cy)
     screen.level(15)
     screen.pixel(cx - 3, cy - 20)
     screen.pixel(cx + 3, cy - 20)
+    screen.fill()
   end
   -- broken staff fragment floating to the side
   local drift = (tick // 4) % 6
@@ -28350,7 +28518,7 @@ local function draw_battle()
   -- past the HUD divider but clipping is cosmetic.
   if enemy and enemy.alive then
     local fn = DRAW_ENEMY[enemy.visual] or DRAW_ENEMY.slime
-    fn(96, 32)
+    pcall(fn, 96, 32)  -- a drawer bug must not kill the main clock
   end
   -- Compact enemy info pinned to the top of the scene (rows 11-15), placed in the
   -- gap between the action popup (x=1-44) and the enemy sprite area on the right.
@@ -28647,26 +28815,22 @@ local function draw_battle()
     end
   end
 
-  -- level-up flash banner (compact, top-center)
-  if levelup_flash_ticks > 0 then
-    screen.level(0); screen.rect(40, 11, 48, 8); screen.fill()
-    screen.level(15); screen.rect(40, 11, 48, 8); screen.stroke()
-    screen.move(64, 17); screen.text_center(levelup_flash_who .. " UP!")
-  end
+  -- (level-up flash moved to the redraw() tail — level-ups happen
+  -- outside battle, where this site never rendered them.)
   -- generic story-event banner (Sergei intervention, ambient events,
   -- chord milestones etc.). Box is full-width-ish (4-124) and uses the
   -- compact 6px font so 30-40 char strings fit on one line. Without
   -- the font swap the default 8px font caps usable text at ~12 chars
   -- and longer banners (e.g. "* a lute, far off, plays one phrase *")
   -- overflow the previous 96px box.
-  if CONTENT.banner_ticks > 0 then
-    screen.level(0); screen.rect(4, 18, 120, 12); screen.fill()
-    screen.level(15); screen.rect(4, 18, 120, 12); screen.stroke()
-    screen.font_face(25); screen.font_size(6)
-    screen.move(64, 26); screen.text_center(scrub_text(CONTENT.banner_text or ""))
-    screen.font_face(1); screen.font_size(8)
-  end
+  -- (banner draw moved to the redraw() tail so it renders in EVERY
+  -- gameplay state — it only ever drew here in draw_battle, leaving
+  -- overworld gate refusals, pickups, and scene flashes invisible.)
 end
+-- Mirror to _ENV: draw_dialogue is defined ABOVE this local and needs
+-- it as a backdrop for mid-battle dialogue (Sergei's intervention) —
+-- same load-order pattern as _G.enter_battle/_G.travel_to.
+_G.draw_battle = draw_battle
 
 -- ── Victory phase 2: XP gain + level-up summary ─────────────────────────
 -- Full-screen slide that follows the rewards window. Up to four rows
@@ -30644,6 +30808,7 @@ local function draw_voyage()
   screen.level(8)
   screen.pixel(bx + 8, by - 4)
   screen.pixel(bx + 9, by - 4)
+  screen.fill()
   -- text banner
   local dest = voyage_target_map == 2 and "EASTERN REACHES" or "MAINLAND"
   screen.level(0)
@@ -32421,25 +32586,47 @@ function redraw()
     for _, p in ipairs(party) do
       if p.alive and p.hp_max > 0 and p.hp <= p.hp_max / 4 then critical = true; break end
     end
-    if critical then
-      local pulse = ((tick % 8) < 4) and 0 or 2
-      screen.level(pulse)
-      screen.rect(0, 0, 128, 1); screen.fill()
-      screen.rect(0, 63, 128, 1); screen.fill()
-      screen.rect(0, 0, 1, 64); screen.fill()
-      screen.rect(127, 0, 1, 64); screen.fill()
-    end
+    -- (The old critical-HP full-edge border here fought draw_battle's
+    -- corner accents — two vignettes at different blink rates repainting
+    -- the same rows read as flicker. draw_battle's version stays.)
+  end
+  -- Story/gate/pickup banner — drawn here (not per-state) so it shows
+  -- in every gameplay state; previously battle-only, which made every
+  -- overworld banner invisible. Under the scene fade by design.
+  if CONTENT.banner_ticks > 0
+     and (game_state == "OVERWORLD" or game_state == "DIALOGUE"
+          or game_state == "BATTLE" or game_state == "BATTLE_END") then
+    screen.level(0); screen.rect(4, 18, 120, 12); screen.fill()
+    screen.level(15); screen.rect(4, 18, 120, 12); screen.stroke()
+    screen.font_face(25); screen.font_size(6)
+    screen.move(64, 26); screen.text_center(scrub_text(CONTENT.banner_text or ""))
+    screen.font_face(1); screen.font_size(8)
+  end
+  -- Level-up flash — same treatment (level-ups happen outside battle;
+  -- its old only-in-draw_battle site never showed them).
+  if levelup_flash_ticks > 0
+     and (game_state == "OVERWORLD" or game_state == "DIALOGUE"
+          or game_state == "BATTLE") then
+    screen.level(0); screen.rect(40, 11, 48, 8); screen.fill()
+    screen.level(15); screen.rect(40, 11, 48, 8); screen.stroke()
+    screen.font_face(25); screen.font_size(6)
+    screen.move(64, 17); screen.text_center((levelup_flash_who or "LEVEL") .. " UP!")
+    screen.font_face(1); screen.font_size(8)
+  end
+  -- Save/load flash — visible outside the menu too ("Game Loaded" on
+  -- Continue, autosave toasts; previously drawn only by draw_menu).
+  if save_flash_ticks > 0 and game_state ~= "MENU" and game_state ~= "TITLE" then
+    screen.font_face(25); screen.font_size(6)
+    screen.level(12); screen.move(64, 8); screen.text_center(save_flash_text or "")
+    screen.font_face(1); screen.font_size(8)
   end
   -- Scene fade overlay (covers HUD too — drawn last). No-op when fade==0.
   -- Letterbox bars sit ABOVE the world but BELOW the fade overlay,
   -- so a fade-to-black still covers them.
   if SCENE and SCENE.draw_letterbox then SCENE.draw_letterbox() end
   if SCENE and SCENE.draw_fade then SCENE.draw_fade() end
-  -- Particle pool overlay (region-ambient, e.g. snow / leaves / ash).
-  -- Only in the states that also TICK the pool — otherwise up to 60
-  -- frozen weather pixels overlay battles and menus.
-  if (game_state == "OVERWORLD" or game_state == "DIALOGUE")
-     and PARTICLES and PARTICLES.draw then PARTICLES.draw() end
+  -- (Weather particles moved into draw_overworld so they render UNDER
+  -- dialogue boxes and scene fades instead of on top of them.)
   -- Reset shake translate so the next frame starts clean.
   if shake_dx ~= 0 or shake_dy ~= 0 then
     screen.translate(-shake_dx, -shake_dy)

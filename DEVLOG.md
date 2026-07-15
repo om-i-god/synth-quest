@@ -2621,3 +2621,61 @@ the dead DEF stat and the superboss's missing boss treatment.
 Vestigial bespoke boss mechanics (bible reality-check note), ionian
 weaknesses as intentional post-game flavor, gamepad-only rhythm-crit,
 free-inn source-heavy economy (cozy by design), Heal stays OP (canon).
+
+## 2026-07-15 — Wave 11: integrated regression / render layer / crash surface
+
+Three auditors: a full playthrough walk with waves 8-10 interacting,
+the first systematic render audit, and the first crash-surface sweep.
+
+### Progress-loss blocker (regression auditor)
+**Finishing the game was never saved.** No save_game() existed anywhere
+in ENDING → endgame scene → CREDITS; the disk still held the 7th-shard
+autosave with cave 7 marked cleared — from which Suno could never be
+re-fought. The wave-10 CREDITS title-exit (and any power-off during the
+ending) permanently stranded a finished run out of its own ending and
+all post-game. The endgame scene now saves the moment endgame_done is
+stamped. Also: the Sergei-intervention autosave fired BEFORE the
+party-revive loop (reloading it booted a fully dead party) — reordered;
+the ending roster now includes recruited-but-BENCHED members (they lost
+their panels and their name in the roll); the rare-encounter gate got
++1 level (at the bare 60% mark a rare was a 70-hit slog with no flee
+and no rescue); Jam Pad exits scrub tonic; exit_battle now uses the
+shared scrub (its inline copy had already drifted once); resonance
+turns no longer play a phantom attack note.
+
+### Render blockers (render auditor)
+**The banner system never rendered outside battle.** Its only draw site
+was inside draw_battle and its countdown only ticked in tick_battle —
+every overworld gate refusal ("needs the Key of Lirael"), every pickup
+toast, all 33 scene {flash} steps, ECHO's join banner, NEW GAME+, and
+scene-error surfacing were set and silently never shown. Banner now
+draws from the redraw() tail in all gameplay states and counts down on
+the universal tick. Two more: enter_battle unconditionally WIPED the
+BOSS/RARE intro banner it had set 50 lines earlier (boss intros had
+never displayed once); the Sunward bandstand scene was the single
+fade=15 scene with no fade_in — it played entirely behind black.
+Also: level-up and save/load flashes moved to the tail (their old
+sites never showed them); weather particles render in the world layer
+(they drew OVER dialogue text and scene fades); duplicate critical-HP
+vignette removed; mid-battle Sergei dialogue backdrops the paused
+battle instead of the overworld; night cue added to Sunward (the one
+map with a night-GATED trigger had no night indicator); banners over
+~28 chars shortened to fit the box; 78 unpainted screen-path sites
+(pixel/rect groups never flushed with fill()) fixed mechanically —
+boss eyes, weather pixels, window lights, smoke wisps that had
+never rendered or rendered at the wrong brightness.
+
+### Crash hardening (crash auditor: "no realistic normal-play crash
+path found" — ten waves showing)
+Both clock coroutines are now xpcall-wrapped: one uncaught error in any
+tick/draw path used to kill music, battle logic, AND the screen
+together, silently, for the rest of the session (the scene clock now
+aborts a bad scene cleanly instead of freezing the player). Scene
+dialogue packing pcall'd (NPC path already was); load_game tolerates a
+save missing its player block; fire()'s scale lookup and enemy pattern
+copies got the same guards their siblings had.
+
+### Known-open (audit gaps from a session-limit interruption)
+Text-clipping sweep of menu/HUD strings; deep save-file fuzz
+(truncated/corrupt tab.load shapes); string.format nil sweep. Next
+wave candidates.
