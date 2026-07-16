@@ -1,13 +1,22 @@
 -- synth quest
--- v0.3 — first dungeon + first battle
+-- v0.5 — content complete
 --
--- jrpg with synth-based party
--- forked from vinyl fantasy v0.4
+-- jrpg with a synth-based party.
+-- clear the seven caves, reclaim
+-- the shards, make the chord sing.
 --
--- D-pad: walk (overworld) / select party (battle)
--- A: talk / advance dlg / queue ATK / restart
--- B: queue DEF        X: queue MAG       Y: queue ITM
--- right stick: cutoff/res on active voice (battle)
+-- norns: E2/E3 walk. K3 talk.
+-- K2 jam mode. K1 menu.
+-- battle: E2 pick action,
+-- K2/K3 switch character.
+--
+-- gamepad (optional): dpad walk,
+-- A talk, X menu, SELECT jam,
+-- sticks = live filter/fx.
+--
+-- needs the SynthQuest engine:
+-- SYSTEM > RESTART after install.
+-- (forked from vinyl fantasy v0.4)
 
 engine.name = "SynthQuest"
 
@@ -1038,13 +1047,13 @@ local SHARD_TOTAL = #SHARD_ORDER
 -- SHARD_REACT_BY_NPC; SHARD_GENERIC_REACT covers anyone not listed.
 -- Globals (no `local`) to dodge the 200-main-chunk-locals cap.
 SHARD_GENERIC_REACT = {
-  lydian     = "(eyes the Lydian shard) Bright. The first note still hums even at rest.",
-  dorian     = "(notices the Dorian shard) The Hollow Woods went quiet. You felt that, too.",
-  mixolydian = "(spots the Mixolydian shard) Tidewatch let it go. Few have made it ring.",
-  phrygian   = "(sees the Phrygian shard) Desert-warm. It still smells of dust.",
-  aeolian    = "(notes the Aeolian shard) Cold settled in the metal. The North gave you that.",
-  locrian    = "(observes the Locrian shard) The half-step. Heavy in the hand.",
-  ionian     = "(falls quiet at the Ionian shard) The bright ending. Suno's note. The world is whole again.",
+  lydian     = "(eyes the Lydian Shard) Bright. The first note still hums even at rest.",
+  dorian     = "(notices the Dorian Shard) The Hollow Woods went quiet. You felt that, too.",
+  mixolydian = "(spots the Mixolydian Shard) Tidewatch let it go. Few have made it ring.",
+  phrygian   = "(sees the Phrygian Shard) Desert-warm. It still smells of dust.",
+  aeolian    = "(notes the Aeolian Shard) Cold settled in the metal. The North gave you that.",
+  locrian    = "(observes the Locrian Shard) The half-step. Heavy in the hand.",
+  ionian     = "(falls quiet at the Ionian Shard) The bright ending. Suno's note. The world is whole again.",
 }
 SHARD_REACT_BY_NPC = {
   Elder = {
@@ -8283,12 +8292,11 @@ function start_endgame_scene()
     -- transition to the CREDITS game state which renders the roll
     -- and waits for A → NG+ confirm.
     CONTENT.endgame_done = true
-    -- SAVE the finished game. Without this, no save exists anywhere in
-    -- the ENDING → endgame → CREDITS chain: the disk still held the
-    -- 7th-shard autosave (cave_state[7].cleared, endgame_done=false),
-    -- from which Suno could never be re-fought — Continue after the
-    -- CREDITS title-exit (or a power-off mid-ending) permanently
-    -- stranded the run out of its own ending and all post-game.
+    -- SAVE the finished game. Without this, no save existed anywhere
+    -- in the ENDING → endgame → CREDITS chain. (A power-off BEFORE
+    -- this save reloads the clear_boss autosave — that window is
+    -- covered by the cave-7 boss-tile ending-replay guard in
+    -- try_move's t==27 handler, not by this save.)
     if save_game then save_game() end
     game_state = "CREDITS"
     CONTENT.credits_t = tick
@@ -14422,12 +14430,11 @@ local function obtain_shard(name)
   if n == 6 and not (CONTENT.scene_seen and CONTENT.scene_seen.six_shards) then
     CONTENT.queued_scene = "six_shards"
   end
-  -- Auto-save on every shard collection (story milestone). AFTER the
-  -- queue-set above: the 6th-shard autosave must contain the pending
-  -- six-shards beat, or a reload from it would silently lose the World
-  -- of Silence and ECHO (queued_scene is also persisted; load_game has
-  -- a re-derive backstop for older saves).
-  if save_game then save_game() end
+  -- (The shard autosave moved to the END of clear_boss — saving here
+  -- captured cleared=true but NOT the boss instrument drop, the
+  -- aftermath queue, or the shard achievements, all granted after
+  -- this returns: a crash right after the save lost the unique
+  -- instrument forever, since cleared bosses don't respawn.)
 end
 
 -- adjust tempo settings; immediately apply if relevant state is active
@@ -14677,7 +14684,12 @@ save_game = function()
   -- story flags
   data.flag = {}
   for k, v in pairs(flag) do data.flag[k] = v end
-  tab.save(data, SAVE_PATH())
+  -- Atomic write: tab.save writes in place; a power-off mid-write left
+  -- a truncated file that tab.load rejects -> "No save found" and the
+  -- whole run silently gone. rename(2) is atomic on the norns fs.
+  local sp = SAVE_PATH()
+  tab.save(data, sp .. ".tmp")
+  os.rename(sp .. ".tmp", sp)
   save_flash_ticks = 24
   save_flash_text = "Game Saved"
 end
@@ -14712,6 +14724,28 @@ local function load_game()
     end
     data.version = SAVE_VERSION
   end
+  -- Type normalizer: a hand-edited/corrupt save with a non-table block
+  -- (data.shards = "yes" etc.) crashed the restore loops. Nil out any
+  -- block that isn't the shape the loops expect; every consumer below
+  -- already guards against absence.
+  do
+    local function T(x) return type(x) == "table" and x or nil end
+    data.shards        = T(data.shards)
+    data.cave_state    = T(data.cave_state)
+    data.characters    = T(data.characters)
+    data.party         = T(data.party)
+    data.party_classes = T(data.party_classes)
+    data.quests        = T(data.quests)
+    data.scene_seen    = T(data.scene_seen)
+    data.story_seen    = T(data.story_seen)
+    data.flag          = T(data.flag)
+    data.inv           = T(data.inv)
+    data.resonances    = T(data.resonances)
+    data.bestiary      = T(data.bestiary)
+    data.player        = T(data.player)
+    data.active        = tonumber(data.active)
+    data.current_map_id = tonumber(data.current_map_id)
+  end
   -- Wipe any in-progress scene state so a load mid-cutscene doesn't leave
   -- stale actors/fades on screen. PARTICLES pool is similarly cleared.
   if SCENE then
@@ -14732,7 +14766,12 @@ local function load_game()
   end
   -- Tolerate a truncated/hand-edited save missing the player block —
   -- indexing nil here crashed the title-screen key handler.
-  data.player = data.player or {x = 6, y = 6, facing = "down"}  -- new-game spawn (12,12 was water)
+  data.player = data.player or {}
+  -- Field-level defaults (a present-but-partial block otherwise poisons
+  -- player.x with nil): new-game spawn, walkable on map 1.
+  data.player.x = tonumber(data.player.x) or 6
+  data.player.y = tonumber(data.player.y) or 6
+  data.player.facing = data.player.facing or "down"
   player.x = data.player.x
   player.y = data.player.y
   player.facing = data.player.facing
@@ -14770,6 +14809,11 @@ local function load_game()
         ch.def     = sp.def or ch.def
         ch.mag     = sp.mag or ch.mag
         ch.spd     = sp.spd or ch.spd
+        -- Sanity clamps for edited/corrupt saves: level >= 1, hp/mp
+        -- within max (an over-max hp overdraws the HP bar past its box).
+        ch.level = math.max(1, tonumber(ch.level) or 1)
+        ch.hp = math.min(ch.hp or ch.hp_max, ch.hp_max)
+        ch.mp = math.min(ch.mp or ch.mp_max, ch.mp_max)
       end
     end
     -- Rebuild party slots from the saved class order.
@@ -14781,7 +14825,7 @@ local function load_game()
     if data.active then active = math.max(1, math.min(#party, data.active)) end
   else
     -- Legacy slot-indexed load (best-effort migration).
-    for i, sp in ipairs(data.party) do
+    for i, sp in ipairs(data.party or {}) do
       if party[i] then
         party[i].hp = sp.hp
         party[i].mp = sp.mp
@@ -14845,7 +14889,7 @@ local function load_game()
       if INSTRUMENTS[id] then equipped[cls] = id end
     end
   end
-  if data.gold then SHOP.gold = data.gold end
+  if data.gold then SHOP.gold = math.max(0, tonumber(data.gold) or 0) end
   if data.quests then
     if data.quests.hens then
       QUESTS.hens.wins = data.quests.hens.wins or 0
@@ -15001,6 +15045,12 @@ local function load_game()
   -- see the true post-save state and won't replay finished scenes.
   -- Map 38 is exempt from the "same map id" skip: two different houses
   -- share id 38, so equal ids don't imply the same room.
+  -- Unknown map ids (hand-edited save) fall through travel_to's else
+  -- branch into SUNOS_DOMAIN at arbitrary coords — validate the range
+  -- (real maps are 1..38) and fall back to the village.
+  if ld_map_id and (ld_map_id < 1 or ld_map_id > 38 or ld_map_id == 25) then
+    ld_map_id, ld_x, ld_y = 1, 17, 2   -- 25 is unregistered (cairn scene lives on map 3)
+  end
   if ld_map_id and (ld_map_id ~= current_map_id or ld_map_id == 38) then
     travel_to(ld_map_id, ld_x, ld_y)
   end
@@ -15963,6 +16013,22 @@ local function try_move(dx, dy)
       start_boss_approach_scene(cv)
       return
     end
+    -- Interrupted-ending recovery: a power-off between Suno's fall and
+    -- the endgame save reloads the clear_boss autosave (cave 7 cleared,
+    -- ionian banked, endgame_done false). cleared=true meant Suno could
+    -- never be re-fought, so the ending was permanently unreachable
+    -- from that save. Replay the ENDING instead of a trash fight.
+    if cv == 7 and cave_state[7].cleared and shards.ionian
+       and not CONTENT.endgame_done then
+      ending_idx = 1
+      ENDING_LINES = build_ending_lines()
+      CONTENT.queued_scene = nil
+      CONTENT.act3_silence = false
+      game_state = "ENDING"
+      params:set("clock_tempo", INTRO_BPM)
+      redraw()
+      return
+    end
     enter_battle(cv)
     return
   end
@@ -16915,7 +16981,7 @@ function pack_dialogue_lines(raw, npc_name)
   -- A chunk is "too big" if it exceeds MAX_CHARS_PRE; we re-split it
   -- using the next-finer delimiter until it fits or there are no more
   -- delimiters (then we hard-split on words).
-  local MAX_CHARS_PRE = 75
+  local MAX_CHARS_PRE = 66
   local function trim(s) return (s:gsub("^%s+", ""):gsub("%s+$", "")) end
   -- Split s into pieces using a Lua pattern that captures each piece +
   -- whatever trailing delimiter lives on it, so we can reassemble without
@@ -17020,7 +17086,12 @@ function pack_dialogue_lines(raw, npc_name)
       end
     end
     if #buf > 0 then out[#out + 1] = buf end
-    for i = 1, #out do out[i] = out[i]:gsub("\1\1\1", "...") end
+    for i = 1, #out do
+      out[i] = out[i]:gsub("\1\1\1", "...")
+      -- The comma-cascade can split inside a stage direction and leave
+      -- a page ending in " )" — reattach the paren to its last word.
+      out[i] = out[i]:gsub("%s+%)", ")")
+    end
     return out
   end
   -- Preserve speaker prefix across splits: if the source line is tagged
@@ -17067,7 +17138,7 @@ function pack_dialogue_lines(raw, npc_name)
   -- Tagged speech lines may still cross into compact when very long —
   -- that's fine, but narrator lines (no speaker prefix) are kept
   -- below the soft cap so they always render in the same big font.
-  local MAX_CHARS = 75
+  local MAX_CHARS = 66
   local DEFAULT_FONT_CAP = 55   -- ~3 lines of default font in 122px wrap
   local i = 1
   while i <= #raw do
@@ -18654,6 +18725,11 @@ local function check_battle_end()
       if cave_id < 7 and not CONTENT.queued_scene then
         CONTENT.queued_scene = "boss_aftermath_" .. cave_id
       end
+      -- Auto-save the story milestone LAST, so the save contains the
+      -- shard, the boss instrument drop, the achievements, and the
+      -- queued beat together (six_shards included — queued inside
+      -- obtain_shard above, so it's on disk too).
+      if save_game then save_game() end
     end
     -- (battle-end no longer calls flash_hit — same wash-out concern)
     -- Rare encounters share visuals with cave bosses (Sage Sentinel →
@@ -18678,6 +18754,7 @@ local function check_battle_end()
       -- track it in the journal.
       cave_state[8].cleared = true
       unlock_achievement("first_chord_silenced", "First Chord Silenced")
+      if save_game then save_game() end   -- milestone: superboss down
       CONTENT.banner_text  = "* THE FIRST CHORD FALLS *"
       CONTENT.banner_ticks = 90
     elseif enemy.is_prologue_silencer or enemy.is_prologue_cave then
@@ -19787,7 +19864,17 @@ function gamepad.button(button, state)
     if button == "A" or button == "START" then
       if TITLE.idx == 1 then
         -- Continue: try to load. If no save, fall back to a flash + stay on title.
-        if load_game() then
+        local ld_ok, ld_ret = pcall(load_game)
+        if not ld_ok then
+          -- A corrupt save must not crash the title handler with
+          -- globals half-restored.
+          print("synth-quest: load error: " .. tostring(ld_ret))
+          TITLE.flash_text = "Save corrupt"
+          TITLE.flash_ticks = 24
+          redraw()
+          return
+        end
+        if ld_ret then
           game_state = "OVERWORLD"
           -- (tempo already resynced to the loaded zone inside load_game)
           engine.drone_amp(0)
@@ -20195,8 +20282,6 @@ function gamepad.analog(sensor_axis, val, half_reso)
     return
   end
   if sensor_axis == "triggerright" then
-    -- ONE-SHOT: rising-edge queues RESO action for the active character
-    -- in battle. Same drift-resistant pattern as triggerleft.
     -- ONE-SHOT: rising-edge queues RESO action for the active character
     -- in battle. Same drift-resistant pattern as triggerleft.
     local now_pressed = (val / half_reso) > 0.2
@@ -20753,7 +20838,17 @@ function key(n, z)
       redraw()
     elseif n == 3 then
       if TITLE.idx == 1 then
-        if load_game() then
+        local ld_ok, ld_ret = pcall(load_game)
+        if not ld_ok then
+          -- A corrupt save must not crash the title handler with
+          -- globals half-restored.
+          print("synth-quest: load error: " .. tostring(ld_ret))
+          TITLE.flash_text = "Save corrupt"
+          TITLE.flash_ticks = 24
+          redraw()
+          return
+        end
+        if ld_ret then
           game_state = "OVERWORLD"
           -- (tempo already resynced to the loaded zone inside load_game)
           engine.drone_amp(0)
@@ -26979,10 +27074,12 @@ local function draw_overworld()
     end
     if name ~= "" then
       screen.level(0)
-      screen.rect(8, 22, 112, 14); screen.fill()
+      screen.rect(4, 22, 120, 14); screen.fill()
       screen.level(15)
-      screen.rect(8, 22, 112, 14); screen.stroke()
+      screen.rect(4, 22, 120, 14); screen.stroke()
+      screen.font_face(25); screen.font_size(6)
       screen.move(64, 31); screen.text_center(name)
+      screen.font_face(1); screen.font_size(8)
     end
   end
 
@@ -27003,11 +27100,12 @@ local function draw_overworld()
   -- inn rest banner — animated zzz, full heal feedback
   if inn_rest_ticks > 0 then
     screen.level(0)
-    screen.rect(18, 20, 92, 24)
+    screen.rect(4, 20, 120, 24)
     screen.fill()
     screen.level(15)
-    screen.rect(18, 20, 92, 24)
+    screen.rect(4, 20, 120, 24)
     screen.stroke()
+    screen.font_face(25); screen.font_size(6)
     screen.move(64, 30)
     screen.text_center("Rested at the inn")
     -- zzz drift
@@ -27022,28 +27120,33 @@ local function draw_overworld()
     screen.level(8)
     screen.move(64, 39)
     screen.text_center("HP & MP fully restored")
+    screen.font_face(1); screen.font_size(8)
   end
 
   -- tower-locked banner (shows briefly when player tries to enter without 5 shards)
   if tower_locked_ticks > 0 then
     screen.level(0)
-    screen.rect(8, 22, 112, 20)
+    screen.rect(4, 22, 120, 20)
     screen.fill()
     screen.level(15)
-    screen.rect(8, 22, 112, 20)
+    screen.rect(4, 22, 120, 20)
     screen.stroke()
+    screen.font_face(25); screen.font_size(6)
     screen.move(64, 30)
     screen.text_center("The Tower bars your way.")
     screen.level(8)
     screen.move(64, 38)
     screen.text_center("Gather 5 shards to enter.")
+    screen.font_face(1); screen.font_size(8)
   end
 
   -- generic event flash banner (chest, campfire heal, equip toast, etc.)
   if CONTENT.flash_ticks > 0 then
-    screen.level(0); screen.rect(20, 28, 88, 12); screen.fill()
-    screen.level(15); screen.rect(20, 28, 88, 12); screen.stroke()
+    screen.level(0); screen.rect(4, 28, 120, 12); screen.fill()
+    screen.level(15); screen.rect(4, 28, 120, 12); screen.stroke()
+    screen.font_face(25); screen.font_size(6)
     screen.move(64, 36); screen.text_center(scrub_text(CONTENT.flash_text or ""))
+    screen.font_face(1); screen.font_size(8)
   end
 
   -- DAY/NIGHT overlay (Pass 58). Nighttime stipples a sparse dim-pixel
@@ -28526,7 +28629,12 @@ local function draw_battle()
     screen.font_face(25); screen.font_size(6)
     screen.level(11)
     screen.move(46, 14)
-    screen.text(enemy.name)
+    -- Elide long names so they can't collide with the right-aligned HP text
+    -- (worst-case HP "1300/1300" starts ~x=88; 12 compact chars at ~4.2px/char
+    -- from x=46 end ~x=96 -- close, but real 4-digit-HP bosses have short names).
+    local nm = enemy.name
+    if #nm > 12 then nm = nm:sub(1, 11) .. "." end
+    screen.text(nm)
     if enemy.invincible then
       -- Practice dummy: replace HP/bar with a calm "JAM PAD" hint and exit prompt
       screen.level(6)
@@ -28631,15 +28739,18 @@ local function draw_battle()
       local age = tick - (p.rhythm_charged_t or tick)
       local lev = math.max(8, 15 - math.floor(age * 0.5))
       screen.level(lev)
-      screen.pixel(cx + 27, 49); screen.pixel(cx + 27, 50)
-      screen.pixel(cx + 28, 49); screen.pixel(cx + 28, 51)
-      screen.pixel(cx + 29, 50); screen.fill()
+      -- glyph slot hoisted above the divider (rows 42-46 are free between
+      -- the action popup, bottom y=39, and the divider at y=47) so it no
+      -- longer overlaps the HP "X/Y" text at baseline 52.
+      screen.pixel(cx + 27, 42); screen.pixel(cx + 27, 43)
+      screen.pixel(cx + 28, 42); screen.pixel(cx + 28, 44)
+      screen.pixel(cx + 29, 43); screen.fill()
     end
     -- Denial feedback: brief dim flash on the bell glyph slot whenever
     -- a Resonance invocation was rejected (any cause). Renders even when
     -- no buff is armed, so the player gets a clear visual cue.
     if p.reso_denied_t and (tick - p.reso_denied_t) < 4 and p.alive then
-      local bx, by = cx + 25, 49
+      local bx, by = cx + 25, 42   -- glyph slot above the divider (see rhythm note)
       screen.level(3)   -- norns is grayscale — level 3 reads as dim/wrong in context
       screen.pixel(bx + 1, by);     screen.pixel(bx + 2, by);     screen.pixel(bx + 3, by)
       for c = 0, 4 do
@@ -28653,7 +28764,7 @@ local function draw_battle()
     -- the top-right of the HUD column, slower pulse than the rhythm
     -- glyph so the two read as distinct when both are armed at once.
     if p.ring_armed and p.alive then
-      local bx, by = cx + 25, 49
+      local bx, by = cx + 25, 42   -- glyph slot above the divider (see rhythm note)
       local lev = ((tick % 24) < 12) and 13 or 15
       screen.level(lev)
       -- row 0 (bell crown): 3 wide, centered
@@ -28673,7 +28784,7 @@ local function draw_battle()
     -- (classes are mutually exclusive per column) with the same slow
     -- pulse convention.
     if (p.long_echo_charges or 0) > 0 and p.alive then
-      local bx, by = cx + 25, 49
+      local bx, by = cx + 25, 42   -- glyph slot above the divider (see rhythm note)
       local lev = ((tick % 24) < 12) and 13 or 15
       screen.level(lev)
       for k = 1, math.min(2, p.long_echo_charges) do
@@ -28686,7 +28797,7 @@ local function draw_battle()
     -- bell's glyph slot while the heal-on-action window holds; same
     -- pulse convention as the bell.
     if p.alive and p.threefold_until and (tick or 0) < p.threefold_until then
-      local bx, by = cx + 25, 49
+      local bx, by = cx + 25, 42   -- glyph slot above the divider (see rhythm note)
       local lev = ((tick % 24) < 12) and 13 or 15
       screen.level(lev)
       screen.pixel(bx + 2, by)
@@ -28956,7 +29067,7 @@ local function draw_battle_end()
   -- ── VICTORY POSES + QUIP STRIP ──
   -- Top half (y=38..49): row of celebratory sprites for every alive
   -- party member, each bobbing on its own phase. Speaker (if any) gets
-  -- a brighter sparkle. Bottom half (y=51..58): speaker name + quip.
+  -- a brighter sparkle. Bottom half (y=48..58): speaker name + quip (2 lines).
   if battle_outcome == "VICTORY" then
     screen.level(4); screen.move(2, 38); screen.line(126, 38); screen.stroke()
     local NAME_TO_CLASS = {Alder="bard", Miel="cleric", Strom="warrior", Diegues="mage",
@@ -29015,17 +29126,44 @@ local function draw_battle_end()
       end
       player.facing = saved
     end
-    -- Speaker quip (one line, 6px) below the pose row.
+    -- Speaker quip (6px) below the pose row. Quips run 40-49 chars and a
+    -- single centered 6px line caps out around 28, so wrap to two lines,
+    -- splitting at the space nearest the midpoint (baselines 52 + 58; the
+    -- footer below moved to the compact font at 63 to clear line 2).
     if q then
       screen.font_face(25); screen.font_size(6)
-      screen.level(15); screen.move(64, 53); screen.text_center(q.speaker .. ": " .. q.body)
+      local full = q.speaker .. ": " .. q.body
+      local l1, l2 = full, nil
+      if #full > 26 then
+        local best, init = nil, 1
+        local mid = math.floor(#full / 2)
+        while true do
+          local s = full:find(" ", init, true)
+          if not s then break end
+          if not best or math.abs(s - mid) < math.abs(best - mid) then best = s end
+          init = s + 1
+        end
+        if best then
+          l1 = full:sub(1, best - 1)
+          l2 = full:sub(best + 1)
+        end
+      end
+      screen.level(15)
+      if l2 then
+        screen.move(64, 52); screen.text_center(l1)
+        screen.move(64, 58); screen.text_center(l2)
+      else
+        screen.move(64, 53); screen.text_center(l1)
+      end
       screen.font_face(1); screen.font_size(8)
     end
   end
 
-  -- ── FOOTER ──
+  -- ── FOOTER ── (compact font so it clears the quip's second line)
   if (tick % 6) < 4 then
-    screen.level(12); screen.move(64, 61); screen.text_center("A/K3 to leave")
+    screen.font_face(25); screen.font_size(6)
+    screen.level(12); screen.move(64, 63); screen.text_center("A/K3 to leave")
+    screen.font_face(1); screen.font_size(8)
   end
 end
 
@@ -30971,7 +31109,7 @@ local function draw_title()
   end
   if not connected and (tick % 16) < 10 then
     screen.level(0); screen.rect(8, 0, 112, 7); screen.fill()
-    screen.level(15); screen.move(64, 6); screen.text_center("USB Controller Required")
+    screen.level(15); screen.move(64, 6); screen.text_center("keys OK - gamepad optional")
   end
   screen.font_face(1); screen.font_size(8)
 end
@@ -31068,9 +31206,12 @@ local function draw_equip()
     local wet = pget(v .. "_wet_p")
     local dly = pget(v .. "_dly_p")
     if cut and wet and dly then
-      screen.level(7); screen.move(2, 56)
-      screen.text(string.format("fx: cut %d  rev %.2f  dly %.2f",
-                                math.floor(cut), wet, dly))
+      -- Compact form, right-aligned in the free band between the OWNED
+      -- header (baseline 30) and the first list row (sprite top 38).
+      -- The old (2,56) spot overlapped the stat-delta line at (2,58).
+      screen.level(7); screen.move(126, 36)
+      screen.text_right(string.format("c%d r%.2f d%.2f",
+                                      math.floor(cut), wet, dly))
     end
   end
   -- Footer hint (page dots are gone — moved to header top-right).
@@ -31369,7 +31510,7 @@ local function draw_shop()
   -- flash banner (purchase / not enough gold) — sits just above the help line
   if SHOP.flash_ticks > 0 then
     screen.level(0)
-    screen.rect(28, 54, 72, 8)
+    screen.rect(16, 54, 96, 8)
     screen.fill()
     screen.font_face(25); screen.font_size(6)
     screen.level(15)
@@ -31519,15 +31660,19 @@ local function draw_jam()
   else
     screen.move(126, 51); screen.text_right("UD scale LR root")
   end
-  screen.move(126, 57); screen.text_right("L1/R1 voice  X mode  A latch")
+  -- ("A latch" dropped from the hint — it collided with the ROOT value;
+  -- A-latch stays documented in the README.)
+  screen.move(126, 57); screen.text_right("L1/R1 voice X mode")
   -- Scale-locked zones (castle raid etc.) ignore the mode on exit —
   -- say so, or mode-cycling there reads as broken. Shares the y=63
   -- footer row with the exit hint (same anchor — draw one string, not
   -- two overlapping ones).
   local zone_locked = OW_THEMES and current_theme and OW_THEMES[current_theme]
     and OW_THEMES[current_theme].scale
+  -- Both variants kept to <=13 chars so they clear the MODE value
+  -- (MIXOLYDIAN ends ~x=75; 13 chars at size 5 start at ~x=73).
   screen.move(126, 63)
-  screen.text_right(zone_locked and "KEY LOCKED  B/SEL exit" or "B/SELECT exit")
+  screen.text_right(zone_locked and "LOCKED B exit" or "B/SELECT exit")
   screen.font_face(1); screen.font_size(8)
 end
 
@@ -31699,7 +31844,7 @@ UI.draw_map = function()
 end
 
 -- Achievements: a paginated list of milestones. Locked entries show
--- only a hint; unlocked show the name in bright. Counter at the top.
+-- a dim "? name"; unlocked show "* name" in bright. Counter at the top.
 UI.draw_achievements = function()
   screen.font_face(25); screen.font_size(6)
   screen.level(15); screen.move(64, 7); screen.text_center("ACHIEVEMENTS")
@@ -31719,20 +31864,27 @@ UI.draw_achievements = function()
   local n_defs = #ACHIEVEMENT_DEFS
   local rows = math.ceil(n_defs / 2)
   local pitch = (rows > 7) and 6 or 7
+  -- Both columns render the achievement NAME (never the hint -- hints are
+  -- long and clipped at the ~62px column width): unlocked = bright "* name",
+  -- locked = dim "? name". Names elide to 12 chars (B1 policy) to fit.
   for i = 1, rows do
     local def = ACHIEVEMENT_DEFS[i]
     local y = 14 + (i - 1) * pitch
     local got = CONTENT.achievements[def.id]
-    screen.level(got and 15 or 5)
-    screen.move(2, y); screen.text(got and ("* " .. def.name) or ("? " .. def.hint))
+    local nm = def.name
+    if #nm > 12 then nm = nm:sub(1, 11) .. "." end
+    screen.level(got and 15 or 4)
+    screen.move(2, y); screen.text((got and "* " or "? ") .. nm)
   end
   -- second column
   for i = rows + 1, n_defs do
     local def = ACHIEVEMENT_DEFS[i]
     local y = 14 + (i - rows - 1) * pitch
     local got = CONTENT.achievements[def.id]
-    screen.level(got and 15 or 5)
-    screen.move(70, y); screen.text(got and ("* " .. def.name) or "?")
+    local nm = def.name
+    if #nm > 12 then nm = nm:sub(1, 11) .. "." end
+    screen.level(got and 15 or 4)
+    screen.move(70, y); screen.text((got and "* " or "? ") .. nm)
   end
   screen.level(6); screen.move(126, 62); screen.text_right("B/K2 back")
   screen.font_face(1); screen.font_size(8)
@@ -31785,7 +31937,7 @@ UI.draw_credits = function()
     screen.level(0); screen.rect(0, 50, 128, 14); screen.fill()
     screen.font_face(25); screen.font_size(6)
     screen.level(lev); screen.move(64, 60)
-    screen.text_center("A/K3: NEW GAME +   B/K2: title")
+    screen.text_center("A/K3: NG+   B/K2: title")
     screen.font_face(1); screen.font_size(8)
   end
 end
@@ -31858,75 +32010,75 @@ end
 -- — turning the bestiary into a small sound-design notebook.
 BESTIARY_LORE = {
   slime      = {"Plodding gel of cave damp.",     "Drops the same beat each time.",
-                "warrior @ MIDI 28 — low pulse"},
+                "warrior @ MIDI 28 -- low pulse"},
   bat        = {"Echolocates in flat fifths.",    "Quick to chitter, slow to retreat.",
-                "mage @ MIDI 84 — fast click"},
+                "mage @ MIDI 84 -- fast click"},
   mushroom   = {"Releases pollen on a 12-beat",   "loop. Patient. Almost polite.",
-                "bard @ MIDI 33 — soft lute"},
+                "bard @ MIDI 33 -- soft lute"},
   wisp       = {"A bright orphan note.",          "Sings the same syllable until it dies.",
-                "mage @ MIDI 88 — bright bell"},
+                "mage @ MIDI 88 -- bright bell"},
   wolf       = {"Triple-strike pattern. Pack",    "memory; Suno couldn't tame them.",
-                "warrior @ MIDI 31 — bark stab"},
+                "warrior @ MIDI 31 -- bark stab"},
   echo       = {"Cave-1 boss. Repeats your",      "last move with crueler timing.",
-                "warrior @ MIDI 24 — dark drone"},
+                "warrior @ MIDI 24 -- dark drone"},
   sprite     = {"Faerie remnant. Distracts",      "with bright pixels mid-cast.",
-                "mage @ MIDI 92 — pixie ping"},
+                "mage @ MIDI 92 -- pixie ping"},
   treant     = {"Centuries-old. Sap runs slow",   "but it runs. Strike the bark.",
-                "bard @ MIDI 30 — wood thud"},
+                "bard @ MIDI 30 -- wood thud"},
   sentinel   = {"Cave-2 boss. Three-meter",       "weight, three-beat tell.",
-                "cleric @ MIDI 41 — slow swell"},
+                "cleric @ MIDI 41 -- slow swell"},
   crab       = {"Side-stepping coastal pest.",    "Hard shell, soft underchord.",
-                "warrior @ MIDI 35 — clack"},
+                "warrior @ MIDI 35 -- clack"},
   manta      = {"Tide-glide ambush. Strikes",     "between the seventh wave's beats.",
-                "bard @ MIDI 50 — glide tone"},
+                "bard @ MIDI 50 -- glide tone"},
   tide       = {"Cave-3 boss. Faces in every",    "still pool. Anwell knows them.",
-                "bard @ MIDI 48 — washed lute"},
-  scorpion   = {"Dune-bred. Tail-strike on",      "the rest beat — never the count.",
-                "warrior @ MIDI 38 — sharp tap"},
+                "bard @ MIDI 48 -- washed lute"},
+  scorpion   = {"Dune-bred. Tail-strike on",      "the rest beat -- never the count.",
+                "warrior @ MIDI 38 -- sharp tap"},
   spectre    = {"Half-translucent. Was",          "someone's grandmother once.",
-                "cleric @ MIDI 60 — airy pad"},
+                "cleric @ MIDI 60 -- airy pad"},
   dunerider  = {"Cave-4 boss. Six-beats out,",    "two-back. Cut on the rest.",
-                "mage @ MIDI 72 — dry slap"},
+                "mage @ MIDI 72 -- dry slap"},
   yeti       = {"Carries the cold in its lungs.", "Breath alone slows your tempo.",
-                "warrior @ MIDI 24 — heavy drone"},
+                "warrior @ MIDI 24 -- heavy drone"},
   frostwisp  = {"A dim wisp the cold caught.",    "Sings in a key it can't escape.",
-                "mage @ MIDI 86 — frosted bell"},
+                "mage @ MIDI 86 -- frosted bell"},
   granite    = {"Stone golem. Hears all hits",    "as the same dull chord.",
-                "warrior @ MIDI 26 — slab"},
+                "warrior @ MIDI 26 -- slab"},
   crow       = {"Wraith-feathered. Flies",        "between bars, never on them.",
-                "bard @ MIDI 67 — squawk"},
+                "bard @ MIDI 67 -- squawk"},
   snowgaunt  = {"Cave-5 boss. Waltzes in three.", "Don't follow its meter.",
-                "warrior @ MIDI 21 — bone clack"},
+                "warrior @ MIDI 21 -- bone clack"},
   acolyte    = {"A worshipper frozen mid-prayer.", "Still keeping the soft tempo.",
-                "cleric @ MIDI 60 — soft devotion"},
+                "cleric @ MIDI 60 -- soft devotion"},
   hollowbell = {"Cracked cathedral bell, still",   "tolling under the ice.",
-                "warrior @ MIDI 31 — heavy toll"},
+                "warrior @ MIDI 31 -- heavy toll"},
   brokenchoir= {"What's left of Lirael's choir.",  "Five cracked voices, no center.",
-                "cleric @ MIDI 55 — cracked"},
+                "cleric @ MIDI 55 -- cracked"},
   drownedsinger = {"Sang as the cold took the",    "grotto. The song waterlogged.",
-                "bard @ MIDI 50 — waterlogged"},
+                "bard @ MIDI 50 -- waterlogged"},
   sunolieut  = {"Suno's officer, posted to guard", "a shard already sent away.",
-                "warrior @ MIDI 40 — square march"},
+                "warrior @ MIDI 40 -- square march"},
   lich       = {"Robed and bone-fingered.",       "Conducts pain like a downbeat.",
-                "cleric @ MIDI 31 — dark hymn"},
+                "cleric @ MIDI 31 -- dark hymn"},
   voidcrawler= {"Many-legged shadow. Each",       "leg a separate pulse.",
-                "bard @ MIDI 40 — skitter"},
+                "bard @ MIDI 40 -- skitter"},
   echosuno   = {"Mocking shadow of the King.",    "His timing, none of his weight.",
-                "warrior @ MIDI 36 — distant"},
+                "warrior @ MIDI 36 -- distant"},
   mutewarden = {"Suno's silent sentry.",          "No face. No call. No mercy.",
-                "warrior @ MIDI 30 — rumble"},
+                "warrior @ MIDI 30 -- rumble"},
   locrius    = {"Cave-6 boss. Half-step demon.",  "Strike out of time; he can't follow.",
-                "cleric @ MIDI 31 — pulse"},
+                "cleric @ MIDI 31 -- pulse"},
   suno       = {"The Tuning King.",               "He fears the seventh most of all.",
-                "cleric @ MIDI 36 — choir"},
+                "cleric @ MIDI 36 -- choir"},
   strom      = {"Ex-Lirael garrison. Now wields", "the same hammer for the wrong king.",
-                "warrior @ MIDI 28 — anvil ring"},
+                "warrior @ MIDI 28 -- anvil ring"},
   broken_cadence = {"Lirael's last chorister, now",  "Suno's. Her song won't resolve.",
-                "cleric @ MIDI 28 — faltering hymn"},
+                "cleric @ MIDI 28 -- faltering hymn"},
   firstchord = {"The Held Chord before it broke,", "given shape. The music tests you.",
-                "cleric @ MIDI 12 — primordial drone"},
+                "cleric @ MIDI 12 -- primordial drone"},
   silencer   = {"Suno's faceless enforcer. Built", "from the wire that mutes a song.",
-                "warrior @ MIDI 24 — dead-dry stab"},
+                "warrior @ MIDI 24 -- dead-dry stab"},
 }
 
 UI.draw_bestiary = function()
@@ -31983,12 +32135,21 @@ UI.draw_bestiary = function()
         screen.level(13); screen.move(126, 50)
         screen.text_right("WK:" .. (ABBR[aff.weak] or "?") .. " RS:" .. (ABBR[aff.resist] or "?"))
       else
-        screen.level(7); screen.move(126, 50); screen.text_right(lore[3] or "")
+        -- No affinity entry (firstchord/silencer): show the sound-design
+        -- note instead, clipped to ~16 chars so it clears the AT column.
+        local note = lore[3] or ""
+        if #note > 16 then note = note:sub(1, 16) end
+        screen.level(7); screen.move(126, 50); screen.text_right(note)
       end
     end
-    -- lore (2 compact lines)
-    screen.level(13); screen.move(2, 56); screen.text(lore[1] or "")
-    screen.level(13); screen.move(2, 62); screen.text(lore[2] or "")
+    -- lore (2 compact lines, clipped to the ~28-char row width)
+    local function clip28(s)
+      s = s or ""
+      if #s > 28 then s = s:sub(1, 28) .. ".." end
+      return s
+    end
+    screen.level(13); screen.move(2, 56); screen.text(clip28(lore[1]))
+    screen.level(13); screen.move(2, 62); screen.text(clip28(lore[2]))
     screen.level(6); screen.move(126, 62); screen.text_right("B/K2 back")
     screen.font_face(1); screen.font_size(8)
     return
@@ -32005,14 +32166,20 @@ UI.draw_bestiary = function()
     local is_sel = (idx == sel)
     screen.level(is_sel and 15 or 0)
     screen.move(2, y + 5); screen.text(is_sel and ">" or " ")
-    screen.level(is_sel and 15 or 8); screen.move(8, y + 5); screen.text(e.name)
-    screen.level(is_sel and 13 or 6); screen.move(74, y + 5); screen.text("HP " .. e.hp_max)
-    screen.level(is_sel and 13 or 6); screen.move(102, y + 5); screen.text("AT " .. e.atk)
+    local nm = e.name or "?"
+    if #nm > 12 then nm = nm:sub(1, 11) .. "." end  -- clear the HP col at x=74
+    screen.level(is_sel and 15 or 8); screen.move(8, y + 5); screen.text(nm)
+    screen.level(is_sel and 13 or 6); screen.move(74, y + 5); screen.text("HP " .. (e.hp_max or 0))
+    screen.level(is_sel and 13 or 6); screen.move(102, y + 5); screen.text("AT " .. (e.atk or 0))
   end
   -- Single lore line in list view (line 2 lives in the detail view) so
   -- the y=62 footer is free for hints without text collisions.
   screen.level(3); screen.move(0, 50); screen.line(128, 50); screen.stroke()
-  screen.level(11); screen.move(2, 57); screen.text(lore[1] or "")
+  do
+    local l1 = lore[1] or ""
+    if #l1 > 28 then l1 = l1:sub(1, 28) .. ".." end
+    screen.level(11); screen.move(2, 57); screen.text(l1)
+  end
   screen.level(6); screen.move(2, 63); screen.text("A/K3 view")
   screen.level(6); screen.move(126, 63); screen.text_right("B/K2 back")
   screen.font_face(1); screen.font_size(8)
@@ -32152,9 +32319,9 @@ function items_use_selected()
     for _, q in ipairs(party) do
       if q.alive then q.tonic_ticks = 999 end
     end
-    msg = "ATK boost set for next fight"
+    msg = "ATK up next fight"
   elseif id == "key" then
-    CONTENT.items_flash = "save Keys for locked chests"
+    CONTENT.items_flash = "Keys open locked chests"
     CONTENT.items_flash_ticks = 36
     items_play_sfx("key")
     return
@@ -32309,7 +32476,7 @@ UI.draw_items = function()
     local sel = rows[cur]
     if sel and sel.desc and #sel.desc > 0 then
       local d = sel.desc
-      if #d > 30 then d = d:sub(1, 29) .. "\xE2\x80\xA6" end
+      if #d > 26 then d = d:sub(1, 26) .. ".." end
       screen.level(9); screen.move(2, 56); screen.text(d)
     end
   end

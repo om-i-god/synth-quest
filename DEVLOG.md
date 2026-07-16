@@ -2679,3 +2679,63 @@ copies got the same guards their siblings had.
 Text-clipping sweep of menu/HUD strings; deep save-file fuzz
 (truncated/corrupt tab.load shapes); string.format nil sweep. Next
 wave candidates.
+
+## 2026-07-16 — Wave 12: text layout + copy QA / save-file fuzz / docs
+
+Three auditors (two needed transcript-resume after session limits —
+same recovery as wave 11).
+
+### Save robustness (fuzz auditor, with an executable harness)
+- **Saves are now atomic** (write .tmp, rename). tab.save wrote in
+  place; a power-off mid-write truncated the file and tab.load
+  rejected it -> "No save found", whole run silently gone. norns users
+  pull power routinely — this was the biggest real-world data-loss
+  risk in the game.
+- **The shard autosave fired before the boss instrument drop** —
+  obtain_shard saved, THEN clear_boss granted award_drop + the
+  aftermath queue + achievements. A crash right after a boss kill
+  reloaded to a cleared cave with the unique instrument permanently
+  unobtainable. The autosave now runs at the END of clear_boss (and
+  the superboss clear saves too).
+- Corrupt/hand-edited save tolerance: type normalizer nils any
+  non-table block before the restore loops; Continue is pcall'd on
+  both input paths ("Save corrupt" instead of a crash with globals
+  half-restored); map-id range validation (unknown ids fell through
+  travel_to's else into SUNOS_DOMAIN); player-block field coercion;
+  gold/level/hp clamps; bestiary list guards for partial entries.
+- 40-scenario fuzz harness ran the real load path: missing blocks,
+  wrong types, future versions all traced; only the above needed fixes.
+
+### Text layout (the wave-11 unfinished sweep — 7 clipping blockers)
+Every fix measured against the file's own font calibration: enemy
+names no longer overprint their HP readout ("The Broken Cadence" +
+"1300/1300" shared one 80px row); achievements grid rewritten (locked
+hints ran across both columns and off-screen; now dimmed names, all
+elided to column width); EQUIP fx readout shortened + relocated (it
+overprinted the stat-delta line 2px away AND ran off-screen); victory
+quips wrap to two lines (they lost both ends at 45+ chars on a ~28
+char strip); all four overworld toast boxes (region/inn/tower/event)
+switched to the compact font + full-width boxes (8px font overflowed
+every box); bestiary lore de-em-dashed (36 literal "—" rendered as
+BLANKS in the Tom Thumb font) + truncation guards; JAM footer no
+longer collides with the MODE/ROOT values; dialogue page cap 75->66
+(75-char pages could wrap to a clipped 4th line at the renderer's ~25
+chars/line); battle-HUD armed-glyph slot hoisted clear of the HP text.
+Copy QA came back clean: zero misspellings, zero curly quotes, all
+shard/cave pairing claims verified against clear_boss.
+
+### Docs / release readiness (first-ever pass)
+- README was 2 lines for a content-complete public game — replaced
+  with a full install + dual controls reference (norns-only AND
+  gamepad, every claim cited against the actual handlers).
+- Script header (the norns SELECT-menu preview) said "v0.3 — first
+  dungeon + first battle" and documented gamepad-only controls ->
+  v0.5, content complete, norns-first controls.
+- Title screen flashed "USB Controller Required" when no gamepad was
+  present — false since wave 10. Now "norns keys OK - gamepad
+  optional".
+- viewer/README.md written (the :7777 stream + the viewer.conf
+  IP-drift gotcha, previously undocumented anywhere).
+- Deferred: in-game Controls page (menu is at its 12-slot capacity;
+  proposal = swap the Debug slot, move debug to params). No LICENSE
+  (user's call — flagged).
