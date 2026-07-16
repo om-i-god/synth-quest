@@ -2739,3 +2739,23 @@ shard/cave pairing claims verified against clear_boss.
 - Deferred: in-game Controls page (menu is at its 12-slot capacity;
   proposal = swap the Debug slot, move debug to params). No LICENSE
   (user's call — flagged).
+
+## 2026-07-16 — norns K1 is system-reserved: full rebind (user report)
+
+User report: "no way to access the menu or leave the item shop with
+norns only controls." Root cause: wave 10's parity pass hung actions
+on K1 — but norns reserves K1 taps for the system script/menu toggle;
+scripts only ever see long holds. Every K1-only binding was therefore
+unreachable in practice: opening the game menu, leaving the shop,
+backing out of MENU/STATUS/EQUIP, skipping the intro, exiting Jam Pad
+practice.
+
+Rebind (K1 versions kept as long-hold extras, never required):
+- overworld: K2 = MENU (was jam toggle). Jam Mode moved into the menu
+  (took the Debug slot; debug overlay is now a param).
+- MENU/STATUS/EQUIP: K2 = back. EQUIP character cycle moved to E3.
+- SHOP: K2 = leave (was scroll-up); scrolling moved to E2.
+- intro cutscene: K2 = skip, K3 = advance.
+- battle: K2 exits Jam Pad practice bouts.
+On-screen footers (shop, equip), the script header, and the README
+norns section all updated to match; README now states the K1 rule.

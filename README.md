@@ -30,21 +30,26 @@ was skipped.
 
 ## controls — norns (no controller needed)
 
+Note: K1 is reserved by norns itself (a tap switches to the system
+menu), so the game never requires it — everything lives on K2/K3 and
+the encoders.
+
 - **title** — K2 toggle New Game / Continue · K3 confirm
-- **intro cutscene** — K2/K3 advance · K1 skip
+- **intro cutscene** — K3 advance · K2 skip
 - **overworld** — E2 walk east/west · E3 walk north/south · K3 talk /
-  interact · K2 open/close jam mode · K1 menu
+  interact · K2 menu (Jam Mode + Jam Pad live in the menu)
 - **dialogue** — K2 or K3 advance
 - **battle** — E2 cycle the queued action (plus RESO when that
   character has an attuned Resonance) · K2/K3 previous/next party
-  member · K3 advance the results screen · K1 exits Jam Pad practice
+  member · K3 advance the results screen · K2 exits Jam Pad practice
   bouts
-- **menu** — E2 scroll · K3 select · K1 back
-- **items** — E2 cursor · E3 or K1 cycle tabs · K2 use · K3 back
-- **equip** — K2 next character · E2 choose instrument · K3 equip ·
-  K1 back
+- **menu** — E2 scroll · K3 select · K2 back
+- **items** — E2 cursor · E3 cycle tabs · K2 use · K3 back
+- **equip** — E3 cycle character · E2 choose instrument · K3 equip ·
+  K2 back
 - **party** — E2 focus a standby member · E3 change the active slot ·
   K3 swap in · K2 back
+- **shop** — E2 pick · K3 buy · K2 leave
 - **quests / map / bestiary / shards / achievements** — E2 scroll ·
   K3 page-flip / detail view · K2 back
 - **jam mode** — E2 scale mode · E3 root note · K2 exit (BPM and

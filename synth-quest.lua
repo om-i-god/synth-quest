@@ -6,7 +6,7 @@
 -- the shards, make the chord sing.
 --
 -- norns: E2/E3 walk. K3 talk.
--- K2 jam mode. K1 menu.
+-- K2 menu (jam mode inside).
 -- battle: E2 pick action,
 -- K2/K3 switch character.
 --
@@ -2940,7 +2940,7 @@ local last_input = ""
 local last_input_at = 0
 
 -- pause menu
-local MENU_OPTIONS = {"Save Game", "Party Status", "Party", "Items", "Equipment", "Quests", "Map", "Bestiary", "Shards", "Achievements", "Jam Pad", "Debug"}
+local MENU_OPTIONS = {"Save Game", "Party Status", "Party", "Items", "Equipment", "Quests", "Map", "Bestiary", "Shards", "Achievements", "Jam Mode", "Jam Pad"}
 local menu_idx = 1
 local save_flash_ticks = 0
 local save_flash_text = ""
@@ -19988,8 +19988,9 @@ function gamepad.button(button, state)
         -- missing call site — the feature (and its achievement) was
         -- unreachable by any input.
         enter_jam_pad()
-      elseif opt == "Debug" then
-        debug_visible = not debug_visible
+      elseif opt == "Jam Mode" then
+        jam_prev_state = "OVERWORLD"   -- menu overlays the overworld
+        game_state = "JAM"
       end
       redraw()
     end
@@ -20615,6 +20616,12 @@ function init()
     if not HDMIMirror then return end
     if idx == 2 then HDMIMirror.start() else HDMIMirror.stop() end
   end)
+  -- Debug input overlay — used to be a pause-menu entry; that slot now
+  -- hosts "Jam Mode" (norns needs jam reachable without a gamepad).
+  params:add_option("sq_debug_overlay", "debug overlay", {"off", "on"}, 1)
+  params:set_action("sq_debug_overlay", function(idx)
+    debug_visible = (idx == 2)
+  end)
 
   -- ── Pass 36: MIDI input (Akai MPK or any class-compliant controller) ──
   -- Notes are routed to a dedicated voice (default: bard, Alder's lute).
@@ -20883,10 +20890,11 @@ function key(n, z)
       end
     end
     redraw()
-  elseif game_state == "CUTSCENE" and n == 1 then
-    -- norns K1 acts as the "START" skip — jumps straight to the playable
-    -- prologue (mirrors the gamepad START path, incl. the warp to Miel's
-    -- Royal Quarters so the new-game starting state is consistent).
+  elseif game_state == "CUTSCENE" and (n == 1 or n == 2) then
+    -- K2 (or a long-held K1) skips the intro — jumps straight to the
+    -- playable prologue (mirrors gamepad START, incl. the warp to
+    -- Miel's Royal Quarters). K2 owns this because K1 taps never reach
+    -- scripts on norns.
     game_state = "OVERWORLD"
     params:set("clock_tempo", OVERWORLD_BPM)
     engine.drone_amp(0)
@@ -20894,7 +20902,7 @@ function key(n, z)
     update_camera()
     redraw()
     return
-  elseif game_state == "CUTSCENE" and (n == 2 or n == 3) then
+  elseif game_state == "CUTSCENE" and n == 3 then
     cutscene_idx = cutscene_idx + 1
     CONTENT.cutscene_panel_start = tick
     if cutscene_idx > #CUTSCENE_LINES then
@@ -20910,13 +20918,13 @@ function key(n, z)
     local npc = find_facing_npc()
     if npc then start_dialogue(npc) end
   elseif game_state == "OVERWORLD" and n == 2 then
-    -- K2 toggles JAM mode (norns mirror of the gamepad SELECT toggle —
-    -- JAM was previously gamepad-only to enter). K2 inside JAM already
-    -- exits, so the same key opens and closes it. Same scene guard as
-    -- the SELECT path.
+    -- K2 opens the menu. K1 taps NEVER reach scripts on norns (the
+    -- system reserves them for the script/menu toggle), so the old
+    -- K1-only menu binding was unreachable without a gamepad. Jam mode
+    -- moved into the menu ("Jam Mode" entry).
     if not (SCENE and SCENE.active) then
-      jam_prev_state = "OVERWORLD"
-      game_state = "JAM"
+      game_state = "MENU"
+      menu_idx = 1
       redraw()
     end
   elseif game_state == "OVERWORLD" and n == 1 then
@@ -20924,7 +20932,8 @@ function key(n, z)
     menu_idx = 1
     redraw()
   elseif game_state == "MENU" then
-    if n == 1 then
+    if n == 1 or n == 2 then
+      -- K2 = back (K1 taps don't reach scripts on norns)
       game_state = "OVERWORLD"
       redraw()
     elseif n == 3 then
@@ -20940,14 +20949,17 @@ function key(n, z)
       elseif opt == "Bestiary" then game_state = "BESTIARY"
       elseif opt == "Shards" then game_state = "SHARDS"
       elseif opt == "Jam Pad" then enter_jam_pad()
-      elseif opt == "Debug" then debug_visible = not debug_visible
+      elseif opt == "Jam Mode" then
+        jam_prev_state = "OVERWORLD"   -- menu overlays the overworld
+        game_state = "JAM"
       end
       redraw()
     end
     -- (E2 scrolls cursor; see enc())
   elseif game_state == "STATUS" then
     if n == 2 then
-      status_idx = ((status_idx - 2) % #party) + 1
+      -- K2 = back (K1 taps don't reach scripts); K3 cycles characters
+      game_state = "MENU"
       redraw()
     elseif n == 3 then
       status_idx = (status_idx % #party) + 1
@@ -20958,8 +20970,9 @@ function key(n, z)
     end
   elseif game_state == "EQUIP" then
     if n == 2 then
-      equip_idx = ((equip_idx - 2) % #party) + 1
-      equip_choice = 1
+      -- K2 = back (character cycle lives on E3; K1 taps don't reach
+      -- scripts on norns)
+      game_state = "MENU"
       redraw()
     elseif n == 3 then
       local p = party[equip_idx]
@@ -20986,8 +20999,9 @@ function key(n, z)
     end
   elseif game_state == "SHOP" then
     if n == 2 then
-      do local _vis = shop_visible_order(); local _n = math.max(1, #_vis)
-         SHOP.idx = ((SHOP.idx - 2) % _n) + 1 end
+      -- K2 = leave the shop (scrolling lives on E2; the old K2-scroll +
+      -- K1-exit layout left norns-only players stuck in the shop).
+      game_state = "OVERWORLD"
       redraw()
     elseif n == 3 then
       local id = (shop_visible_order())[SHOP.idx]
@@ -21026,8 +21040,8 @@ function key(n, z)
   elseif game_state == "DIALOGUE" and (n == 2 or n == 3) then
     advance_dialogue()
   elseif game_state == "BATTLE" then
-    if n == 1 and enemy and enemy.invincible then
-      -- K1 exits the Jam Pad practice mode
+    if (n == 1 or n == 2) and enemy and enemy.invincible then
+      -- K2 (or long-held K1) exits the Jam Pad practice mode
       enemy = nil
       battle_outcome = nil
       game_state = "OVERWORLD"
@@ -21181,6 +21195,22 @@ function enc(n, d)
     local list = INST.owned_for(p.class)
     local cnt = math.max(1, #list)
     equip_choice = ((equip_choice - 1 + d) % cnt) + 1
+    redraw()
+    return
+  end
+  -- EQUIP: E3 cycles the character (K2 became "back" — K1 taps never
+  -- reach scripts on norns, so back had to move off K1).
+  if game_state == "EQUIP" and n == 3 then
+    equip_idx = ((equip_idx - 1 + ((d > 0) and 1 or -1)) % #party) + 1
+    equip_choice = 1
+    redraw()
+    return
+  end
+  -- SHOP: E2 scrolls (K2 became "leave" for the same reason).
+  if game_state == "SHOP" and n == 2 then
+    local _vis = shop_visible_order()
+    local cnt = math.max(1, #_vis)
+    SHOP.idx = ((SHOP.idx - 1 + ((d > 0) and 1 or -1)) % cnt) + 1
     redraw()
     return
   end
@@ -31215,7 +31245,7 @@ local function draw_equip()
     end
   end
   -- Footer hint (page dots are gone — moved to header top-right).
-  screen.level(6); screen.move(2, 63); screen.text("L1/R1 char  A equip  B back")
+  screen.level(6); screen.move(2, 63); screen.text("E3 char  A/K3 equip  B/K2 back")
   screen.font_face(1); screen.font_size(8)
 end
 
@@ -31526,7 +31556,7 @@ local function draw_shop()
       screen.level(11); screen.move(64, 56); screen.text_center(sel_it.desc)
     end
     screen.level(6)
-    screen.move(2, 62); screen.text("up/dn pick  A buy  B leave")
+    screen.move(2, 62); screen.text("E2/dpad pick  A/K3 buy  B/K2 leave")
     screen.font_face(1); screen.font_size(8)
   end
 end
