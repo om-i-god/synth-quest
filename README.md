@@ -100,3 +100,7 @@ unreachable, the script pays a small reconnect hitch every 5 seconds.
 - `docs/plans`, `docs/specs` — internal design docs.
 - `lib/Engine_SynthQuest.sc` — the SuperCollider engine.
   `lib/HDMIMirror.lua` — the OLED-over-TCP streamer.
+
+## license
+
+MIT — see `LICENSE`.
