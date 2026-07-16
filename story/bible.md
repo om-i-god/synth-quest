@@ -1925,6 +1925,14 @@ DEF is live as of wave 10. Incoming party damage is reduced
    applied after party-size scaling/block/shield. Before this, def was
    displayed and levelled but never read by any damage path.
 
+Village layout (2026-07-16 redesign). The mainland village uses
+   SINGLE-TILE buildings throughout: inn, shop, and four cottages
+   (Tova, Pip, Elder, Brann's forge), each a whole building in one
+   tile, entered by stepping onto it. Owners stand beside their own
+   doors. The old 3x3 wall-shell houses are gone; routes through the
+   village are kept wide and open by design (playtest feedback: the
+   decorated village was hard to navigate).
+
 ================================================================
                 END OF BIBLE (work in progress)
 ================================================================

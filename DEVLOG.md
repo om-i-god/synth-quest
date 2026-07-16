@@ -2759,3 +2759,38 @@ Rebind (K1 versions kept as long-hold extras, never required):
 - battle: K2 exits Jam Pad practice bouts.
 On-screen footers (shop, equip), the script header, and the README
 norns section all updated to match; README now states the K1 rule.
+
+## 2026-07-16 — Village redesign + dialogue font consistency (user playtest)
+
+User reports from the first real device session:
+
+1. **"Some text small, then the next paragraph large."** The dialogue
+   body rendered short pages in the default 8px font and silently
+   switched to the compact 6px font whenever a page wrapped past three
+   large lines — so text size hopped page to page. The body now always
+   uses the compact font (one size, everywhere), wraps against the
+   real font metrics, and gains a 4th line of capacity inside the
+   same box.
+
+2. **"The village is really hard to navigate... house sizes are
+   inconsistent (1-tile inn vs 9-tile houses)."** Full village
+   redesign, single-tile convention:
+   - New tile 113 "cottage": a whole house in one tile (roof, door,
+     lit window), entered by stepping onto it — same convention as
+     the inn/shop, same CONTENT.HOUSES mechanism (registry keys
+     unchanged: Tova 4,5 · Pip 10,5 · Elder 20,5 · Forge 25,9).
+   - All four 3x3 wall shells removed (28 wall tiles -> open grass /
+     walkable flowers). Route-blocking decor removed: three fence
+     runs, the crate behind the shop, the crate stack + barrel that
+     pinched the inn/shop door approaches, and three trees that NPCs
+     were standing ON (Fern, Wina).
+   - NPCs moved to their homes: Tova, Elder, Pip, and Brann now stand
+     beside their own doors; Iret no longer stands on top of the
+     plaza flag.
+   - Every scene/warp anchor untouched: fountain (15,7) + the
+     (13-16,8) scene spawns, cave mouth (29,7), tower (17,7),
+     arrivals (17,2), pass/hills/arch/pier/campfire/chest all fixed.
+   - (The inventory pass initially suggested Brann's forge door never
+     matched its registry key — that was an off-by-one in the
+     inventory itself; the key "1:25,9" was always correct and still
+     is.)

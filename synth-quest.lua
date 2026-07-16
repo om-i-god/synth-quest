@@ -3138,18 +3138,23 @@ CONTENT = {
   -- "Every door leads somewhere" (2026-07-03): the village/coast tile-5
   -- doors were decorative — walkable, but they warped nowhere. This
   -- registry gives each one a home interior. Keyed by "mapid:x,y" of the
-  -- EXTERIOR door tile; try_move's tile-5 handler looks the key up,
-  -- points CONTENT.house_map / house_npcs at the entry and warps to the
-  -- shared interior map id 38. Tile-5 doors WITHOUT a registry entry
-  -- (interior room doors — Academy office/dorms, Lirael street doors)
-  -- keep their old plain-walkable behavior via fall-through.
+  -- EXTERIOR door/cottage tile; try_move's tile-5/113 handler looks the
+  -- key up, points CONTENT.house_map / house_npcs at the entry and warps
+  -- to the shared interior map id 38. Tile-5 doors WITHOUT a registry
+  -- entry (interior room doors — Academy office/dorms, Lirael street
+  -- doors) keep their old plain-walkable behavior via fall-through.
+  -- VILLAGE REDESIGN (2026-07-16, user playtest): the mainland village's
+  -- 3x3 wall-shell houses are gone — each house is now a SINGLE tile
+  -- 113 "cottage" (whole building in one tile, same convention as the
+  -- inn/shop), at the same coordinates, so these registry keys are
+  -- unchanged. Owners stand beside their own doors.
   -- House shell convention: 10w x 7t, wall ring (4), exit pair 17,17 at
   -- cols 5-6 of row 7, player spawns at (5,6). Interior tile vocabulary
   -- (same as the inn/shop maps): 21 bed, 22 counter, 23 rug, 24 lantern,
   -- 30 fireplace, 31 shelf, 32 table, 33 till, 35 barrel, 38 painting,
   -- 39 plant, 40 chair, 41 sign, 42 broom.
   HOUSES = {
-    -- Tova's house (village west building, door at MAINLAND 4,5).
+    -- Tova's cottage (MAINLAND 4,5).
     -- The sage-scribe's home: reference shelves, a travel desk where
     -- she tracks every road the party walks.
     ["1:4,5"] = {
@@ -3189,7 +3194,7 @@ CONTENT = {
         },
       },
     },
-    -- Pip's house (village middle building, door at MAINLAND 10,5).
+    -- Pip's cottage (MAINLAND 10,5).
     -- Mama's big bed, Pip's small one, and a wall of chalk.
     ["1:10,5"] = {
       label = "Pip's House",
@@ -3224,7 +3229,7 @@ CONTENT = {
         },
       },
     },
-    -- The Elder's house (village east building, door at MAINLAND 20,5).
+    -- The Elder's cottage (MAINLAND 20,5).
     -- Austere: one bed, one table, one shelf. Everything else is memory.
     ["1:20,5"] = {
       label = "the Elder's House",
@@ -6552,16 +6557,16 @@ local cutscene_idx = 1
 local MAINLAND = {
   {1,1,1,1,1,1,1,1,1,1,1,0,15,0,1,1,56,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},  -- col 17 row 1: Far Hills cave-mouth (small mountain)
   {1,0,0,0,0,0,0,0,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1, 1,0,0,0,1,1,0,0,0,0,1,1,1,0,0,1, 1,0,0,103,0,0,0,0,8,8,0,0,0,1,0,1},  -- row 2 stays fully open: it is the ONLY east-west corridor across the house tops (row 3 is walls at cols 3-5/9-11/19-21); col 52: walkable flowers (103) on the coast meadow
-  {1,0,4,4,4,107,0,0,4,4,4,101,2,0,0,0,0,0,4,4,4,101,103,103,0,0,0,0,0,0,0,1, 0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,1, 1,0,1,0,0,0,0,0,0,8,8,0,0,0,0,1},  -- col 6: well (107) at Tova's house corner; col 12: east-yard fence (101) for house 2; col 22: side-yard fence (101) for house 3; cols 23-24: flower patch (103)
-  {1,0,4,0,4,0,0,0,4,0,4,101,2,0,103,0,0,0,4,0,4,101,0,0,1,0,0,0,0,0,0,1, 0,0,0,0,0,0,36,1,0,0,43,0,0,0,1,1, 1,0,0,0,0,0,0,0,0,0,8,8,0,0,1,1},  -- col 12 + col 22: house-2 / house-3 fence runs (101) continue; col 15: walkable flowers (103)
-  {1,0,4,5,4,0,0,103,4,5,4,0,2,102,104,102,0,0,4,5,4,2,2,2,2,2,2,2,2,2,1,1, 0,2,2,2,2,2,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},  -- cols 14-16: flowerbed + bench + flowerbed crowning the plaza (flag 54 + fountain 14 below); col 8: flowers
-  {1,101,0,0,0,0,105,0,0,0,0,108,2,2,54,2,0,108,0,0,0,0,0,0,0,0,103,0,0,0,0,0, 0,2,0,0,0,2,0,0,0,1,0,112,0,1,0,0, 1,0,0,0,0,1,0,0,0,0,0,0,1,0,0,1},  -- col 15 row 6: village plaza flag; col 2: west-yard fence (101) by Tova; cols 14+16: plaza paving ring; cols 12+18: street lamps (108); col 7: crate behind shop; col 27: flowers; col 44: deco signpost (112) on the road shoulder where the woods road passes Cave 2 (45,7) heading for the coast + Cave 3
-  {1,101,93,13,93,12,93,0,0,0,0,0,2,2,14,2,18,0,0,0,0,0,0,0,0,0,0,0,6,0,0,0, 0,2,0,0,0,2,2,2,2,2,2,2,7,0,0,0, 2,2,2,2,2,2,2,2,2,2,2,2,2,9,65,10},  -- cols 3,5,7: storefront walls (93) terracing inn (4,7) + shop (6,7) into one block; col 2: west-yard fence run ends (was a walkable dead-end strip); cols 14+16: plaza paving ring around the fountain (15,7); col 63: Sunward Coast signpost (tile 65) between Cave 3 entry (col 62=9) and boat (col 64=10)
-  {1,1,106,0,35,0,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1,1, 0,2,0,0,0,2,0,0,0,0,0,0,0,0,1,1, 0,0,0,0,2,0,0,0,0,0,0,0,8,8,0,1},  -- col 3: crate stack (106) + col 5: goods barrel (35) flanking the inn (4,8) / shop (6,8) door approaches — both approaches stay open from row 9
-  {1,1,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4,5,4,0,57,0,0,0,1, 1,2,0,0,0,0,0,0,0,0,0,0,1,0,0,1, 1,0,0,0,2,0,0,0,0,0,0,0,8,8,0,1},  -- col 28: anvil tile next to Brann the smith (col 27 = Brann NPC)
-  {1,0,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,103,0,0,4,0,4,0,1,0,0,0,1, 1,2,0,103,0,0,0,0,0,0,0,1,0,0,0,1, 1,0,0,0,0,0,0,0,0,0,8,8,8,0,0,1},  -- col 21: walkable flowers (103) on the south green; col 36: walkable flowers (103) in the Hollow Woods meadow
-  {1,0,0,0,103,0,2,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,4,4,4,0,0,0,0,0,1, 1,1,0,0,0,0,103,0,0,0,1,1,0,0,1,1, 1,0,0,0,0,0,0,0,8,8,8,8,0,0,0,1},  -- col 5: walkable flowers (103) on the riverside meadow; col 39: walkable flowers (103) south of the woods campfire
-  {1,0,1,0,0,0,0,0,45,45,45,3,3,3,3,3,3,3,3,3,3,3,3,3,3,0,0,0,0,0,0,1, 1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1, 1,1,0,0,0,0,8,8,8,8,0,0,0,0,0,1},
+  {1,0,0,0,0,107,0,0,0,0,0,0,2,0,0,0,0,0,0,0,0,0,103,103,0,0,0,0,0,0,0,1, 0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,1, 1,0,1,0,0,0,0,0,0,8,8,0,0,0,0,1},  -- row 3 opens up: the old 3x3 house shells are gone (cottages are single tiles on row 5 now); well (107) stays at Tova's corner; flower patch (103) at cols 23-24
+  {1,0,0,0,0,0,0,0,0,0,0,0,2,0,103,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,1, 0,0,0,0,0,0,36,1,0,0,43,0,0,0,1,1, 1,0,0,0,0,0,0,0,0,0,8,8,0,0,1,1},  -- row 4: open green above the cottage lane (was side walls + fence runs)
+  {1,0,103,113,103,0,0,103,103,113,103,0,2,102,104,102,0,0,103,113,103,2,2,2,2,2,2,2,2,2,1,1, 0,2,2,2,2,2,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},  -- cottage lane: single-tile cottages (113) — Tova (4,5), Pip (10,5), Elder (20,5) — flanked by walkable flowers (103); cols 14-16 flowerbed+bench+flowerbed crown the plaza
+  {1,0,0,0,0,0,0,0,0,0,0,108,2,2,54,2,0,108,0,0,0,0,0,0,0,0,103,0,0,0,0,0, 0,2,0,0,0,2,0,0,0,1,0,112,0,1,0,0, 1,0,0,0,0,1,0,0,0,0,0,0,1,0,0,1},  -- col 15 row 6: plaza flag; lamps (108) at cols 12+18; west fence + shop crate removed for open routes
+  {1,0,93,13,93,12,93,0,0,0,0,0,2,2,14,2,18,0,0,0,0,0,0,0,0,0,0,0,6,0,0,0, 0,2,0,0,0,2,2,2,2,2,2,2,7,0,0,0, 2,2,2,2,2,2,2,2,2,2,2,2,2,9,65,10},  -- cols 3,5,7: storefront walls (93) terracing inn (4,7) + shop (6,7); plaza ring around the fountain (15,7); col 63: Sunward signpost between Cave 3 (62) and boat (64)
+  {1,1,0,0,0,0,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1,1, 0,2,0,0,0,2,0,0,0,0,0,0,0,0,1,1, 0,0,0,0,2,0,0,0,0,0,0,0,8,8,0,1},  -- row 8: the full-width main street — door approaches for inn/shop kept clear (crate stack + barrel removed)
+  {1,1,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,103,113,0,0,57,0,0,0,1, 1,2,0,0,0,0,0,0,0,0,0,0,1,0,0,1, 1,0,0,0,2,0,0,0,0,0,0,0,8,8,0,1},  -- Brann's Forge is a single cottage (113) at (25,9) -- HOUSES key "1:25,9"; the old 3x3 shell (walls at cols 24+26) is gone; anvil (57) at col 28
+  {1,0,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,103,0,0,0,0,0,0,1,0,0,0,1, 1,2,0,103,0,0,0,0,0,0,0,1,0,0,0,1, 1,0,0,0,0,0,0,0,0,0,8,8,8,0,0,1},  -- row 10: open green south of the forge (was forge side walls)
+  {1,0,0,0,103,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1, 1,1,0,0,0,0,103,0,0,0,1,1,0,0,1,1, 1,0,0,0,0,0,0,0,8,8,8,8,0,0,0,1},  -- row 11: forge south wall + the two lakeside trees removed (Fern stood ON one)
+  {1,0,0,0,0,0,0,0,45,45,45,3,3,3,3,3,3,3,3,3,3,3,3,3,3,0,0,0,0,0,0,1, 1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1, 1,1,0,0,0,0,8,8,8,8,0,0,0,0,0,1},  -- pier (45) at cols 9-11; tree under Wina (3,12) removed
   {1,0,0,0,0,0,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,0,0,0,0,0,1, 1,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1, 1,1,1,0,0,8,8,8,0,0,0,0,0,0,0,1},
   {1,47,0,111,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,0,0,0,1,1, 1,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1, 1,1,1,1,8,8,8,0,0,0,0,0,0,0,0,1},  -- col 4: chord-sigil statue (111) waypoint beside the Western Region arch (47 at col 2) -- arch approach (3,14) + arrival tile (3,13) + Wina (3,13 area) all stay open
   {1,1,1,1,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,1,1,1,1,1, 1,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1, 1,1,1,1,8,8,8,0,0,0,0,0,0,0,0,1},
@@ -10646,9 +10651,10 @@ local MAINLAND_NPCS = {
       }
     end,
   },
-  -- (One tile WEST of her front door at (4,5) — standing on (4,6)
-  -- blocked the only approach to her own house.)
-  { x = 3, y = 6, name = "Tova",
+  -- Beside her cottage door (4,5), on the west flower tile — standing
+  -- at (4,6) pinned the one-tile column between her door and the inn
+  -- (4,7). Vell mirrors her on the east flowers at (5,5).
+  { x = 3, y = 5, name = "Tova",
     barks = {"hmm.", "(turns a page)", "fascinating.", "ah, the dean.", "(scribbles)"},
     dialogue = function()
       local lead = party[active] and party[active].class
@@ -10709,7 +10715,7 @@ local MAINLAND_NPCS = {
   },
   -- (Plaza Hens removed Pass 24 — she now runs the item-shop interior;
   -- the village no longer has a duplicate outdoor shop NPC.)
-  { x = 19, y = 6, name = "Elder",
+  { x = 20, y = 6, name = "Elder",
     dialogue = function()
       local lead = party[active] and party[active].class
       -- The village Elder knew Miel's grandmother, and remembers seeing
@@ -10796,7 +10802,7 @@ local MAINLAND_NPCS = {
       })
     end,
   },
-  { x = 27, y = 9, name = "Brann",
+  { x = 26, y = 9, name = "Brann",
     barks = {"(clang)", "iron, sing.", "tempering.", "(blows on ember)", "shape it true."},
     dialogue = function()
       local lead = party[active] and party[active].class
@@ -10861,7 +10867,7 @@ local MAINLAND_NPCS = {
       })
     end,
   },
-  { x = 14, y = 8, name = "Pip",
+  { x = 10, y = 6, name = "Pip",
     barks = {"woah.", "(chases a chicken)", "uncle Brann!", "did you see that?", "i can run faster!"},
     dialogue = function()
       local lead = party[active] and party[active].class
@@ -11685,7 +11691,7 @@ local MAINLAND_NPCS = {
 
   -- IRET — The Diplomat. Suno's silver-tongued envoy. Appears in the village
   -- after the first shard. Tries to talk the party down. (No battle.)
-  { x = 15, y = 6, name = "Iret",
+  { x = 16, y = 6, name = "Iret",
     visible = function()
       local n = 0; for _, v in pairs(shards) do if v then n = n + 1 end end
       return n >= 1
@@ -14340,6 +14346,7 @@ local function is_walkable(tx, ty)
       or t == 92   -- drumhall door (Phrygian 36 <-> Ruined Drum-Hall 37)
       or t == 103  -- flowers_walk (walkable; sparse blossoms on open grass)
       or t == 110  -- bridge_h (walkable; plank bridge over water)
+      or t == 113  -- cottage (walkable; stepping onto it enters via CONTENT.HOUSES)
 end
 
 -- True when an NPC is currently rendered + interactable. NPCs may have
@@ -16280,7 +16287,7 @@ local function try_move(dx, dy)
     redraw()
     return
   end
-  if t == 5 then
+  if t == 5 or t == 113 then
     -- House door (tile 5). Every door leads somewhere: doors registered
     -- in CONTENT.HOUSES (keyed "mapid:x,y" of the door tile) warp into
     -- that home's interior on shared map id 38. Unregistered tile-5
@@ -23193,6 +23200,32 @@ end
 -- Tile 112 — signpost_deco (impassable). Non-routing wooden sign: angled
 -- plank on a post with scratch-writing dashes. Deliberately distinct from
 -- 65 (the routed Sunward signpost), which stays travel-wired.
+-- Tile 113 — standalone cottage: a WHOLE house in one tile (same
+-- convention as the inn/shop). Enterable like tile-5 doors via the
+-- CONTENT.HOUSES registry; the wall-shell houses were replaced by
+-- these in the 2026-07-16 village redesign (user: building footprints
+-- were inconsistent — 1-tile inn vs 9-tile houses — and the shells
+-- choked navigation).
+TILE_DRAW[113] = function(px, py)
+  -- ground / base
+  screen.level(2); screen.rect(px, py, 8, 8); screen.fill()
+  -- walls (plaster, slightly darker than the inn's timber)
+  screen.level(6); screen.rect(px + 1, py + 4, 6, 4); screen.fill()
+  -- peaked roof
+  screen.level(10)
+  screen.move(px,     py + 4)
+  screen.line(px + 4, py)
+  screen.line(px + 8, py + 4)
+  screen.close()
+  screen.fill()
+  -- door (dark, centered — walking onto the tile enters)
+  screen.level(0); screen.rect(px + 3, py + 5, 2, 3); screen.fill()
+  -- small window (steady warm light)
+  screen.level(11); screen.pixel(px + 6, py + 5); screen.fill()
+  -- chimney nub
+  screen.level(7); screen.rect(px + 6, py + 1, 1, 2); screen.fill()
+end
+
 TILE_DRAW[112] = function(px, py)
   screen.level(2); screen.rect(px, py, 8, 8); screen.fill()           -- ground under
   screen.level(5); screen.rect(px + 3, py + 3, 1, 5); screen.fill()   -- post
@@ -26958,7 +26991,7 @@ local function draw_overworld()
     if fnpc.kind == "object" then verb = "check"
     elseif fnpc.kind == "pet" then verb = "pet" end
     screen.text_center("A/K3: " .. verb)
-  elseif ftile == 5 and (tick % 8) < 5 then
+  elseif (ftile == 5 or ftile == 113) and (tick % 8) < 5 then
     screen.level(15)
     screen.move(64, 60)
     screen.text_center("walk in")   -- tile-5 doors are homes now, not the inn
@@ -27343,9 +27376,12 @@ local function draw_dialogue()
   end
 
   -- ── BODY STRIP (y=39..62) ──
-  -- 3 lines max. Default font (8 tall) fits 3 lines at y=46/54/62; the
-  -- compact font (6 tall) is used when wrap count exceeds 3 with default
-  -- font, still capped at 3 lines.
+  -- Always the compact 6px font. The old scheme rendered short pages in
+  -- the default 8px font and flipped to compact only when a page
+  -- wrapped past 3 large lines — so consecutive pages changed text size
+  -- constantly, which playtested as "some text small, then the next
+  -- paragraph large." One font, one size, always (user report,
+  -- 2026-07-16).
   --
   -- FF-style typewriter. Characters reveal at TYPEWRITER_CPT chars/tick.
   -- 3.0 cpt @ 20fps = 60 chars/sec — fast enough that the reveal feels
@@ -27367,25 +27403,17 @@ local function draw_dialogue()
   local visible_body = body:sub(1, revealed)
   screen.level(13)
   local body_x = 2
-  -- Pre-compute the FULL line count so font choice doesn't hop mid-
-  -- reveal. (Otherwise a 4-line message would suddenly switch to the
-  -- compact font as the typewriter crossed the 3-line threshold.)
+  -- Set the font BEFORE wrapping: wrap_text measures with the current
+  -- font via screen.text_extents.
+  screen.font_face(25); screen.font_size(6)
   local lines = wrap_text(visible_body, 124 - body_x)
-  local full_lines = wrap_text(body, 124 - body_x)
-  if #full_lines > 3 then
-    screen.font_face(25); screen.font_size(6)
-    local lines_compact = wrap_text(visible_body, 124 - body_x)
-    for i = 1, math.min(3, #lines_compact) do
-      screen.move(body_x, 45 + i * 6)
-      screen.text(lines_compact[i])
-    end
-    screen.font_face(1); screen.font_size(8)
-  else
-    for i = 1, math.min(3, #lines) do
-      screen.move(body_x, 38 + i * 8)
-      screen.text(lines[i])
-    end
+  -- 4 compact lines fit the 39..62 strip (6px pitch), which also gives
+  -- the 66-char page cap comfortable headroom.
+  for i = 1, math.min(4, #lines) do
+    screen.move(body_x, 39 + i * 6)   -- baselines 45/51/57/63: last row inside the box
+    screen.text(lines[i])
   end
+  screen.font_face(1); screen.font_size(8)
   -- advance prompt — only flickers once the full line is revealed.
   if dlg.complete and (tick % 6) < 4 then
     screen.level(15)
@@ -31844,7 +31872,8 @@ UI.draw_map = function()
       elseif t == 2 or t == 45 then lev = 11                -- path / pier
       elseif t == 3 then lev = 5                            -- water
       elseif t == 5 or t == 47 or t == 48 or t == 49        -- doors / arches
-          or t == 50 or t == 51 or t == 52 or t == 56 then lev = 13
+          or t == 50 or t == 51 or t == 52 or t == 56
+          or t == 113 then lev = 13                         -- cottages read as doors
       elseif t == 8 then lev = 9                            -- sand
       elseif t >= 6 and t <= 14 then lev = 7                -- cave / floor variants
       else lev = 4
