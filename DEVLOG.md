@@ -3084,3 +3084,21 @@ Fix: the Sergei beat now plays only if he's actually a companion
 (CONTENT.recruits[1].joined), and when it does it SPAWNS him at the gate
 so the camera focus lands on a visible actor. Not recruited -> the beat
 is skipped entirely.
+
+## 2026-07-17 — Hide a character's world standee while they're in the active party
+
+User: "whenever we are using a reserve character in the main party we
+shouldn't see them or be able to interact with them as npcs."
+
+Recruit/party standees (Sergei at 43,3; Paj-recruit at 6,4; Niko at
+10,2; Alder at 17,4) stayed visible in the world even while that
+character was in the active party — so you'd see a duplicate of someone
+you were already travelling with, and could walk up and "talk" to them.
+
+Fix: a single guard in npc_visible() (the shared gate for both render
+and interaction) hides an NPC whose display name matches an ACTIVE
+party member. Scoped to plain NPCs (kind nil/"npc") so same-named
+vendors are untouched — notably Paj the librarian shop (26,10) vs Paj
+the mathwiz recruit. Benched or not-yet-recruited members still appear
+at their spots (unchanged); only active-party members are hidden.
+Verified in an isolated harness across active/benched cases.

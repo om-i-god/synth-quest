@@ -14440,6 +14440,18 @@ end
 -- a `visible` function that returns false to hide them (e.g. story-gated
 -- antagonists who only show up after a specific milestone).
 local function npc_visible(n)
+  -- A character who is currently in the ACTIVE party must not also stand
+  -- in the world as their recruit/standee NPC — you'd see (and be able to
+  -- talk to) a duplicate of someone you're already travelling with.
+  -- Scoped to plain NPCs (kind nil/"npc") so a same-named vendor is
+  -- unaffected, e.g. Paj the librarian shop vs Paj the mathwiz recruit.
+  if n.name and (n.kind == nil or n.kind == "npc") then
+    for _, p in ipairs(party or {}) do
+      if p.class and (CHAR_NAME[p.class] or p.class) == n.name then
+        return false
+      end
+    end
+  end
   return (type(n.visible) ~= "function") or n.visible()
 end
 
