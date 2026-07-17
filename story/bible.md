@@ -1977,11 +1977,19 @@ Enemy sonic signatures are scale-relative (2026-07-17, wave 14).
    chords, Sergei's Bb souring, Mira's C# grace, ECHO's Disperse run,
    and the act-3 silence detune.
 
-Sunward Coast exit (2026-07-17). The road back to the mainland is a
-   framed 3-tile road mouth on the town's WEST edge (col 1, rows 6-8;
-   tile 65 warp). You arrive next to it. Mara names it in the arrival
-   scene; a banner re-flags it on re-entry. Cave 3 (Tide Cavern) is the
-   EAST exit (tile 9). Don't wall over either.
+Sunward Coast geography (2026-07-17). The Sunward Coast is ONE place:
+   the town on map 35. The mainland's eastern strip (map 1, cols 49-64)
+   is now "East Shore" — just the approach to the Sunward signpost, not
+   a second coast. The town has three edges/exits:
+     - WEST: framed 3-tile road mouth (tile 65) back to the mainland /
+       East Shore. You arrive beside it; Mara names it; a banner
+       re-flags it on re-entry.
+     - EAST: Cave 3 / Tide Cavern (tile 9) — the ONLY Cave 3 entrance
+       (the duplicate mainland mouth was removed 2026-07-17).
+     - SOUTH DOCK: the boat (tile 10) to the Eastern Reaches, moored off
+       the west pier at (5,12). Ferries map 35 <-> map 2. (The boat used
+       to sit on the mainland strip; moved into the town 2026-07-17.)
+   Don't wall over any of the three.
 
 ================================================================
                 END OF BIBLE (work in progress)

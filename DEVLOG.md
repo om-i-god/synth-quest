@@ -3015,3 +3015,32 @@ Fixes:
   a banner flashes "Mainland road: west <-" as you spawn beside the
   mouth. Mara's first-visit arrival dialogue now also names the west
   road home, so both first-timers and returners are pointed at it.
+
+## 2026-07-17 — Sunward Coast: one cave, one boat, one coast (user report)
+
+User: "There's two entrances to Cave 3 and what seems like 2 versions
+of the sunward coast. Remove the first cave 3 and place the boat to the
+eastern reaches at the dock on the south end of the sunward coast."
+
+Root of the confusion: the mainland's east strip (map 1, cols 49-64)
+and the Sunward Coast town (map 35) both read as coast, and the strip
+carried a duplicate Cave 3 mouth AND the Eastern-Reaches boat clustered
+next to the town signpost. So Cave 3 had two entrances and the boat
+lived outside the town it belongs to.
+
+Consolidated everything into the town:
+- **Removed the mainland Cave 3** (map 1 (62,7) tile 9 -> path). Cave 3
+  is now entered only from the town's east edge (map 35 (32,7)).
+- **Moved the Eastern-Reaches boat into the town.** Removed the mainland
+  boat (map 1 (64,7) tile 10 -> border wall) and moored it at the town's
+  south dock (map 35 (5,12), off the west pier). The boat handler now
+  ferries map 35 <-> map 2; the VOYAGE screen says "SUNWARD COAST" on
+  the return leg. Sela's "take the boat free" line now points at it.
+- **Fixed the naming.** Only the mainland strip was labelled "Sunward
+  Coast" (the town showed no banner). Renamed the mainland region to
+  "East Shore" and gave the town the "Sunward Coast" place-name, so
+  there's one Sunward Coast (the town) and the strip reads as its
+  approach.
+- Mainland signpost (63,7) unchanged — still the town link. BFS-verified:
+  town Cave 3 + boat + all cottages reachable; boat lands on a real dock
+  tile (5,11); mainland signpost still reachable from the village.

@@ -3040,7 +3040,7 @@ CONTENT = {
   campfires = {
     {map = 1, x = 16, y = 4},     -- Village clearing above Lyrik (Alder's prologue fire)
     {map = 1, x = 38, y = 9},     -- Hollow Woods
-    {map = 1, x = 53, y = 8},     -- Sunward Coast
+    {map = 1, x = 53, y = 8},     -- East Shore (mainland approach to the Sunward signpost)
     {map = 3, x = 10, y = 8},     -- Northern Wilds ((10,9) was impassable sand; moved one north onto grass)
   },
   -- Return position used when exiting an interior (door tile 17).
@@ -6861,7 +6861,8 @@ local cutscene_idx = 1
 -- 111 = statue            (impassable; small chord-sigil statue for plazas)
 -- 112 = signpost_deco     (impassable; non-routing wooden sign; 65 stays routed)
 -- Map data is per-continent; active map swaps via travel_to().
--- MAINLAND (64x16): cols 1-32 = Village; 33-48 = Hollow Woods; 49-64 = Sunward Coast.
+-- MAINLAND (64x16): cols 1-32 = Village; 33-48 = Hollow Woods; 49-64 = East Shore
+-- (mainland approach; the Sunward Coast town proper is map 35 via the signpost).
 -- Mountain pass (id 15) at row 1 col 13 → Northern Wilds (current_map_id 3).
 -- Row 7: inn (4,7) + shop (6,7) terraced with storefront walls (93) at cols 3,5,7.
 local MAINLAND = {
@@ -6871,7 +6872,7 @@ local MAINLAND = {
   {1,0,0,0,0,0,0,0,0,0,0,0,2,0,103,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,1, 0,0,0,0,0,0,36,1,0,0,43,0,0,0,1,1, 1,0,0,0,0,0,0,0,0,0,8,8,0,0,1,1},  -- row 4: open green above the cottage lane (was side walls + fence runs)
   {1,0,103,113,103,0,0,103,103,113,103,0,2,102,104,102,0,0,103,113,103,2,2,2,2,2,2,2,2,2,1,1, 0,2,2,2,2,2,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},  -- cottage lane: single-tile cottages (113) — Tova (4,5), Pip (10,5), Elder (20,5) — flanked by walkable flowers (103); cols 14-16 flowerbed+bench+flowerbed crown the plaza
   {1,0,0,0,0,0,0,0,0,0,0,108,2,2,54,2,0,108,0,0,0,0,0,0,0,0,103,0,0,0,0,0, 0,2,0,0,0,2,0,0,0,1,0,112,0,1,0,0, 1,0,0,0,0,1,0,0,0,0,0,0,1,0,0,1},  -- col 15 row 6: plaza flag; lamps (108) at cols 12+18; west fence + shop crate removed for open routes
-  {1,0,93,13,93,12,93,0,0,0,0,0,2,2,14,2,18,0,0,0,0,0,0,0,0,0,0,0,6,0,0,0, 0,2,0,0,0,2,2,2,2,2,2,2,7,0,0,0, 2,2,2,2,2,2,2,2,2,2,2,2,2,9,65,10},  -- cols 3,5,7: storefront walls (93) terracing inn (4,7) + shop (6,7); plaza ring around the fountain (15,7); col 63: Sunward signpost between Cave 3 (62) and boat (64)
+  {1,0,93,13,93,12,93,0,0,0,0,0,2,2,14,2,18,0,0,0,0,0,0,0,0,0,0,0,6,0,0,0, 0,2,0,0,0,2,2,2,2,2,2,2,7,0,0,0, 2,2,2,2,2,2,2,2,2,2,2,2,2,2,65,1},  -- cols 3,5,7: storefront walls (93) terracing inn (4,7) + shop (6,7); plaza ring around the fountain (15,7); col 63: Sunward signpost to the Sunward Coast town (Cave 3 + the Eastern-Reaches boat now live in the town, not on this strip)
   {1,1,0,0,0,0,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1,1, 0,2,0,0,0,2,0,0,0,0,0,0,0,0,1,1, 0,0,0,0,2,0,0,0,0,0,0,0,8,8,0,1},  -- row 8: the full-width main street — door approaches for inn/shop kept clear (crate stack + barrel removed)
   {1,1,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,103,113,0,0,57,0,0,0,1, 1,2,0,0,0,0,0,0,0,0,0,0,1,0,0,1, 1,0,0,0,2,0,0,0,0,0,0,0,8,8,0,1},  -- Brann's Forge is a single cottage (113) at (25,9) -- HOUSES key "1:25,9"; the old 3x3 shell (walls at cols 24+26) is gone; anvil (57) at col 28
   {1,0,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,103,0,0,0,0,0,0,1,0,0,0,1, 1,2,0,103,0,0,0,0,0,0,0,1,0,0,0,1, 1,0,0,0,0,0,0,0,0,0,8,8,8,0,0,1},  -- row 10: open green south of the forge (was forge side walls)
@@ -6969,7 +6970,7 @@ SUNWARD_COAST_MAP = {
   {1,0,0,0,0,0,2,0,0,2,0,0,2,63,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,0},  -- (1,9) cliff frames the exit mouth
   {3,3,3,60,60,60,2,0,0,2,2,2,2,2,2,104,2,108,2,2,2,2,2,2,2,2,108,2,2,2,3,3},  -- promenade row: bench (104, col 16) + street lamp (108, col 18) flanking the water-gap viewpoint below the bandstand; second lamp (108) at col 27 by the tavern -- row 9 (open cols 15-29) bypasses every blocked cell, the tavern is now a single cottage tile at (25,5)
   {3,3,3,60,60,60,60,60,60,60,60,60,60,60,105,3,3,3,35,60,60,60,60,60,60,60,60,105,3,3,3,3},  -- dock-row edge clutter at the strip ends (dead-end planks only): crate (105) at col 15, goods barrel (35) at col 19, crate (105) at col 28 -- Beck (4,11) + gull ambient (9,11) planks untouched, both strips still entered anywhere from row 10
-  {3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3},
+  {3,3,3,3,10,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3},  -- south-dock boat (tile 10): ferry to the Eastern Reaches; moored off the west pier at (5,12)
   {3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3},
   {3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3},
   {3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3},
@@ -16095,15 +16096,17 @@ local function try_move(dx, dy)
     return
   end
   if t == 10 then
-    -- boat tile: trigger voyage to other continent
-    if current_map_id == 1 then
-      voyage_target_map = 2
-      voyage_target_x = 2   -- land just east of boat at (1,8) on Eastern Reaches
-      voyage_target_y = 8
+    -- boat tile: ferry between the Sunward Coast south dock (map 35) and
+    -- the Eastern Reaches (map 2). (The old mainland dock was removed —
+    -- the boat now moors at the town's pier, reached via the signpost.)
+    if current_map_id == 2 then
+      voyage_target_map = 35
+      voyage_target_x = 5    -- land on the south-dock plank north of the boat
+      voyage_target_y = 11
     else
-      voyage_target_map = 1
-      voyage_target_x = 63   -- land just west of mainland boat at (64,7)
-      voyage_target_y = 7
+      voyage_target_map = 2
+      voyage_target_x = 2    -- land just east of the boat at (1,8) on Eastern Reaches
+      voyage_target_y = 8
     end
     voyage_ticks = VOYAGE_DURATION
     game_state = "VOYAGE"
@@ -26967,7 +26970,8 @@ local function draw_overworld()
     local PLACE_NAMES = {
       ["1:village"] = "Village Clearing",
       ["1:woods"]   = "Hollow Woods",
-      ["1:coast"]   = "Sunward Coast",
+      ["1:coast"]   = "East Shore",
+      ["35:"]       = "Sunward Coast",
       ["2:"]        = "Eastern Reaches",
       ["3:"]        = "Northern Wilds",
       ["4:"]        = "Suno's Domain",
@@ -30842,7 +30846,7 @@ local function draw_voyage()
   screen.pixel(bx + 9, by - 4)
   screen.fill()
   -- text banner
-  local dest = voyage_target_map == 2 and "EASTERN REACHES" or "MAINLAND"
+  local dest = voyage_target_map == 2 and "EASTERN REACHES" or "SUNWARD COAST"
   screen.level(0)
   screen.rect(0, 54, 128, 10)
   screen.fill()
