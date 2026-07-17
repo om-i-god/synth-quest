@@ -1895,7 +1895,10 @@ Halla's brothers. Her ELDEST brother fell at Frostridge; Skari,
    a younger brother, runs the shop next door. Both true.
 
 Name near-collision (do not confuse): WINA is the lake seer on the
-   mainland; WINNA is the Lirael court librarian. One letter apart,
+   mainland; WINNA is the Lirael court librarian. Likewise TILDE the
+   village fountain-coin kid and TILDE the Western Region sparrow girl
+   are, regrettably, two different small girls with one name — treat
+   as distinct (2026-07-16). One letter apart,
    both mystic women, deliberately distinct people. Any future
    rename should touch Wina (the seer), not Winna.
 
@@ -1932,6 +1935,25 @@ Village layout (2026-07-16 redesign). The mainland village uses
    doors. The old 3x3 wall-shell houses are gone; routes through the
    village are kept wide and open by design (playtest feedback: the
    decorated village was hard to navigate).
+
+Wave-13 dialogue canon (2026-07-16). Locked in code this pass:
+   - Pip (village kid) is a BOY — he/his throughout.
+   - Pell the Sunward singer knew Miel as a child: he sang at her
+     grandmother's table in Lirael when she was six (hymn lullaby).
+   - Strom's departure line: "Thirty years of orders. His were the
+     last. Today I hand them back."
+   - The young Phrygian scout addresses Miel as "My queen" (the
+     crown passed when the cathedral fell); the Veiled Mystic still
+     says "Princess" DELIBERATELY — she knew Miel before the fall.
+   - Post-ionian payoff lines exist for Iret, Vance, and Tess and
+     take precedence over their locrian-era branches.
+   - Achievement rename: the 2+ char combo achievement is "First
+     Harmony" (id first_chord unchanged, saves keep unlocks) to stop
+     colliding with "First Chord Silenced" (superboss).
+   - Companions journal panel and PARTY reserve list now key off a
+     persisted ever_joined flag: benched members stay lit, joined
+     recruits are listed, and starters can no longer be swapped in
+     before their story join.
 
 ================================================================
                 END OF BIBLE (work in progress)

@@ -344,7 +344,7 @@ RESONANCE_SITES = {
       hint  = "Mira in the Phrygian bazaar (engineer lead)",
     },
     shrine = {
-      map  = 36, x = 23, y = 8, lead = "engineer",
+      map  = 36, x = 23, y = 7, lead = "engineer",
       signature = {
         visual = "phrygian_scatter",
         sound  = { class = "mage", note = 60, vel = 0.65, attack = 0.005, release = 2.0, wet = 0.8 },
@@ -2934,7 +2934,7 @@ local l2_held = false
 local _trigger_prev = false  -- previous trigger-pressed state for edge detection
 
 -- DEBUG: track the most recent gamepad event for on-screen display
--- (visibility toggled by "Debug" menu option)
+-- (visibility toggled by the "debug overlay" param)
 local debug_visible = false
 local last_input = ""
 local last_input_at = 0
@@ -3315,7 +3315,7 @@ CONTENT = {
         },
       },
     },
-    -- Fisher cottage (Sunward Coast west-of-two, door at 10,2). Nets and
+    -- Fisher cottage (Sunward Coast west-of-two, cottage tile at 10,2). Nets and
     -- salt; the loft is lent to whoever the road brings — Wynne, lately.
     ["35:10,2"] = {
       label = "the Fisher's Cottage",
@@ -3340,7 +3340,7 @@ CONTENT = {
         },
       },
     },
-    -- The Harbormaster's house (Sunward Coast east-of-two, door at 24,2).
+    -- The Harbormaster's house (Sunward Coast east-of-two, cottage tile at 24,2).
     -- Mara keeps the bandstand; the house keeps everything else.
     ["35:24,2"] = {
       label = "the Harbormaster's House",
@@ -3372,7 +3372,7 @@ CONTENT = {
         },
       },
     },
-    -- Beck's cottage (Sunward Coast west edge, door at 4,3). Ropes,
+    -- Beck's cottage (Sunward Coast west edge, cottage tile at 4,3). Ropes,
     -- boots, and a cat who has claimed the rug in perpetuity.
     ["35:4,3"] = {
       label = "Beck's Cottage",
@@ -3405,10 +3405,10 @@ CONTENT = {
         },
       },
     },
-    -- The Sunward tavern (both doors — 25,5 north and 25,8 south — warp
-    -- here; the south key is aliased to this entry just below the
-    -- CONTENT literal). Hask behind his own bar at last; Vesa records
-    -- the room from a table.
+    -- The Sunward tavern (single cottage tile 113 at (25,5) warps here;
+    -- the old south door (25,8) and its alias key were removed in the
+    -- shell->cottage conversion). Hask behind his own bar at last;
+    -- Vesa records the room from a table.
     ["35:25,5"] = {
       label = "the Sunward Tavern",
       map = {
@@ -3515,8 +3515,9 @@ CONTENT = {
     {4,0,0,0,4,4,5,4,4,0,0,0,0,0,0,0,0,0,4,4,5,4,4,4,0,0,0,4},
     -- row 9 (dorm wing west; library east wall begins)
     {4,0,4,5,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,72,72,72,72,72,72,4},
-    -- row 10 (dorm room interior)
-    {4,0,4,0,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,72,0,0,0,0,72,4},
+    -- row 10 (dorm room interior W; tile-5 library door at col 22 E —
+    -- plain walkable door, no warp, same convention as the row-8 rooms)
+    {4,0,4,0,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,5,0,0,0,0,72,4},
     -- row 11
     {4,0,4,5,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,72,0,0,0,0,72,4},
     -- row 12
@@ -3547,7 +3548,7 @@ CONTENT = {
     },
     -- Iola — Velthe's last apprentice, senior scholar (visible at Academy until migration)
     {
-      x = 20, y = 2, name = "Iola", kind = "npc",
+      x = 21, y = 3, name = "Iola", kind = "npc",
       visible = function() return not flag.velthes_entry_heard end,
       dialogue = function()
         local lead = party[active] and party[active].class
@@ -3660,7 +3661,7 @@ CONTENT = {
     },
     -- Wena — dorm philosopher (from bible stub)
     {
-      x = 3, y = 10, name = "Wena", kind = "npc",
+      x = 4, y = 10, name = "Wena", kind = "npc",
       dialogue = function()
         local lead = party[active] and party[active].class
         if lead == "cleric" then
@@ -3682,7 +3683,7 @@ CONTENT = {
     -- and while any SCENE is active so the static NPC doesn't overlap the
     -- scene's spawned actor (same pattern as the Page warning fix).
     {
-      x = 13, y = 6, name = "Echo", kind = "npc",
+      x = 12, y = 6, name = "Echo", kind = "npc",
       visible = function()
         return not (CONTENT.scene_seen and CONTENT.scene_seen.echo_recruit)
                and not (SCENE and SCENE.active)
@@ -4211,40 +4212,6 @@ CONTENT = {
     {1,89,0,0,0,0,8,8,0,0, 0, 0, 0, 0,0,0,0,0,0,8,8,0,0,1},  -- lirael_entry (col 2 row 10; mourning road west)
     {1,1,1,1,1,1,1,1,1,1, 1, 1, 1, 1,1,1,1,1,1,1,1,1,47,1},   -- east-edge return tile
   },
-  western_region_npcs = {
-    -- Maro the woods-sketcher — Tovia's apprentice. Stands on the
-    -- approach apron sketching the academy facade. Visible only after
-    -- Tovia first appears (n>=0 always, but flavor varies by progress).
-    { x = 5, y = 8, name = "Maro",
-      dialogue = function()
-        local lead = party[active] and party[active].class
-        local n = 0; for _, v in pairs(shards) do if v then n = n + 1 end end
-        -- Maro recognises Diegues from the academy — she's Tovia's apprentice
-        -- and was sent west to map what the academy hadn't catalogued.
-        if lead == "mage" then
-          return {
-            "[Maro]   (looks up, then up again, slower) -- Diegues?",
-            "[Maro]   You taught my third-year seminar. (...) I missed three of them.",
-            "[Maro]   You said that was fine. You said the readings ran longer than the term.",
-            "[Maro]   I still have the notes you marked. I am still finishing them.",
-          }
-        end
-        if n >= 6 then
-          return {
-            "[Maro]   Tovia said you'd come back through here.",
-            "[Maro]   I'm sketching the academy door before they fix it. Before is a different drawing than after.",
-            "[Maro]   I'd hate to lose the before. The before is what tells the door what it survived.",
-          }
-        end
-        return {
-          "[Maro]   (squints up from a half-finished page) Hello, traveler.",
-          "[Maro]   I am Tovia's apprentice. She sent me west to mark what is not yet on the map.",
-          "[Maro]   The academy door, mostly. And the arch in the trees -- you've seen it? The one with vines.",
-          "[Maro]   Don't touch the vines. They are how the arch tells you it is older than you.",
-        }
-      end,
-    },
-  },
   -- Lirael Ruins (map id 23) — Miel's burned ancestral home. Reached
   -- via tile 51 (lirael-entry) on the western_region map after the
   -- academy arc completes. Expanded layout: the RUINED THRONE HALL in
@@ -4338,7 +4305,7 @@ CONTENT = {
     -- Bren — Lirael steward (renamed from bible stub "Brann" to avoid
     -- collision with Brann the Phrygian caravan master placed in Phase 2.4).
     {
-      x = 6, y = 11, name = "Bren", kind = "npc",
+      x = 7, y = 11, name = "Bren", kind = "npc",
       dialogue = function()
         local lead = party[active] and party[active].class
         if lead == "cleric" then
@@ -4383,7 +4350,7 @@ CONTENT = {
     },
     -- Winna — court librarian, salvaging the cathedral library.
     {
-      x = 35, y = 3, name = "Winna", kind = "npc",
+      x = 34, y = 3, name = "Winna", kind = "npc",
       dialogue = function()
         local lead = party[active] and party[active].class
         if lead == "cleric" then
@@ -4591,13 +4558,17 @@ CONTENT = {
       "(a lean shelf of Velthe's discarded drafts -- staves crossed out, margins full of argument)",
       "(one page is pinned flat by a pebble: 'The lock is not the door. Stop writing this down, V.')",
     } end },
-    -- Iola — Velthe's apprentice, present after the first-arrival scene.
+    -- Iola — Velthe's apprentice, present after the first-arrival scene
+    -- and only UNTIL flag.velthes_entry_heard: after that the desk Iola
+    -- at (12,8) takes over (the two gates are mutually exclusive so the
+    -- pair can never render as a double-Iola).
     -- Stands inside the telescope alcove (reachable via the col-13 gap).
     { x = 9, y = 5, name = "Iola",
       -- Hide during scripted scenes (the first-visit scene spawns its
       -- own Iola actor — two Iolas stood side by side otherwise).
       visible = function()
         return (CONTENT.scene_seen and CONTENT.scene_seen.observatory_first)
+          and not flag.velthes_entry_heard
           and not (SCENE and SCENE.active)
       end,
       dialogue = function()
@@ -4988,11 +4959,6 @@ CONTENT = {
   cave7_npcs = {},
 }
 
--- The Sunward tavern has two working doors (north 25,5 / south 25,8);
--- both registry keys resolve to the same interior. Aliased here because
--- a table literal can't reference its own fields mid-construction.
-CONTENT.HOUSES["35:25,8"] = CONTENT.HOUSES["35:25,5"]
-
 -- Global jam controls (root-note transposition in semitones; bpm offset).
 -- Adjusted via dpad while in JAM mode; persisted in save.
 -- Build a 25-note scale array from a list of semitone intervals (one octave),
@@ -5256,7 +5222,10 @@ local STORY = {
           "[Strom]  Not at the wake. Not at the cairn. Not when her brother came asking.",
           "[Strom]  I thought saying it would make her gone twice.",
         }
-        if CONTENT.recruits[1] and CONTENT.recruits[1].joined then
+        if STORY.seen.sergei_first_night then
+          -- Gate on the SCENE, not the join: Strom was recounting the
+          -- fireside conversation before it had happened, and then it
+          -- replayed as new the next rest.
           out[#out + 1] = "[Strom]  Sergei knew her brother. Different rig, same hands."
           out[#out + 1] = "[Strom]  He told me her name back to me. Told me it was hers to be carried, not hidden."
         else
@@ -5340,8 +5309,11 @@ local STORY = {
     },
     {
       id = "all_six_at_inn",
+      -- "Six of us" must be literally six: core four + Sergei + Paj,
+      -- BEFORE Niko joins (he often already had by the old trigger).
       trig = function()
         return CONTENT and CONTENT.recruits[1].joined and CONTENT.recruits[2].joined
+           and not (CONTENT.recruits[3] and CONTENT.recruits[3].joined)
       end,
       lines = {
         "[Alder]  Six of us under one roof. Crowded.",
@@ -5817,7 +5789,7 @@ local STORY = {
         "[Diegues] (closes his notebook for the first time in months)",
         "[Diegues] I won't need to write what happens next.",
         "[Diegues] We'll either remember it or we won't.",
-        "[Strom]   I followed his orders for thirty years. Today I deliver them back.",
+        "[Strom]   Thirty years of orders. His were the last. Today I hand them back.",
         "[Alder]   I've been picking the chord for weeks. It's almost in tune.",
         "[Miel]    (cups her hand to her ear. Listens to the room.)",
         "[Miel]    Grandmother. Listen with me.",
@@ -5876,10 +5848,12 @@ local STORY = {
     -- a party of four. Provides closure on her arc before the finale.
     {
       id = "lirael_memorial",
+      -- Village-only: Miel stops at the plaza fountain.
       trig = function()
         return CONTENT and #party >= 4
            and party[active] and party[active].class == "cleric"
            and shards.locrian   -- gated late-game so it lands with weight
+           and current_map_id == 1 and player.x <= 32
       end,
       lines = {
         "(Miel stops at the village fountain. She does not drink.)",
@@ -5964,9 +5938,12 @@ local STORY = {
     -- joins — Miel + Alder only, before Diegues/Strom recruit.
     {
       id = "first_night_with_alder",
+      -- Yields to first_inn_after_escape: that scene says "first time
+      -- indoors in 47 days", so it must actually BE the first rest.
       trig = function()
         return CONTENT and class_in_party and class_in_party("bard") and class_in_party("cleric")
            and not class_in_party("mage") and not class_in_party("warrior")
+           and STORY.seen.first_inn_after_escape
       end,
       lines = {
         "(Two bowls. The innkeeper sets the second one down without comment.)",
@@ -5986,10 +5963,14 @@ local STORY = {
     -- shards collected, just to seed the Lirael thread.
     {
       id = "miel_fountain_early",
+      -- Village-only (it narrates the plaza fountain) and yields to
+      -- first_inn_after_escape (see that scene's first-rest claim).
       trig = function()
         return CONTENT and CONTENT.prologue_state == "complete"
            and class_in_party and class_in_party("cleric")
            and not (shards.dorian or shards.mixolydian)
+           and STORY.seen.first_inn_after_escape
+           and current_map_id == 1 and player.x <= 32
       end,
       lines = {
         "(Late evening. The plaza fountain runs even at this hour.)",
@@ -6081,21 +6062,23 @@ local STORY = {
     -- to the queen-on-the-run thread.
     {
       id = "pip_gift",
+      -- Village-only: Pip waits in the VILLAGE inn doorway.
       trig = function()
         return shards.locrian and class_in_party and class_in_party("cleric")
            and party[active] and party[active].class == "cleric"
+           and current_map_id == 1 and player.x <= 32
       end,
       lines = {
-        "(Pip is waiting in the doorway when you wake. She's been waiting a while; her hair is squashed on one side.)",
+        "(Pip is waiting in the doorway when you wake. He's been waiting a while; his hair is squashed on one side.)",
         "[Pip]    I made you a thing.",
-        "[Pip]    (she holds up a small folded paper crown. The folds are not perfect.)",
+        "[Pip]    (he holds up a small folded paper crown. The folds are not perfect.)",
         "[Pip]    I asked Mama what queens wore and she said you didn't always need a real one.",
         "[Pip]    So I made you this. (...) it's mostly sturdy.",
         "[Miel]   (kneels; takes it carefully) Pip. Thank you.",
         "[Miel]   (sets the paper crown gently in her coat pocket. Touches it once.)",
         "[Miel]   I'll wear it when it counts.",
         "[Pip]    (whispers) I tested it for two whole days.",
-        "(She bolts back to her mother. The kitchen door bangs open and shut.)",
+        "(He bolts back to his mother. The kitchen door bangs open and shut.)",
       },
     },
 
@@ -6139,6 +6122,10 @@ local STORY = {
     },
   },
 }
+-- Mirror to _G: trig/lines closures INSIDE the constructor above bind
+-- the global STORY (the local isn't in scope until after this line) —
+-- same trap as _G.travel_to / _G.save_game.
+_G.STORY = STORY
 
 -- Map dialogue [Speaker] tag → class so we can drop lines whose speaker
 -- isn't currently in the active party. Narrator lines (no tag) and
@@ -6399,6 +6386,7 @@ local BPM_MIN, BPM_MAX, BPM_STEP = 60, 180, 1
 
 -- overworld state
 local player = { x = 6, y = 6, facing = "down" }
+_G.player = player   -- STORY-constructor closures bind the global (see _G.STORY)
 local cam = { x = 1, y = 1 }
 -- Forward decls pulled UP here so that scene-builder functions defined
 -- BEFORE their original declarations (start_prologue_throne_scene,
@@ -6417,7 +6405,7 @@ local dlg = { npc = nil, line = 1 }
 
 -- party (persists across battles)
 -- GLOBAL (not local) for the same reason as CONTENT above: closures
--- defined inside CONTENT NPC tables (Tisa, Maro, Tova, etc.) reference
+-- defined inside CONTENT NPC tables (Tisa, Tova, Iola, etc.) reference
 -- party[active] at compile time. The local declaration here happens
 -- after those closures are parsed, so as a local it's invisible to
 -- them and they bind 'party' as a global. Keeping it global makes
@@ -6445,6 +6433,7 @@ local current_cave = 1
 
 -- which continent are we on
 local current_map_id = 1   -- 1 = Mainland, 2 = Eastern Reaches
+_G.current_map_id = 1      -- value-mirror for STORY closures; travel_to re-syncs it
 
 -- voyage state
 local voyage_ticks = 0
@@ -6479,7 +6468,7 @@ local victory_step = 0
 -- shards collected
 local shards = {lydian=false, dorian=false, mixolydian=false, phrygian=false, aeolian=false, locrian=false, ionian=false}
 -- Mirror to _ENV so closures created BEFORE this line (STORY trig blocks,
--- CONTENT dialogue lines for Maro/Iola, recent_shard / shard_react_line /
+-- CONTENT dialogue lines for Quill/Iola, recent_shard / shard_react_line /
 -- with_shard_react helpers, etc.) can resolve `shards` at call time.
 -- Without this mirror, leaving any inn after any shard was collected
 -- crashes the STORY iterator on `pairs(shards)` / `shards.lydian` etc.
@@ -6644,21 +6633,20 @@ local SUNOS_DOMAIN = {
 -- 32w x 16h
 -- =================================================================
 SUNWARD_COAST_MAP = {
-  -- rows 1-2: the two north cottages. Their doors used to sit on the
-  -- map-edge row 1 (facing off-map, with open south sides); rebuilt
-  -- 2026-07-03 as closed boxes with south-face doors on row 2, reachable
-  -- from the path row 3. Fisher cottage door (10,2); Harbormaster's
-  -- house door (24,2). Both doors warp via CONTENT.HOUSES.
-  {1,1,1,1,0,0,0,0,4,4,4,0,0,0,0,1,1,1,1,1,0,0,4,4,4,0,0,1,1,1,1,1},
-  {1,0,0,0,0,0,0,0,4,5,4,102,0,0,0,0,0,0,0,0,0,0,4,5,4,102,0,0,0,0,0,1},  -- cols 12+26: flower boxes (102) beside the fisher-cottage (10,2) and harbormaster (24,2) doors -- both door approaches from row 3 stay open
-  {1,0,4,5,4,0,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,0,1},  -- col 4: Beck's cottage door (north face, reached from row 2)
-  {1,0,4,4,4,0,2,64,64,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,1},  -- Beck's box closed (was 4,0,4 with an open south side)
-  {0,0,0,0,0,0,2,0,0,2,64,64,2,0,0,62,62,62,0,0,0,0,0,4,5,4,0,0,0,2,0,0},  -- (25,5): tavern north door
-  {0,0,0,0,0,0,2,0,0,2,0,0,2,0,0,62,62,62,0,0,0,0,0,4,4,4,0,0,0,2,0,0},   -- tavern body (was a dead-end 61 corridor)
-  {65,2,2,2,2,2,2,0,0,2,0,0,2,0,0,62,62,62,0,0,0,0,0,4,4,4,0,0,0,2,2,9},  -- col 1: Sunward Coast signpost (tile 65) — west-path return to MAINLAND
-  {0,0,0,0,0,0,2,0,0,2,64,64,2,0,0,0,0,0,0,0,0,0,0,4,5,4,0,0,0,2,0,0},    -- (25,8): tavern south door
+  -- rows 1-2: the two north cottages, converted from multi-tile shells
+  -- to single-tile cottages (113) matching the village convention.
+  -- Fisher cottage (10,2); Harbormaster's house (24,2). Stepping onto
+  -- a 113 tile warps via CONTENT.HOUSES (keys "35:10,2" / "35:24,2").
+  {1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,0,0,0,0,0,0,0,1,1,1,1,1},
+  {1,0,0,0,0,0,0,0,0,113,0,102,0,0,0,0,0,0,0,0,0,0,0,113,0,102,0,0,0,0,0,1},  -- fisher cottage (113) at (10,2) + harbormaster cottage (113) at (24,2); flower boxes (102) at cols 12+26 beside them
+  {1,0,0,113,0,0,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,0,1},  -- col 4: Beck's cottage (single tile 113 at (4,3))
+  {1,0,0,0,0,0,2,64,64,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,1},  -- open ground (Beck's old shell removed; cottage is the single 113 above)
+  {0,0,0,0,0,0,2,0,0,2,64,64,2,0,0,62,62,62,0,0,0,0,0,0,113,0,0,0,0,2,0,0},  -- (25,5): the Sunward tavern, single cottage tile (113)
+  {0,0,0,0,0,0,2,0,0,2,0,0,2,0,0,62,62,62,0,0,0,0,0,0,0,0,0,0,0,2,0,0},  -- open ground (old tavern body removed)
+  {65,2,2,2,2,2,2,0,0,2,0,0,2,0,0,62,62,62,0,0,0,0,0,0,0,0,0,0,0,2,2,9},  -- col 1: Sunward Coast signpost (tile 65) — west-path return to MAINLAND
+  {0,0,0,0,0,0,2,0,0,2,64,64,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,0},  -- open ground (old tavern south door (25,8) removed; enter at the (25,5) cottage)
   {0,0,0,0,0,0,2,0,0,2,0,0,2,63,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,0},
-  {3,3,3,60,60,60,2,0,0,2,2,2,2,2,2,104,2,108,2,2,2,2,2,2,2,2,108,2,2,2,3,3},  -- promenade row: bench (104, col 16) + street lamp (108, col 18) flanking the water-gap viewpoint below the bandstand; second lamp (108) at col 27 by the tavern -- row 9 (open cols 15-29) bypasses every blocked cell, tavern south-door approach (25,9)->(25,10) untouched
+  {3,3,3,60,60,60,2,0,0,2,2,2,2,2,2,104,2,108,2,2,2,2,2,2,2,2,108,2,2,2,3,3},  -- promenade row: bench (104, col 16) + street lamp (108, col 18) flanking the water-gap viewpoint below the bandstand; second lamp (108) at col 27 by the tavern -- row 9 (open cols 15-29) bypasses every blocked cell, the tavern is now a single cottage tile at (25,5)
   {3,3,3,60,60,60,60,60,60,60,60,60,60,60,105,3,3,3,35,60,60,60,60,60,60,60,60,105,3,3,3,3},  -- dock-row edge clutter at the strip ends (dead-end planks only): crate (105) at col 15, goods barrel (35) at col 19, crate (105) at col 28 -- Beck (4,11) + gull ambient (9,11) planks untouched, both strips still entered anywhere from row 10
   {3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3},
   {3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3},
@@ -6927,6 +6915,7 @@ function start_academy_intro()
   SCENE.start(script, function()
     if CHARACTERS and CHARACTERS.mage and not class_in_party("mage") then
       party[#party + 1] = CHARACTERS.mage
+      CHARACTERS.mage.ever_joined = true
     end
     start_strom_battle()
   end)
@@ -7891,6 +7880,7 @@ function finish_academy_arc()
   SCENE.start(script, function()
     if CHARACTERS and CHARACTERS.warrior and not class_in_party("warrior") then
       party[#party + 1] = CHARACTERS.warrior
+      CHARACTERS.warrior.ever_joined = true
     end
     game_state = "OVERWORLD"
     update_camera()
@@ -8629,7 +8619,7 @@ function start_tower_entry_scene()
   table.insert(script, {wait = 12})
   table.insert(script, {dialogue = {
     "[Miel]     (touches the threshold with one hand)",
-    "[Miel]     Six. The seventh is up the road.",
+    "[Miel]     The rest of the chord is up this road.",
     "[Miel]     ...let's go.",
   }, npc = {name = "Miel"}})
   -- Step forward one tile.
@@ -9248,7 +9238,7 @@ function start_phrygian_strom_confronted_scene()
   local script = {
     {hide_player = true},
     {letterbox_in = true},
-    {focus = {x = 22, y = 5}, ticks = 18},
+    {focus = {x = 21, y = 5}, ticks = 18},
     {wait = 8},
     {dialogue = {
       "[Aram]   I was your second.",
@@ -9283,8 +9273,8 @@ function start_phrygian_strom_confronted_scene()
       if party then
         for _, p in ipairs(party) do
           if p.class == "warrior" then
-            p.max_hp = (p.max_hp or 200) + 5
-            p.hp = math.min((p.hp or p.max_hp) + 5, p.max_hp)
+            p.hp_max = (p.hp_max or 200) + 5
+            p.hp = math.min((p.hp or p.hp_max) + 5, p.hp_max)
           end
         end
       end
@@ -10634,6 +10624,7 @@ local MAINLAND_NPCS = {
         {set = function()
           if CHARACTERS and CHARACTERS.bard and not class_in_party("bard") then
             party[#party + 1] = CHARACTERS.bard
+            CHARACTERS.bard.ever_joined = true
           end
         end},
       }
@@ -10644,6 +10635,7 @@ local MAINLAND_NPCS = {
       -- start_dialogue still finds a dialogue if SCENE.start can't run.
       if CHARACTERS and CHARACTERS.bard and not class_in_party("bard") then
         party[#party + 1] = CHARACTERS.bard
+        CHARACTERS.bard.ever_joined = true
       end
       return {
         "[Alder] Wherever you're going -- I'm coming.",
@@ -11700,9 +11692,18 @@ local MAINLAND_NPCS = {
       flag.iret_met = true
       local n = 0; for _, v in pairs(shards) do if v then n = n + 1 end end
       local lead = party[active] and party[active].class
+      if shards.ionian then
+        -- Post-ending payoff: she said she'd be watching, and she was.
+        return {
+          "I was at the Tower base when the chord rang. As promised.",
+          "Silence did not suit him. (a small, tired shrug) Nothing did.",
+          "The Quiet Court is dissolved. I am -- between employers.",
+          "Your village takes letters? I write a very tidy hand.",
+        }
+      end
       if shards.locrian then
         return {
-          "Six shards. We tried, didn't we?",
+          "Nearly whole, that chord of yours. We tried, didn't we?",
           "I offered you houses. Coin. Pardon. You took the road instead.",
           "I'll be at the Tower base when it's done --",
           "to see whether silence finally suits him.",
@@ -11751,9 +11752,17 @@ local MAINLAND_NPCS = {
       flag.vance_met = true
       local n = 0; for _, v in pairs(shards) do if v then n = n + 1 end end
       local lead = party[active] and party[active].class
+      if shards.ionian then
+        return {
+          "(his sword is wrapped and slung. Not drawn. Retired.)",
+          "I stood the Chamber gate. You came with the chord whole, as told.",
+          "A soldier can lose correctly. Few get the chance.",
+          "(he bows, one inch, precisely.)",
+        }
+      end
       if shards.locrian then
         return {
-          "Six. The seventh is mine to defend. I'll be at the Chamber gate.",
+          "The seventh is mine to defend. I'll be at the Chamber gate.",
           "Bring the chord whole or don't come at all.",
           "(he turns and walks east without waiting.)",
         }
@@ -11802,6 +11811,13 @@ local MAINLAND_NPCS = {
           "and a key for the chamber's antesanctum.",
           "Bring him down. I'll sing harmony.",
           "(+150g  +1 Key)",
+        }
+      end
+      if CONTENT.tess_defected and shards.ionian then
+        return {
+          "You rang it. I knew the moment the woods changed key.",
+          "Stew's on at the inn tonight. I keep my promises --",
+          "the ones I make after leaving the wrong ones.",
         }
       end
       if CONTENT.tess_defected then
@@ -11976,9 +11992,9 @@ local MAINLAND_NPCS = {
     end,
   },
   -- Anvel the journeyman smith (renamed from a second "Bren" — that
-  -- name is the Lirael steward's) — works at a small open-air anvil in
-  -- the village center, two tiles east of Brann (the path runs through
-  -- here). His hammer-strike pattern is the warrior's natural meter
+  -- name is the Lirael steward's) — works at a small open-air anvil
+  -- just east of Brann's cottage (the path runs through here). His
+  -- hammer-strike pattern is the warrior's natural meter
   -- (4-on-the-floor). Lore deepens as the chord assembles.
   { x = 29, y = 9, name = "Anvel",
     barks = {"(hammer falls)", "hear THAT ring?", "(hisses quench)", "mornin'.", "(clang) (clang)"},
@@ -12736,7 +12752,7 @@ CONTENT.inn_npcs = {
       -- and sang a hymn at Strom's enlistment.
       if lead == "cleric" then
         return {
-          "[Pell]   You sat on this very stool when you were six. Refused to leave until I sang the hymn.",
+          "[Pell]   I sang at your grandmother's table in Lirael once. You were six. Refused to sleep until the hymn.",
           "[Pell]   I sang it. Twice. You napped through the second.",
           "[Pell]   (his voice softens) I'd sing it again. Just say the word.",
         }
@@ -13297,6 +13313,39 @@ CONTENT.northern_shop_npcs = {
 -- The region between mainland and the Academy. Two NPCs add texture:
 -- a fled scholar and a roadside child.
 CONTENT.western_region_npcs = {
+  -- Maro the woods-sketcher — Tovia's apprentice. Sits on the approach
+  -- apron just off the academy door, sketching the facade. (Recovered
+  -- from a shadowed early NPC table where this entry was unreachable;
+  -- live for the first time as of wave 13.)
+  { x = 14, y = 8, name = "Maro",
+    dialogue = function()
+      local lead = party[active] and party[active].class
+      local n = 0; for _, v in pairs(shards) do if v then n = n + 1 end end
+      -- Maro recognises Diegues from the academy — she's Tovia's apprentice
+      -- and was sent west to map what the academy hadn't catalogued.
+      if lead == "mage" then
+        return {
+          "[Maro]   (looks up, then up again, slower) -- Diegues?",
+          "[Maro]   You taught my third-year seminar. (...) I missed three of them.",
+          "[Maro]   You said that was fine. You said the readings ran longer than the term.",
+          "[Maro]   I still have the notes you marked. I am still finishing them.",
+        }
+      end
+      if n >= 6 then
+        return {
+          "[Maro]   Tovia said you'd come back through here.",
+          "[Maro]   I'm sketching the academy door before they fix it. Before is a different drawing than after.",
+          "[Maro]   I'd hate to lose the before. The before is what tells the door what it survived.",
+        }
+      end
+      return {
+        "[Maro]   (squints up from a half-finished page) Hello, traveler.",
+        "[Maro]   I am Tovia's apprentice. She sent me west to mark what is not yet on the map.",
+        "[Maro]   The academy door, mostly. And the arch in the trees -- you've seen it? The one with vines.",
+        "[Maro]   Don't touch the vines. They are how the arch tells you it is older than you.",
+      }
+    end,
+  },
   { x = 5, y = 8, name = "Quill",
     dialogue = function()
       local lead = party[active] and party[active].class
@@ -13893,8 +13942,22 @@ CONTENT.hollow_npcs = {
 CONTENT.sunward_coast_npcs = {
   -- Mara — Harbormaster's widow, runs the bandstand
   { x = 16, y = 5, name = "Mara", kind = "npc",
+    -- Hide while a scene runs: the bandstand scene spawns its own
+    -- "mara_stage" actor beside this static (double-Mara otherwise).
+    visible = function() return not (SCENE and SCENE.active) end,
     dialogue = function()
       local lead = party[active] and party[active].class
+      -- Whole-chord: Coral has taken the stand (her n>=7 debut) — the
+      -- "empty stage" offer below would contradict it.
+      local n = 0
+      for _, v in pairs(shards) do if v then n = n + 1 end end
+      if n >= 7 then
+        return {
+          "(she nods at the bandstand, where Coral is holding the high notes)",
+          "The stage found its next voice.",
+          "He'd have liked her count. Sit with me and listen.",
+        }
+      end
       if lead == "bard" then
         return {
           "(she sees Alder and her hands still on the lute)",
@@ -13948,9 +14011,12 @@ CONTENT.sunward_coast_npcs = {
   },
   -- (Hask, the tavern keeper, moved INSIDE the tavern 2026-07-03 — see
   -- CONTENT.HOUSES["35:25,5"]. He used to stand in the dead-end door
-  -- corridor at (25,6), which is now solid tavern wall.)
+  -- corridor at (25,6) — open ground since the tavern shell became a
+  -- single cottage tile at (25,5).)
   -- Coral — 12-year-old aspiring singer
   { x = 17, y = 6, name = "Coral", kind = "npc",
+    -- Hide during scenes: the bandstand scene stages actors around her.
+    visible = function() return not (SCENE and SCENE.active) end,
     dialogue = function()
       local lead = party[active] and party[active].class
       -- Whole-chord payoff: Coral finally gets her stage. (She was
@@ -14020,7 +14086,7 @@ CONTENT.sunward_coast_npcs = {
     end,
   },
   -- Pell — market fishmonger (shop)
-  { x = 11, y = 5, name = "Pell", kind = "shop",
+  { x = 11, y = 6, name = "Pell", kind = "shop",
     dialogue = function()
       return {
         "Salted fish, two coppers. Kelp tea, one.",
@@ -14073,7 +14139,7 @@ CONTENT.sunward_coast_npcs = {
 CONTENT.phrygian_city_npcs = {
   -- Aram — Phrygian war-veteran, Strom's former second-in-command
   {
-    x = 22, y = 5, name = "Aram", kind = "npc",
+    x = 21, y = 5, name = "Aram", kind = "npc",
     dialogue = function()
       local lead = party[active] and party[active].class
       if lead == "warrior" then
@@ -14113,7 +14179,7 @@ CONTENT.phrygian_city_npcs = {
   },
   -- Mira — drone-singer
   {
-    x = 23, y = 8, name = "Mira", kind = "npc",
+    x = 23, y = 7, name = "Mira", kind = "npc",
     dialogue = function()
       local lead = party[active] and party[active].class
       if lead == "bard" then
@@ -14152,7 +14218,7 @@ CONTENT.phrygian_city_npcs = {
   },
   -- Brann — caravan master / shop
   {
-    x = 6, y = 5, name = "Brann", kind = "shop",
+    x = 5, y = 5, name = "Brann", kind = "shop",
     dialogue = function()
       return {
         "Brann's caravan! Finest goods on three roads!",
@@ -14216,7 +14282,7 @@ CONTENT.phrygian_city_npcs = {
       elseif lead == "cleric" then
         return {
           "(young, asking carefully)",
-          "Princess. Does war ever stop? I want to know.",
+          "My queen. Does war ever stop? I want to know.",
         }
       else
         return {
@@ -14597,6 +14663,7 @@ save_game = function()
       level = ch.level, xp = ch.xp, xp_total = ch.xp_total,
       hp_max = ch.hp_max, mp_max = ch.mp_max,
       atk = ch.atk, def = ch.def, mag = ch.mag, spd = ch.spd,
+      ever_joined = ch.ever_joined or nil,
     }
   end
   data.party_classes = {}
@@ -14821,12 +14888,28 @@ local function load_game()
         ch.level = math.max(1, tonumber(ch.level) or 1)
         ch.hp = math.min(ch.hp or ch.hp_max, ch.hp_max)
         ch.mp = math.min(ch.mp or ch.mp_max, ch.mp_max)
+        ch.ever_joined = sp.ever_joined or ch.ever_joined
+          or (ch.xp_total or 0) > 0 or ch.level > 1
       end
     end
     -- Rebuild party slots from the saved class order.
     if data.party_classes then
       for i, cls in ipairs(data.party_classes) do
-        if CHARACTERS[cls] then party[i] = CHARACTERS[cls] end
+        if CHARACTERS[cls] then
+          party[i] = CHARACTERS[cls]
+          CHARACTERS[cls].ever_joined = true
+        end
+      end
+    end
+    -- Pre-flag-save backstop: recruits only ever join after all four
+    -- starters have, so any joined recruit proves the starters joined —
+    -- keeps a benched L1/0-xp starter from vanishing off the reserve list.
+    for _, r in ipairs((CONTENT and CONTENT.recruits) or {}) do
+      if r.joined then
+        for _, cls in ipairs({"cleric", "bard", "warrior", "mage"}) do
+          if CHARACTERS[cls] then CHARACTERS[cls].ever_joined = true end
+        end
+        break
       end
     end
     if data.active then active = math.max(1, math.min(#party, data.active)) end
@@ -15119,6 +15202,7 @@ function build_recruit_record(r)
     atk=r.atk, def=r.def, mag=r.mag,
     level=1, xp=0, xp_total=0,
     alive=true, shield=false, buffed=false, blocking=false,
+    ever_joined=true,
     last_fire=-99, last_hit=-99,
     stick={lx=0,ly=0,rx=0,ry=0}, xwet=0, dly=0,
   }
@@ -15171,6 +15255,7 @@ local function init_party()
   for i, t in ipairs(PARTY_TEMPLATE) do
     CHARACTERS[t.class] = build_starter_record(t, DEFAULT_QUEUED[i])
   end
+  CHARACTERS.cleric.ever_joined = true
   party = { CHARACTERS.cleric }   -- Miel only at New Game start
   active = 1
   -- Equip Miel's starter instrument; queue Alder/Diegues/Strom's starter
@@ -16564,7 +16649,7 @@ local function try_move(dx, dy)
   end
   if t == 78 and current_map_id == 22 then
     -- Western Region → Academy expanded interior (map 19).
-    -- Tile 78 placed at row 8 col 14 in western_region_map.
+    -- Tile 78 placed at row 9 col 14 in western_region_map.
     CONTENT.return_map = 22
     CONTENT.return_x = nx; CONTENT.return_y = ny
     travel_to(19, 14, 12)   -- spawn 1 tile above the south corridor exit (row 13 col 14)
@@ -18516,7 +18601,7 @@ function trigger_combo_check()
             math.min(1, 0.7 * (CONTENT.combat_reverb_mix or 1.0)))
   end
   -- Achievement: first 2+ chord combo.
-  if unlock_achievement then unlock_achievement("first_chord", "First Chord") end
+  if unlock_achievement then unlock_achievement("first_chord", "First Harmony") end
   -- Clear so the next fire doesn't double-count this chord.
   combo_window = {}
 end
@@ -18647,7 +18732,7 @@ local exit_battle  -- forward decl
 -- story moments. Order = display order.
 ACHIEVEMENT_DEFS = {
   {id = "first_jam",          name = "First Jam",         hint = "Open the Jam Pad."},
-  {id = "first_chord",        name = "First Chord",       hint = "Land a 2+ char combo in battle."},
+  {id = "first_chord",        name = "First Harmony",     hint = "Land a 2+ char combo in battle."},
   {id = "first_limit",        name = "Broken Chord",      hint = "Use a Limit Break."},
   {id = "first_rhythm_crit",  name = "On the Beat",       hint = "Crit by pressing A on the beat."},
   {id = "all_shards",         name = "Whole Chord",       hint = "Collect all 7 shards."},
@@ -18941,6 +19026,7 @@ end
 
 travel_to = function(map_id, x, y)
   current_map_id = map_id
+  _G.current_map_id = map_id   -- keep the STORY-closure mirror in sync
   if map_id == 1 then
     map = MAINLAND; npcs = MAINLAND_NPCS
   elseif map_id == 2 then
@@ -20897,11 +20983,12 @@ function key(n, z)
       end
     end
     redraw()
-  elseif game_state == "CUTSCENE" and (n == 1 or n == 2) then
-    -- K2 (or a long-held K1) skips the intro — jumps straight to the
-    -- playable prologue (mirrors gamepad START, incl. the warp to
-    -- Miel's Royal Quarters). K2 owns this because K1 taps never reach
-    -- scripts on norns.
+  elseif game_state == "CUTSCENE" and n == 1 then
+    -- Long-held K1 skips the intro — jumps straight to the playable
+    -- prologue (mirrors gamepad START). K2 must NOT skip: everywhere
+    -- else K2 advances (title toggle, dialogue), so a first-time
+    -- norns player pressing K2 to advance was irreversibly skipping
+    -- the whole prologue story (playtest-era regression).
     game_state = "OVERWORLD"
     params:set("clock_tempo", OVERWORLD_BPM)
     engine.drone_amp(0)
@@ -20909,7 +20996,7 @@ function key(n, z)
     update_camera()
     redraw()
     return
-  elseif game_state == "CUTSCENE" and n == 3 then
+  elseif game_state == "CUTSCENE" and (n == 2 or n == 3) then
     cutscene_idx = cutscene_idx + 1
     CONTENT.cutscene_panel_start = tick
     if cutscene_idx > #CUTSCENE_LINES then
@@ -20993,15 +21080,17 @@ function key(n, z)
       redraw()
     end
   elseif game_state == "ITEMS" then
-    -- K1 cycles the active tab, K2 acts (USE=use / GEAR=equip), K3 backs
-    -- out to MENU. Cursor scroll lives on the encoder — see enc().
+    -- K3 acts (USE=use / GEAR=equip), K2 backs out — matching the
+    -- game-wide K3=confirm/K2=back convention (this screen was the one
+    -- inversion left, and muscle-memory K2 was CONSUMING items).
+    -- Tabs cycle on E3 (K1 kept as a long-hold extra).
     if n == 1 then
       CONTENT.items_tab = (CONTENT.items_tab or 1) % #ITEM_TABS + 1
       CONTENT.items_idx = 1
       redraw()
-    elseif n == 2 then
-      items_action_selected(); redraw()
     elseif n == 3 then
+      items_action_selected(); redraw()
+    elseif n == 2 then
       game_state = "MENU"; redraw()
     end
   elseif game_state == "SHOP" then
@@ -27400,18 +27489,25 @@ local function draw_dialogue()
   local revealed = math.min(total_chars, math.floor(age_s * TYPEWRITER_CPS))
   if dlg.snap_to_complete then revealed = total_chars end
   dlg.complete = (revealed >= total_chars)
-  local visible_body = body:sub(1, revealed)
   screen.level(13)
   local body_x = 2
   -- Set the font BEFORE wrapping: wrap_text measures with the current
   -- font via screen.text_extents.
   screen.font_face(25); screen.font_size(6)
-  local lines = wrap_text(visible_body, 124 - body_x)
+  -- Wrap the FULL body once, then reveal characters across the fixed
+  -- line layout — wrapping the partially-revealed text made growing
+  -- words hop from the end of one line to the start of the next
+  -- mid-reveal, which read as text jitter.
+  local lines = wrap_text(body, 124 - body_x)
+  local budget = revealed
   -- 4 compact lines fit the 39..62 strip (6px pitch), which also gives
   -- the 66-char page cap comfortable headroom.
   for i = 1, math.min(4, #lines) do
+    if budget <= 0 then break end
+    local ln = lines[i]
     screen.move(body_x, 39 + i * 6)   -- baselines 45/51/57/63: last row inside the box
-    screen.text(lines[i])
+    screen.text(ln:sub(1, budget))
+    budget = budget - #ln - 1   -- the +1 eats the joining space
   end
   screen.font_face(1); screen.font_size(8)
   -- advance prompt — only flickers once the full line is revealed.
@@ -28702,7 +28798,7 @@ local function draw_battle()
       screen.move(76, 16); screen.line(126, 16); screen.stroke()
       screen.level(5)
       screen.move(126, 22)
-      screen.text_right("START: exit")
+      screen.text_right("START/K2 exit")
     else
       -- HP "X/Y" right-aligned, tiny font
       screen.level(7)
@@ -29315,17 +29411,13 @@ local function draw_menu()
   -- (y=11..16) clear the divider at y=8.
   local SHORT_LBL = {["Save Game"] = "Save", ["Party Status"] = "Status",
                      ["Equipment"] = "Equip", ["Bestiary"] = "Beasts",
-                     ["Achievements"] = "Awards", ["Jam Pad"] = "Jam"}
+                     ["Achievements"] = "Awards", ["Jam Pad"] = "JamPad",
+                     ["Jam Mode"] = "Jam"}
   for i, opt in ipairs(MENU_OPTIONS) do
     local col_b = (i > 6)
     local x = col_b and (mx + 33) or (mx + 3)
     local y = 16 + (col_b and (i - 7) or (i - 1)) * 7
     local label = SHORT_LBL[opt] or opt
-    if opt == "Debug" then
-      -- "Dbg ON" when active; plain "Debug" reads as off ("Debug: OFF"
-      -- no longer fits the column).
-      label = debug_visible and "Dbg ON" or "Debug"
-    end
     if i == menu_idx then
       screen.level(15)
       screen.rect(x, y - 4, 2, 4); screen.fill()   -- cursor tick
@@ -29759,7 +29851,7 @@ local function draw_status()
   -- ── FOOTER ──
   -- Page dots removed from this band — they live in the top-right header
   -- now, so the nav hint and shard count get unobstructed rows.
-  screen.level(6); screen.move(2, 62); screen.text("L1/R1: switch")
+  screen.level(6); screen.move(2, 62); screen.text("K3 next  K2 back")  -- (L1/R1 on gamepad; shard count owns the right side)
   screen.level(7); screen.move(126, 62); screen.text_right(count_shards() .. "/" .. SHARD_TOTAL .. " shards")
   screen.font_face(1); screen.font_size(8)
 end
@@ -30896,7 +30988,7 @@ local function draw_cutscene()
   if fade_phase >= 1 and (tick % 8) < 5 then
     screen.level(10)
     screen.move(124, 62)
-    screen.text_right("A >")
+    screen.text_right("A/K3 >")
   end
 end
 
@@ -30932,7 +31024,7 @@ local function draw_ending()
   if (tick % 8) < 5 then
     screen.level(10)
     screen.move(124, 62)
-    screen.text_right("A >")
+    screen.text_right("A/K3 >")
   end
 end
 
@@ -31716,7 +31808,7 @@ local function draw_jam()
   if l2_held then
     screen.move(126, 51); screen.text_right("L2 dpadLR=BPM")
   else
-    screen.move(126, 51); screen.text_right("UD scale LR root")
+    screen.move(126, 51); screen.text_right("UD/E2 scale LR/E3 root")
   end
   -- ("A latch" dropped from the hint — it collided with the ROOT value;
   -- A-latch stays documented in the README.)
@@ -31730,7 +31822,7 @@ local function draw_jam()
   -- Both variants kept to <=13 chars so they clear the MODE value
   -- (MIXOLYDIAN ends ~x=75; 13 chars at size 5 start at ~x=73).
   screen.move(126, 63)
-  screen.text_right(zone_locked and "LOCKED B exit" or "B/SELECT exit")
+  screen.text_right(zone_locked and "LOCKED - B/K2" or "B/K2 exit")
   screen.font_face(1); screen.font_size(8)
 end
 
@@ -31756,20 +31848,26 @@ UI.draw_quests = function()
     local lev = (n >= 7) and 11 or 15
     screen.level(lev); screen.move(2, 23); screen.text(n .. "/7 shards recovered")
 
-    -- Recruits — show which classes are in party / available
+    -- Companions — anyone who has ever joined stays lit, benched or not
+    -- (reserve members live in CHARACTERS); joined recruits are appended.
     screen.level(11); screen.move(2, 31); screen.text("Companions")
-    local CLASSES = {{"cleric", "Miel"}, {"bard", "Alder"},
-                     {"warrior", "Strom"}, {"mage", "Diegues"}}
-    local got, total = 0, #CLASSES
-    local x = 2
-    for _, c in ipairs(CLASSES) do
-      local in_party = class_in_party and class_in_party(c[1])
-      if in_party then got = got + 1 end
-      screen.level(in_party and 11 or 4)
-      screen.move(x, 37); screen.text(c[2]:sub(1, 4))
-      x = x + 22
+    local roster = {"cleric", "bard", "warrior", "mage"}
+    for _, r in ipairs((CONTENT and CONTENT.recruits) or {}) do
+      if r.joined then roster[#roster + 1] = r.class end
     end
-    screen.level(8); screen.move(126, 37); screen.text_right(got .. "/" .. total)
+    local wide = #roster > 5
+    local got = 0
+    local x = 2
+    for _, cls in ipairs(roster) do
+      local joined = (class_in_party and class_in_party(cls))
+        or (CHARACTERS and CHARACTERS[cls] and CHARACTERS[cls].ever_joined)
+      if joined then got = got + 1 end
+      screen.level(joined and 11 or 4)
+      screen.move(x, 37)
+      screen.text((CHAR_NAME[cls] or cls):sub(1, wide and 3 or 4))
+      x = x + (wide and 13 or 22)
+    end
+    screen.level(8); screen.move(126, 37); screen.text_right(got .. "/" .. #roster)
 
     -- Caves cleared
     local cleared = 0
@@ -32535,7 +32633,7 @@ UI.draw_items = function()
     local sel = rows[cur]
     if sel and sel.desc and #sel.desc > 0 then
       local d = sel.desc
-      if #d > 26 then d = d:sub(1, 26) .. ".." end
+      if #d > 24 then d = d:sub(1, 24) .. ".." end
       screen.level(9); screen.move(2, 56); screen.text(d)
     end
   end
@@ -32544,16 +32642,19 @@ UI.draw_items = function()
   screen.level(3); screen.move(0, 58); screen.line(128, 58); screen.stroke()
   screen.level(11); screen.move(2, 64); screen.text("Gold:")
   screen.level(15); screen.move(28, 64); screen.text(SHOP.gold .. "g")
+  -- Pager lives on the desc row (y=56): the footer row can't fit gold +
+  -- pager + a hint that names real keys (verified overlap at 128 px).
   if #rows > PAGE then
-    screen.level(6); screen.move(64, 64); screen.text_center(cur .. "/" .. #rows)
+    screen.level(6); screen.move(126, 56)
+    screen.text_right(cur .. "/" .. #rows)
   end
   screen.level(6); screen.move(126, 64)
   if tab == 1 then
-    screen.text_right("A use  B back")
+    screen.text_right("K3 use  K2 back")
   elseif tab == 2 then
-    screen.text_right("A equip  LR tab")
+    screen.text_right("K3 equip  E3 tab")
   else
-    screen.text_right("LR tab  B back")
+    screen.text_right("E3 tab  K2 back")
   end
 
   if (CONTENT.items_flash_ticks or 0) > 0 then
@@ -32576,10 +32677,17 @@ function partysel_cells()
                        engineer=5, mathwiz=6, drummer=7}
   local cells = {}
   local in_party = {}
-  for _, p in ipairs(party) do in_party[p.class] = true end
+  for _, p in ipairs(party) do
+    in_party[p.class] = true
+    -- being in the party is proof of joining — self-heals saves that
+    -- predate the ever_joined flag, so benching never hides a member
+    p.ever_joined = true
+  end
   local reserve = {}
-  for cls, _ in pairs(CHARACTERS or {}) do
-    if not in_party[cls] then reserve[#reserve + 1] = cls end
+  for cls, ch in pairs(CHARACTERS or {}) do
+    if not in_party[cls] and ch.ever_joined then
+      reserve[#reserve + 1] = cls
+    end
   end
   table.sort(reserve, function(a, b)
     return (CLASS_ORDER[a] or 99) < (CLASS_ORDER[b] or 99)
@@ -32674,7 +32782,7 @@ UI.draw_partysel = function()
   local focus_cell = cells[CONTENT.partysel_focus or 0]
   if focus_cell and focus_cell.kind == "reserve" then
     screen.level(11); screen.move(2, 63)
-    screen.text("A: bring " .. (CHAR_NAME[focus_cell.char.class] or focus_cell.char.class) .. " into Slot " .. active)
+    screen.text("K3: " .. (CHAR_NAME[focus_cell.char.class] or focus_cell.char.class) .. " -> slot " .. active)
   elseif focus_cell and focus_cell.kind == "locked" then
     screen.level(8); screen.move(2, 63); screen.text("(not yet joined)")
   else

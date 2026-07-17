@@ -2794,3 +2794,93 @@ User reports from the first real device session:
      matched its registry key — that was an off-by-one in the
      inventory itself; the key "1:25,9" was always correct and still
      is.)
+
+## 2026-07-17 — Wave 13: consistency + regression sweep
+
+Three parallel audits (dialogue/canon, town/map inventory, K1-rebind
+regression), inline fixes, a serialized map-fix agent, and an
+adversarial verify over the whole diff.
+
+### Blockers and crashes
+- **Academy library was sealed** — the library ring (rows 9–12, cols
+  22–27 of the academy map) was solid bookshelf tile 72 with no door;
+  Paj at (26,10) was unreachable. Tile-5 door opened at (22,10),
+  matching this map's interior-door convention. BFS-verified.
+- **CRITICAL closure-scoping regression (caught by verify agent)** —
+  the new story gates referenced `STORY`, `player`, and
+  `current_map_id` from closures inside the `local STORY = {...}`
+  constructor, where those names bind *globals* (the locals are
+  declared later). The village-only gates were dead code and the
+  `STORY.seen` gates crashed the inn-scene engine on evaluation. Fixed
+  with the codebase's `_G.` mirror pattern: `_G.STORY`, `_G.player`
+  (table mirrors), and `_G.current_map_id` (value mirror re-synced in
+  `travel_to`). This also un-breaks eight PRE-EXISTING trigs that
+  referenced `STORY.seen` from inside the constructor.
+- **K1-rebind regressions** — my own wave-12 rebind made K2 skip the
+  entire intro cutscene (now: K2/K3 advance, K1-hold skips) and made
+  K2 *consume* items in ITEMS (now: K3 use, K2 back).
+
+### Controls & UI truthfulness
+- Every remaining footer now names real norns keys: ITEMS all tabs,
+  STATUS, JAM ("UD/E2 scale LR/E3 root"), Jam Pad practice
+  ("START/K2 exit"), PARTYSEL. SHORT_LBL entries for Jam Pad/Jam Mode;
+  dead Debug draw branch removed.
+- Footer geometry verified at 128 px: ITEMS pager moved from footer
+  center (it collided with any honest hint) to the desc row; JAM
+  locked variant kept to 13 chars ("LOCKED - B/K2"); PARTYSEL bring
+  hint shortened ("K3: Diegues -> slot 4").
+
+### Party/journal correctness (`ever_joined`)
+- New persisted flag with old-save migration inference + self-healing
+  (anyone in the active party is stamped). Journal Companions panel
+  now lists core four + joined recruits and keeps benched members lit
+  (was: benched members looked departed, recruits never shown).
+- Closed an exploit: PARTYSEL offered Alder/Strom/Diegues as
+  swappable reserve *before their story joins* (all starters live in
+  CHARACTERS from minute one for growth tracking). Reserve now
+  requires `ever_joined`.
+
+### Map & NPC placement (map-fix agent, BFS-verified per map)
+- Nine NPCs off walls/props/stall-centers: Wena (4,10), Academy Iola
+  (21,3), Echo (12,6), Phrygian Aram (21,5)/Mira (23,7)/Brann (5,5),
+  Sunward Pell (11,6), Lirael Bren (7,11 — the steward now stands in
+  his doorway), Winna (34,3). Scene camera focus + shrine record
+  coords updated where they referenced old spots.
+- Observatory double-Iola: the (9,5) gate now excludes
+  `flag.velthes_entry_heard`, so the two entries are mutually
+  exclusive.
+- Sunward Coast (map 35) converted to the village's single-tile
+  cottage convention: fisher (10,2), harbormaster (24,2), Beck (4,3),
+  tavern (25,5) — old shells removed, HOUSES keys already aligned,
+  tavern south-door alias deleted. Bandstand untouched and verified
+  reachable.
+- **Maro restored** — the dead shadowed `western_region_npcs` table
+  was deleted, but its sole entry (Maro the woods-sketcher, Tovia's
+  apprentice, ~30 lines incl. a Diegues seminar branch) existed
+  nowhere else. Recovered from git and placed live at (14,8) on the
+  academy approach — reachable for the first time ever. (Verify agent
+  flagged the spot as the warp arch; a raw dump showed the arch is at
+  (14,9) and the *handler comment* was stale. Comment fixed.)
+
+### Dialogue & canon
+- Post-ionian payoff branches for Iret/Vance/Tess; locrian lines made
+  count-free. Sunward Mara/Coral debut branches with SCENE-active
+  visibility guards. Pip is a boy (he/his). Pell's Lirael hymn
+  backstory. Strom's "Thirty years of orders" departure line. Young
+  Phrygian scout says "My queen." (Veiled Mystic keeps "Princess" —
+  she knew Miel before the fall). Tower-entry line reworded.
+- Gates: first_night_with_alder + miel_fountain_early require
+  first_inn_after_escape; pip_gift/lirael_memorial/miel_fountain_early
+  are village-only; solo_strom requires sergei_first_night;
+  all_six_at_inn skips if Niko joined first.
+- Achievement rename: combo achievement is now "First Harmony" (id
+  unchanged; saves keep unlocks) — no longer collides with "First
+  Chord Silenced".
+- Strom-confrontation +5 MaxHP reward was a no-op (`p.max_hp` vs the
+  real field `hp_max`) — fixed.
+- Bible: wave-13 canon addendum + two-Tildes note.
+
+### Loop discipline
+Audit agents → inline fixes → serialized map agent → adversarial
+verify (6 confirmed findings, incl. the critical scoping bug and one
+false alarm traced to a stale comment) → all fixed → luac -p green.
