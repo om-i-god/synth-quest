@@ -10889,6 +10889,60 @@ function start_campfire_scene(f, lines)
 end
 
 local MAINLAND_NPCS = {
+  -- Fourth-wall "rumor" NPC in the village square. Hears things "through
+  -- the glass" and passes REAL control/mechanic tips to the player,
+  -- classic JRPG rumor-monger style (one at random per talk). Every tip
+  -- is accurate to the actual controls — keep in sync if controls change.
+  { x = 19, y = 7, name = "The Listener",
+    barks = {"(...static...)", "did you hear that?", "psst -- you.", "(taps the glass)"},
+    dialogue = function()
+      local rumors = {
+        {
+          "(they tilt their head -- not at Miel. At YOU.)",
+          "I heard a rumour: open the menu (X on a pad, K2 on",
+          "the norns) and Jam Mode waits at the bottom. Or hit",
+          "SELECT -- you're there in an instant, even mid-fight.",
+        },
+        {
+          "(a whisper, meant for the one holding the buttons)",
+          "Legend says: plug a MIDI keyboard into the norns and",
+          "you can play a party member's voice with your own",
+          "hands. Choose whose voice in the PARAMS menu.",
+        },
+        {
+          "They say if you strike EXACTLY on the beat in a fight,",
+          "the blow crits every time. The rhythm was always the",
+          "weapon -- put your headphones on and you'll feel it.",
+        },
+        {
+          "Word is the right stick bends the filter on whoever",
+          "leads: cutoff one way, resonance the other. Click it",
+          "(L3/R3) to latch that sound across the whole party.",
+        },
+        {
+          "Rumour: the right trigger -- R2 -- looses a Resonance,",
+          "if you've knelt at a shrine and attuned one. Don't ask",
+          "me what a Resonance is. Ask the quiet stones.",
+        },
+        {
+          "The chord coming too fast? There's a 'battle speed'",
+          "dial in the PARAMS menu. Slow the whole world down",
+          "until you can hear each note land.",
+        },
+        {
+          "In Jam Mode: hold L2 and tap left or right and the",
+          "tempo bends, the whole world breathing with it. The",
+          "left stick soaks the lead voice in reverb and delay.",
+        },
+        {
+          "(they look straight through the screen, and smile)",
+          "...you can hear all this, can't you? Good.",
+          "Then perhaps you were always the eighth voice.",
+        },
+      }
+      return rumors[math.random(#rumors)]
+    end,
+  },
   -- Alder, sitting beside the village clearing's morning fire, three
   -- tiles directly above Lyrik (16,7). Visible only until he joins;
   -- talking to him is a one-shot recruit scene.

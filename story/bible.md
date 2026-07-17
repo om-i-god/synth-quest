@@ -1991,6 +1991,13 @@ Sunward Coast geography (2026-07-17). The Sunward Coast is ONE place:
        to sit on the mainland strip; moved into the town 2026-07-17.)
    Don't wall over any of the three.
 
+THE LISTENER (village square, 2026-07-17). A fourth-wall NPC who
+   hears the player "through the glass" and passes accurate control
+   hints, one at random per talk (menu/Jam Mode, MIDI-keyboard voices,
+   on-beat crits, stick FX, R2 Resonances, PARAMS battle-speed, jam
+   tempo). One line winks that the player is "the eighth voice." Tone:
+   uncanny but kind. Keep the tips accurate to the real controls.
+
 ================================================================
                 END OF BIBLE (work in progress)
 ================================================================

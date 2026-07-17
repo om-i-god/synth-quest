@@ -3141,3 +3141,16 @@ restore and after recruits_joined is applied. build_recruit_record's
 own grant stays for the fresh mid-game join path (where instruments_owned
 is stable). Simulated the full load sequence in a harness: owned +
 equipped both set after the fix.
+
+## 2026-07-17 — Fourth-wall "rumor" NPC (user request)
+
+Added "The Listener" to the village square (19,7): a classic JRPG
+rumor-monger who breaks the fourth wall and hands the player REAL,
+accurate control tips, one at random per talk. Covers: menu/Jam Mode
+(X or K2; SELECT shortcut), MIDI keyboard -> a party voice (PARAMS),
+on-the-beat crits, the right stick filter + L3/R3 latch, R2 Resonances,
+the PARAMS battle-speed dial, Jam-Mode L2+dpad tempo, and left-stick
+reverb/delay -- plus one purely meta "you're the eighth voice" beat.
+(User's example said "Y for the menu"; the real button is X / K2, so
+the hint uses the correct one.) Generic villager sprite; keep the tips
+in sync if controls ever change.
