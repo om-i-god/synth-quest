@@ -31094,29 +31094,6 @@ local function draw_equip()
                 fmt("S", sel_inst.spd - cur.spd))
   end
 
-  -- Per-character FX read-out (Pass 58). Shows the currently-running
-  -- engine values for this character's voice so the player can see
-  -- their cutoff / reverb / delay at a glance. Adjust via the PARAMS
-  -- menu (long-press K1, then this voice's "_cutoff" / "_xwet" / etc.).
-  do
-    local v = p.class
-    -- Voice aliases (engineer/mathwiz/drummer reuse mage/bard/warrior voices).
-    if v == "engineer" then v = "mage"
-    elseif v == "mathwiz" then v = "bard"
-    elseif v == "drummer" then v = "warrior" end
-    local function pget(id) local ok, val = pcall(function() return params:get(id) end); return ok and val or nil end
-    local cut = pget(v .. "_cutoff_p")
-    local wet = pget(v .. "_wet_p")
-    local dly = pget(v .. "_dly_p")
-    if cut and wet and dly then
-      -- Compact form, right-aligned in the free band between the OWNED
-      -- header (baseline 30) and the first list row (sprite top 38).
-      -- The old (2,56) spot overlapped the stat-delta line at (2,58).
-      screen.level(7); screen.move(126, 36)
-      screen.text_right(string.format("c%d r%.2f d%.2f",
-                                      math.floor(cut), wet, dly))
-    end
-  end
   -- Footer hint (page dots are gone — moved to header top-right).
   screen.level(6); screen.move(2, 63); screen.text("E3 char  A/K3 equip  B/K2 back")
   screen.font_face(1); screen.font_size(8)
