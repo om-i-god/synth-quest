@@ -6962,11 +6962,11 @@ SUNWARD_COAST_MAP = {
   {1,0,0,0,0,0,0,0,0,113,0,102,0,0,0,0,0,0,0,0,0,0,0,113,0,102,0,0,0,0,0,1},  -- fisher cottage (113) at (10,2) + harbormaster cottage (113) at (24,2); flower boxes (102) at cols 12+26 beside them
   {1,0,0,113,0,0,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,0,1},  -- col 4: Beck's cottage (single tile 113 at (4,3))
   {1,0,0,0,0,0,2,64,64,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,1},  -- open ground (Beck's old shell removed; cottage is the single 113 above)
-  {0,0,0,0,0,0,2,0,0,2,64,64,2,0,0,62,62,62,0,0,0,0,0,0,113,0,0,0,0,2,0,0},  -- (25,5): the Sunward tavern, single cottage tile (113)
-  {0,0,0,0,0,0,2,0,0,2,0,0,2,0,0,62,62,62,0,0,0,0,0,0,0,0,0,0,0,2,0,0},  -- open ground (old tavern body removed)
-  {65,2,2,2,2,2,2,0,0,2,0,0,2,0,0,62,62,62,0,0,0,0,0,0,0,0,0,0,0,2,2,9},  -- col 1: Sunward Coast signpost (tile 65) — west-path return to MAINLAND
-  {0,0,0,0,0,0,2,0,0,2,64,64,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,0},  -- open ground (old tavern south door (25,8) removed; enter at the (25,5) cottage)
-  {0,0,0,0,0,0,2,0,0,2,0,0,2,63,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,0},
+  {1,0,0,0,0,0,2,0,0,2,64,64,2,0,0,62,62,62,0,0,0,0,0,0,113,0,0,0,0,2,0,0},  -- (25,5): the Sunward tavern, single cottage tile (113); (1,5) cliff frames the exit mouth
+  {65,0,0,0,0,0,2,0,0,2,0,0,2,0,0,62,62,62,0,0,0,0,0,0,0,0,0,0,0,2,0,0},  -- open ground; (1,6) = north tile of the 3-wide Mainland-road exit mouth
+  {65,2,2,2,2,2,2,0,0,2,0,0,2,0,0,62,62,62,0,0,0,0,0,0,0,0,0,0,0,2,2,9},  -- (1,7) = center of the 3-tile west road mouth (tile 65) — returns to MAINLAND; row-7 path leads to it
+  {65,0,0,0,0,0,2,0,0,2,64,64,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,0},  -- open ground; (1,8) = south tile of the 3-wide Mainland-road exit mouth
+  {1,0,0,0,0,0,2,0,0,2,0,0,2,63,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,0},  -- (1,9) cliff frames the exit mouth
   {3,3,3,60,60,60,2,0,0,2,2,2,2,2,2,104,2,108,2,2,2,2,2,2,2,2,108,2,2,2,3,3},  -- promenade row: bench (104, col 16) + street lamp (108, col 18) flanking the water-gap viewpoint below the bandstand; second lamp (108) at col 27 by the tavern -- row 9 (open cols 15-29) bypasses every blocked cell, the tavern is now a single cottage tile at (25,5)
   {3,3,3,60,60,60,60,60,60,60,60,60,60,60,105,3,3,3,35,60,60,60,60,60,60,60,60,105,3,3,3,3},  -- dock-row edge clutter at the strip ends (dead-end planks only): crate (105) at col 15, goods barrel (35) at col 19, crate (105) at col 28 -- Beck (4,11) + gull ambient (9,11) planks untouched, both strips still entered anywhere from row 10
   {3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3},
@@ -9182,6 +9182,10 @@ function start_sunward_arrival_scene()
     {dialogue = {
       "[Mara]   If you walk east past the docks, the Tide",
       "[Mara]   Cavern keeps the Harbormaster's name.",
+    }, npc = {name = "Mara"}},
+    {dialogue = {
+      "[Mara]   The road home runs back west, through the",
+      "[Mara]   sign-posts. It'll wait for you.",
     }, npc = {name = "Mara"}},
     {wait = 6},
     {focus = "player", ticks = 20},
@@ -15922,6 +15926,12 @@ local function try_move(dx, dy)
       CONTENT.return_x = nx; CONTENT.return_y = ny
       travel_to(35, 2, 7)   -- arrive just inside Sunward Coast's west path
       flag.sunward_arrival_done = flag.sunward_arrival_done or false
+      -- On re-entry (no arrival scene to orient you), point out the exit
+      -- you spawn right beside: the west road mouth back to the mainland.
+      if CONTENT.scene_seen and CONTENT.scene_seen.sunward_arrival then
+        CONTENT.banner_text  = "Mainland road: west <-"
+        CONTENT.banner_ticks = 90
+      end
     elseif current_map_id == 35 then
       if CONTENT.return_map == 1 and CONTENT.return_x and CONTENT.return_y then
         travel_to(1, CONTENT.return_x, CONTENT.return_y)
@@ -22537,10 +22547,19 @@ end
 -- Tile 65 — Sunward Coast entry signpost (walkable; routes MAINLAND ↔ Sunward Coast Town).
 -- Placed on MAINLAND east coast (row 7, col 63) and at SUNWARD_COAST_MAP west path (row 7, col 1).
 TILE_DRAW[65] = function(px, py)
+  -- Packed-dirt road threshold: fills the tile with road colour + cart
+  -- ruts so it reads as a path leading off the map, plus a small
+  -- signpost. Repeated down the 3-tile coast mouth it reads as a marked
+  -- road out; a single tile (MAINLAND east coast) reads as a road patch.
+  screen.level(5)
+  screen.rect(px, py, 8, 8); screen.fill()          -- dirt road bed
+  screen.level(2)
+  screen.move(px, py+2); screen.line_rel(8, 0); screen.stroke()  -- cart ruts
+  screen.move(px, py+5); screen.line_rel(8, 0); screen.stroke()
   screen.level(4)
-  screen.rect(px+3, py+1, 2, 6); screen.fill()  -- post
-  screen.level(8)
-  screen.rect(px, py, 8, 2); screen.fill()       -- sign
+  screen.rect(px+5, py+1, 1, 5); screen.fill()      -- signpost post
+  screen.level(11)
+  screen.rect(px+2, py, 4, 2); screen.fill()        -- sign board
 end
 
 -- ── Phrygian Night City tiles (Phase 2) ───────────────────────────────────

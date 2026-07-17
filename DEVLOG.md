@@ -2989,3 +2989,29 @@ no house), the wandering cartographer "Tovia" (no house), Anvel (an
 open-air smith with no registered house), and the Fisher's/
 Harbormaster's cottages (flavor buildings with no owner NPC). The
 Sunward Tavern's Hask + Vesa were already inside.
+
+## 2026-07-17 — Sunward Coast: make the exit home legible (user report)
+
+User: re-entering the Sunward Coast, "there's no way to get back to the
+village." Investigation: the return WAS functional — the signpost warp
+(tile 65) at the far-west edge is reachable and adjacent to the re-entry
+spawn (2,7), and the mainland landing (63,7) connects to the village by
+land (all BFS-verified). The bug was legibility: the exit was a single
+signpost tile buried in an open stretch of walkable west-edge floor, so
+it read as border decoration, and the arrival scene pulls attention east
+("walk east past the docks").
+
+Fixes:
+- **Framed 3-tile road mouth.** The west edge (col 1) is now a cliff
+  (tile 1) at rows 1-5 and row 9, with a clear 3-tile road opening
+  (tile 65) at rows 6-8. Stepping onto any of the three warps home. BFS
+  confirms the mouth and every cottage/bandstand/tavern stay reachable;
+  Cave 3 unaffected.
+- **Road-threshold tile art.** TILE_DRAW[65] redrawn from a lone
+  post+board into a packed-dirt road bed with cart ruts + a signpost, so
+  it reads as a path leading off the map (single tile on the mainland
+  side, a marked road down the coast mouth).
+- **Banner + orientation.** On re-entry (no arrival scene to orient you)
+  a banner flashes "Mainland road: west <-" as you spawn beside the
+  mouth. Mara's first-visit arrival dialogue now also names the west
+  road home, so both first-timers and returners are pointed at it.

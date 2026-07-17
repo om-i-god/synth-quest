@@ -1977,6 +1977,12 @@ Enemy sonic signatures are scale-relative (2026-07-17, wave 14).
    chords, Sergei's Bb souring, Mira's C# grace, ECHO's Disperse run,
    and the act-3 silence detune.
 
+Sunward Coast exit (2026-07-17). The road back to the mainland is a
+   framed 3-tile road mouth on the town's WEST edge (col 1, rows 6-8;
+   tile 65 warp). You arrive next to it. Mara names it in the arrival
+   scene; a banner re-flags it on re-entry. Cave 3 (Tide Cavern) is the
+   EAST exit (tile 9). Don't wall over either.
+
 ================================================================
                 END OF BIBLE (work in progress)
 ================================================================
