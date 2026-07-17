@@ -2950,3 +2950,14 @@ not enemy audio — revisit only if the user hears it.
   themselves still work; only the readout is removed). The World of
   Silence "detuned" tag now right-aligns at the screen edge where the
   pads used to sit. The JAM screen's big stick visualizer is untouched.
+
+## 2026-07-17 — Ambient random events removed entirely (user request)
+
+User: "they just don't hit like i intended." The remaining four
+one-shot road events (coin glint, stillness, ghost note, courier)
+are gone along with the whole dispatcher: try_ambient_event(), the
+per-step roll before the encounter check, the events_seen tracker
+(save/load/NG+ reset). Old saves carrying events_seen load fine —
+the key is simply ignored. NOTE: the tile-triggered ambient
+micro-scenes (Lirael window/pillar/hymnal, Sunward bandstand etc.)
+are a separate location-specific system and were kept.

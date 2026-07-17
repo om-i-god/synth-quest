@@ -8177,7 +8177,6 @@ function start_new_game_plus()
   end
   CONTENT.scene_seen = {}
   CONTENT.queued_scene = nil   -- stale queued beats don't carry into NG+
-  CONTENT.events_seen = {}   -- ambient one-shot events refire on NG+
   CONTENT.act3_silence = false   -- world starts NG+ in tune (six-shards re-arms it)
   -- ECHO stays in the party across NG+ (recruits carry like levels do),
   -- so seed her recruit beat as already-seen: otherwise run 2's
@@ -14771,8 +14770,6 @@ save_game = function()
   data.house_key             = CONTENT.house_key
   data.cave_entered = {}
   for k, v in pairs(CONTENT.cave_entered or {}) do data.cave_entered[k] = v end
-  data.events_seen = {}
-  for k, v in pairs(CONTENT.events_seen or {}) do data.events_seen[k] = v end
   data.fire_seen = CONTENT.fire_seen or {}   -- table of campfire indices (not a boolean)
   -- Resonances state (per-Resonance item-collected + attuned flags).
   data.resonances = {}
@@ -15099,10 +15096,6 @@ local function load_game()
   if data.cave_entered then
     CONTENT.cave_entered = {}
     for k, v in pairs(data.cave_entered) do CONTENT.cave_entered[k] = v end
-  end
-  if data.events_seen then
-    CONTENT.events_seen = {}
-    for k, v in pairs(data.events_seen) do CONTENT.events_seen[k] = v end
   end
   -- Resonances state — restore if present, initialize if missing (older saves).
   if data.resonances then
@@ -15720,195 +15713,6 @@ end
 local enter_battle
 -- enter_jam_pad is intentionally global (saves a `local` slot near the 200-cap
 -- and is only called from menu handlers via the same name)
-
--- Ambient overworld event. Rolls on each player step BEFORE the random
--- encounter check (so a peaceful surprise can replace a fight that
--- would have rolled in the same step). Same map-safety gating as
--- encounters. ~0.5% per step. Global to dodge the 200-local cap.
-function try_ambient_event()
-  if current_map_id == 5 or current_map_id == 6 or current_map_id == 15 or current_map_id == 16
-     or current_map_id == 17 or current_map_id == 18 or current_map_id == 19
-     or current_map_id == 20 or current_map_id == 21
-     or current_map_id == 23 or current_map_id == 24 or current_map_id == 25
-     or current_map_id == 38 then return false end   -- 38 = house interiors
-  if current_map_id == 1 and player.x <= 32 then return false end
-  if math.random() >= 0.012 then return false end
-  -- Each event has a `where` predicate that decides if the current
-  -- map+region is appropriate. We filter the pool to events that fit
-  -- the location, then pick one at random. If nothing fits this spot
-  -- (e.g. you're standing in a desert with no caravan-courier set up
-  -- yet), no event fires — better than a bard appearing in the snow.
-  --
-  -- Region helpers (defined inline to avoid threading params):
-  local m = current_map_id
-  local in_woods   = (m == 1 and player.x > 32 and player.x <= 48) or m == 22
-  local in_coast   = (m == 1 and player.x > 48)
-  local in_eastern = (m == 2)
-  local in_north   = (m == 3)
-  local in_hills   = (m == 26)
-
-  -- One-shot tracker: each event fires at most once per save. After
-  -- it plays, its id goes into CONTENT.events_seen and the event is
-  -- removed from future picks. Persists through saves like other
-  -- CONTENT state. Resets on NEW GAME + so repeat playthroughs get
-  -- the events again.
-  CONTENT.events_seen = CONTENT.events_seen or {}
-  local events = {
-    -- (The wandering-musician events — "wanderer" and "lutist" — were
-    -- removed 2026-07-17 at the user's request; their ids may linger
-    -- harmlessly in old saves' events_seen.)
-    -- Coin glints fit established roads — mainland + eastern + western
-    -- (where carts have passed for years).
-    {id = "coin", fn = start_event_coin,
-     where = function() return in_woods or in_coast or in_eastern end},
-    -- Stillness is for remote contemplative places: the snow, the
-    -- hills, the deep woods at dusk.
-    {id = "stillness", fn = start_event_stillness,
-     where = function() return in_north or in_hills or in_woods end},
-    -- Ghost note carries best across thin/cold air or rolling hills.
-    {id = "ghost_note", fn = start_event_ghost_note,
-     where = function() return in_north or in_hills end},
-    -- Courier pack fits trade-route shoulders: coast + eastern dunes.
-    {id = "courier", fn = start_event_courier,
-     where = function() return in_coast or in_eastern end},
-  }
-  local picks = {}
-  for _, e in ipairs(events) do
-    if type(e.fn) == "function" and e.where()
-       and not CONTENT.events_seen[e.id] then
-      picks[#picks + 1] = e
-    end
-  end
-  if #picks == 0 then return false end
-  local chosen = picks[math.random(#picks)]
-  CONTENT.events_seen[chosen.id] = true
-  chosen.fn()
-  return true
-end
-
--- ── Ambient overworld event scenes ──────────────────────────────────────
--- Each is a brief letterboxed beat. Player position is captured at
--- entry so the scene can spawn local actors and return the player to
--- exactly where they were standing. All globals (no `local`) to dodge
--- the 200-main-chunk-locals cap.
-
-function start_event_coin()
-  local px, py = player.x, player.y
-  local g = 8 + math.random(0, 14)
-  local script = {
-    {hide_player = true},
-    {letterbox_in = true},
-    {focus = {x = px, y = py}, ticks = 12},
-    {spawn = "miel", class = "cleric", name = "Miel", x = px, y = py, facing = "down", bob = false},
-    {wait = 8},
-    {dialogue = {
-      "(something glints in the grass at your feet)",
-    }, npc = nil},
-    {face = "miel", facing = "down"},
-    {wait = 8},
-    {dialogue = {
-      "[Miel]    A coin. Old denomination.",
-      "[Miel]    From before the silence -- when the mints still stamped the seven notes on the rim.",
-      "[Miel]    (slips it into the purse) Worth more than its weight, anyway.",
-    }, npc = {name = "Miel"}},
-    {set = function() SHOP.gold = SHOP.gold + g end},
-    {flash = "* +" .. g .. "g *", ticks = 36},
-    {wait = 18},
-    {despawn = "miel"},
-    {teleport_player = {x = px, y = py, facing = player.facing}},
-    {show_player = true},
-    {letterbox_out = true},
-  }
-  SCENE.start(script)
-end
-
-function start_event_stillness()
-  local px, py = player.x, player.y
-  local script = {
-    {hide_player = true},
-    {set = function() SCENE.fade = 0 end},
-    {letterbox_in = true},
-    {fade_out = 18},
-    {wait = 12},
-    {dialogue = {
-      "(the road holds still for a long moment.)",
-      "(the wind has stopped without you noticing it stopping.)",
-    }, npc = nil},
-    {sfx = {class = "cleric", note = 60, vel = 0.45, attack = 0.40, release = 6.0, wet = 1.0}},
-    {wait = 28},
-    {sfx = {class = "cleric", note = 67, vel = 0.40, attack = 0.40, release = 6.0, wet = 1.0}},
-    {wait = 32},
-    {set = function()
-      for _, p in ipairs(party) do
-        if p.alive then
-          p.hp = math.min(p.hp_max, p.hp + math.floor(p.hp_max * 0.20))
-          p.mp = math.min(p.mp_max, p.mp + math.floor(p.mp_max * 0.10))
-        end
-      end
-    end},
-    {flash = "* the chord steadies you *", ticks = 48},
-    {wait = 18},
-    {dialogue = {
-      "(the wind comes back. It was not the wind that paused.)",
-    }, npc = nil},
-    {fade_in = 18},
-    {teleport_player = {x = px, y = py, facing = player.facing}},
-    {show_player = true},
-    {letterbox_out = true},
-  }
-  SCENE.start(script)
-end
-
-function start_event_ghost_note()
-  local px, py = player.x, player.y
-  local script = {
-    {hide_player = true},
-    {letterbox_in = true},
-    {focus = {x = px, y = py}, ticks = 8},
-    {wait = 12},
-    {dialogue = {
-      "(somewhere east, a voice you cannot place sings a single note.)",
-    }, npc = nil},
-    {sfx = {class = "cleric", note = 79, vel = 0.40, attack = 0.40, release = 5.0, wet = 1.0}},
-    {wait = 36},
-    {dialogue = {
-      "(it does not repeat. It does not need to.)",
-      "(you walk on with the note still inside you.)",
-    }, npc = nil},
-    {teleport_player = {x = px, y = py, facing = player.facing}},
-    {show_player = true},
-    {letterbox_out = true},
-  }
-  SCENE.start(script)
-end
-
-function start_event_courier()
-  local px, py = player.x, player.y
-  local script = {
-    {hide_player = true},
-    {letterbox_in = true},
-    {focus = {x = px, y = py}, ticks = 10},
-    {spawn = "miel", class = "cleric", name = "Miel", x = px, y = py, facing = "down", bob = false},
-    {wait = 10},
-    {dialogue = {
-      "(a courier's pack lies open by the road. Whoever carried it left in a hurry.)",
-      "(a Salve is still wrapped in its cloth. Untouched.)",
-    }, npc = nil},
-    {set = function() SHOP.inv.salve = (SHOP.inv.salve or 0) + 1 end},
-    {flash = "* +1 Salve *", ticks = 36},
-    {wait = 16},
-    {dialogue = {
-      "[Miel]    (folds the wrapping back, pockets the salve carefully)",
-      "[Miel]    Whoever you were -- I hope you got where you were going.",
-    }, npc = {name = "Miel"}},
-    {wait = 14},
-    {despawn = "miel"},
-    {teleport_player = {x = px, y = py, facing = player.facing}},
-    {show_player = true},
-    {letterbox_out = true},
-  }
-  SCENE.start(script)
-end
 
 -- Random encounter: small chance per overworld step. Skips the village (mainland
 -- cols 1-32) and any caves the player hasn't unlocked yet — picks the encounter
@@ -16994,8 +16798,6 @@ local function try_move(dx, dy)
         end
       end
     end
-    -- Ambient event roll FIRST (peaceful surprise can pre-empt a fight).
-    if try_ambient_event() then redraw(); return end
     -- random encounter check: only outside the village safe zone
     if try_random_encounter() then return end
   end
