@@ -3124,3 +3124,20 @@ Fix:
   path build the record through here, and load restores instruments_owned
   BEFORE building recruit records, so existing saves self-heal the
   missing weapon on next load. Verified in an isolated harness.
+
+## 2026-07-17 — Fix recruit weapons showing equipped-but-not-owned on load
+
+User: recruit weapons showed as equipped but not owned (Sergei/Niko/ECHO).
+
+The previous fix granted the instrument inside build_recruit_record. On
+LOAD, recruit records are rebuilt at ~L14946 — BEFORE line 15001 resets
+instruments_owned and reloads it from the (old) save. So the
+instruments_owned grant was wiped, while the equipped[] grant survived
+(equipped is not reset). Net: equipped but not owned.
+
+Fix: grant the starter instrument to instruments_owned (+ equip if
+unset) in the joined-recruit loop that runs AFTER the instruments
+restore and after recruits_joined is applied. build_recruit_record's
+own grant stays for the fresh mid-game join path (where instruments_owned
+is stable). Simulated the full load sequence in a harness: owned +
+equipped both set after the fix.

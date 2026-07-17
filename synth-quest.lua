@@ -15101,11 +15101,22 @@ local function load_game()
     if CONTENT.recruits[3] then CONTENT.recruits[3].joined = data.recruits_joined[3] or false end
     if CONTENT.recruits[4] then CONTENT.recruits[4].joined = data.recruits_joined[4] or false end
     -- Ensure each joined recruit has a CHARACTERS record (so they can be
-    -- swapped in even if the save predates the per-class persistence layer).
+    -- swapped in even if the save predates the per-class persistence layer)
+    -- AND has their starter instrument OWNED + equipped. This runs after
+    -- instruments_owned was restored above (which resets it) —
+    -- build_recruit_record's own grant can run earlier and get wiped,
+    -- leaving the weapon equipped-but-not-owned on loaded saves.
     for _, r in ipairs(CONTENT.recruits) do
-      if r.joined and not (CHARACTERS and CHARACTERS[r.class]) then
-        CHARACTERS = CHARACTERS or {}
-        CHARACTERS[r.class] = build_recruit_record(r)
+      if r.joined then
+        if not (CHARACTERS and CHARACTERS[r.class]) then
+          CHARACTERS = CHARACTERS or {}
+          CHARACTERS[r.class] = build_recruit_record(r)
+        end
+        local starter = STARTER_INSTRUMENT[r.class]
+        if starter and instruments_owned then
+          instruments_owned[starter] = true
+          if equipped and not equipped[r.class] then equipped[r.class] = starter end
+        end
       end
     end
   end
