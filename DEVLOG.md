@@ -2961,3 +2961,31 @@ per-step roll before the encounter check, the events_seen tracker
 the key is simply ignored. NOTE: the tile-triggered ambient
 micro-scenes (Lirael window/pillar/hymnal, Sunward bandstand etc.)
 are a separate location-specific system and were kept.
+
+## 2026-07-17 — House owners moved indoors (user request)
+
+User: "anyone with a house should be inside of it rather than outside
+of it (unless the story requires them not be present there)."
+
+Moved five house-owner NPCs from standing outside into their own
+interiors, verbatim (barks + full party-aware dialogue preserved),
+each on a BFS-verified walkable tile that leaves the door clear and
+a talk-adjacent tile reachable:
+- Tova (mainland 3,5) → her house at her travel desk (3,4, facing up)
+- Pip (10,6) → the family cottage (4,4)
+- the Elder (20,6) → his house at his table (4,4)
+- Brann the smith (26,9) → Brann's Forge at the bench (3,4, facing
+  his workbench) — his forge-clang barks now ring INSIDE the forge
+- Beck (Sunward Coast 4,11) → Beck's Cottage (4,3), reunited with
+  his cat Salt who already lived there
+
+Interiors render/talk/bark through the same name→NPC_SPRITES path as
+the overworld (all four village owners have registered draw_npc_*
+sprites; Beck has NPC_SPRITES.Beck), so appearance and behavior carry
+over unchanged. No scene spawns or story beats referenced these
+owners at their old exterior coordinates (checked). NOT moved: the
+Phrygian caravan trader "Brann" (different character, a shop vendor,
+no house), the wandering cartographer "Tovia" (no house), Anvel (an
+open-air smith with no registered house), and the Fisher's/
+Harbormaster's cottages (flavor buildings with no owner NPC). The
+Sunward Tavern's Hask + Vesa were already inside.

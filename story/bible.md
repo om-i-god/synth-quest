@@ -1935,13 +1935,20 @@ DEF is live as of wave 10. Incoming party damage is reduced
    applied after party-size scaling/block/shield. Before this, def was
    displayed and levelled but never read by any damage path.
 
-Village layout (2026-07-16 redesign). The mainland village uses
-   SINGLE-TILE buildings throughout: inn, shop, and four cottages
-   (Tova, Pip, Elder, Brann's forge), each a whole building in one
-   tile, entered by stepping onto it. Owners stand beside their own
-   doors. The old 3x3 wall-shell houses are gone; routes through the
-   village are kept wide and open by design (playtest feedback: the
-   decorated village was hard to navigate).
+Village layout (2026-07-16 redesign; owners moved indoors 2026-07-17).
+   The mainland village uses SINGLE-TILE buildings throughout: inn,
+   shop, and four cottages (Tova, Pip, Elder, Brann's forge), each a
+   whole building in one tile, entered by stepping onto it. As of
+   2026-07-17 each house's OWNER stands INSIDE their home (Tova at her
+   desk, Brann at his forge bench, Pip in the family cottage, the Elder
+   at his table, Beck with his cat Salt on the Sunward Coast) rather
+   than loitering outside — you find people by entering their homes.
+   The old 3x3 wall-shell houses are gone; routes through the village
+   are kept wide and open by design (playtest feedback: the decorated
+   village was hard to navigate). Rule going forward: an NPC who owns a
+   registered house belongs inside it unless a story beat needs them
+   elsewhere. NPCs WITHOUT a house (Anvel at his open-air anvil, Lyrik,
+   the fountain regulars, market vendors) stay outside.
 
 Wave-13 dialogue canon (2026-07-16). Locked in code this pass:
    - Pip (village kid) is a BOY — he/his throughout.

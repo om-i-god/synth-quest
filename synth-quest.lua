@@ -3169,6 +3169,65 @@ CONTENT = {
         {4,4,4,4,17,17,4,4,4,4},
       },
       npcs = {
+        { x = 3, y = 4, facing = "up", kind = "npc", name = "Tova",
+          barks = {"hmm.", "(turns a page)", "fascinating.", "ah, the dean.", "(scribbles)"},
+          dialogue = function()
+            local lead = party[active] and party[active].class
+            -- Tova lights up when Diegues (mage / scholar) is in the lead.
+            if lead == "mage" then
+              return with_shard_react("Tova", {
+                "(her eyes brighten when she sees Diegues)",
+                "Academy boy, are you? I read your dean's last paper.",
+                "Brilliant. Wrong about the chord -- but brilliant.",
+                "Ask me about the seven before you leave.",
+              })
+            end
+            -- SIDEQUEST: meet all four regional sages, return for a lore reward.
+            local s = QUESTS.tova.spoke
+            local visited = (s.Veris and 1 or 0) + (s.Aurin and 1 or 0)
+                          + (s.Mira  and 1 or 0) + (s.Iolen and 1 or 0)
+            if visited == 4 and not QUESTS.tova.claimed then
+              QUESTS.tova.claimed = true
+              SHOP.gold = SHOP.gold + 80
+              return with_shard_react("Tova", {
+                "You spoke with Veris. Aurin. Mira. And Iolen of the highlands too.",
+                "Each holds a fragment of the chord. Together they form the old map.",
+                "Take this -- earned, not given.",
+                "(+80 gold)",
+              })
+            elseif QUESTS.tova.claimed then
+              return with_shard_react("Tova", {
+                "The map of the seven sings to me more clearly now, thanks to you.",
+                "Suno fears the chord most of all. Strike one shard, the next rings true.",
+              })
+            elseif visited > 0 then
+              return with_shard_react("Tova", {
+                "You've met " .. visited .. " of the four sages.",
+                "Veris in the Wood. Aurin on the Coast. Mira in the Reaches. Iolen in the Wilds.",
+                "Find them all -- return to me.",
+              })
+            end
+            if shards.aeolian then
+              return with_shard_react("Tova", {
+                "The Aeolian Shard! Few survive the Snowgaunt's keening waltz.",
+                "You bear the lonely song now. Two shards still elude us, child.",
+              })
+            elseif shards.lydian then
+              return with_shard_react("Tova", {
+                "I once charted seven nations. Each held a shard. Each fell silent.",
+                "The academy called my map 'speculative.' The dean signed the review.",
+                "Now the roads match my ink. I am petty enough to enjoy that.",
+                "(Quest: meet the four regional sages.)",
+              })
+            end
+            return with_shard_react("Tova", {
+              "I am Tova. I read the old runes. Correctly, unlike some.",
+              "The Crystal Synth was a chord -- seven notes ringing as one.",
+              "Suno hunts each note alone. Find them before they go cold.",
+              "(Quest: meet the four regional sages.)",
+            })
+          end,
+        },
         { x = 4, y = 4, name = "TravelDesk", kind = "object",
           dialogue = function()
             local lead = party[active] and party[active].class
@@ -3208,6 +3267,73 @@ CONTENT = {
         {4,4,4,4,17,17,4,4,4,4},
       },
       npcs = {
+        { x = 4, y = 4, facing = "down", kind = "npc", name = "Pip",
+          barks = {"woah.", "(chases a chicken)", "uncle Brann!", "did you see that?", "i can run faster!"},
+          dialogue = function()
+            local lead = party[active] and party[active].class
+            -- Pip is a village kid with a hero-eyed view of the warrior, and
+            -- finds the bard's lute fascinating. He knows them by sight now.
+            if lead == "warrior" then
+              return with_shard_react("Pip", {
+                "[Pip] WOAH. Is that a real sword? Have you fought a wolf?",
+                "[Pip] Uncle Brann said you carried a hammer once. Can I try?",
+                "[Pip] (...) okay, okay -- when I'm bigger.",
+              })
+            end
+            if lead == "bard" then
+              return with_shard_react("Pip", {
+                "[Pip] (eyes the lute) Can it really make the river quiet down?",
+                "[Pip] Lyrik said yes but Lyrik says yes to a lot of things.",
+                "[Pip] Play one. PLEEEASE.",
+              })
+            end
+            if lead == "mage" then
+              return with_shard_react("Pip", {
+                "[Pip] You write a LOT. Are you writing about me?",
+                "[Pip] (peers at the page) That's the same word three times!",
+                "[Pip] (...) is that a spell?",
+              })
+            end
+            local n = 0; for _, v in pairs(shards) do if v then n = n + 1 end end
+            if n >= 7 then
+              return with_shard_react("Pip", {
+                "THE FOUNTAIN'S SINGING! It did it again this morning! I COUNTED!",
+                "Mama cried TWICE. Happy crying, she said. That's a real kind!",
+                "You brought the songs back. I KNEW you would. I told EVERYONE.",
+              })
+            elseif n >= 4 then
+              return with_shard_react("Pip", {
+                "FOUR! I'm keeping count on my wall in chalk. Four marks!",
+                "Uncle Brann says my tally's crooked. IT IS NOT CROOKED.",
+                "I tried to sing the Lydian last night. Mama said I was CLOSE.",
+              })
+            elseif n >= 1 then
+              -- After your first shard but still early
+              return with_shard_react("Pip", {
+                "I heard humming this morning! Mama said it was just the wind.",
+                "The wind doesn't hum IN TUNE. Was that you? Did you find one?",
+                "Keep going! Bring ALL the songs back! I'm counting them!",
+              })
+            end
+            -- Pre-first-shard: cycle through 3 sets so Pip doesn't repeat the same
+            -- line every time you talk to him at the very beginning.
+            local variants = {
+              {
+                "Hi! I'm Pip! Are you the new musicians?",
+                "Mama said you'd come. She didn't say WHEN. I've been counting days.",
+              },
+              {
+                "Have you been to the cave yet? I'm not allowed to go.",
+                "Mama says I'm too small. But I'm only a LITTLE small.",
+              },
+              {
+                "The fountain used to sing. Now it just gurgles.",
+                "Gurgles aren't songs. Bring the songs back, okay?",
+              },
+            }
+            return with_shard_react("Pip", variants[(tick // 60) % #variants + 1])
+          end,
+        },
         -- Chalk drawings on the north wall (impassable tile; checkable
         -- from the tile below — same convention as the dais Silencers).
         { x = 5, y = 1, name = "ChalkDrawings", kind = "object",
@@ -3243,6 +3369,93 @@ CONTENT = {
         {4,4,4,4,17,17,4,4,4,4},
       },
       npcs = {
+        { x = 4, y = 4, facing = "down", kind = "npc", name = "Elder",
+          dialogue = function()
+            local lead = party[active] and party[active].class
+            -- The village Elder knew Miel's grandmother, and remembers seeing
+            -- Miel as a child; he respects Strom from the campaigns, and is
+            -- amused by Diegues' academic gravity. Alder he raised.
+            if lead == "cleric" then
+              return with_shard_react("Elder", {
+                "[Elder]  ...my queen. I never thought I'd say those words again.",
+                "[Elder]  Your grandmother stood where you are standing now, once.",
+                "[Elder]  I gave her the same advice I'll give you: walk softly. Listen long.",
+              })
+            end
+            if lead == "warrior" then
+              return with_shard_react("Elder", {
+                "[Elder]  (nods, once. Soldier's nod.) -- Strom.",
+                "[Elder]  The garrison knew your name. Some of us still do.",
+                "[Elder]  Whatever you carried out of those years, you don't carry it alone now.",
+              })
+            end
+            if lead == "bard" then
+              return with_shard_react("Elder", {
+                "[Elder]  Alder. (smiles, slowly) You came back.",
+                "[Elder]  I taught you a chord on the front step once. You spent a year disagreeing with it.",
+                "[Elder]  You sound right now. The disagreement settled.",
+              })
+            end
+            if lead == "mage" then
+              return with_shard_react("Elder", {
+                "[Elder]  Academy man. I hosted three of you in '52 -- they ate everything.",
+                "[Elder]  You write as if the page might escape. (chuckles)",
+                "[Elder]  Listen as much as you write, scholar. Modalia talks back.",
+              })
+            end
+            -- Count reclaimed shards generically. The previous version only
+            -- branched on shards.lydian and shards.dorian, so the "Two shards"
+            -- line locked in for every count from 2 to 6.
+            local n = 0
+            for _, v in pairs(shards) do if v then n = n + 1 end end
+            if n >= 7 then
+              return with_shard_react("Elder", {
+                "Seven shards. The Crystal Synth is whole.",
+                "Go to Suno's domain. End this. Modalia has waited long enough.",
+              })
+            elseif n == 6 then
+              return with_shard_react("Elder", {
+                "Six shards reclaimed. Only the last sleeps in Suno's domain.",
+                "He will not let it go quietly. Be ready.",
+              })
+            elseif n == 5 then
+              return with_shard_react("Elder", {
+                "Five shards. The fountain sings at night now. I go and listen.",
+                "I tell people I'm checking the stonework. I am not.",
+                "Two more. Suno feels every one of them slip from his grasp.",
+              })
+            elseif n == 4 then
+              return with_shard_react("Elder", {
+                "Four shards. Halfway. The fountain cleared its throat at dawn.",
+                "Don't tell Pip. He'll sit there a week waiting for the rest.",
+                "Three remain. Press on -- Suno's strength is not infinite.",
+              })
+            elseif n == 3 then
+              return with_shard_react("Elder", {
+                "Three shards. The baker sings to her dough again. Off-key.",
+                "I noted it in the ledger anyway. A note is a note.",
+                "Four still scattered. The deeper caves call to you next.",
+              })
+            elseif n == 2 then
+              return with_shard_react("Elder", {
+                "Two shards. The swallows came back to the bell-eave this week.",
+                "I keep a ledger of what returns. Someone in this village has to.",
+                "Suno gathers his armies. Five shards remain, scattered.",
+              })
+            elseif n == 1 then
+              return with_shard_react("Elder", {
+                "The Lydian, home. First entry in my ledger in nineteen years.",
+                "The Hollow Woods lie east. Veris waits within.",
+                "She knows of the next shard.",
+              })
+            end
+            return with_shard_react("Elder", {
+              "Travelers. I know every face in this village by its grandmother's.",
+              "Yours are new. So is Suno's shadow. I care for neither, frankly.",
+              "A shard sleeps east in the cave. Recover it before he does.",
+            })
+          end,
+        },
         { x = 8, y = 2, name = "CeremonyRobe", kind = "object",
           dialogue = function()
             return {
@@ -3277,6 +3490,71 @@ CONTENT = {
         {4,4,4,4,17,17,4,4,4,4},
       },
       npcs = {
+        { x = 3, y = 4, facing = "left", kind = "npc", name = "Brann",
+          barks = {"(clang)", "iron, sing.", "tempering.", "(blows on ember)", "shape it true."},
+          dialogue = function()
+            local lead = party[active] and party[active].class
+            -- Brann is the village smith; recognizes Strom from old garrison
+            -- repair-work, and respects Miel's lineage.
+            if lead == "warrior" then
+              return with_shard_react("Brann", {
+                "[Brann]  (sets the tongs down) Strom. I tempered your old hammer twice.",
+                "[Brann]  Third time was someone else's. They didn't carry it like you did.",
+                "[Brann]  Bring me anything you find that wants singing into. I'll do right by it.",
+              })
+            end
+            if lead == "cleric" then
+              return with_shard_react("Brann", {
+                "[Brann]  Your grandmother used to sit on that stump and watch me work.",
+                "[Brann]  Said the anvil rang in Aeolian. (smiles) She was wrong; it's plain D.",
+                "[Brann]  But I never argued with her, and I won't argue with you.",
+              })
+            end
+            -- SIDEQUEST: 10 random encounter wins → 200g + a free Star item.
+            local q = QUESTS.brann
+            if q.wins >= q.target and not q.claimed then
+              q.claimed = true
+              SHOP.gold = SHOP.gold + 200
+              SHOP.inv.star = SHOP.inv.star + 1
+              return with_shard_react("Brann", {
+                "Ten road fights. You bring me ore-stained metal each time.",
+                "I melted, I folded, I sang it true.",
+                "Take this -- and 200g for the slag.",
+                "(+200 gold, +1 Star)",
+              })
+            elseif q.claimed then
+              local lines = {
+                "Anvil's quiet today. Good road work?",
+                "Anvel says my quench water's the secret. Let him think it.",
+                "Bring me anything weird from the deeps. I always have a forge waiting.",
+              }
+              -- Close the fig-cake loop from the Phrygian Brann (name-twin,
+              -- not kin) once the party has plausibly passed through there.
+              if shards.phrygian then
+                lines[#lines + 1] = "A Brann out east sent a fig cake with my name on it. Never met the man."
+                lines[#lines + 1] = "Ate the cake. Branns look out for Branns, apparently."
+              end
+              return with_shard_react("Brann", lines)
+            elseif q.wins > 0 then
+              return with_shard_react("Brann", {
+                "Heard you've cleared " .. q.wins .. "/" .. q.target .. " road fights.",
+                "Each one drops slag I can refine. Bring me ten, I'll forge you a marvel.",
+              })
+            end
+            if shards.mixolydian then
+              return with_shard_react("Brann", {
+                "Hammered all night. Coast steel doesn't temper itself, you know.",
+                "Survive ten road fights -- I'll forge you something worth the breath.",
+                "(Quest: 10 random-encounter wins.)",
+              })
+            end
+            return with_shard_react("Brann", {
+              "Brann. Smith. Don't touch the anvil. Adventurers always touch the anvil.",
+              "Survive ten road fights -- bring me the slag. I'll forge a marvel.",
+              "(Quest: 10 random-encounter wins.)",
+            })
+          end,
+        },
         { x = 2, y = 4, name = "Workbench", kind = "object",
           dialogue = function()
             return {
@@ -3386,6 +3664,25 @@ CONTENT = {
         {4,4,4,4,17,17,4,4,4,4},
       },
       npcs = {
+        { x = 4, y = 3, facing = "down", name = "Beck", kind = "npc",
+          dialogue = function()
+            local lead = party[active] and party[active].class
+            if lead == "warrior" then
+              return {
+                "Strong arms. Want to haul nets at dawn?",
+                "Pay's three coppers and a flask of cider.",
+                "No? Nobody ever does. The offer stands anyway.",
+              }
+            else
+              return {
+                "(he coils a line without looking at it)",
+                "At low tide, listen east of the cavern mouth.",
+                "Sometimes the old bandleader still calls back.",
+                "I answer. Quietly. In case it's rude not to.",
+              }
+            end
+          end,
+        },
         { x = 7, y = 2, name = "CoiledLines", kind = "object",
           dialogue = function()
             return {
@@ -10669,286 +10966,8 @@ local MAINLAND_NPCS = {
   -- Beside her cottage door (4,5), on the west flower tile — standing
   -- at (4,6) pinned the one-tile column between her door and the inn
   -- (4,7). Vell mirrors her on the east flowers at (5,5).
-  { x = 3, y = 5, name = "Tova",
-    barks = {"hmm.", "(turns a page)", "fascinating.", "ah, the dean.", "(scribbles)"},
-    dialogue = function()
-      local lead = party[active] and party[active].class
-      -- Tova lights up when Diegues (mage / scholar) is in the lead.
-      if lead == "mage" then
-        return with_shard_react("Tova", {
-          "(her eyes brighten when she sees Diegues)",
-          "Academy boy, are you? I read your dean's last paper.",
-          "Brilliant. Wrong about the chord -- but brilliant.",
-          "Ask me about the seven before you leave.",
-        })
-      end
-      -- SIDEQUEST: meet all four regional sages, return for a lore reward.
-      local s = QUESTS.tova.spoke
-      local visited = (s.Veris and 1 or 0) + (s.Aurin and 1 or 0)
-                    + (s.Mira  and 1 or 0) + (s.Iolen and 1 or 0)
-      if visited == 4 and not QUESTS.tova.claimed then
-        QUESTS.tova.claimed = true
-        SHOP.gold = SHOP.gold + 80
-        return with_shard_react("Tova", {
-          "You spoke with Veris. Aurin. Mira. And Iolen of the highlands too.",
-          "Each holds a fragment of the chord. Together they form the old map.",
-          "Take this -- earned, not given.",
-          "(+80 gold)",
-        })
-      elseif QUESTS.tova.claimed then
-        return with_shard_react("Tova", {
-          "The map of the seven sings to me more clearly now, thanks to you.",
-          "Suno fears the chord most of all. Strike one shard, the next rings true.",
-        })
-      elseif visited > 0 then
-        return with_shard_react("Tova", {
-          "You've met " .. visited .. " of the four sages.",
-          "Veris in the Wood. Aurin on the Coast. Mira in the Reaches. Iolen in the Wilds.",
-          "Find them all -- return to me.",
-        })
-      end
-      if shards.aeolian then
-        return with_shard_react("Tova", {
-          "The Aeolian Shard! Few survive the Snowgaunt's keening waltz.",
-          "You bear the lonely song now. Two shards still elude us, child.",
-        })
-      elseif shards.lydian then
-        return with_shard_react("Tova", {
-          "I once charted seven nations. Each held a shard. Each fell silent.",
-          "The academy called my map 'speculative.' The dean signed the review.",
-          "Now the roads match my ink. I am petty enough to enjoy that.",
-          "(Quest: meet the four regional sages.)",
-        })
-      end
-      return with_shard_react("Tova", {
-        "I am Tova. I read the old runes. Correctly, unlike some.",
-        "The Crystal Synth was a chord -- seven notes ringing as one.",
-        "Suno hunts each note alone. Find them before they go cold.",
-        "(Quest: meet the four regional sages.)",
-      })
-    end,
-  },
   -- (Plaza Hens removed Pass 24 — she now runs the item-shop interior;
   -- the village no longer has a duplicate outdoor shop NPC.)
-  { x = 20, y = 6, name = "Elder",
-    dialogue = function()
-      local lead = party[active] and party[active].class
-      -- The village Elder knew Miel's grandmother, and remembers seeing
-      -- Miel as a child; he respects Strom from the campaigns, and is
-      -- amused by Diegues' academic gravity. Alder he raised.
-      if lead == "cleric" then
-        return with_shard_react("Elder", {
-          "[Elder]  ...my queen. I never thought I'd say those words again.",
-          "[Elder]  Your grandmother stood where you are standing now, once.",
-          "[Elder]  I gave her the same advice I'll give you: walk softly. Listen long.",
-        })
-      end
-      if lead == "warrior" then
-        return with_shard_react("Elder", {
-          "[Elder]  (nods, once. Soldier's nod.) -- Strom.",
-          "[Elder]  The garrison knew your name. Some of us still do.",
-          "[Elder]  Whatever you carried out of those years, you don't carry it alone now.",
-        })
-      end
-      if lead == "bard" then
-        return with_shard_react("Elder", {
-          "[Elder]  Alder. (smiles, slowly) You came back.",
-          "[Elder]  I taught you a chord on the front step once. You spent a year disagreeing with it.",
-          "[Elder]  You sound right now. The disagreement settled.",
-        })
-      end
-      if lead == "mage" then
-        return with_shard_react("Elder", {
-          "[Elder]  Academy man. I hosted three of you in '52 -- they ate everything.",
-          "[Elder]  You write as if the page might escape. (chuckles)",
-          "[Elder]  Listen as much as you write, scholar. Modalia talks back.",
-        })
-      end
-      -- Count reclaimed shards generically. The previous version only
-      -- branched on shards.lydian and shards.dorian, so the "Two shards"
-      -- line locked in for every count from 2 to 6.
-      local n = 0
-      for _, v in pairs(shards) do if v then n = n + 1 end end
-      if n >= 7 then
-        return with_shard_react("Elder", {
-          "Seven shards. The Crystal Synth is whole.",
-          "Go to Suno's domain. End this. Modalia has waited long enough.",
-        })
-      elseif n == 6 then
-        return with_shard_react("Elder", {
-          "Six shards reclaimed. Only the last sleeps in Suno's domain.",
-          "He will not let it go quietly. Be ready.",
-        })
-      elseif n == 5 then
-        return with_shard_react("Elder", {
-          "Five shards. The fountain sings at night now. I go and listen.",
-          "I tell people I'm checking the stonework. I am not.",
-          "Two more. Suno feels every one of them slip from his grasp.",
-        })
-      elseif n == 4 then
-        return with_shard_react("Elder", {
-          "Four shards. Halfway. The fountain cleared its throat at dawn.",
-          "Don't tell Pip. He'll sit there a week waiting for the rest.",
-          "Three remain. Press on -- Suno's strength is not infinite.",
-        })
-      elseif n == 3 then
-        return with_shard_react("Elder", {
-          "Three shards. The baker sings to her dough again. Off-key.",
-          "I noted it in the ledger anyway. A note is a note.",
-          "Four still scattered. The deeper caves call to you next.",
-        })
-      elseif n == 2 then
-        return with_shard_react("Elder", {
-          "Two shards. The swallows came back to the bell-eave this week.",
-          "I keep a ledger of what returns. Someone in this village has to.",
-          "Suno gathers his armies. Five shards remain, scattered.",
-        })
-      elseif n == 1 then
-        return with_shard_react("Elder", {
-          "The Lydian, home. First entry in my ledger in nineteen years.",
-          "The Hollow Woods lie east. Veris waits within.",
-          "She knows of the next shard.",
-        })
-      end
-      return with_shard_react("Elder", {
-        "Travelers. I know every face in this village by its grandmother's.",
-        "Yours are new. So is Suno's shadow. I care for neither, frankly.",
-        "A shard sleeps east in the cave. Recover it before he does.",
-      })
-    end,
-  },
-  { x = 26, y = 9, name = "Brann",
-    barks = {"(clang)", "iron, sing.", "tempering.", "(blows on ember)", "shape it true."},
-    dialogue = function()
-      local lead = party[active] and party[active].class
-      -- Brann is the village smith; recognizes Strom from old garrison
-      -- repair-work, and respects Miel's lineage.
-      if lead == "warrior" then
-        return with_shard_react("Brann", {
-          "[Brann]  (sets the tongs down) Strom. I tempered your old hammer twice.",
-          "[Brann]  Third time was someone else's. They didn't carry it like you did.",
-          "[Brann]  Bring me anything you find that wants singing into. I'll do right by it.",
-        })
-      end
-      if lead == "cleric" then
-        return with_shard_react("Brann", {
-          "[Brann]  Your grandmother used to sit on that stump and watch me work.",
-          "[Brann]  Said the anvil rang in Aeolian. (smiles) She was wrong; it's plain D.",
-          "[Brann]  But I never argued with her, and I won't argue with you.",
-        })
-      end
-      -- SIDEQUEST: 10 random encounter wins → 200g + a free Star item.
-      local q = QUESTS.brann
-      if q.wins >= q.target and not q.claimed then
-        q.claimed = true
-        SHOP.gold = SHOP.gold + 200
-        SHOP.inv.star = SHOP.inv.star + 1
-        return with_shard_react("Brann", {
-          "Ten road fights. You bring me ore-stained metal each time.",
-          "I melted, I folded, I sang it true.",
-          "Take this -- and 200g for the slag.",
-          "(+200 gold, +1 Star)",
-        })
-      elseif q.claimed then
-        local lines = {
-          "Anvil's quiet today. Good road work?",
-          "Anvel says my quench water's the secret. Let him think it.",
-          "Bring me anything weird from the deeps. I always have a forge waiting.",
-        }
-        -- Close the fig-cake loop from the Phrygian Brann (name-twin,
-        -- not kin) once the party has plausibly passed through there.
-        if shards.phrygian then
-          lines[#lines + 1] = "A Brann out east sent a fig cake with my name on it. Never met the man."
-          lines[#lines + 1] = "Ate the cake. Branns look out for Branns, apparently."
-        end
-        return with_shard_react("Brann", lines)
-      elseif q.wins > 0 then
-        return with_shard_react("Brann", {
-          "Heard you've cleared " .. q.wins .. "/" .. q.target .. " road fights.",
-          "Each one drops slag I can refine. Bring me ten, I'll forge you a marvel.",
-        })
-      end
-      if shards.mixolydian then
-        return with_shard_react("Brann", {
-          "Hammered all night. Coast steel doesn't temper itself, you know.",
-          "Survive ten road fights -- I'll forge you something worth the breath.",
-          "(Quest: 10 random-encounter wins.)",
-        })
-      end
-      return with_shard_react("Brann", {
-        "Brann. Smith. Don't touch the anvil. Adventurers always touch the anvil.",
-        "Survive ten road fights -- bring me the slag. I'll forge a marvel.",
-        "(Quest: 10 random-encounter wins.)",
-      })
-    end,
-  },
-  { x = 10, y = 6, name = "Pip",
-    barks = {"woah.", "(chases a chicken)", "uncle Brann!", "did you see that?", "i can run faster!"},
-    dialogue = function()
-      local lead = party[active] and party[active].class
-      -- Pip is a village kid with a hero-eyed view of the warrior, and
-      -- finds the bard's lute fascinating. He knows them by sight now.
-      if lead == "warrior" then
-        return with_shard_react("Pip", {
-          "[Pip] WOAH. Is that a real sword? Have you fought a wolf?",
-          "[Pip] Uncle Brann said you carried a hammer once. Can I try?",
-          "[Pip] (...) okay, okay -- when I'm bigger.",
-        })
-      end
-      if lead == "bard" then
-        return with_shard_react("Pip", {
-          "[Pip] (eyes the lute) Can it really make the river quiet down?",
-          "[Pip] Lyrik said yes but Lyrik says yes to a lot of things.",
-          "[Pip] Play one. PLEEEASE.",
-        })
-      end
-      if lead == "mage" then
-        return with_shard_react("Pip", {
-          "[Pip] You write a LOT. Are you writing about me?",
-          "[Pip] (peers at the page) That's the same word three times!",
-          "[Pip] (...) is that a spell?",
-        })
-      end
-      local n = 0; for _, v in pairs(shards) do if v then n = n + 1 end end
-      if n >= 7 then
-        return with_shard_react("Pip", {
-          "THE FOUNTAIN'S SINGING! It did it again this morning! I COUNTED!",
-          "Mama cried TWICE. Happy crying, she said. That's a real kind!",
-          "You brought the songs back. I KNEW you would. I told EVERYONE.",
-        })
-      elseif n >= 4 then
-        return with_shard_react("Pip", {
-          "FOUR! I'm keeping count on my wall in chalk. Four marks!",
-          "Uncle Brann says my tally's crooked. IT IS NOT CROOKED.",
-          "I tried to sing the Lydian last night. Mama said I was CLOSE.",
-        })
-      elseif n >= 1 then
-        -- After your first shard but still early
-        return with_shard_react("Pip", {
-          "I heard humming this morning! Mama said it was just the wind.",
-          "The wind doesn't hum IN TUNE. Was that you? Did you find one?",
-          "Keep going! Bring ALL the songs back! I'm counting them!",
-        })
-      end
-      -- Pre-first-shard: cycle through 3 sets so Pip doesn't repeat the same
-      -- line every time you talk to him at the very beginning.
-      local variants = {
-        {
-          "Hi! I'm Pip! Are you the new musicians?",
-          "Mama said you'd come. She didn't say WHEN. I've been counting days.",
-        },
-        {
-          "Have you been to the cave yet? I'm not allowed to go.",
-          "Mama says I'm too small. But I'm only a LITTLE small.",
-        },
-        {
-          "The fountain used to sing. Now it just gurgles.",
-          "Gurgles aren't songs. Bring the songs back, okay?",
-        },
-      }
-      return with_shard_react("Pip", variants[(tick // 60) % #variants + 1])
-    end,
-  },
   -- Village Fountain. The plaza centerpiece. A "Lirael well" stone basin
   -- whose chord-bell awakens with shards collected. Reactive lore that
   -- ties Pip's "the fountain SANG!" line to a real interactable.
@@ -14070,25 +14089,6 @@ CONTENT.sunward_coast_npcs = {
     end,
   },
   -- Beck — fisherman
-  { x = 4, y = 11, name = "Beck", kind = "npc",
-    dialogue = function()
-      local lead = party[active] and party[active].class
-      if lead == "warrior" then
-        return {
-          "Strong arms. Want to haul nets at dawn?",
-          "Pay's three coppers and a flask of cider.",
-          "No? Nobody ever does. The offer stands anyway.",
-        }
-      else
-        return {
-          "(he coils a line without looking at it)",
-          "At low tide, listen east of the cavern mouth.",
-          "Sometimes the old bandleader still calls back.",
-          "I answer. Quietly. In case it's rude not to.",
-        }
-      end
-    end,
-  },
   -- Wynne — traveling bard passing through
   { x = 12, y = 4, name = "Wynne", kind = "npc",
     dialogue = function()
