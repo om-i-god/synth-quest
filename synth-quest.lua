@@ -9184,8 +9184,9 @@ end
 
 -- start_phrygian_arrival_scene() — first time arriving at Phrygian City
 -- (map 36). Party crests the dune-line; camera slow-pans across the
--- towers and bazaar as lanterns rise at dusk. Sergei speaks at the south
--- gate. Fires exactly once per save via CONTENT.scene_seen.phrygian_arrival.
+-- towers and bazaar as lanterns rise at dusk. If Sergei has been
+-- recruited he rides along and warns you at the gate; otherwise that
+-- beat is skipped. Fires once per save via CONTENT.scene_seen.phrygian_arrival.
 function start_phrygian_arrival_scene()
   local px, py = player.x, player.y
   local script = {
@@ -9213,21 +9214,30 @@ function start_phrygian_arrival_scene()
     -- Pan east to tower district.
     {focus = {x = 29, y = 2}, ticks = 30},
     {wait = 10},
-    -- Sergei at the south gate (row 4, col 17 per NPC table).
-    {focus = {x = 17, y = 4}, ticks = 24},
-    {wait = 4},
-    {dialogue = {
+  }
+  -- Sergei's "stay close" warning only plays if he actually rides with
+  -- you. He is recruited on the MAINLAND (43,3) after Tidewatch, so a
+  -- player who reaches Phrygian City without him used to hear a phantom
+  -- voice over an empty gate. If he IS a companion, spawn him at the
+  -- gate so the camera has something to focus on.
+  if CONTENT and CONTENT.recruits and CONTENT.recruits[1] and CONTENT.recruits[1].joined then
+    table.insert(script, {spawn = "sergei", class = "engineer", name = "Sergei",
+                          x = 17, y = 4, facing = "down", bob = false})
+    table.insert(script, {focus = {x = 17, y = 4}, ticks = 24})
+    table.insert(script, {wait = 4})
+    table.insert(script, {dialogue = {
       "[Sergei]   Stay close after the gate closes.",
       "[Sergei]   Phrygian night is not for visitors who wander.",
-    }, npc = {name = "Sergei"}},
-    {wait = 6},
-    {focus = "player", ticks = 20},
-    {wait = 4},
-    {show_player = true},
-    {letterbox_out = true},
-    {flash = "* Phrygian City *", ticks = 60},
-    {set = function() flag.phrygian_arrival_done = true end},
-  }
+    }, npc = {name = "Sergei"}})
+    table.insert(script, {wait = 6})
+    table.insert(script, {despawn = "sergei"})
+  end
+  table.insert(script, {focus = "player", ticks = 20})
+  table.insert(script, {wait = 4})
+  table.insert(script, {show_player = true})
+  table.insert(script, {letterbox_out = true})
+  table.insert(script, {flash = "* Phrygian City *", ticks = 60})
+  table.insert(script, {set = function() flag.phrygian_arrival_done = true end})
   SCENE.start(script)
 end
 

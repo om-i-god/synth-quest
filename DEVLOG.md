@@ -3062,3 +3062,25 @@ Fix: `_G.QUESTS = QUESTS` right after the declaration (QUESTS is never
 reassigned, so the mirror stays valid). Reproduced the crash and the fix
 in an isolated Lua harness. This restores Tova's sage sidequest and
 Brann's forge-quest branches.
+
+## 2026-07-17 — Remove duplicate Dune Hall + fix phantom Sergei in Phrygian City
+
+Two user reports.
+
+**Duplicate Dune Hall (Cave 4):** the cave had two mouths into the same
+interior — one in the Eastern Reaches (25,7) and one at the Phrygian
+City north gate. Removed the Eastern Reaches entrance; Cave 4 is now
+entered only through Phrygian City (the phrygian-shard town). Phrygian
+City's ungated waypost keeps it reachable; BFS-confirmed the north-gate
+entrance is still reachable from the south-gate arrival.
+
+**Phantom Sergei in Phrygian City:** the Phrygian arrival scene panned
+the camera to an empty gate tile (17,4) and played Sergei's warning
+lines with only a dialogue portrait — no sprite spawned. But Sergei is
+recruited on the MAINLAND at (43,3) after Tidewatch (Cave 3), so a
+player who reached Phrygian City without him heard a disembodied voice
+and reasonably thought they should be able to find/recruit him there.
+Fix: the Sergei beat now plays only if he's actually a companion
+(CONTENT.recruits[1].joined), and when it does it SPAWNS him at the gate
+so the camera focus lands on a visible actor. Not recruited -> the beat
+is skipped entirely.
