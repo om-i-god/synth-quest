@@ -1749,6 +1749,10 @@ present in the code.
    LUTIST (Village Clearing — likely)
       Role: a lutist NPC, possibly a tutor or rival to Alder.
       STATUS: STUB. Likely a Lydian-country troupe member.
+      NOTE 2026-07-17: the ambient "lutist by the road" random
+      event (a partial realization of this stub) was removed at
+      the user's request — it was broken in play. The character
+      concept stays available for a future proper NPC.
 
    ECHO (Academy courtyard, astrolabe-bound)
       Role: Semi-transparent figure manifest near the astrolabe.
@@ -1791,6 +1795,9 @@ present in the code.
       Role: a roaming NPC who appears across regions. STATUS:
       STUB. Strong candidate for a mythic-frame NPC — a
       Resonance walking the map in human shape.
+      NOTE 2026-07-17: the ambient "wanderer passes by" random
+      event was removed at the user's request (broken in play);
+      the mythic-frame concept above remains unbuilt.
 
 When developing any of these characters in future sessions:
    - Decide their region first, then their music, then their

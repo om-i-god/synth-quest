@@ -15754,12 +15754,9 @@ function try_ambient_event()
   -- the events again.
   CONTENT.events_seen = CONTENT.events_seen or {}
   local events = {
-    -- Wanderer fits trade roads + warm regions; never in the snow.
-    {id = "wanderer", fn = start_event_wanderer,
-     where = function() return in_woods or in_coast or in_eastern or in_hills end},
-    -- Lutist also dislikes cold; fits the village outskirts + hills.
-    {id = "lutist", fn = start_event_lutist,
-     where = function() return in_woods or in_coast or in_hills end},
+    -- (The wandering-musician events — "wanderer" and "lutist" — were
+    -- removed 2026-07-17 at the user's request; their ids may linger
+    -- harmlessly in old saves' events_seen.)
     -- Coin glints fit established roads — mainland + eastern + western
     -- (where carts have passed for years).
     {id = "coin", fn = start_event_coin,
@@ -15794,74 +15791,6 @@ end
 -- entry so the scene can spawn local actors and return the player to
 -- exactly where they were standing. All globals (no `local`) to dodge
 -- the 200-main-chunk-locals cap.
-
-function start_event_wanderer()
-  local px, py = player.x, player.y
-  local enter_x = math.min(px + 5, MAP_W - 1)
-  local exit_x  = math.max(px - 5, 2)
-  local script = {
-    {hide_player = true},
-    {letterbox_in = true},
-    {focus = {x = px, y = py}, ticks = 12},
-    {spawn = "miel", class = "cleric", name = "Miel", x = px, y = py, facing = "right", bob = false},
-    {spawn = "wanderer", class = "bard", name = "Wanderer",
-     x = enter_x, y = py, facing = "left", bob = false},
-    {wait = 8},
-    {move = "wanderer", to = {x = px + 1, y = py}, ticks = 60},
-    {face = "miel", facing = "right"},
-    {wait = 6},
-    {dialogue = {
-      "(a wanderer steps off the road, head dipped in greeting)",
-      "[Wanderer] Music's been thin on the road of late.",
-      "[Wanderer] You sound like fuller weather coming. (offers a Tonic)",
-    }, npc = {name = "Wanderer"}},
-    {set = function() SHOP.inv.tonic = (SHOP.inv.tonic or 0) + 1 end},
-    {flash = "* +1 Tonic *", ticks = 36},
-    {wait = 18},
-    {move = "wanderer", to = {x = exit_x, y = py}, ticks = 80},
-    {despawn = "wanderer"},
-    {despawn = "miel"},
-    {teleport_player = {x = px, y = py, facing = player.facing}},
-    {show_player = true},
-    {letterbox_out = true},
-  }
-  SCENE.start(script)
-end
-
-function start_event_lutist()
-  local px, py = player.x, player.y
-  local lx = math.min(px + 3, MAP_W - 1)
-  local script = {
-    {hide_player = true},
-    {letterbox_in = true},
-    {focus = {x = px, y = py}, ticks = 12},
-    {spawn = "miel", class = "cleric", name = "Miel", x = px, y = py, facing = "right", bob = false},
-    {spawn = "lutist", class = "bard", name = "Lutist",
-     x = lx, y = py, facing = "left", bob = false},
-    {wait = 12},
-    {dialogue = {
-      "(a wandering musician has set their lute across their knees by the road)",
-    }, npc = nil},
-    {sfx = {class = "bard", note = 67, vel = 0.55, attack = 0.005, release = 2.0, wet = 0.95}},
-    {wait = 10},
-    {sfx = {class = "bard", note = 71, vel = 0.50, attack = 0.005, release = 2.0, wet = 0.95}},
-    {wait = 10},
-    {sfx = {class = "bard", note = 74, vel = 0.50, attack = 0.005, release = 3.0, wet = 1.0}},
-    {wait = 24},
-    {dialogue = {
-      "[Lutist]  (does not look up)",
-      "[Lutist]  Carry it east. The chord is missing two notes you know.",
-      "[Lutist]  ...one of them is yours.",
-    }, npc = {name = "Lutist"}},
-    {wait = 14},
-    {despawn = "lutist"},
-    {despawn = "miel"},
-    {teleport_player = {x = px, y = py, facing = player.facing}},
-    {show_player = true},
-    {letterbox_out = true},
-  }
-  SCENE.start(script)
-end
 
 function start_event_coin()
   local px, py = player.x, player.y
@@ -28644,27 +28573,6 @@ ANIM.draw_action_fx = function(p, sx, sy)
   end
 end
 
--- Mini joystick visualizer (8×8). Crosshair + center rest dot + glowing stick
--- dot with a subtle 1-pixel halo. nx, ny in [-1, 1].
-ANIM.draw_stick = function(box_x, box_y, nx, ny)
-  screen.level(3)
-  screen.rect(box_x, box_y, 8, 8); screen.stroke()
-  -- crosshair
-  screen.level(2)
-  screen.move(box_x + 0, box_y + 4); screen.line(box_x + 8, box_y + 4); screen.stroke()
-  screen.move(box_x + 4, box_y + 0); screen.line(box_x + 4, box_y + 8); screen.stroke()
-  -- center rest tick
-  screen.level(4)
-  screen.pixel(box_x + 4, box_y + 4); screen.fill()
-  -- stick dot with halo
-  local dx = math.floor(box_x + 4 + (nx or 0) * 3 + 0.5)
-  local dy = math.floor(box_y + 4 + (ny or 0) * 3 + 0.5)
-  screen.level(7)
-  screen.pixel(dx - 1, dy); screen.pixel(dx + 1, dy); screen.pixel(dx, dy - 1); screen.pixel(dx, dy + 1); screen.fill()
-  screen.level(15)
-  screen.pixel(dx, dy); screen.fill()
-end
-
 local function draw_battle()
   -- Critical-HP vignette: any alive party member below 25% HP triggers a
   -- subtle pulsing border tint. Reads as urgency without obscuring the
@@ -28699,26 +28607,16 @@ local function draw_battle()
   screen.move(2 + cave_w + 3, 6)
   screen.text(BATTLE_BPM .. " " .. JAM.note_names[((JAM.root or 0) % 12) + 1])
   -- World of Silence cue: tiny tilde squiggle + "detuned" tag, right-
-  -- aligned at x=105 so it hugs the stick pads (x=108+) and stays clear
-  -- of the cave-name/BPM text on the left. Subtle (level 6), no pulse.
+  -- aligned at the screen edge (the stick pads that used to sit at
+  -- x=108+ are gone). Subtle (level 6), no pulse.
   if CONTENT.act3_silence then
     screen.level(6)
     local dw = screen.text_extents("detuned")
-    screen.move(105, 6); screen.text_right("detuned")
-    screen.pixel(105 - dw - 7, 4); screen.pixel(105 - dw - 6, 3)
-    screen.pixel(105 - dw - 5, 4); screen.fill()
+    screen.move(126, 6); screen.text_right("detuned")
+    screen.pixel(126 - dw - 7, 4); screen.pixel(126 - dw - 6, 3)
+    screen.pixel(126 - dw - 5, 4); screen.fill()
   end
   screen.font_face(1); screen.font_size(8)
-  -- Two stick mini-pads at the top-right (left stick = reverb/delay, right = cutoff/res).
-  -- Indicators reflect the ACTIVE voice's latched stick — switching voices makes
-  -- the dot jump to that voice's remembered effect setting.
-  local apvc = party[active]
-  local lx, ly, rx, ry = 0, 0, 0, 0
-  if apvc and apvc.stick then
-    lx, ly, rx, ry = apvc.stick.lx, apvc.stick.ly, apvc.stick.rx, apvc.stick.ry
-  end
-  ANIM.draw_stick(108, 0, lx, ly)
-  ANIM.draw_stick(118, 0, rx, ry)
 
   -- ── SCENE (rows 9-44): action popup on left, party sprites bottom-left, enemy right ──
   screen.level(3)

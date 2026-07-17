@@ -2935,3 +2935,18 @@ one-shots (Anvel's anvil, WhiteBird, orrery).
 ARTIC pitch offsets on party actions (+7 PLAY, -5 BLK, etc.) can
 leave the mode by the same mechanism; that's party-voice character,
 not enemy audio — revisit only if the user hears it.
+
+## 2026-07-17 — Removals: wandering-musician events + battle stick pads (user request)
+
+- **Ambient wandering-musician events removed** — the "wanderer passes
+  by" and "lutist by the road" one-shot overworld events (user: "they're
+  broken anyways"). Their picker entries and scene functions are gone;
+  the other four ambient events (coin, stillness, ghost note, courier)
+  stay. Old saves may carry `wanderer`/`lutist` in `events_seen` —
+  harmless, the dispatcher no longer knows those ids. The LUTIST and
+  WANDERER character stubs in the bible remain as future-NPC concepts.
+- **Battle stick mini-pads removed** — the two 8×8 joystick position
+  indicators at the top-right of the battle HUD are gone (the sticks
+  themselves still work; only the readout is removed). The World of
+  Silence "detuned" tag now right-aligns at the screen edge where the
+  pads used to sit. The JAM screen's big stick visualizer is untouched.
