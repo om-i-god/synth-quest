@@ -2884,3 +2884,54 @@ adversarial verify over the whole diff.
 Audit agents → inline fixes → serialized map agent → adversarial
 verify (6 confirmed findings, incl. the critical scoping bug and one
 false alarm traced to a stale comment) → all fixed → luac -p green.
+
+## 2026-07-17 — Wave 14: enemy audio scale-conformance (user report)
+
+User: "All sounds they [enemies] make need to fit into the selected
+scale. There's a lot of dissonant or just outright wrong notes for
+certain enemies such as the wisp."
+
+### Root cause
+Party voices and zone themes fire by scale DEGREE through
+`active_scale() + JAM.root`, so they always land in the sounding
+scale. Every enemy `attack_sound`, though, carries an absolute MIDI
+note authored against A-minor pentatonic. Two enemies (Spectre F5,
+Sage Sentinel F2) were dissonant even in the DEFAULT scale; 22 more
+(every C, D, G signature) go sour the moment the player selects
+lydian — the first shard they earn — and any non-zero jam root broke
+all of them everywhere. Battle music always follows JAM.mode (zones
+never change it; only the castle overworld theme is scale-locked).
+
+### Fix
+New global `snap_note_to_scale(note)` (defined after `active_scale`
+per the declare-before-reference rule): pitch-class snap to the
+sounding scale (JAM.mode + JAM.root), nearest note, ties downward,
+register preserved. Exhaustively verified offline: 8 modes x 25 roots
+x notes 10..100 — always in scale, in-scale notes untouched, drift
+<= 1 semitone in practice.
+
+Routed through it:
+- enemy `attack_sound` firing in enemy_tick — the single choke point
+  for every enemy, boss, rare, and scripted battle in the game
+- battle-entry encounter sting
+- Resonance signature SFX (shared invoke site) + the ring's clangor
+  root AND fifth (snapped independently; stays a perfect fifth in 7
+  of 8 modes, a minor sixth in ionian, never a tritone)
+- item chimes (salve's B5 was dissonant in default pentatonic) +
+  refusal blip
+- verify-agent catches: Sergei's parting "healing chord", Miel's
+  WHOLE-NOTE REST limit break, the limit-break broken-chord fifth
+  (same idiom as the ring clangor), and Sergei's wrench-skip/
+  bell-clang — while his third "chord souring" note stays Bb ON
+  PURPOSE, so the sour beat now lands against an in-scale setup.
+
+### Deliberately chromatic, untouched
+STIR/RESO/queue denial chords, Mira's C#4 phrygian grace, ECHO's
+Disperse chromatic run, act-3 silence detune, MIDI-in passthrough,
+scene-engine sfx (incl. the 48.55 quarter-tone), overworld NPC
+one-shots (Anvel's anvil, WhiteBird, orrery).
+
+### Known observation (left alone by choice)
+ARTIC pitch offsets on party actions (+7 PLAY, -5 BLK, etc.) can
+leave the mode by the same mechanism; that's party-voice character,
+not enemy audio — revisit only if the user hears it.

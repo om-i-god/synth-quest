@@ -1955,6 +1955,14 @@ Wave-13 dialogue canon (2026-07-16). Locked in code this pass:
      recruits are listed, and starters can no longer be swapped in
      before their story join.
 
+Enemy sonic signatures are scale-relative (2026-07-17, wave 14).
+   Each enemy keeps its register, voice, and envelope, but the pitch
+   snaps to the nearest note of the player's selected mode + root at
+   fire time. An enemy's "signature" is its gesture, not a fixed
+   frequency. Deliberate exceptions that stay chromatic: the denial
+   chords, Sergei's Bb souring, Mira's C# grace, ECHO's Disperse run,
+   and the act-3 silence detune.
+
 ================================================================
                 END OF BIBLE (work in progress)
 ================================================================

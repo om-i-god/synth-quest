@@ -5003,6 +5003,30 @@ local function active_scale()
   return JAM.scales[JAM.mode] or JAM.scales.pentatonic
 end
 
+-- Snap an absolute MIDI note to the nearest pitch of the sounding scale
+-- (JAM.mode transposed by JAM.root), preserving register — enemy attack
+-- signatures, the encounter sting, item chimes, and Resonance signatures
+-- were authored as fixed A-pentatonic notes and went dissonant the moment
+-- the player selected another mode or shifted the jam root. Ties resolve
+-- downward. Deliberately-sour sounds (denial chords, Sergei's Bb, Mira's
+-- C#, ECHO's chromatic Disperse, act-3 detune) do NOT route through this.
+function snap_note_to_scale(note)
+  local sc = active_scale()
+  local root = JAM.root or 0
+  local pcs = {}
+  for _, v in ipairs(sc) do pcs[(v + root) % 12] = true end
+  local best, bestd = note, 99
+  for pc in pairs(pcs) do
+    local base = note - ((note - pc) % 12)   -- candidate at/below note
+    local up = base + 12
+    local d = note - base
+    if d < bestd or (d == bestd and base < best) then best, bestd = base, d end
+    d = up - note
+    if d < bestd or (d == bestd and up < best) then best, bestd = up, d end
+  end
+  return best
+end
+
 -- Audible feedback when the mode changes in JAM: strum degrees 1-3-5
 -- of the NEW scale on the active voice. Without this, cycling modes
 -- was inaudible in JAM (MIDI notes are deliberately chromatic
@@ -17884,11 +17908,12 @@ local function damage_party(p, amount)
       CONTENT.banner_ticks = 42
       -- A wrench-against-bell SFX punctuates the moment. Three quick
       -- triggers: the wrench skip, the bell-clang, the chord souring.
-      sq_trig("warrior", midi_to_freq(48), 0.95, 0.001, 0.20, 0.10)
+      sq_trig("warrior", midi_to_freq(snap_note_to_scale(48)), 0.95, 0.001, 0.20, 0.10)
       clock.run(function()
         clock.sleep(0.10)
-        sq_trig("cleric", midi_to_freq(72), 0.95, 0.001, 1.20, 0.95)
+        sq_trig("cleric", midi_to_freq(snap_note_to_scale(72)), 0.95, 0.001, 1.20, 0.95)
         clock.sleep(0.30)
+        -- deliberately UN-snapped: this is the "chord souring" beat
         sq_trig("bard", midi_to_freq(58), 0.55, 0.005, 2.00, 0.85)
       end)
       ANIM.shake(3, 12)
@@ -17922,7 +17947,7 @@ local function damage_party(p, amount)
         if enemy then enemy._paused_for_sergei = nil end
         -- Bonus: a healing chord rings once as combat resumes — Sergei's
         -- parting "stay alive" gift.
-        sq_trig("cleric", midi_to_freq(67), 0.65, 0.20, 3.0, 0.95)
+        sq_trig("cleric", midi_to_freq(snap_note_to_scale(67)), 0.65, 0.20, 3.0, 0.95)
         ANIM.burst(96, 32, 6, 11)
         redraw()
       end
@@ -17993,7 +18018,7 @@ local function apply_player_action(p)
       end
       CONTENT.banner_text  = "* MIEL: WHOLE-NOTE REST *"
       CONTENT.banner_ticks = 60
-      sq_trig("cleric", midi_to_freq(72), 0.85, 0.001, 6.0,
+      sq_trig("cleric", midi_to_freq(snap_note_to_scale(72)), 0.85, 0.001, 6.0,
               math.min(1, 1.0 * (CONTENT.combat_reverb_mix or 1.0)))
     elseif cls == "wraith" then
       -- ECHO: DISPERSE. Splits into 5 ghost-copies for one beat. Scales
@@ -18042,7 +18067,7 @@ local function apply_player_action(p)
                  or cls
       local note = (active_scale()[p.note_idx] or 12) + JAM.root
       sq_trig(voice, midi_to_freq(note),     0.85, 0.001, 2.0, 1.0)
-      sq_trig(voice, midi_to_freq(note + 7), 0.65, 0.005, 2.5, 1.0)
+      sq_trig(voice, midi_to_freq(snap_note_to_scale(note + 7)), 0.65, 0.005, 2.5, 1.0)
     end
     p.last_fire = tick
     p.last_action = "ATK"
@@ -18097,10 +18122,10 @@ local function apply_player_action(p)
                     and RESONANCE_SITES.ring.shrine.signature
         if sig and sig.sound then
           local s = sig.sound
-          sq_trig(s.class, midi_to_freq(s.note),
+          sq_trig(s.class, midi_to_freq(snap_note_to_scale(s.note)),
                   s.vel or 0.7, s.attack or 0.05, s.release or 4.0,
                   math.min(1, (s.wet or 1.0) * (CONTENT.combat_reverb_mix or 1.0)))
-          sq_trig(s.class, midi_to_freq(s.note + 7),
+          sq_trig(s.class, midi_to_freq(snap_note_to_scale(s.note + 7)),
                   0.55, 0.005, 2.0,
                   math.min(1, (s.wet or 1.0) * (CONTENT.combat_reverb_mix or 1.0)))
         end
@@ -18418,7 +18443,7 @@ local function apply_player_action(p)
       -- Signature SFX
       local sig = RESONANCE_SITES[rid] and RESONANCE_SITES[rid].shrine and RESONANCE_SITES[rid].shrine.signature
       if sig and sig.sound then
-        sq_trig(sig.sound.class, midi_to_freq(sig.sound.note),
+        sq_trig(sig.sound.class, midi_to_freq(snap_note_to_scale(sig.sound.note)),
                 sig.sound.vel or 0.7,
                 sig.sound.attack or 0.05,
                 sig.sound.release or 4.0,
@@ -18699,7 +18724,7 @@ local function enemy_tick()
     local s = enemy.attack_sound
     local mix = CONTENT.combat_reverb_mix or 1.0
     local sw = math.max(0, math.min(1, s.wet * mix))
-    sq_trig(s.class, midi_to_freq(s.note), s.vel, s.attack, s.release, sw)
+    sq_trig(s.class, midi_to_freq(snap_note_to_scale(s.note)), s.vel, s.attack, s.release, sw)
   end
   local alive_idx = alive_party()
   if #alive_idx == 0 then return end
@@ -19322,7 +19347,7 @@ enter_battle = function(cave_id, force_random)
     if ANIM and ANIM.shake then ANIM.shake(2, 6) end
     if ANIM and ANIM.burst then ANIM.burst(64, 32, 8, 15) end
     if sq_trig and midi_to_freq then
-      sq_trig("warrior", midi_to_freq(48), 0.85, 0.001, 0.30, 0.30)
+      sq_trig("warrior", midi_to_freq(snap_note_to_scale(48)), 0.85, 0.001, 0.30, 0.30)
     end
   end
   current_cave = cave_id or 1
@@ -32395,7 +32420,7 @@ ITEM_TABS = { "USE", "GEAR", "KEY", "SHARDS" }
 function items_play_sfx(id)
   local crm = CONTENT.combat_reverb_mix or 1.0
   local function chime(voice, midi, vel, atk, rel, wet)
-    local f = midi_to_freq(midi)
+    local f = midi_to_freq(snap_note_to_scale(midi))
     local w = math.min(1, (wet or 0.4) * crm)
     if engine["trig_" .. voice] then
       engine["trig_" .. voice](f, vel, atk, rel, w)
@@ -32434,7 +32459,7 @@ function items_use_selected()
     CONTENT.items_flash_ticks = 30
     -- Soft refusal blip — via sq_trig so octave shift + MIDI-out apply
     if engine.trig_warrior then
-      sq_trig("warrior", midi_to_freq(36), 0.30, 0.005, 0.10, 0.05)
+      sq_trig("warrior", midi_to_freq(snap_note_to_scale(36)), 0.30, 0.005, 0.10, 0.05)
     end
     return
   end
