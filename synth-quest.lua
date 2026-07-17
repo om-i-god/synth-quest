@@ -4957,29 +4957,6 @@ CONTENT = {
         }
       end,
     },
-    -- A trapped Sage Circle scout (upper level side scene)
-    {
-      -- Display name "Scout" (the raw id "scout_trapped" was showing as
-      -- the dialogue speaker header). Distinct from the lowercase
-      -- "scout" NPC; sprite key renamed to match.
-      x = 14, y = 4, name = "Scout", kind = "npc",
-      dialogue = function()
-        local lead = party[active] and party[active].class
-        if lead == "bard" then
-          return {
-            "(she's pinned under a fallen rafter)",
-            "Help me — sing the timber loose if you can.",
-            "(Alder hums; the rafter creaks; she's free)",
-          }
-        else
-          return {
-            "(she's pinned under a fallen rafter)",
-            "Please — fetch Iola's medicine from the Academy.",
-            "I can wait. I can't move.",
-          }
-        end
-      end,
-    },
   },
   -- Far Hills (map id 26) — small explorable overworld north of the
   -- mainland village, accessed by walking into the small mountain
@@ -25731,21 +25708,6 @@ NPC_SPRITES.archivist = function(sx, sy)
   screen.level(15); screen.move(sx + 4, sy + 5); screen.line(sx + 4, sy + 6); screen.stroke() -- ledger spine
   screen.level(3);  screen.rect(sx + 2, sy + 7, 1, 1); screen.fill()
   screen.level(3);  screen.rect(sx + 5, sy + 7, 1, 1); screen.fill()
-end
-
--- Scout (was scout_trapped): pinned UNDER a fallen rafter (legit — her
--- dialogue asks you to "sing the timber loose"). Dark beam slab across
--- her legs. Key matches the NPC's display name.
-NPC_SPRITES.Scout = function(sx, sy)
-  screen.level(13); screen.rect(sx + 2, sy + 1, 4, 2); screen.fill()         -- face (straining)
-  screen.level(5);  screen.rect(sx + 2, sy, 4, 1); screen.fill()             -- hair
-  screen.level(0);  screen.pixel(sx + 3, sy + 2); screen.pixel(sx + 4, sy + 2); screen.fill()
-  screen.level(9);  screen.rect(sx + 2, sy + 3, 4, 2); screen.fill()         -- jerkin
-  screen.level(13); screen.rect(sx + 1, sy + 4, 1, 1); screen.fill()         -- reaching hand
-  -- fallen rafter pinning the lower body
-  screen.level(4);  screen.rect(sx, sy + 5, 8, 1); screen.fill()
-  screen.level(2);  screen.rect(sx, sy + 6, 8, 1); screen.fill()
-  screen.level(0);  screen.rect(sx, sy + 7, 8, 1); screen.fill()
 end
 
 -- lamplighter: kind woman with a long lamp-pole, warm flame on top.
