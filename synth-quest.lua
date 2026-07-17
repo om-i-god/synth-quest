@@ -6867,7 +6867,8 @@ local MAINLAND = {
 }
 
 -- second continent: Eastern Reaches (32×16 desert/exotic)
--- boat tile 10 at (1,8), arrival spawn (2,8); cave4 at (25,7); NPC Mira at (14,7)
+-- boat tile 10 at (1,8), arrival spawn (2,8); NPC Mira at (14,7)
+-- (Cave 4 / Dune Hall is entered from the Phrygian City north gate, not here)
 -- row 9: inn (3,9) + shop (5,9) terraced with storefront walls (93) at cols 2,4,6
 local EASTERN_REACHES = {
   {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},
@@ -6876,7 +6877,7 @@ local EASTERN_REACHES = {
   {1,0,0,0,0,0,0,8,8,8,0,0,0,0,0,0,112,0,0,8,8,0,0,0,0,1,0,0,0,0,0,1},  -- col 17: deco signpost (112) beside the caravan road toward the waypost; fallback spawn (14,4) stays clear
   {1,0,0,0,0,2,2,2,2,2,2,2,2,71,2,2,2,2,2,2,2,0,0,0,0,0,0,0,0,0,0,1},  -- col 14: Phrygian City entry waypost
   {1,104,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,1},  -- col 2: bench (104) overlooking the boat landing -- NOT at (2,7): Hask (3,8) stands on the road, so (2,7) is the arrival tile's only detour and must stay open
-  {1,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,0,0,0,11,0,0,0,0,0,0,1},
+  {1,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,1},  -- (Cave 4 / Dune Hall entrance removed 2026-07-17; the only entrance is now the Phrygian City north gate)
   {10,2,2,2,2,2,0,0,0,0,0,0,0,0,0,0,0,0,0,2,2,2,2,2,2,2,0,0,0,0,0,1},
   {1,93,13,93,12,93,0,105,100,100,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},  -- cols 2,4,6: storefront walls (93) terracing inn (3,9) + shop (5,9); col 8: market crate (105) + cols 9-10: rope-fence stall edge (100) east of Sela (7,9) -- row 9 still crossable at col 11+
   {1,106,0,108,0,105,0,0,0,0,0,0,0,0,0,0,8,8,8,8,8,0,0,0,0,0,0,0,0,0,0,1},  -- col 2: crate stack (106) corner pocket; col 4: street lamp (108) between the inn/shop door approaches; col 6: crate (105) below east flank -- approaches (3,10)+(5,10) stay open via row 11
@@ -15948,9 +15949,9 @@ local function try_move(dx, dy)
     return
   end
   if t == 11 then
-    -- Cave 4 entry: enter the explorable interior.
-    -- This handles both EASTERN_REACHES (map 2) direct entry and
-    -- Phrygian Night City (map 36) north gate; return_map is set to
+    -- Cave 4 entry: enter the explorable interior. Entered ONLY from the
+    -- Phrygian Night City (36) north gate now (the duplicate Eastern
+    -- Reaches entrance was removed 2026-07-17). return_map is set to
     -- current_map_id so the Cave 4 exit restores the correct overworld.
     -- From Phrygian Night City (36) the return trio holds the waypost
     -- warp back to EASTERN_REACHES — stash it (same pattern as the
