@@ -2992,7 +2992,7 @@ local last_input = ""
 local last_input_at = 0
 
 -- pause menu
-local MENU_OPTIONS = {"Save Game", "Party Status", "Party", "Items", "Equipment", "Quests", "Map", "Bestiary", "Shards", "Achievements", "Jam Mode", "Jam Pad"}
+local MENU_OPTIONS = {"Save Game", "Party Status", "Party", "Items", "Equipment", "Quests", "Map", "Bestiary", "Shards", "Achievements", "Jam Mode", "Dummy"}
 local menu_idx = 1
 local save_flash_ticks = 0
 local save_flash_text = ""
@@ -18578,7 +18578,7 @@ local exit_battle  -- forward decl
 -- unlock via banner but won't appear in the index — used for spoilery
 -- story moments. Order = display order.
 ACHIEVEMENT_DEFS = {
-  {id = "first_jam",          name = "First Jam",         hint = "Open the Jam Pad."},
+  {id = "first_jam",          name = "First Jam",         hint = "Open the Dummy."},
   {id = "first_chord",        name = "First Harmony",     hint = "Land a 2+ char combo in battle."},
   {id = "first_limit",        name = "Broken Chord",      hint = "Use a Limit Break."},
   {id = "first_rhythm_crit",  name = "On the Beat",       hint = "Crit by pressing A on the beat."},
@@ -19923,7 +19923,7 @@ function gamepad.button(button, state)
         game_state = "BESTIARY"
       elseif opt == "Shards" then
         game_state = "SHARDS"
-      elseif opt == "Jam Pad" then
+      elseif opt == "Dummy" then
         -- Practice battle vs the invincible dummy. This was the ONLY
         -- missing call site — the feature (and its achievement) was
         -- unreachable by any input.
@@ -20148,11 +20148,11 @@ function gamepad.button(button, state)
     if button == "A" or button == "B" then advance_dialogue() end
   elseif game_state == "BATTLE" then
     if button == "START" and enemy and enemy.invincible then
-      -- Exit Jam Pad practice mode back to overworld
+      -- Exit Dummy practice mode back to overworld
       enemy = nil
       battle_outcome = nil
       game_state = "OVERWORLD"
-      params:set("clock_tempo", overworld_tempo())  -- Jam Pad opens in any zone
+      params:set("clock_tempo", overworld_tempo())  -- Dummy opens in any zone
       if scrub_battle_statuses then scrub_battle_statuses() end  -- tonic etc. don't leak out
       redraw()
       return
@@ -20889,7 +20889,7 @@ function key(n, z)
       elseif opt == "Achievements" then game_state = "ACHIEVEMENTS"
       elseif opt == "Bestiary" then game_state = "BESTIARY"
       elseif opt == "Shards" then game_state = "SHARDS"
-      elseif opt == "Jam Pad" then enter_jam_pad()
+      elseif opt == "Dummy" then enter_jam_pad()
       elseif opt == "Jam Mode" then
         jam_prev_state = "OVERWORLD"   -- menu overlays the overworld
         game_state = "JAM"
@@ -20984,11 +20984,11 @@ function key(n, z)
     advance_dialogue()
   elseif game_state == "BATTLE" then
     if (n == 1 or n == 2) and enemy and enemy.invincible then
-      -- K2 (or long-held K1) exits the Jam Pad practice mode
+      -- K2 (or long-held K1) exits the Dummy practice mode
       enemy = nil
       battle_outcome = nil
       game_state = "OVERWORLD"
-      params:set("clock_tempo", overworld_tempo())  -- Jam Pad opens in any zone
+      params:set("clock_tempo", overworld_tempo())  -- Dummy opens in any zone
       if scrub_battle_statuses then scrub_battle_statuses() end  -- tonic etc. don't leak out
       redraw()
       return
@@ -28601,10 +28601,10 @@ local function draw_battle()
     if #nm > 12 then nm = nm:sub(1, 11) .. "." end
     screen.text(nm)
     if enemy.invincible then
-      -- Practice dummy: replace HP/bar with a calm "JAM PAD" hint and exit prompt
+      -- Practice dummy: replace HP/bar with a calm "DUMMY" hint and exit prompt
       screen.level(6)
       screen.move(126, 14)
-      screen.text_right("JAM PAD")
+      screen.text_right("DUMMY")
       screen.level(3)
       screen.move(76, 16); screen.line(126, 16); screen.stroke()
       screen.level(5)
@@ -29222,7 +29222,7 @@ local function draw_menu()
   -- (y=11..16) clear the divider at y=8.
   local SHORT_LBL = {["Save Game"] = "Save", ["Party Status"] = "Status",
                      ["Equipment"] = "Equip", ["Bestiary"] = "Beasts",
-                     ["Achievements"] = "Awards", ["Jam Pad"] = "JamPad",
+                     ["Achievements"] = "Awards", ["Dummy"] = "Dummy",
                      ["Jam Mode"] = "Jam"}
   for i, opt in ipairs(MENU_OPTIONS) do
     local col_b = (i > 6)
