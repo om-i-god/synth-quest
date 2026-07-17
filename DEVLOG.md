@@ -3102,3 +3102,25 @@ vendors are untouched — notably Paj the librarian shop (26,10) vs Paj
 the mathwiz recruit. Benched or not-yet-recruited members still appear
 at their spots (unchanged); only active-party members are hidden.
 Verified in an isolated harness across active/benched cases.
+
+## 2026-07-17 — Give the recruits weapons (they had no equippable instrument)
+
+User: "Sergei has no weapon?" ... "Niko has no weapon either."
+
+Root cause: the INSTRUMENTS table only had entries for the four core
+classes (bard/cleric/warrior/mage). The recruit classes
+(engineer/mathwiz/drummer/wraith) had ZERO instruments, so
+INST.owned_for() returned an empty list for Sergei/Paj/Niko/ECHO — the
+equip screen showed "(none)" and they fought weaponless.
+
+Fix:
+- Added one instrument per recruit class: Signal Rig (engineer),
+  Function Gen (mathwiz), Drum Machine (drummer), Echo Coil (wraith),
+  each ~first-upgrade power (recruits join mid-game with no cave-drop
+  upgrade path), themed to their voice alias, with equip-screen sprites.
+- Registered them in STARTER_INSTRUMENT.
+- build_recruit_record now grants the starter to instruments_owned +
+  equips it. Both the join path (ensure_recruit_character) and the load
+  path build the record through here, and load restores instruments_owned
+  BEFORE building recruit records, so existing saves self-heal the
+  missing weapon on next load. Verified in an isolated harness.

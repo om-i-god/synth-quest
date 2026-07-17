@@ -737,6 +737,19 @@ local INSTRUMENTS = {
                        wet_add=0.00, atk_mul=1.00, rel_mul=1.05 },
   field_recorder   = { name="Field Recorder",   class="mage",    atk=0, def=0, mag=1, spd=1,
                        wet_add=0.05, atk_mul=1.10, rel_mul=1.20 },
+  -- recruit-class instruments. Engineer/mathwiz/drummer/wraith had NO
+  -- equippable instrument at all, so Sergei/Paj/Niko/ECHO showed "(none)"
+  -- on the equip screen and fought weaponless. Recruits join mid-game
+  -- with no cave-drop upgrade path, so these sit at roughly first-upgrade
+  -- power. Voice aliases: engineer->mage, mathwiz->bard, drummer->warrior.
+  signal_rig       = { name="Signal Rig",       class="engineer", atk=0, def=0, mag=1, spd=1,
+                       wet_add=0.10, atk_mul=1.00, rel_mul=1.20 },
+  function_gen     = { name="Function Gen",     class="mathwiz",  atk=0, def=0, mag=2, spd=0,
+                       wet_add=0.10, atk_mul=1.10, rel_mul=1.30 },
+  drum_machine     = { name="Drum Machine",     class="drummer",  atk=2, def=0, mag=0, spd=1,
+                       wet_add=0.00, atk_mul=0.60, rel_mul=0.60 },
+  echo_coil        = { name="Echo Coil",        class="wraith",   atk=0, def=1, mag=2, spd=0,
+                       wet_add=0.15, atk_mul=1.20, rel_mul=1.60 },
 }
 
 -- starter instrument per class (auto-equipped on new game)
@@ -745,6 +758,11 @@ local STARTER_INSTRUMENT = {
   cleric  = "violin",
   warrior = "iron_fork",
   mage    = "cassette_sampler",
+  -- recruits (granted when they join / when their record is built)
+  engineer = "signal_rig",
+  mathwiz  = "function_gen",
+  drummer  = "drum_machine",
+  wraith   = "echo_coil",
 }
 
 -- which instrument each cave boss drops the FIRST time it's beaten
@@ -913,6 +931,40 @@ INST.sprites.iron_fork = function(sx, sy)
   screen.level(11); screen.move(sx + 5, sy);     screen.line(sx + 5, sy + 4); screen.stroke()  -- right prong
   screen.level(11); screen.move(sx + 2, sy + 4); screen.line(sx + 5, sy + 4); screen.stroke()  -- yoke
   screen.level(7);  screen.rect(sx + 3, sy + 5, 2, 3); screen.fill()                            -- handle
+end
+
+-- recruit-class instrument icons (engineer/mathwiz/drummer/wraith)
+INST.sprites.signal_rig = function(sx, sy)
+  -- patchbay module with two jacks and a looping patch cable
+  screen.level(4);  screen.rect(sx + 1, sy + 1, 6, 6); screen.fill()
+  screen.level(13); screen.pixel(sx + 2, sy + 3); screen.pixel(sx + 5, sy + 3); screen.fill()
+  screen.level(11); screen.move(sx + 2, sy + 3); screen.line(sx, sy + 6)
+  screen.line(sx + 7, sy + 6); screen.line(sx + 5, sy + 3); screen.stroke()
+end
+
+INST.sprites.function_gen = function(sx, sy)
+  -- oscilloscope screen with a sine trace
+  screen.level(3);  screen.rect(sx, sy + 1, 8, 6); screen.fill()
+  screen.level(1);  screen.rect(sx + 1, sy + 2, 6, 4); screen.fill()
+  screen.level(13); screen.pixel(sx + 1, sy + 4); screen.pixel(sx + 2, sy + 3)
+  screen.pixel(sx + 3, sy + 3); screen.pixel(sx + 4, sy + 4)
+  screen.pixel(sx + 5, sy + 5); screen.pixel(sx + 6, sy + 4); screen.fill()
+end
+
+INST.sprites.drum_machine = function(sx, sy)
+  -- drum box with a small grid of pads
+  screen.level(5);  screen.rect(sx, sy + 1, 8, 6); screen.fill()
+  screen.level(13); screen.rect(sx + 1, sy + 2, 2, 2); screen.fill()
+  screen.level(13); screen.rect(sx + 4, sy + 2, 2, 2); screen.fill()
+  screen.level(9);  screen.rect(sx + 1, sy + 5, 5, 1); screen.fill()
+end
+
+INST.sprites.echo_coil = function(sx, sy)
+  -- spectral coil: a bright core inside two fading rings
+  screen.level(5);  screen.rect(sx + 1, sy + 1, 6, 6); screen.stroke()
+  screen.level(9);  screen.rect(sx + 2, sy + 2, 4, 4); screen.stroke()
+  screen.level(15); screen.pixel(sx + 3, sy + 3); screen.pixel(sx + 4, sy + 3)
+  screen.pixel(sx + 3, sy + 4); screen.pixel(sx + 4, sy + 4); screen.fill()
 end
 
 INST.sprites.bell_fork = function(sx, sy)
@@ -15256,6 +15308,16 @@ function build_recruit_record(r)
   end
   rec.hp = rec.hp_max
   rec.mp = rec.mp_max
+  -- Give this recruit their starter instrument (their "weapon"). Both the
+  -- fresh-join path (ensure_recruit_character) and the load path (a save
+  -- where they'd already joined) build the record through here, so old
+  -- saves self-heal the missing instrument. Load restores instruments_owned
+  -- BEFORE building recruit records, so this grant is not overwritten.
+  local starter = STARTER_INSTRUMENT[r.class]
+  if starter and instruments_owned then
+    instruments_owned[starter] = true
+    if equipped and not equipped[r.class] then equipped[r.class] = starter end
+  end
   return rec
 end
 
