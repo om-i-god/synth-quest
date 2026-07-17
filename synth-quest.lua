@@ -6532,6 +6532,11 @@ local QUESTS = {
   tova  = {spoke = {}, claimed = false},  -- spoke[name]=true for Veris/Aurin/Mira/Iolen
   pith  = {target = 3, claimed = false},  -- report-back when 3+ caves cleared
 }
+-- Mirror to _G: Tova and Brann now live inside CONTENT.HOUSES (built far
+-- earlier in the file), so their dialogue closures see QUESTS as a global,
+-- not this local. Never reassigned, so the mirror stays valid. Same trap
+-- as _G.SHOP / _G.shards / _G.STORY.
+_G.QUESTS = QUESTS
 
 -- battle animation state + helpers (bundled to keep main-chunk locals under cap)
 local ANIM = {

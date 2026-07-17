@@ -3044,3 +3044,21 @@ Consolidated everything into the town:
 - Mainland signpost (63,7) unchanged — still the town link. BFS-verified:
   town Cave 3 + boat + all cottages reachable; boat lands on a real dock
   tile (5,11); mainland signpost still reachable from the village.
+
+## 2026-07-17 — Fix: Tova/Brann dialogue crash after moving them indoors
+
+User: "Tova has an error in dialogue." Talking to Tova threw
+"attempt to index a nil value (global 'QUESTS')".
+
+Cause: moving the house-owners indoors put Tova's and Brann's dialogue
+closures inside CONTENT.HOUSES (built near the top of the file). Their
+dialogue reads QUESTS (Tova's four-sage sidequest, Brann's forge quest),
+but QUESTS is a `local` declared much later (line 6529), so inside the
+early HOUSES literal it resolves to a nil global — the same closure-
+scoping trap already handled for SHOP/shards/STORY. In MAINLAND_NPCS
+(declared after QUESTS) it worked; in HOUSES it didn't.
+
+Fix: `_G.QUESTS = QUESTS` right after the declaration (QUESTS is never
+reassigned, so the mirror stays valid). Reproduced the crash and the fix
+in an isolated Lua harness. This restores Tova's sage sidequest and
+Brann's forge-quest branches.
