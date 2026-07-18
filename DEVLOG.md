@@ -3154,3 +3154,25 @@ reverb/delay -- plus one purely meta "you're the eighth voice" beat.
 (User's example said "Y for the menu"; the real button is X / K2, so
 the hint uses the correct one.) Generic villager sprite; keep the tips
 in sync if controls ever change.
+
+## 2026-07-17 — Fix: Key of Lirael dropped on load, re-locking the Ice Grotto
+
+User: has the Key of Lirael in inventory but can't enter Cave 5.
+
+Cause: key_of_lirael is a key-item in SHOP.items (is_instrument=true),
+NOT in the INSTRUMENTS table. finish_broken_cadence grants
+instruments_owned.key_of_lirael, but the load path restored
+instruments_owned with `if INSTRUMENTS[id]` — which is false for
+key-items — so on every reload the key (and the insignia/letters) got
+silently dropped from instruments_owned. The Cave 5 gate checks
+instruments_owned.key_of_lirael, so the grotto re-locked.
+
+Fix (two parts):
+- Load filter now accepts `INSTRUMENTS[id] or SHOP.items[id]`, so
+  key-items/trophies survive a reload (systemic).
+- Backstop: flag.broken_cadence_done persists, so on load re-grant
+  instruments_owned.key_of_lirael from it — recovers saves already
+  broken (even if the key was dropped and re-saved out of the list).
+Verified all cases in a harness (in-list restore, flag recovery, and no
+false grant for players who never beat the Cadence). Player just needs
+to reload the save.

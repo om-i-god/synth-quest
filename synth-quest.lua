@@ -15107,7 +15107,11 @@ local function load_game()
     instruments_owned = {}
     for _, id in ipairs(data.instruments_owned) do
       id = INST_MIGRATE[id] or id
-      if INSTRUMENTS[id] then instruments_owned[id] = true end
+      -- Accept real instruments AND key-items/trophies (Key of Lirael,
+      -- insignia, letters), which live in SHOP.items with is_instrument.
+      if INSTRUMENTS[id] or (SHOP.items and SHOP.items[id]) then
+        instruments_owned[id] = true
+      end
     end
   end
   if data.equipped then
@@ -15243,6 +15247,12 @@ local function load_game()
   if data.flag then
     for k in pairs(flag) do flag[k] = nil end
     for k, v in pairs(data.flag) do flag[k] = v end
+  end
+  -- Backstop: the Key of Lirael (earned by the Broken Cadence) used to be
+  -- dropped from instruments_owned on load, silently re-locking the Ice
+  -- Grotto. The win-flag persists, so re-grant the key from it.
+  if flag.broken_cadence_done and instruments_owned then
+    instruments_owned.key_of_lirael = true
   end
   -- Pending story beat (persisted since wave 9). For saves from before
   -- that, re-derive the one load-bearing case: six shards banked but the
